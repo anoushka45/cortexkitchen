@@ -1,4 +1,4 @@
-#  CortexKitchen 🍕
+#  CortexKitchen - Capstone🍕
 
 CortexKitchen is an AI-powered autonomous restaurant operating system focused on operational decision intelligence for a pizza-heavy restaurant.
 

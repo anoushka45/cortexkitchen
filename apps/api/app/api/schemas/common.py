@@ -3,22 +3,25 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-
+# MetaInfo acts as a reusable 'header' for all your responses.
 class MetaInfo(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
-
+# A standard success message 
 class MessageResponse(BaseModel):
     message: str
+    # Automatically nests a MetaInfo object with a current timestamp
     meta: MetaInfo = Field(default_factory=MetaInfo)
 
 
+# Represents the health of a single external service (like Postgres or Redis)
 class DependencyStatus(BaseModel):
-    name: str
-    ok: bool
-    detail: str
+    name: str    # e.g., "PostgreSQL"
+    ok: bool     # e.g., True
+    detail: str  # e.g., "Connected successfully"
 
 
+# A complex response used for a /health check endpoint
 class DependenciesHealthResponse(BaseModel):
     service: str
     overall_ok: bool

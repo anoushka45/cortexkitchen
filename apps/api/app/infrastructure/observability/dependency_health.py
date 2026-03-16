@@ -1,4 +1,6 @@
+# Importing the 'DependencyStatus' schema we commented on previously
 from app.api.schemas.common import DependencyStatus
+# Importing string constants (e.g., "PostgreSQL", "Redis") to avoid typos
 from app.core.constants import (
     DEPENDENCY_LLM,
     DEPENDENCY_POSTGRES,
@@ -7,6 +9,10 @@ from app.core.constants import (
 )
 from app.core.settings import Settings
 
+
+# Individual health check functions for each service.
+# Currently, these check if the connection strings exist (Configuration Check).
+# In a later phase, these would include 'ping' logic to the actual databases
 
 def check_postgres(settings: Settings) -> DependencyStatus:
     # Placeholder for now; real DB connectivity added in later phase
@@ -48,6 +54,11 @@ def check_llm(settings: Settings) -> DependencyStatus:
     )
 
 
+"""
+    Orchestrator function:
+    Collects the results of all individual checks into a single list.
+    This list can then be passed into the 'DependenciesHealthResponse' schema.
+    """
 def get_dependency_statuses(settings: Settings) -> list[DependencyStatus]:
     return [
         check_postgres(settings),

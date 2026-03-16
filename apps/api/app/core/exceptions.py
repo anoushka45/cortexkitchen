@@ -1,3 +1,6 @@
+"""Defines a base AppError class for structured custom errors later.
+This prepares us for consistent API error handling."""
+
 class AppError(Exception):
     def __init__(
         self,
@@ -11,3 +14,4 @@ class AppError(Exception):
         self.status_code = status_code
         self.details = details or {}
         super().__init__(message)
+

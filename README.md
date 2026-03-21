@@ -1,57 +1,93 @@
-#  CortexKitchen - Capstone🍕
+# CortexKitchen 🍕
 
-CortexKitchen is an AI-powered autonomous restaurant operating system focused on operational decision intelligence for a pizza-heavy restaurant.
+CortexKitchen is an AI-powered multi-agent system designed to bring **decision intelligence to restaurant operations**.
 
-It is not a chatbot. It is a multi-agent AI system that helps optimize restaurant operations through forecasting, reservation intelligence, complaint analysis, menu insights, and decision governance.
+Instead of acting as a chatbot, the system simulates how different operational agents collaborate to analyze data, generate insights, and recommend actions.
 
-## Core Demo
-**Friday Night Rush Optimization**
+---
 
-The system will:
-- predict demand for Friday evening rush
-- analyze reservations and seating capacity
-- identify operational risks from complaints and trends
-- recommend actions
-- validate recommendations with a critic layer
-- log decisions for traceability
+## 🚀 Core Demo  
+### Friday Night Rush Optimization
 
-## Tech Stack
-- Python
-- FastAPI
-- LangGraph
-- Gemini
-- PostgreSQL
-- Qdrant
-- Redis
-- Pandas
-- Prophet
-- Next.js
-- Tailwind
-- Recharts
-- Docker Compose
+The system is designed to simulate a real-world operational scenario:
 
-## Project Goals
-- Build a multi-agent AI system, not a basic chatbot
-- Combine ML forecasting, RAG, and business-rule validation
-- Create production-style architecture with explainable decisions
-- Make the system expandable enough to pitch as a capstone and prototype
+- Predict demand for Friday evening rush  
+- Analyze reservations and seating capacity  
+- Identify risks from complaints and historical trends  
+- Generate actionable recommendations  
+- Validate decisions using a critic layer  
+- Log decisions for traceability and audit  
 
-## Repository Structure
-- `apps/api` → FastAPI backend and agent orchestration
-- `apps/web` → dashboard frontend
-- `packages/core` → shared schemas and utilities
-- `docs` → architecture, PRD, roadmap, and design docs
-- `infra` → docker and local infrastructure config
-- `data` → synthetic data and seeds
-- `tests` → unit, integration, and end-to-end tests
+---
 
-## Engineering Practices
-- `main` = stable
-- `dev` = active integration branch
-- feature branches for all new work
-- docs-first development for Phase 0
-- tests added alongside features
-- no direct pushes to `main`
+## 🧠 What Makes It Different
 
-## Status
-Currently in **Phase 0: Foundation and Documentation**
+- Multi-agent architecture (not a single LLM call)
+- Combines forecasting + RAG + rule-based validation  
+- Focuses on **operational decision-making**, not just Q&A  
+- Designed with **production-style system architecture**  
+- Emphasis on **explainability and traceable decisions**  
+
+---
+
+## 🛠️ Tech Stack
+
+- **Backend:** Python, FastAPI  
+- **AI / Agents:** LangGraph, Gemini  
+- **Data & Storage:** PostgreSQL, Qdrant, Redis  
+- **Analytics:** Pandas, Prophet  
+- **Frontend:** Next.js, Tailwind, Recharts  
+- **Infra:** Docker Compose  
+
+---
+
+## 🎯 Project Goals
+
+- Build a **multi-agent AI system**, not a basic chatbot  
+- Combine ML forecasting, RAG, and business-rule validation  
+- Design a **scalable and modular architecture**  
+- Create a system that can evolve into a **real-world product prototype**  
+
+---
+
+## 📂 Repository Structure
+
+- `apps/api` → FastAPI backend and agent orchestration  
+- `apps/web` → dashboard frontend  
+- `packages/core` → shared schemas and utilities  
+- `docs` → architecture, PRD, roadmap, and design docs  
+- `infra` → Docker and infrastructure setup  
+- `data` → synthetic data and seed datasets  
+- `tests` → unit, integration, and end-to-end tests  
+
+---
+
+## ⚙️ Engineering Practices
+
+- `main` → stable branch  
+- `dev` → active integration branch  
+- Feature branches for all new work  
+- Docs-first development (Phase 0)  
+- Tests added alongside features  
+- No direct pushes to `main`  
+
+---
+
+## 📍 Current Status
+
+🚧 Currently in **Phase 1: API Scaffold & Infrastructure Setup**
+
+---
+
+## 🔜 Upcoming Work
+
+- Docker infrastructure (Postgres, Redis, Qdrant)  
+- LLM + vector memory integration  
+- LangGraph-based agent orchestration  
+- End-to-end Friday rush simulation  
+
+---
+
+## 🤝 Build in Public
+
+This project is being developed in public as an exploration of **AI system design and agent-based architectures**.

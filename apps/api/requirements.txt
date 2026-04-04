@@ -8,3 +8,6 @@ pytest==8.3.3
 sqlalchemy
 psycopg2-binary
 alembic
+google-genai
+pytest-asyncio
+

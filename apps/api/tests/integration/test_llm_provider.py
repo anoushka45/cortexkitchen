@@ -2,19 +2,30 @@ import pytest
 import asyncio
 import sys
 import os
-
-# Load env variables
+from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# 1. Calculate path to project root
+# Path(__file__).resolve() is tests/integration/test_llm_provider.py
+# .parent is tests/integration/
+# .parent.parent is tests/
+# .parent.parent.parent is the project root (where .env and app/ live)
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+ENV_PATH = BASE_DIR / ".env"
+
+# 2. Load env variables using the absolute path to the root .env
+load_dotenv(dotenv_path=ENV_PATH)
+
+# 3. Insert project root into sys.path to allow 'from app...' imports
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
 from app.infrastructure.llm.gemini import GeminiProvider
 
 
 @pytest.mark.asyncio
 async def test_gemini_complete():
-    """Test basic text completion."""
+    """Test basic text completion via actual API call."""
     provider = GeminiProvider()
     response = await provider.complete(
         prompt="In one sentence, what is a pizza?",
@@ -27,7 +38,7 @@ async def test_gemini_complete():
 
 @pytest.mark.asyncio
 async def test_gemini_complete_json():
-    """Test JSON completion."""
+    """Test JSON completion via actual API call."""
     provider = GeminiProvider()
     response = await provider.complete_json(
         prompt="Give me a recommendation to reduce food waste in a restaurant.",
@@ -35,4 +46,5 @@ async def test_gemini_complete_json():
     )
     print(f"\nJSON response: {response}")
     assert isinstance(response, dict)
-    assert "recommendation" in response or len(response) > 0
+    # Ensure the dictionary contains data
+    assert len(response) > 0

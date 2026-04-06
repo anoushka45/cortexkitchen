@@ -1,29 +1,51 @@
-from __future__ import annotations
+"""
+Shared orchestration state for CortexKitchen LangGraph workflow.
 
-from datetime import datetime
-from typing import Any, Literal, TypedDict
+This TypedDict is the single source of truth passed between all agent nodes.
+Each agent reads what it needs and writes its own output key — nothing else.
+"""
+
+from typing import TypedDict, Optional
+from datetime import datetime, timezone
 
 
-FlowStatus = Literal["pending", "success", "failed"]
+class OrchestratorState(TypedDict):
+    # ── Request metadata ────────────────────────────────────────────────────
+    scenario: str                        # e.g. "friday_rush"
+    target_date: Optional[str]           # ISO date string, e.g. "2026-04-11"
+    requested_at: str                    # ISO datetime of the request
+
+    # ── Agent outputs ────────────────────────────────────────────────────────
+    forecast_output: Optional[dict]      # Demand Forecast Agent result
+    reservation_output: Optional[dict]   # Reservation Agent result
+    complaint_output: Optional[dict]     # Complaint Intelligence Agent result
+    menu_output: Optional[dict]          # Menu Intelligence Agent result
+    inventory_output: Optional[dict]     # Inventory & Waste Agent result
+
+    # ── Aggregation ──────────────────────────────────────────────────────────
+    aggregated_recommendation: Optional[dict]  # Ops Manager aggregation
+
+    # ── Critic ───────────────────────────────────────────────────────────────
+    critic_output: Optional[dict]        # Critic Agent verdict
+
+    # ── Final response ───────────────────────────────────────────────────────
+    final_response: Optional[dict]       # Assembled response ready for the API
+    error: Optional[str]                 # Set if any node encounters a fatal error
 
 
-class OrchestrationState(TypedDict, total=False):
-    # input
-    target_date: datetime
-    scenario: str
-
-    # execution tracking
-    current_step: str
-    errors: list[str]
-
-    # outputs from each node
-    reservation_result: dict[str, Any]
-    forecast_result: dict[str, Any]
-    complaint_result: dict[str, Any]
-    critic_result: dict[str, Any]
-
-    # final combined response
-    final_output: dict[str, Any]
-
-    # metadata
-    status: FlowStatus
+def make_initial_state(scenario: str, target_date: Optional[str] = None) -> OrchestratorState:
+    """Build a clean initial state for a new orchestration run."""
+    return OrchestratorState(
+        scenario=scenario,
+        target_date=target_date,
+        requested_at=datetime.now(timezone.utc).isoformat(),
+        forecast_output=None,
+        reservation_output=None,
+        complaint_output=None,
+        menu_output=None,
+        inventory_output=None,
+        aggregated_recommendation=None,
+        critic_output=None,
+        final_response=None,
+        error=None,
+    )

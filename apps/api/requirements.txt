@@ -11,4 +11,5 @@ alembic
 google-genai
 pytest-asyncio
 qdrant-client
-
+langgraph
+langchain-core

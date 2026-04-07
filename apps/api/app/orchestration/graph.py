@@ -25,6 +25,76 @@ to multiple targets — LangGraph executes them concurrently when possible.
 
 Dependencies are injected at graph-run time via a `deps` dict, keeping
 node functions pure and testable.
+
+CortexKitchen LangGraph orchestration graph for multi-agent reasoning.
+
+This module defines the full execution flow (graph topology) for the Friday Rush
+scenario using LangGraph. It specifies how different domain agents are connected,
+how data flows between them, and how the system progresses from input validation
+to final response generation.
+
+The graph follows a structured multi-stage pipeline:
+
+1. Entry & Validation:
+   - The workflow starts at the `ops_manager` node, which validates the incoming
+     scenario and input parameters.
+   - If invalid input is detected, execution short-circuits directly to the
+     final response stage, ensuring graceful error handling.
+
+2. Parallel Domain Intelligence (Fan-out):
+   - Once validated, the system triggers multiple domain-specific agents in parallel:
+       • Demand Forecast Agent
+       • Reservation Agent
+       • Complaint Intelligence Agent
+       • Menu Intelligence Agent
+       • Inventory Agent
+   - These agents operate independently and concurrently, each enriching the shared
+     state with its own output. This parallelism improves performance and modularity.
+
+3. Aggregation (Fan-in):
+   - After all domain agents complete, their outputs converge into the `aggregator`
+     node.
+   - This node combines all individual insights into a unified operational
+     recommendation (acting like an Ops Manager decision layer).
+
+4. Validation (Critic Layer):
+   - The aggregated recommendation is passed to the `critic` node.
+   - This agent validates logical consistency, completeness, and potential risks,
+     improving the reliability of the final output.
+
+5. Final Response Assembly:
+   - The `final_assembler` node formats the validated result into an API-ready
+     response structure.
+   - This is the final output returned to the client.
+
+Key architectural principles:
+
+- Graph-based orchestration:
+  The workflow is explicitly modeled as a directed graph, making execution order,
+  dependencies, and parallelism transparent and controllable.
+
+- Parallel execution:
+  Independent domain agents are executed concurrently using LangGraph’s edge-based
+  fan-out mechanism, reducing latency and improving scalability.
+
+- Dependency injection:
+  External dependencies (database, LLM provider, memory service) are injected at
+  runtime via a `deps` dictionary. This keeps node functions pure, testable, and
+  decoupled from infrastructure.
+
+- State-driven design:
+  All nodes operate on a shared `OrchestratorState`, ensuring consistent data flow
+  and making debugging and observability straightforward.
+
+- Fault tolerance:
+  Conditional routing allows early termination on invalid input, and errors are
+  propagated through the state to ensure safe and predictable responses.
+
+This module serves as the orchestration backbone of CortexKitchen, defining how
+multiple intelligent agents collaborate to generate production-grade operational
+recommendations.
+
+
 """
 
 import functools

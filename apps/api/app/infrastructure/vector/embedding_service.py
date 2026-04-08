@@ -1,13 +1,14 @@
 from google import genai
 from google.genai import types
-import os
 
 
 class EmbeddingService:
     """Converts text to vector embeddings using Gemini embedding model."""
 
     def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY")
+        from app.core.settings import get_settings
+
+        api_key = get_settings().gemini_api_key
         if not api_key:
             raise ValueError("GEMINI_API_KEY is not set.")
         self.client = genai.Client(api_key=api_key)

@@ -1,5 +1,4 @@
 import json
-import os
 
 from app.infrastructure.llm.base import BaseLLMProvider
 
@@ -15,8 +14,9 @@ class GroqProvider(BaseLLMProvider):
 
     def __init__(self):
         from groq import Groq
+        from app.core.settings import get_settings
 
-        api_key = os.getenv("GROQ_API_KEY")
+        api_key = get_settings().groq_api_key
         if not api_key:
             raise ValueError("GROQ_API_KEY is not set in environment variables.")
 

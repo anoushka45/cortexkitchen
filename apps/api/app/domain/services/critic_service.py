@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.infrastructure.db.models import DecisionLog, CriticVerdict
 from app.infrastructure.llm.base import BaseLLMProvider
@@ -84,7 +84,7 @@ class CriticService:
             critic_verdict=verdict_map.get(result["verdict"], CriticVerdict.revision),
             critic_score=result["score"],
             critic_notes=result["notes"],
-            created_at=datetime.now(datetime.UTC),
+            created_at=datetime.now(timezone.utc),
 
         )
 

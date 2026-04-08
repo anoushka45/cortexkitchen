@@ -37,8 +37,9 @@ def get_db() -> Generator[Session, None, None]:
 
 def get_llm():
     """Return the configured LLM provider (Gemini for Phase 1)."""
-    from app.infrastructure.llm.gemini import GeminiProvider
-    return GeminiProvider()
+    from app.infrastructure.llm.groq import GroqProvider
+
+    return GroqProvider()
 
 
 # ── Vector memory ─────────────────────────────────────────────────────────────

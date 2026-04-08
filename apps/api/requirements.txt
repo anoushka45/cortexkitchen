@@ -13,3 +13,4 @@ pytest-asyncio
 qdrant-client
 langgraph
 langchain-core
+groq

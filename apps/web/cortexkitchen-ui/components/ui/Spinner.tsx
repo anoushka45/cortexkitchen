@@ -11,20 +11,14 @@ export default function Spinner({ size = 24 }: { size?: number }) {
       aria-label="Loading"
     >
       <circle
-        cx="12"
-        cy="12"
-        r="10"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeDasharray="31.4"
-        strokeDashoffset="10"
-        opacity="0.25"
+        cx="12" cy="12" r="10"
+        stroke="rgba(139,92,246,0.2)"
+        strokeWidth="2.5"
       />
       <path
         d="M12 2a10 10 0 0 1 10 10"
-        stroke="currentColor"
-        strokeWidth="3"
+        stroke="#8b5cf6"
+        strokeWidth="2.5"
         strokeLinecap="round"
       />
     </svg>

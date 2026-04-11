@@ -1,51 +1,52 @@
 // components/dashboard/RunButton.tsx
-// Triggers a Friday Rush planning run.
-// Shows loading state while the orchestration pipeline runs.
-
 "use client";
 
 import Spinner from "@/components/ui/Spinner";
 
 interface Props {
-    onRun: () => void;
-    onReset?: () => void;
-    loading: boolean;
-    hasData: boolean;
+  onRun:    () => void;
+  onReset?: () => void;
+  loading:  boolean;
+  hasData:  boolean;
 }
 
 export default function RunButton({ onRun, onReset, loading, hasData }: Props) {
-    return (
-        <div className="flex items-center gap-3">
-            <button
-                onClick={() => onRun()}
-                disabled={loading}
-                className="
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        onClick={() => onRun()}
+        disabled={loading}
+        className="
           inline-flex items-center gap-2 px-5 py-2.5
-          bg-violet-600 hover:bg-violet-700 disabled:bg-violet-300
-          text-white text-sm font-semibold rounded-lg
-          transition-colors shadow-sm
+          bg-violet-600 hover:bg-violet-500
+          disabled:opacity-50 disabled:cursor-not-allowed
+          text-white text-sm font-semibold rounded-xl
+          shadow-glow-violet
+          transition-all duration-200
+          border border-violet-500/50
         "
-            >
-                {loading ? (
-                    <>
-                        <Spinner size={16} />
-                        Running pipeline…
-                    </>
-                ) : (
-                    <>
-                        ⚡ Run Friday Rush
-                    </>
-                )}
-            </button>
+      >
+        {loading ? (
+          <>
+            <Spinner size={15} />
+            <span className="font-mono text-xs tracking-wide">Running pipeline…</span>
+          </>
+        ) : (
+          <>
+            <span>⚡</span>
+            <span>Run Friday Rush</span>
+          </>
+        )}
+      </button>
 
-            {hasData && !loading && onReset && (
-                <button
-                    onClick={onReset}
-                    className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                    Reset
-                </button>
-            )}
-        </div>
-    );
+      {hasData && !loading && onReset && (
+        <button
+          onClick={() => onReset()}
+          className="text-xs font-mono text-slate-600 hover:text-slate-400 transition-colors"
+        >
+          reset
+        </button>
+      )}
+    </div>
+  );
 }

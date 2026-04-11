@@ -1,17 +1,26 @@
 // components/ui/Badge.tsx
-// Status and verdict badges used across the dashboard.
 
 type Variant = "ready" | "needs_review" | "blocked" | "unknown" |
                "approved" | "rejected" | "revision";
 
 const STYLES: Record<Variant, string> = {
-  ready:       "bg-emerald-100 text-emerald-800 border-emerald-200",
-  approved:    "bg-emerald-100 text-emerald-800 border-emerald-200",
-  needs_review:"bg-amber-100  text-amber-800  border-amber-200",
-  revision:    "bg-amber-100  text-amber-800  border-amber-200",
-  blocked:     "bg-red-100    text-red-800    border-red-200",
-  rejected:    "bg-red-100    text-red-800    border-red-200",
-  unknown:     "bg-gray-100   text-gray-600   border-gray-200",
+  ready:        "pill pill-ready",
+  approved:     "pill pill-ready",
+  needs_review: "pill pill-review",
+  revision:     "pill pill-review",
+  blocked:      "pill pill-blocked",
+  rejected:     "pill pill-blocked",
+  unknown:      "pill pill-unknown",
+};
+
+const DOTS: Record<Variant, string> = {
+  ready:        "bg-emerald-400",
+  approved:     "bg-emerald-400",
+  needs_review: "bg-amber-400",
+  revision:     "bg-amber-400",
+  blocked:      "bg-rose-400",
+  rejected:     "bg-rose-400",
+  unknown:      "bg-slate-400",
 };
 
 const LABELS: Record<Variant, string> = {
@@ -26,10 +35,12 @@ const LABELS: Record<Variant, string> = {
 
 export default function Badge({ variant }: { variant: Variant }) {
   const style = STYLES[variant] ?? STYLES.unknown;
+  const dot   = DOTS[variant]   ?? DOTS.unknown;
   const label = LABELS[variant] ?? variant;
 
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${style}`}>
+    <span className={style}>
+      <span className={`w-1.5 h-1.5 rounded-full ${dot} ${variant === "blocked" ? "animate-pulse" : ""}`} />
       {label}
     </span>
   );

@@ -5,3 +5,12 @@ pydantic-settings==2.5.2
 python-dotenv==1.0.1
 httpx==0.27.2
 pytest==8.3.3
+sqlalchemy
+psycopg2-binary
+alembic
+google-genai
+pytest-asyncio
+qdrant-client
+langgraph
+langchain-core
+groq

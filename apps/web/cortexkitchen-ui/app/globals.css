@@ -1,0 +1,114 @@
+@import "@fontsource/plus-jakarta-sans/400.css";
+@import "@fontsource/plus-jakarta-sans/500.css";
+@import "@fontsource/plus-jakarta-sans/600.css";
+@import "@fontsource/plus-jakarta-sans/700.css";
+@import "@fontsource/space-mono/400.css";
+@import "@fontsource/space-mono/700.css";
+
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", sans-serif;
+  --font-mono: "Space Mono", monospace;
+  --color-navy-950: #080c14;
+  --color-navy-900: #0d1320;
+  --color-navy-800: #121a2e;
+  --color-navy-700: #1a2540;
+  --color-navy-600: #1e2d4d;
+  --color-gold-400: #fbbf24;
+  --color-gold-500: #f59e0b;
+  --color-gold-600: #d97706;
+}
+
+/* ── Reset & base ─────────────────────────────────────── */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: #080c14;
+  color: #f1f5f9;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+body {
+  background-image:
+    linear-gradient(rgba(139,92,246,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(139,92,246,0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* ── Scrollbar ────────────────────────────────────────── */
+
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #080c14; }
+::-webkit-scrollbar-thumb { background: rgba(139,92,246,0.3); border-radius: 3px; }
+
+/* ── Card ─────────────────────────────────────────────── */
+
+.card {
+  background: #0d1320;
+  border: 1px solid rgba(139,92,246,0.12);
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(139,92,246,0.05), 0 4px 24px rgba(0,0,0,0.4);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  border-color: rgba(139,92,246,0.3);
+  box-shadow: 0 0 0 1px rgba(139,92,246,0.15), 0 8px 32px rgba(0,0,0,0.5);
+}
+
+/* ── Pills ────────────────────────────────────────────── */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+}
+
+.pill-ready   { color: #34d399; background: rgba(52,211,153,0.1);  border-color: rgba(52,211,153,0.2);  }
+.pill-review  { color: #fbbf24; background: rgba(251,191,36,0.1);  border-color: rgba(251,191,36,0.2);  }
+.pill-blocked { color: #fb7185; background: rgba(251,113,133,0.1); border-color: rgba(251,113,133,0.2); }
+.pill-unknown { color: #94a3b8; background: rgba(148,163,184,0.1); border-color: rgba(148,163,184,0.2); }
+
+/* ── Stagger animations ───────────────────────────────── */
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.stagger-1 { animation: fadeUp 0.4s ease 0.05s both; }
+.stagger-2 { animation: fadeUp 0.4s ease 0.10s both; }
+.stagger-3 { animation: fadeUp 0.4s ease 0.15s both; }
+.stagger-4 { animation: fadeUp 0.4s ease 0.20s both; }
+.stagger-5 { animation: fadeUp 0.4s ease 0.25s both; }
+.stagger-6 { animation: fadeUp 0.4s ease 0.30s both; }
+.stagger-7 { animation: fadeUp 0.4s ease 0.35s both; }
+
+/* ── Shadows ──────────────────────────────────────────── */
+
+.shadow-glow-violet  { box-shadow: 0 0 20px rgba(139,92,246,0.3);  }
+.shadow-glow-emerald { box-shadow: 0 0 20px rgba(16,185,129,0.3);  }
+.shadow-glow-amber   { box-shadow: 0 0 20px rgba(245,158,11,0.3);  }
+.shadow-glow-rose    { box-shadow: 0 0 20px rgba(244,63,94,0.3);   }
+
+/* ── Font mono utility ────────────────────────────────── */
+
+.font-mono {
+  font-family: "Space Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}

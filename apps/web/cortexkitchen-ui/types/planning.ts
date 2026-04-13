@@ -35,3 +35,14 @@ export interface FridayRushResponse {
 export interface FridayRushRequest {
   target_date?: string | null;
 }
+
+// Run history entry — stored in memory during the session
+export interface RunHistoryEntry {
+  id:          string;
+  targetDate:  string;
+  runAt:       string;
+  status:      FridayRushResponse["status"];
+  verdict:     CriticResult["verdict"];
+  score:       number;
+  data:        FridayRushResponse;
+}

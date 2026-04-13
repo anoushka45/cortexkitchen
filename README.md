@@ -75,16 +75,33 @@ The system is designed to simulate a real-world operational scenario:
 
 ## 📍 Current Status
 
-🚧 Currently in **Phase 1: API Scaffold & Infrastructure Setup**
+✅ **Phase 1: Engineering Foundation — Complete**
+
+All Phase 1 milestones are done and tested. `dev` is stable and ready to sync to `main`.
+
+| Area | Status |
+|---|---|
+| FastAPI scaffold + health endpoints | ✅ Done |
+| Docker Compose (Postgres, Qdrant, Redis) | ✅ Done |
+| DB schema + Alembic migrations | ✅ Done |
+| Seed data (pizza-heavy, Friday-spike patterns) | ✅ Done |
+| LLM provider layer (Gemini + Groq + base) | ✅ Done |
+| Core services (forecast, reservations, complaints, critic) | ✅ Done |
+| Qdrant memory (complaint + SOP retrieval) | ✅ Done |
+| LangGraph orchestration skeleton | ✅ Done |
+| Friday rush planning endpoint | ✅ Done |
+| Frontend dashboard MVP | ✅ Done |
+| Unit + integration + E2E tests | ✅ Done |
 
 ---
 
-## 🔜 Upcoming Work
+## 🔜 Upcoming Work (Phase 2)
 
-- Docker infrastructure (Postgres, Redis, Qdrant)  
-- LLM + vector memory integration  
-- LangGraph-based agent orchestration  
-- End-to-end Friday rush simulation  
+- Prophet-based forecasting upgrade  
+- Inventory shortage / overstock alerts  
+- Menu intelligence and promo suggestions  
+- Dashboard analytics enhancements  
+- Evaluation refinement  
 
 ---
 

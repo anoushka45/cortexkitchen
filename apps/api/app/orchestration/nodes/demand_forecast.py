@@ -3,6 +3,10 @@ Demand Forecast Agent node.
 
 Wraps ForecastService — runs the baseline demand forecast and
 writes the result to `forecast_output` in shared state.
+
+Enhanced for P1-10:
+- Supports simulation mode
+- Adds debug execution tracing
 """
 
 from sqlalchemy.orm import Session
@@ -22,16 +26,40 @@ async def demand_forecast_node(
     Writes to state['forecast_output'].
     """
     if state.get("error"):
-        return state  # Short-circuit on upstream error
+        return state
+
+    # ── Debug tracing ───────────────────────────────────────────────────────
+    if state.get("debug") and state.get("execution_trace") is not None:
+        state["execution_trace"].append("demand_forecast")
 
     try:
+        # ── P1-10: Simulation Mode ──────────────────────────────────────────
+        if state.get("simulation_mode", False):
+            target_date = state.get("target_date") or "next Friday"
+
+            simulated_result = {
+                "service": "forecast",
+                "data": {
+                    "predicted_covers": 180,
+                    "peak_window": "19:00–21:00",
+                    "confidence": 0.87,
+                },
+                "recommendation": {
+                    "expected_demand": "High",
+                    "staffing_level": "Increase staffing by 20%",
+                    "prep_strategy": "Pre-prep high-demand menu items",
+                },
+                "target_date": target_date,
+            }
+
+            return {**state, "forecast_output": simulated_result}
+
+        # ── Production Mode ─────────────────────────────────────────────────
         service = ForecastService(db=db, llm=llm)
         result = await service.analyse_and_recommend()
         return {**state, "forecast_output": result}
 
     except Exception as exc:
-        # Soft failure: log the error but allow the graph to continue.
-        # Other agents can still run; the aggregator will note the gap.
         return {
             **state,
             "forecast_output": {

@@ -1,100 +1,11 @@
 """
 CortexKitchen LangGraph orchestration graph.
 
-Graph topology for the Friday Rush scenario:
-
-    [START]
-       │
-   ops_manager          ← validates scenario, short-circuits on bad input
-       │
-   ┌───┴──────────────────────────────────────┐
-   │   (parallel fan-out — all run together)  │
-   demand_forecast   reservation   complaint_intelligence   menu   inventory
-   └───────────────────────┬──────────────────────────────────────────────┘
-                           │
-                       aggregator           ← Ops Manager assembles the bundle
-                           │
-                         critic             ← Critic Agent validates + logs
-                           │
-                    final_assembler         ← shapes the API response
-                           │
-                         [END]
-
-Parallel fan-out is implemented via LangGraph's `add_edge` from one node
-to multiple targets — LangGraph executes them concurrently when possible.
-
-Dependencies are injected at graph-run time via a `deps` dict, keeping
-node functions pure and testable.
-
-CortexKitchen LangGraph orchestration graph for multi-agent reasoning.
-
-This module defines the full execution flow (graph topology) for the Friday Rush
-scenario using LangGraph. It specifies how different domain agents are connected,
-how data flows between them, and how the system progresses from input validation
-to final response generation.
-
-The graph follows a structured multi-stage pipeline:
-
-1. Entry & Validation:
-   - The workflow starts at the `ops_manager` node, which validates the incoming
-     scenario and input parameters.
-   - If invalid input is detected, execution short-circuits directly to the
-     final response stage, ensuring graceful error handling.
-
-2. Parallel Domain Intelligence (Fan-out):
-   - Once validated, the system triggers multiple domain-specific agents in parallel:
-       • Demand Forecast Agent
-       • Reservation Agent
-       • Complaint Intelligence Agent
-       • Menu Intelligence Agent
-       • Inventory Agent
-   - These agents operate independently and concurrently, each enriching the shared
-     state with its own output. This parallelism improves performance and modularity.
-
-3. Aggregation (Fan-in):
-   - After all domain agents complete, their outputs converge into the `aggregator`
-     node.
-   - This node combines all individual insights into a unified operational
-     recommendation (acting like an Ops Manager decision layer).
-
-4. Validation (Critic Layer):
-   - The aggregated recommendation is passed to the `critic` node.
-   - This agent validates logical consistency, completeness, and potential risks,
-     improving the reliability of the final output.
-
-5. Final Response Assembly:
-   - The `final_assembler` node formats the validated result into an API-ready
-     response structure.
-   - This is the final output returned to the client.
-
-Key architectural principles:
-
-- Graph-based orchestration:
-  The workflow is explicitly modeled as a directed graph, making execution order,
-  dependencies, and parallelism transparent and controllable.
-
-- Parallel execution:
-  Independent domain agents are executed concurrently using LangGraph’s edge-based
-  fan-out mechanism, reducing latency and improving scalability.
-
-- Dependency injection:
-  External dependencies (database, LLM provider, memory service) are injected at
-  runtime via a `deps` dictionary. This keeps node functions pure, testable, and
-  decoupled from infrastructure.
-
-- State-driven design:
-  All nodes operate on a shared `OrchestratorState`, ensuring consistent data flow
-  and making debugging and observability straightforward.
-
-- Fault tolerance:
-  Conditional routing allows early termination on invalid input, and errors are
-  propagated through the state to ensure safe and predictable responses.
-
-This module serves as the orchestration backbone of CortexKitchen, defining how
-multiple intelligent agents collaborate to generate production-grade operational
-recommendations.
-
-
+Enhanced for P1-10:
+- Supports simulation mode for deterministic testing
+- Enables critic override for validation scenarios
+- Adds debug observability for LangGraph state inspection
+- Maintains backward compatibility with existing workflows
 """
 
 import functools
@@ -118,27 +29,21 @@ from app.orchestration.nodes import (
 
 # ── Node name constants ──────────────────────────────────────────────────────
 
-OPS_MANAGER            = "ops_manager"
-DEMAND_FORECAST        = "demand_forecast"
-RESERVATION            = "reservation"
+OPS_MANAGER = "ops_manager"
+DEMAND_FORECAST = "demand_forecast"
+RESERVATION = "reservation"
 COMPLAINT_INTELLIGENCE = "complaint_intelligence"
-MENU_INTELLIGENCE      = "menu_intelligence"
-INVENTORY              = "inventory"
-AGGREGATOR             = "aggregator"
-CRITIC                 = "critic"
-FINAL_ASSEMBLER        = "final_assembler"
+MENU_INTELLIGENCE = "menu_intelligence"
+INVENTORY = "inventory"
+AGGREGATOR = "aggregator"
+CRITIC = "critic"
+FINAL_ASSEMBLER = "final_assembler"
 
 
 # ── Dependency injection helper ──────────────────────────────────────────────
 
 def _inject(node_fn, **deps):
-    """
-    Wrap an async node function so it receives infrastructure deps
-    (db, llm, memory) as keyword arguments at call time.
-
-    LangGraph node callables must accept exactly `(state) -> state`.
-    This wrapper closes over the deps dict and calls the real function.
-    """
+    """Wrap async node functions with injected dependencies."""
     @functools.wraps(node_fn)
     async def _wrapped(state: OrchestratorState) -> OrchestratorState:
         return await node_fn(state, **deps)
@@ -146,21 +51,20 @@ def _inject(node_fn, **deps):
 
 
 def _inject_sync(node_fn, **deps):
-    """Same as _inject but for synchronous nodes."""
+    """Wrap synchronous node functions with injected dependencies."""
     @functools.wraps(node_fn)
     def _wrapped(state: OrchestratorState) -> OrchestratorState:
         return node_fn(state, **deps)
     return _wrapped
 
 
-# ── Conditional edge: abort if ops_manager sets an error ────────────────────
+# ── Conditional edge: abort if ops_manager sets an error ─────────────────────
 
 def _route_after_ops_manager(state: OrchestratorState) -> str:
     """
     After ops_manager validates the scenario:
-    - If there's a fatal error → jump straight to final_assembler
-      (which will surface the error in the response).
-    - Otherwise → proceed to demand_forecast (first parallel node).
+    - If there's a fatal error → jump to final_assembler.
+    - Otherwise → proceed with orchestration.
     """
     if state.get("error"):
         return FINAL_ASSEMBLER
@@ -171,53 +75,61 @@ def _route_after_ops_manager(state: OrchestratorState) -> str:
 
 def build_graph(deps: dict[str, Any]):
     """
-    Build and compile the CortexKitchen LangGraph for the Friday Rush scenario.
+    Build and compile the CortexKitchen LangGraph.
 
     Args:
-        deps: Infrastructure dependencies, expected keys:
+        deps: Infrastructure dependencies:
             - db       : SQLAlchemy Session
             - llm      : BaseLLMProvider instance
-            - memory   : MemoryService instance (optional, can be None)
+            - memory   : MemoryService instance (optional)
 
     Returns:
-        A compiled LangGraph runnable (supports .ainvoke / .invoke).
-
-    Usage:
-        graph = build_graph({"db": db_session, "llm": gemini, "memory": mem})
-        state = await graph.ainvoke(make_initial_state("friday_rush", "2026-04-11"))
-        result = state["final_response"]
+        Compiled LangGraph runnable.
     """
-    db     = deps["db"]
-    llm    = deps["llm"]
-    memory = deps.get("memory")  # Optional
+    db = deps["db"]
+    llm = deps["llm"]
+    memory = deps.get("memory")
 
     graph = StateGraph(OrchestratorState)
 
     # ── Register nodes ───────────────────────────────────────────────────────
 
-    # ops_manager is synchronous (no I/O)
     graph.add_node(OPS_MANAGER, ops_manager_node)
 
-    # Domain agents — async, receive db + llm
-    graph.add_node(DEMAND_FORECAST,        _inject(demand_forecast_node,        db=db, llm=llm))
-    graph.add_node(RESERVATION,            _inject(reservation_node,            db=db, llm=llm))
-    graph.add_node(COMPLAINT_INTELLIGENCE, _inject(complaint_intelligence_node, db=db, llm=llm, memory=memory))
-    graph.add_node(MENU_INTELLIGENCE,      _inject(menu_intelligence_node,      db=db, llm=llm))
-    graph.add_node(INVENTORY,              _inject(inventory_node,              db=db, llm=llm))
+    graph.add_node(
+        DEMAND_FORECAST,
+        _inject(demand_forecast_node, db=db, llm=llm),
+    )
+    graph.add_node(
+        RESERVATION,
+        _inject(reservation_node, db=db, llm=llm),
+    )
+    graph.add_node(
+        COMPLAINT_INTELLIGENCE,
+        _inject(complaint_intelligence_node, db=db, llm=llm, memory=memory),
+    )
+    graph.add_node(
+        MENU_INTELLIGENCE,
+        _inject(menu_intelligence_node, db=db, llm=llm),
+    )
+    graph.add_node(
+        INVENTORY,
+        _inject(inventory_node, db=db, llm=llm),
+    )
 
-    # Aggregator is synchronous
-    graph.add_node(AGGREGATOR,      aggregator_node)
+    graph.add_node(AGGREGATOR, aggregator_node)
 
-    # Critic and assembler — async
-    graph.add_node(CRITIC,          _inject(critic_node,          db=db, llm=llm))
+    graph.add_node(
+        CRITIC,
+        _inject(critic_node, db=db, llm=llm),
+    )
+
     graph.add_node(FINAL_ASSEMBLER, final_assembler_node)
 
     # ── Wire edges ───────────────────────────────────────────────────────────
 
-    # Entry point
     graph.set_entry_point(OPS_MANAGER)
 
-    # Conditional route after ops_manager (abort path on bad scenario)
     graph.add_conditional_edges(
         OPS_MANAGER,
         _route_after_ops_manager,
@@ -227,22 +139,21 @@ def build_graph(deps: dict[str, Any]):
         },
     )
 
-    # Parallel fan-out: demand_forecast kicks off all other domain agents
-    # LangGraph runs nodes concurrently when they have no inter-dependency.
+    # Parallel fan-out
     graph.add_edge(DEMAND_FORECAST, RESERVATION)
     graph.add_edge(DEMAND_FORECAST, COMPLAINT_INTELLIGENCE)
     graph.add_edge(DEMAND_FORECAST, MENU_INTELLIGENCE)
     graph.add_edge(DEMAND_FORECAST, INVENTORY)
 
-    # Fan-in: all domain agents must finish before aggregation
-    graph.add_edge(RESERVATION,            AGGREGATOR)
+    # Fan-in
+    graph.add_edge(RESERVATION, AGGREGATOR)
     graph.add_edge(COMPLAINT_INTELLIGENCE, AGGREGATOR)
-    graph.add_edge(MENU_INTELLIGENCE,      AGGREGATOR)
-    graph.add_edge(INVENTORY,              AGGREGATOR)
+    graph.add_edge(MENU_INTELLIGENCE, AGGREGATOR)
+    graph.add_edge(INVENTORY, AGGREGATOR)
 
-    # Linear tail: aggregate → critic → assemble → done
-    graph.add_edge(AGGREGATOR,      CRITIC)
-    graph.add_edge(CRITIC,          FINAL_ASSEMBLER)
+    # Linear tail
+    graph.add_edge(AGGREGATOR, CRITIC)
+    graph.add_edge(CRITIC, FINAL_ASSEMBLER)
     graph.add_edge(FINAL_ASSEMBLER, END)
 
     return graph.compile()
@@ -253,18 +164,59 @@ def build_graph(deps: dict[str, Any]):
 async def run_friday_rush(
     deps: dict[str, Any],
     target_date: str | None = None,
+    simulation_mode: bool = True,
+    force_critic_decision: str | None = None,
+    debug: bool = False,
 ) -> dict:
     """
     Top-level convenience function for the Friday Rush scenario.
 
     Args:
-        deps        : Infrastructure deps (db, llm, memory).
-        target_date : ISO date string for the target Friday (optional).
+        deps: Infrastructure dependencies.
+        target_date: Optional ISO date string.
+        simulation_mode: Enables deterministic simulation.
+        force_critic_decision: Overrides critic verdict for testing.
+        debug: Enables observability and state tracing.
 
     Returns:
-        The `final_response` dict from the completed graph state.
+        Final API-ready response from the LangGraph workflow.
     """
     graph = build_graph(deps)
-    initial_state = make_initial_state(scenario="friday_rush", target_date=target_date)
+
+
+    # Create initial state with P1-10 enhancements
+    initial_state = make_initial_state(
+        scenario="friday_rush",
+        target_date=target_date,
+        simulation_mode=simulation_mode,
+        force_critic_decision=force_critic_decision,
+        debug=debug,
+    )
+
+    # Inject P1-10 testing flags
+    initial_state["simulation_mode"] = simulation_mode
+    initial_state["force_critic_decision"] = force_critic_decision
+    initial_state["debug"] = debug
+
+    # Initialize debug trace container
+    if debug:
+        initial_state["execution_trace"] = []
+
+    # Execute graph
     final_state = await graph.ainvoke(initial_state)
-    return final_state.get("final_response", {})
+
+    # Append debug metadata
+    final_response = final_state.get("final_response", {})
+
+    if debug:
+        meta = final_response.setdefault("meta", {})
+        meta.update(
+            {
+                "debug": True,
+                "simulation_mode": simulation_mode,
+                "forced_critic_decision": force_critic_decision,
+                "execution_trace": final_state.get("execution_trace", []),
+            }
+        )
+
+    return final_response

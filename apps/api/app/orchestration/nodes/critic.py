@@ -4,6 +4,10 @@ Critic Agent node.
 Validates the aggregated recommendation bundle against operational rules
 using CriticService. Logs the decision to the database.
 Writes to `critic_output`.
+
+Enhanced for P1-10:
+- Supports critic override for testing
+- Adds debug execution tracing
 """
 
 from sqlalchemy.orm import Session
@@ -25,7 +29,13 @@ async def critic_node(
     if state.get("error"):
         return state
 
+    # ── Debug tracing ───────────────────────────────────────────────────────
+    if state.get("debug") and state.get("execution_trace") is not None:
+        state["execution_trace"].append("critic")
+
     bundle = state.get("aggregated_recommendation")
+    override = state.get("force_critic_decision")
+
     if bundle is None:
         return {
             **state,
@@ -36,14 +46,33 @@ async def critic_node(
             },
         }
 
+    # ── P1-10: Critic Override for Testing ───────────────────────────────────
+    if override:
+        return {
+            **state,
+            "critic_output": {
+                "verdict": override,
+                "score": 1.0 if override == "approved" else 0.0,
+                "notes": f"Critic decision overridden for testing: {override}.",
+                "decision_log_id": None,
+            },
+        }
+
     try:
         service = CriticService(db=db, llm=llm)
         result = await service.evaluate_and_log(
             agent="ops_manager",
             recommendation=bundle,
             input_summary=bundle.get("summary_for_critic", ""),
-            retrieved_context=str(bundle.get("agents", {}).get("complaint", {}).get("rag_context")),
-            reasoning_summary=f"Multi-agent Friday rush evaluation for {bundle.get('target_date', 'next Friday')}",
+            retrieved_context=str(
+                bundle.get("agents", {})
+                .get("complaint", {})
+                .get("rag_context")
+            ),
+            reasoning_summary=(
+                f"Multi-agent Friday rush evaluation for "
+                f"{bundle.get('target_date', 'next Friday')}"
+            ),
         )
         return {**state, "critic_output": result}
 

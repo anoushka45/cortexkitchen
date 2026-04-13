@@ -34,19 +34,28 @@ async def friday_rush(
     """
     End-to-end Friday Rush planning endpoint.
 
-    - Accepts an optional target_date (ISO string). Defaults to next Friday.
-    - Returns per-agent recommendations, RAG context, and critic verdict.
-    - HTTP 200 even when critic verdict is 'revision' or 'blocked' — the
-      status field in the response body communicates the outcome.
-    - HTTP 500 only on unexpected orchestration failure.
+    Enhancements for P1-10:
+    - Accepts optional simulation and debugging parameters.
+    - Enables critic override for deterministic testing.
+    - Supports multi-date simulations beyond Fridays.
+    - Provides observability into LangGraph execution.
+
+    Behavior:
+    - Defaults to the next Friday if target_date is not provided.
+    - Returns HTTP 200 even when the critic verdict is 'revision' or 'blocked'.
+    - Returns HTTP 500 only on unexpected orchestration failure.
     """
     try:
         result = await run_friday_rush(
             deps=deps,
             target_date=body.target_date,
+            simulation_mode=body.simulation_mode,
+            force_critic_decision=body.force_critic_decision,
+            debug=body.debug,
         )
     except AppError:
-        raise  # Let the global AppError handler in main.py handle it
+        # Handled globally in main.py
+        raise
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -59,6 +68,15 @@ async def friday_rush(
             detail="Orchestration returned an empty response.",
         )
 
+    # Populate metadata when debug mode is enabled
+    meta = result.get("meta", {})
+    if body.debug:
+        meta.setdefault("debug", True)
+        meta.setdefault("simulation_mode", body.simulation_mode)
+        meta.setdefault(
+            "forced_critic_decision", body.force_critic_decision
+        )
+
     # Shape the flat result dict into the typed response model
     return FridayRushResponse(
         scenario=result.get("scenario", "friday_rush"),
@@ -67,5 +85,14 @@ async def friday_rush(
         generated_at=result.get("generated_at", ""),
         recommendations=result.get("recommendations", {}),
         rag_context=result.get("rag_context"),
-        critic=result.get("critic", {}),
+        critic=result.get(
+            "critic",
+            {
+                "verdict": "unknown",
+                "score": 0.0,
+                "notes": "No critic output available.",
+                "decision_log_id": None,
+            },
+        ),
+        meta=meta,
     )

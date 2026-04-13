@@ -4,6 +4,9 @@ Final Assembler node.
 Takes the critic-validated bundle and shapes it into the clean,
 structured response that the Friday Rush API endpoint will return.
 Writes to `final_response`.
+
+Enhanced for P1-10:
+- Adds debug metadata and execution trace
 """
 
 from datetime import datetime, timezone
@@ -17,6 +20,10 @@ def final_assembler_node(state: OrchestratorState) -> OrchestratorState:
     Always produces a valid final_response even if some agents errored.
     Writes to state['final_response'].
     """
+    # ── Debug tracing ───────────────────────────────────────────────────────
+    if state.get("debug") and state.get("execution_trace") is not None:
+        state["execution_trace"].append("final_assembler")
+
     critic = state.get("critic_output") or {}
     bundle = state.get("aggregated_recommendation") or {}
 
@@ -30,31 +37,40 @@ def final_assembler_node(state: OrchestratorState) -> OrchestratorState:
         "target_date": state.get("target_date"),
         "generated_at": datetime.now(timezone.utc).isoformat(),
 
-        # Per-agent recommendations for the dashboard cards
+        # Per-agent recommendations
         "recommendations": {
-            "forecast":    _safe_rec(state.get("forecast_output")),
+            "forecast": _safe_rec(state.get("forecast_output")),
             "reservation": _safe_rec(state.get("reservation_output")),
-            "complaint":   _safe_rec(state.get("complaint_output")),
-            "menu":        _safe_rec(state.get("menu_output")),
-            "inventory":   _safe_rec(state.get("inventory_output")),
+            "complaint": _safe_rec(state.get("complaint_output")),
+            "menu": _safe_rec(state.get("menu_output")),
+            "inventory": _safe_rec(state.get("inventory_output")),
         },
 
-        # RAG evidence surface — complaint context for the dashboard
+        # RAG evidence
         "rag_context": (
             state.get("complaint_output", {}).get("rag_context")
-            if state.get("complaint_output") else None
+            if state.get("complaint_output")
+            else None
         ),
 
-        # Critic verdict block
+        # Critic verdict
         "critic": {
-            "verdict":          critic.get("verdict", "unknown"),
-            "score":            critic.get("score", 0.0),
-            "notes":            critic.get("notes", ""),
-            "decision_log_id":  critic.get("decision_log_id"),
+            "verdict": critic.get("verdict", "unknown"),
+            "score": critic.get("score", 0.0),
+            "notes": critic.get("notes", ""),
+            "decision_log_id": critic.get("decision_log_id"),
         },
 
-        # High-level status for the frontend
+        # Frontend status
         "status": _derive_status(critic),
+
+        # Metadata for observability
+        "meta": {
+            "requested_at": state.get("requested_at"),
+            "simulation_mode": state.get("simulation_mode", False),
+            "debug": state.get("debug", False),
+            "execution_trace": state.get("execution_trace", []),
+        },
     }
 
     return {**state, "final_response": final_response}

@@ -7,6 +7,8 @@ from prophet import Prophet
 from app.infrastructure.db.models import Order
 from app.infrastructure.llm.base import BaseLLMProvider
 from app.infrastructure.llm.prompt_utils import PromptUtils
+from app.infrastructure.forecasting.prophet_forecaster import ProphetForecaster
+
 
 
 class ForecastService:
@@ -141,65 +143,53 @@ class ForecastService:
             "target_date": target_friday.strftime("%Y-%m-%d")
         }
 
+
+
     def calculate_prophet_forecast(self, target_date: datetime | None = None) -> dict:
         """Calculate predicted demand for target Friday using Prophet."""
         try:
-            # Get historical daily data
             df = self.get_daily_order_history(days_back=90)
-            if len(df) < 30:  # Need minimum data for Prophet
-                return self.calculate_baseline_forecast(target_date)
 
-            # Prepare data for Prophet
-            prophet_df = df[['ds', 'y']].copy()
-            prophet_df['ds'] = pd.to_datetime(prophet_df['ds'])
+            target_friday = self._get_target_friday(target_date)
+            forecaster = ProphetForecaster()
+            prediction = forecaster.fit_and_predict(df, target_friday)
 
-            # Initialize and fit Prophet model
-            model = Prophet(
-                weekly_seasonality=True,
-                daily_seasonality=False,
-                yearly_seasonality=False,
-                changepoint_prior_scale=0.05,  # Flexible trend changes
-                seasonality_prior_scale=10.0   # Strong weekly seasonality
+            # Historical Friday context for the response
+            friday_history = self.get_friday_order_history()
+            avg_friday_orders = (
+                sum(h["total_orders"] for h in friday_history) / len(friday_history)
+                if friday_history else 0
+            )
+            avg_peak_orders = (
+                sum(h["peak_orders_6pm_to_11pm"] for h in friday_history) / len(friday_history)
+                if friday_history else 0
             )
 
-            model.fit(prophet_df)
-
-            # Predict for target Friday
-            target_friday = self._get_target_friday(target_date)
-            future = pd.DataFrame({'ds': [target_friday]})
-            forecast = model.predict(future)
-
-            # Get historical Friday data for comparison
-            friday_history = self.get_friday_order_history()
-            avg_friday_orders = sum(h["total_orders"] for h in friday_history) / len(friday_history) if friday_history else 0
-            avg_peak_orders = sum(h["peak_orders_6pm_to_11pm"] for h in friday_history) / len(friday_history) if friday_history else 0
-
-            # Calculate peak orders prediction (scale peak ratio from historical data)
-            recent_friday_data = df[df['is_friday'] & (df['y'] > 0)].tail(4)
-            if len(recent_friday_data) > 0:
-                avg_peak_ratio = (recent_friday_data['peak_orders'] / recent_friday_data['y']).mean()
-                predicted_peak_orders = round(forecast['yhat'].iloc[0] * avg_peak_ratio, 1)
-            else:
-                predicted_peak_orders = round(forecast['yhat'].iloc[0] * 0.6, 1)  # Default 60% peak ratio
+            predicted_peak_orders = round(
+                prediction["yhat"] * prediction["peak_ratio_used"], 1
+            )
 
             return {
                 "history": friday_history,
                 "avg_friday_orders": round(avg_friday_orders, 1),
                 "avg_peak_orders": round(avg_peak_orders, 1),
-                "predicted_orders": round(forecast['yhat'].iloc[0], 1),
-                "predicted_orders_lower": round(forecast['yhat_lower'].iloc[0], 1),
-                "predicted_orders_upper": round(forecast['yhat_upper'].iloc[0], 1),
+                "predicted_orders": round(prediction["yhat"], 1),
+                "predicted_orders_lower": round(prediction["yhat_lower"], 1),
+                "predicted_orders_upper": round(prediction["yhat_upper"], 1),
                 "predicted_peak_orders": predicted_peak_orders,
                 "top_items": self.get_top_friday_items(),
                 "method": "prophet",
                 "confidence": "high" if len(df) >= 60 else "medium",
-                "target_date": target_friday.strftime("%Y-%m-%d")
+                "target_date": target_friday.strftime("%Y-%m-%d"),
             }
 
         except Exception as e:
-            # Fallback to baseline if Prophet fails
             print(f"Prophet forecasting failed: {e}, falling back to baseline")
             return self.calculate_baseline_forecast(target_date)
+
+
+
+
 
     def _get_next_friday(self) -> datetime:
         """Get the date of next Friday."""

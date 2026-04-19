@@ -30,7 +30,15 @@ def final_assembler_node(state: OrchestratorState) -> OrchestratorState:
     def _safe_rec(output: dict | None) -> dict | None:
         if not output or output.get("error"):
             return None
-        return output.get("recommendation")
+
+        recommendation = output.get("recommendation")
+        if not isinstance(recommendation, dict):
+            return recommendation
+
+        if output.get("service") == "forecast" and output.get("data") is not None:
+            return {**recommendation, "data": output["data"]}
+
+        return recommendation
 
     final_response = {
         "scenario": state.get("scenario"),

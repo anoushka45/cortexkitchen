@@ -98,6 +98,20 @@ class TestFridayRushE2E:
             assert key in recs, f"Missing recommendations key: {key}"
 
     @pytest.mark.asyncio
+    async def test_forecast_recommendation_includes_data(self, mock_deps):
+        result = await run_friday_rush(
+            deps=mock_deps,
+            target_date="2026-04-11",
+            simulation_mode=True,
+            force_critic_decision="approved",
+        )
+
+        forecast = result.get("recommendations", {}).get("forecast")
+        assert isinstance(forecast, dict)
+        assert "data" in forecast
+        assert "predicted_orders" in forecast["data"]
+
+    @pytest.mark.asyncio
     async def test_rag_context_present_in_response(self, mock_deps):
         result = await run_friday_rush(
             deps=mock_deps,

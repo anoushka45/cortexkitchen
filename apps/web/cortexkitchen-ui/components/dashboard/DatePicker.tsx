@@ -22,7 +22,11 @@ function getUpcomingFridays(count = 6): { label: string; value: string }[] {
 
   for (let i = 0; i < count; i++) {
     const d     = new Date(next);
-    const value = d.toISOString().split("T")[0];
+    // Format using local timezone instead of UTC to avoid 1-day shift
+    const year  = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const date  = String(d.getDate()).padStart(2, '0');
+    const value = `${year}-${month}-${date}`;
     const label = i === 0
       ? `This Friday (${value})`
       : i === 1

@@ -1,14 +1,17 @@
 """
-Inventory & Waste Agent node.
+Inventory & Waste Agent node — P2-02.
 
-Phase 1: stub node — returns a placeholder output.
-A dedicated InventoryService will be wired here in Phase 2.
-Writes to `inventory_output`.
+Replaces the Phase 1 stub with a real InventoryService call.
+Cross-references stock levels against the demand forecast to surface
+shortage and overstock alerts, then asks the LLM for operational actions.
+
+Writes to state['inventory_output'].
 """
 
 from sqlalchemy.orm import Session
 
 from app.orchestration.state import OrchestratorState
+from app.domain.services.inventory_service import InventoryService
 from app.infrastructure.llm.base import BaseLLMProvider
 
 
@@ -18,24 +21,71 @@ async def inventory_node(
     llm: BaseLLMProvider,
 ) -> OrchestratorState:
     """
-    Detects stock pressure and waste risk.
-    Phase 1 returns a structured stub — real inventory query in Phase 2.
+    Detects stock pressure and waste risk using real inventory data.
     Writes to state['inventory_output'].
     """
+    print(f"[DEBUG] inventory_node starting - simulation_mode={state.get('simulation_mode', False)}")
     if state.get("error"):
+        print("[DEBUG] Error in state, returning early")
         return state
 
-    # Phase 1 stub — no DB query yet; inventory schema exists but
-    # dedicated analytics service is Phase 2 scope.
-    inventory_output = {
-        "service": "inventory",
-        "data": {
-            "note": "Phase 1 stub — inventory analytics deferred to Phase 2.",
-            "shortage_alerts": [],
-            "overstock_alerts": [],
-        },
-        "recommendation": {
-            "action": "No inventory alerts at this time. Verify stock levels manually before Friday rush.",
-        },
-    }
-    return {**state, "inventory_output": inventory_output}
+    if state.get("debug") and state.get("execution_trace") is not None:
+        state["execution_trace"].append("inventory")
+
+    try:
+        if state.get("simulation_mode", False):
+            print("[DEBUG] Running inventory in simulation mode")
+            return {
+                **state,
+                "inventory_output": {
+                    "service": "inventory",
+                    "data": {
+                        "total_items_checked": 10,
+                        "shortage_alerts": [
+                            {
+                                "ingredient":        "Mozzarella",
+                                "unit":              "kg",
+                                "quantity_in_stock": 3.5,
+                                "reorder_threshold": 8.0,
+                                "shortfall":         4.5,
+                                "spoilage_risk":     True,
+                                "severity":          "critical",
+                            }
+                        ],
+                        "overstock_alerts": [],
+                        "high_demand_week": True,
+                        "demand_ratio":     1.2,
+                    },
+                    "recommendation": {
+                        "restock_actions":       ["Order 10kg Mozzarella immediately"],
+                        "waste_reduction_actions": [],
+                        "priority":              "high",
+                        "reasoning":             "Critical shortage on high-demand week.",
+                        "risks":                 ["Unable to fulfil pizza orders during peak hours"],
+                    },
+                },
+            }
+
+        print("[DEBUG] Running inventory in production mode")
+        # Pull forecast data from state to compute demand ratio
+        forecast_data = None
+        forecast_output = state.get("forecast_output")
+        if forecast_output and isinstance(forecast_output, dict):
+            forecast_data = forecast_output.get("data")
+
+        service = InventoryService(db=db, llm=llm)
+        result  = await service.analyse_and_recommend(forecast_data=forecast_data)
+        print(f"[DEBUG] inventory_node got result: {result}")
+
+        return {**state, "inventory_output": result}
+
+    except Exception as exc:
+        return {
+            **state,
+            "inventory_output": {
+                "service": "inventory",
+                "error":   str(exc),
+                "data":    None,
+                "recommendation": None,
+            },
+        }

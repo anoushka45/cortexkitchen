@@ -17,10 +17,12 @@ const AGENT_KEYS = ["forecast", "reservation", "complaint", "menu", "inventory"]
 export default function DashboardPage() {
   const { data, status, error, history, trigger, reset, loadFromHistory } = useFridayRush();
   const [activeHistoryId, setActiveHistoryId] = useState<string | undefined>();
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
 
   const handleHistorySelect = (entry: RunHistoryEntry) => {
     setActiveHistoryId(entry.id);
     loadFromHistory(entry);
+    setShowHistoryDrawer(false);
   };
 
   const handleRun = (date?: string) => {
@@ -54,32 +56,34 @@ export default function DashboardPage() {
           {/* Date picker + run */}
           <DatePicker onRun={handleRun} loading={status === "loading"} />
 
-          {/* Reset */}
-          {data && status === "success" && (
-            <button
-              onClick={reset}
-              className="text-xs font-mono text-slate-600 hover:text-slate-400 transition-colors shrink-0"
-            >
-              reset
-            </button>
-          )}
+          {/* History + Reset */}
+          <div className="flex items-center gap-3 shrink-0">
+            {history.length > 0 && (
+              <button
+                onClick={() => setShowHistoryDrawer(true)}
+                className="text-xs font-mono text-slate-600 hover:text-slate-400 transition-colors px-2 py-1 rounded border border-slate-600/30 hover:border-slate-500/50"
+                title="View run history"
+              >
+                history ({history.length})
+              </button>
+            )}
+            {data && status === "success" && (
+              <button
+                onClick={reset}
+                className="text-xs font-mono text-slate-600 hover:text-slate-400 transition-colors"
+              >
+                reset
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
       {/* ── Body ────────────────────────────────────────────── */}
-      <div className="flex-1 max-w-7xl mx-auto w-full px-6 py-6 flex gap-6">
-
-        {/* Run history sidebar */}
-        {history.length > 0 && (
-          <RunHistory
-            history={history}
-            activeId={activeHistoryId}
-            onSelect={handleHistorySelect}
-          />
-        )}
+      <div className="flex-1 max-w-7xl mx-auto w-full px-6 py-6">
 
         {/* Main content */}
-        <div className="flex-1 min-w-0 space-y-4">
+        <div className="w-full space-y-4">
 
           {/* Idle */}
           {status === "idle" && (
@@ -187,6 +191,57 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* ── Run History Drawer ──────────────────────────────── */}
+      {showHistoryDrawer && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/40 z-40"
+            onClick={() => setShowHistoryDrawer(false)}
+          />
+
+          {/* Drawer */}
+          <div
+            className="fixed left-0 top-0 h-screen w-64 z-50 overflow-y-auto p-6 border-r"
+            style={{
+              background: "#0d1320",
+              borderColor: "rgba(139,92,246,0.15)",
+              animation: "slideIn 0.3s ease-out",
+            }}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-sm font-mono uppercase tracking-widest text-slate-400">
+                Run History
+              </h2>
+              <button
+                onClick={() => setShowHistoryDrawer(false)}
+                className="text-slate-500 hover:text-slate-300 transition-colors"
+                title="Close drawer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <RunHistory
+              history={history}
+              activeId={activeHistoryId}
+              onSelect={handleHistorySelect}
+            />
+          </div>
+
+          <style>{`
+            @keyframes slideIn {
+              from {
+                transform: translateX(-100%);
+              }
+              to {
+                transform: translateX(0);
+              }
+            }
+          `}</style>
+        </>
+      )}
     </div>
   );
 }

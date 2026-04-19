@@ -27,9 +27,11 @@ def get_db() -> Generator[Session, None, None]:
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
     db = SessionLocal()
+    print(f"[DEBUG] Database session created: {db}")
     try:
         yield db
     finally:
+        print(f"[DEBUG] Database session closing: {db}")
         db.close()
 
 
@@ -38,8 +40,9 @@ def get_db() -> Generator[Session, None, None]:
 def get_llm():
     """Return the configured LLM provider (Gemini for Phase 1)."""
     from app.infrastructure.llm.groq import GroqProvider
+    from app.infrastructure.llm.gemini import GeminiProvider
 
-    return GroqProvider()
+    return GeminiProvider()
 
 
 # ── Vector memory ─────────────────────────────────────────────────────────────

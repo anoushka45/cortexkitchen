@@ -1,0 +1,152 @@
+"use client";
+
+interface Alert {
+  ingredient:        string;
+  unit:              string;
+  quantity_in_stock: number;
+  reorder_threshold: number;
+  shortfall?:        number;
+  excess?:           number;
+  spoilage_risk:     boolean;
+  severity:          "critical" | "warning" | "info";
+}
+
+interface InventoryData {
+  total_items_checked: number;
+  shortage_alerts:     Alert[];
+  overstock_alerts:    Alert[];
+  high_demand_week:    boolean;
+  demand_ratio:        number;
+}
+
+interface Props {
+  inventory: Record<string, unknown> | null;
+}
+
+const SEVERITY_STYLES: Record<string, string> = {
+  critical: "bg-rose-500/10 border-rose-500/30 text-rose-400",
+  warning:  "bg-amber-500/10 border-amber-500/30 text-amber-400",
+  info:     "bg-blue-500/10  border-blue-500/30  text-blue-400",
+};
+
+const SEVERITY_BADGE: Record<string, string> = {
+  critical: "bg-rose-500/20 text-rose-400",
+  warning:  "bg-amber-500/20 text-amber-400",
+  info:     "bg-blue-500/20  text-blue-400",
+};
+
+function normalizeInventoryData(
+  raw: Record<string, unknown> | null
+): InventoryData | null {
+  if (!raw) return null;
+  const nested = raw.data as Record<string, unknown> | undefined;
+  const payload = nested && typeof nested === "object" ? nested : raw;
+
+  const shortage  = Array.isArray(payload.shortage_alerts)  ? payload.shortage_alerts  : [];
+  const overstock = Array.isArray(payload.overstock_alerts) ? payload.overstock_alerts : [];
+
+  return {
+    total_items_checked: Number(payload.total_items_checked ?? 0),
+    shortage_alerts:     shortage  as Alert[],
+    overstock_alerts:    overstock as Alert[],
+    high_demand_week:    Boolean(payload.high_demand_week),
+    demand_ratio:        Number(payload.demand_ratio ?? 1.0),
+  };
+}
+
+function AlertRow({ alert, type }: { alert: Alert; type: "shortage" | "overstock" }) {
+  const sev = alert.severity ?? "info";
+  return (
+    <div className={`rounded-xl border px-4 py-3 ${SEVERITY_STYLES[sev]}`}>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-sm font-semibold text-slate-200">{alert.ingredient}</span>
+        <div className="flex items-center gap-2">
+          {alert.spoilage_risk && (
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400">
+              spoilage risk
+            </span>
+          )}
+          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${SEVERITY_BADGE[sev]}`}>
+            {sev}
+          </span>
+        </div>
+      </div>
+      <div className="flex gap-4 text-xs text-slate-400 font-mono">
+        <span>stock: {alert.quantity_in_stock} {alert.unit}</span>
+        <span>threshold: {alert.reorder_threshold} {alert.unit}</span>
+        {type === "shortage"  && alert.shortfall !== undefined && (
+          <span className="text-rose-400">shortfall: {alert.shortfall} {alert.unit}</span>
+        )}
+        {type === "overstock" && alert.excess !== undefined && (
+          <span className="text-amber-400">excess: {alert.excess} {alert.unit}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function InventoryAlerts({ inventory }: Props) {
+  const data = normalizeInventoryData(inventory);
+  if (!data) return null;
+
+  const hasShortage  = data.shortage_alerts.length  > 0;
+  const hasOverstock = data.overstock_alerts.length > 0;
+  const allClear     = !hasShortage && !hasOverstock;
+
+  return (
+    <div className="space-y-5">
+      {/* Summary bar */}
+      <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-slate-500">
+        <span>{data.total_items_checked} ingredients checked</span>
+        <span>·</span>
+        <span>demand ratio: {data.demand_ratio.toFixed(2)}x</span>
+        {data.high_demand_week && (
+          <>
+            <span>·</span>
+            <span className="text-amber-400">high demand week</span>
+          </>
+        )}
+      </div>
+
+      {/* All clear */}
+      {allClear && (
+        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+          <p className="text-sm text-emerald-400 font-medium">
+            All stock levels are within safe range.
+          </p>
+          <p className="text-xs text-slate-500 mt-1">
+            No restocking or waste-reduction actions required before Friday.
+          </p>
+        </div>
+      )}
+
+      {/* Shortage alerts */}
+      {hasShortage && (
+        <div>
+          <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
+            Shortage alerts — {data.shortage_alerts.length}
+          </p>
+          <div className="space-y-2">
+            {data.shortage_alerts.map((a, i) => (
+              <AlertRow key={`shortage-${i}`} alert={a} type="shortage" />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Overstock alerts */}
+      {hasOverstock && (
+        <div>
+          <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
+            Overstock alerts — {data.overstock_alerts.length}
+          </p>
+          <div className="space-y-2">
+            {data.overstock_alerts.map((a, i) => (
+              <AlertRow key={`overstock-${i}`} alert={a} type="overstock" />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

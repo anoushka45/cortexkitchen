@@ -44,12 +44,12 @@ class FridayRushRequest(BaseModel):
     )
 
     simulation_mode: bool = Field(
-        default=False,
+        default=True,
         description=(
             "Runs the system in simulation mode using mock or "
             "deterministic data instead of real forecasting."
         ),
-        examples=[False],
+        examples=[True],
     )
 
     force_critic_decision: Optional[

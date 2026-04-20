@@ -14,5 +14,3 @@ qdrant-client
 langgraph
 langchain-core
 groq
-prophet
-pandas

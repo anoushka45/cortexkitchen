@@ -5,7 +5,7 @@ Wraps ReservationService — analyses table capacity and booking pressure
 for the target Friday, then writes to `reservation_output`.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.orchestration.state import OrchestratorState
@@ -21,7 +21,7 @@ def _parse_target_date(date_str: str | None) -> datetime:
     # Default: roll forward to the next Friday
     today = datetime.utcnow()
     days_ahead = (4 - today.weekday()) % 7 or 7  # weekday 4 = Friday
-    return (today + timedelta(days=days_ahead)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return today.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 async def reservation_node(

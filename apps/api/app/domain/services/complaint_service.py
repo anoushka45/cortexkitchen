@@ -64,8 +64,8 @@ class ComplaintService:
 
         summary = self.get_complaint_summary(days)
 
-        prompt = f"""
-## Context
+        prompt = PromptUtils.format_recommendation_prompt(
+            context=f"""
 Customer feedback analysis for the last {summary['period_days']} days:
 - Total feedback received: {summary['total_feedback']}
 - Negative: {summary['sentiment_breakdown']['negative']} ({summary['sentiment_breakdown']['negative_pct']}%)
@@ -77,20 +77,9 @@ Complaint texts:
 
 Positive feedback:
 {chr(10).join(f'- {p}' for p in summary['unique_positives'][:5])}
-
-## Task
-Identify the top 3 recurring issues from these complaints and recommend specific operational fixes for each.
-
-## Response format
-Respond with a JSON object containing:
-- "issues": array of objects, each with:
-  - "issue": string — the recurring complaint
-  - "frequency": string — how often it occurs
-  - "recommendation": string — specific operational fix
-  - "priority": string — "high", "medium", or "low"
-- "overall_summary": string — brief summary of complaint trends
-- "action_items": array of strings — high-level action items for management
-"""
+""",
+            task="Identify the top 3 recurring issues from these complaints and recommend specific operational fixes for each."
+        )
 
         recommendation = await self.llm.complete_json(
             prompt=prompt,

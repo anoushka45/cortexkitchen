@@ -27,11 +27,9 @@ def get_db() -> Generator[Session, None, None]:
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
     db = SessionLocal()
-    
     try:
         yield db
     finally:
-        
         db.close()
 
 
@@ -40,7 +38,6 @@ def get_db() -> Generator[Session, None, None]:
 def get_llm():
     """Return the configured LLM provider (Gemini for Phase 1)."""
     from app.infrastructure.llm.groq import GroqProvider
-    from app.infrastructure.llm.gemini import GeminiProvider
 
     return GroqProvider()
 

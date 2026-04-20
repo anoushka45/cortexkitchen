@@ -65,7 +65,7 @@ class OrchestratorState(TypedDict):
 def make_initial_state(
     scenario: str,
     target_date: Optional[str] = None,
-    simulation_mode: bool = False,
+    simulation_mode: bool = True,
     force_critic_decision: Optional[str] = None,
     debug: bool = False,
 ) -> OrchestratorState:

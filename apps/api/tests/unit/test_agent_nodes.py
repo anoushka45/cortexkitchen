@@ -249,58 +249,41 @@ class TestMenuIntelligenceNode:
         assert result["menu_output"] is None
 
     @pytest.mark.asyncio
-    async def test_returns_structured_menu_recommendation(self, base_state, mock_db, mock_llm):
+    async def test_returns_top_items_and_promo_candidates(self, base_state, mock_db, mock_llm):
         from app.orchestration.nodes.menu_intelligence import menu_intelligence_node
 
-        mock_result = {
-            "service": "menu",
-            "data": {"top_items": [{"item": "Margherita", "total_ordered": 80}]},
-            "recommendation": {
-                "highlight_items": ["Margherita"],
-                "promo_candidates": ["Garlic Bread"],
-                "reasoning": "Lean into high-volume, low-risk items.",
-            },
-        }
+        top_items = [
+            {"item": "Margherita", "total_ordered": 80},
+            {"item": "Pepperoni", "total_ordered": 60},
+            {"item": "BBQ Chicken", "total_ordered": 40},
+        ]
 
-        with patch("app.orchestration.nodes.menu_intelligence.MenuService") as MockService:
-            MockService.return_value.analyse_and_recommend = AsyncMock(return_value=mock_result)
+        with patch("app.orchestration.nodes.menu_intelligence.ForecastService") as MockService:
+            MockService.return_value.get_top_friday_items = MagicMock(return_value=top_items)
             result = await menu_intelligence_node(base_state, db=mock_db, llm=mock_llm)
 
         output = result["menu_output"]
         assert output["service"] == "menu"
-        assert output["recommendation"]["highlight_items"] == ["Margherita"]
-        assert output["recommendation"]["promo_candidates"] == ["Garlic Bread"]
+        assert output["data"]["top_items"] == top_items
+        # Promo candidates should be the top 2
+        assert output["recommendation"]["promo_candidates"] == ["Margherita", "Pepperoni"]
 
     @pytest.mark.asyncio
-    async def test_passes_context_to_menu_service(self, base_state, mock_db, mock_llm):
+    async def test_promo_candidates_empty_when_no_top_items(self, base_state, mock_db, mock_llm):
         from app.orchestration.nodes.menu_intelligence import menu_intelligence_node
 
-        state = {
-            **base_state,
-            "forecast_output": {"data": {"predicted_orders": 120}},
-            "complaint_output": {"data": {"unique_complaints": ["cold pizza"]}},
-            "inventory_output": {"data": {"shortage_alerts": [{"ingredient": "Mozzarella"}]}},
-        }
+        with patch("app.orchestration.nodes.menu_intelligence.ForecastService") as MockService:
+            MockService.return_value.get_top_friday_items = MagicMock(return_value=[])
+            result = await menu_intelligence_node(base_state, db=mock_db, llm=mock_llm)
 
-        with patch("app.orchestration.nodes.menu_intelligence.MenuService") as MockService:
-            mock_service = MockService.return_value
-            mock_service.analyse_and_recommend = AsyncMock(
-                return_value={"service": "menu", "data": {}, "recommendation": {}}
-            )
-            await menu_intelligence_node(state, db=mock_db, llm=mock_llm)
-
-        mock_service.analyse_and_recommend.assert_called_once_with(
-            forecast_data={"predicted_orders": 120},
-            complaint_data={"unique_complaints": ["cold pizza"]},
-            inventory_data={"shortage_alerts": [{"ingredient": "Mozzarella"}]},
-        )
+        assert result["menu_output"]["recommendation"]["promo_candidates"] == []
 
     @pytest.mark.asyncio
     async def test_exception_captured_gracefully(self, base_state, mock_db, mock_llm):
         from app.orchestration.nodes.menu_intelligence import menu_intelligence_node
 
-        with patch("app.orchestration.nodes.menu_intelligence.MenuService") as MockService:
-            MockService.return_value.analyse_and_recommend = AsyncMock(
+        with patch("app.orchestration.nodes.menu_intelligence.ForecastService") as MockService:
+            MockService.return_value.get_top_friday_items = MagicMock(
                 side_effect=Exception("Forecast query failed")
             )
             result = await menu_intelligence_node(base_state, db=mock_db, llm=mock_llm)
@@ -334,24 +317,18 @@ class TestInventoryNode:
         assert "recommendation" in output
 
     @pytest.mark.asyncio
-    async def test_llm_called_in_production_mode(self, base_state, mock_db, mock_llm):
-        """Phase 2: In production mode, inventory node calls LLM for recommendations."""
+    async def test_no_llm_call_in_phase1(self, base_state, mock_db, mock_llm):
         from app.orchestration.nodes.inventory import inventory_node
-        
-        mock_db.query.return_value.all.return_value = []
-        
+
         await inventory_node(base_state, db=mock_db, llm=mock_llm)
-        mock_llm.complete_json.assert_called()
+        mock_llm.complete_json.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_db_called_in_production_mode(self, base_state, mock_db, mock_llm):
-        """Phase 2: In production mode, inventory node calls DB to query inventory."""
+    async def test_no_db_call_in_phase1(self, base_state, mock_db, mock_llm):
         from app.orchestration.nodes.inventory import inventory_node
-        
-        mock_db.query.return_value.all.return_value = []
-        
+
         await inventory_node(base_state, db=mock_db, llm=mock_llm)
-        mock_db.query.assert_called()
+        mock_db.query.assert_not_called()
 
 
 # ── critic_node ───────────────────────────────────────────────────────────────

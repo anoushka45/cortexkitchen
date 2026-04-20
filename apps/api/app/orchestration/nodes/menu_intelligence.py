@@ -1,9 +1,15 @@
-"""Menu Intelligence Agent node."""
+"""
+Menu Intelligence Agent node.
+
+Phase 1: lightweight stub — returns top Friday items from ForecastService
+as a menu signal. A dedicated MenuService will be wired here in Phase 2.
+Writes to `menu_output`.
+"""
 
 from sqlalchemy.orm import Session
 
 from app.orchestration.state import OrchestratorState
-from app.domain.services.menu_service import MenuService
+from app.domain.services.forecast_service import ForecastService
 from app.infrastructure.llm.base import BaseLLMProvider
 
 
@@ -13,57 +19,31 @@ async def menu_intelligence_node(
     llm: BaseLLMProvider,
 ) -> OrchestratorState:
     """
-    Builds menu guidance from demand, complaint, and inventory context.
+    Surfaces top-selling items and promo candidates.
+    Phase 1 uses ForecastService.get_top_friday_items() as the data source.
     Writes to state['menu_output'].
     """
     if state.get("error"):
         return state
 
     try:
-        if state.get("simulation_mode", False):
-            return {
-                **state,
-                "menu_output": {
-                    "service": "menu",
-                    "data": {
-                        "top_items": [
-                            {"item": "Margherita", "category": "pizza", "total_ordered": 80},
-                            {"item": "Pepperoni", "category": "pizza", "total_ordered": 62},
-                        ],
-                        "forecast_snapshot": {
-                            "predicted_orders": 128,
-                            "avg_friday_orders": 112,
-                            "target_date": state.get("target_date"),
-                        },
-                        "complaint_themes": ["watch pizza temperature at dispatch"],
-                        "shortage_ingredients": ["Mozzarella"],
-                        "overstock_ingredients": ["Basil"],
-                        "note": "Simulation mode menu insight payload.",
-                    },
-                    "recommendation": {
-                        "highlight_items": ["Margherita", "Pepperoni"],
-                        "deprioritize_items": ["Four Cheese Special"],
-                        "promo_candidates": ["Garlic Bread"],
-                        "inventory_blockers": ["Mozzarella is below safe Friday stock"],
-                        "complaint_watchouts": ["Keep handoff time tight so pizzas stay hot"],
-                        "operational_notes": [
-                            "Stage toppings for Margherita and Pepperoni before peak",
-                            "Use basil surplus in sides and garnish prep",
-                        ],
-                        "reasoning": "Push high-volume favourites that the kitchen can execute fast without worsening shortage risk.",
-                        "priority": "high",
-                        "risks": ["Slowdowns and quality misses if low-stock specialty pizzas are pushed too hard"],
-                    },
-                },
-            }
+        # Reuse ForecastService for top-item data in Phase 1
+        service = ForecastService(db=db, llm=llm)
+        top_items = service.get_top_friday_items()
 
-        service = MenuService(db=db, llm=llm)
-        result = await service.analyse_and_recommend(
-            forecast_data=(state.get("forecast_output") or {}).get("data"),
-            complaint_data=(state.get("complaint_output") or {}).get("data"),
-            inventory_data=(state.get("inventory_output") or {}).get("data"),
-        )
-        return {**state, "menu_output": result}
+        menu_output = {
+            "service": "menu",
+            "data": {
+                "top_items": top_items,
+                "note": "Phase 1 stub — using Friday order history. Full MenuService in Phase 2.",
+            },
+            # No LLM recommendation in Phase 1 — keeps it lightweight
+            "recommendation": {
+                "insight": "Focus prep on top-selling items listed above.",
+                "promo_candidates": [i["item"] for i in top_items[:2]] if top_items else [],
+            },
+        }
+        return {**state, "menu_output": menu_output}
 
     except Exception as exc:
         return {

@@ -22,8 +22,30 @@ interface ReservationData {
 
 export default function ReservationSummary({ data }: { data: ReservationData }) {
   // Handle both direct data object and nested structure
-  const dataObj = (data as any)?.data || data;
-  const recommendation = (data as any)?.recommendation || data?.recommendation;
+  const source = data as Record<string, unknown>;
+  const dataObj = (source.data as Record<string, unknown> | undefined) || source;
+  const explicitRecommendation =
+    source.recommendation && typeof source.recommendation === "object"
+      ? (source.recommendation as Record<string, unknown>)
+      : null;
+  const fallbackRecommendationKeys = Object.fromEntries(
+    Object.entries(source).filter(([key]) => ![
+      "data",
+      "date",
+      "total_reservations",
+      "total_guests",
+      "capacity",
+      "occupancy_pct",
+      "overbooking_risk",
+      "busiest_hour",
+      "waitlist_count",
+    ].includes(key))
+  );
+  const recommendation =
+    explicitRecommendation ??
+    (Object.keys(fallbackRecommendationKeys).length > 0
+      ? fallbackRecommendationKeys
+      : null);
 
   if (!dataObj || Object.keys(dataObj).length === 0) {
     return <p className="text-sm text-slate-600 italic">No reservation data available.</p>;
@@ -38,7 +60,7 @@ export default function ReservationSummary({ data }: { data: ReservationData }) 
     busiest_hour = null,
     date = "",
     waitlist_count = 0,
-  } = dataObj as Record<string, any>;
+  } = dataObj as Record<string, unknown>;
 
   return (
     <div className="space-y-4">
@@ -160,7 +182,7 @@ export default function ReservationSummary({ data }: { data: ReservationData }) 
                   // Handle nested objects (not strings, not arrays)
                   if (typeof value === "object" && value !== null && !Array.isArray(value)) {
                     const entries = Object.entries(value as Record<string, unknown>).filter(
-                      ([_, v]) => v !== null && v !== undefined
+                      ([, nestedValue]) => nestedValue !== null && nestedValue !== undefined
                     );
                     if (entries.length === 0) return null;
 

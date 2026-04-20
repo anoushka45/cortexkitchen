@@ -20,6 +20,7 @@ from app.infrastructure.llm.prompt_utils import PromptUtils
 
 OVERSTOCK_MULTIPLIER = 3.0   # stock > 3x threshold = overstock
 HIGH_DEMAND_RATIO    = 1.15  # predicted > 115% of avg = high demand week
+RESTOCK_CAP_MULTIPLIER = 3.0
 
 
 class InventoryService:
@@ -114,13 +115,31 @@ class InventoryService:
 
         alerts = self.compute_alerts(stock_items, demand_ratio)
 
+        actionable_shortages = []
+        for alert in alerts["shortage_alerts"]:
+            current_stock = float(alert["quantity_in_stock"])
+            shortfall = float(alert["shortfall"])
+            max_actionable_restock = round(
+                max(shortfall, current_stock * RESTOCK_CAP_MULTIPLIER),
+                2,
+            )
+            actionable_shortages.append({
+                **alert,
+                "recommended_restock_qty": shortfall,
+                "max_actionable_restock_qty": max_actionable_restock,
+            })
+
+        critical_shortages = [a for a in actionable_shortages if a["severity"] == "critical"]
+        warning_shortages = [a for a in actionable_shortages if a["severity"] != "critical"]
+
         # Build LLM prompt
         shortage_lines = "\n".join(
             f"  - {a['ingredient']} ({a['unit']}): "
             f"stock={a['quantity_in_stock']}, threshold={a['reorder_threshold']}, "
-            f"shortfall={a['shortfall']}, severity={a['severity']}, "
-            f"spoilage_risk={a['spoilage_risk']}"
-            for a in alerts["shortage_alerts"]
+            f"shortfall={a['shortfall']}, recommended_restock={a['recommended_restock_qty']}, "
+            f"max_actionable_restock={a['max_actionable_restock_qty']}, "
+            f"severity={a['severity']}, spoilage_risk={a['spoilage_risk']}"
+            for a in actionable_shortages
         ) or "  None"
 
         overstock_lines = "\n".join(
@@ -135,6 +154,8 @@ class InventoryService:
 Inventory status ahead of Friday rush:
 - Total ingredients checked: {alerts['total_items_checked']}
 - High demand week: {alerts['high_demand_week']} (demand ratio: {alerts['demand_ratio']})
+- Critical shortages requiring first attention: {len(critical_shortages)}
+- Warning shortages: {len(warning_shortages)}
 
 Shortage alerts:
 {shortage_lines}
@@ -144,7 +165,10 @@ Overstock alerts:
 """,
             task=(
                 "Based on the inventory status and demand forecast, recommend specific "
-                "restocking, reorder, and waste-reduction actions before Friday."
+                "restocking, reorder, and waste-reduction actions before Friday. Prioritize "
+                "critical shortages first, keep every restock quantity realistic for the next "
+                "24 hours, and never suggest ordering more than the max_actionable_restock "
+                "listed for an ingredient."
             ),
         )
 

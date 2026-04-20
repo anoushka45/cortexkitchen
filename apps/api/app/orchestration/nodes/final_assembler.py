@@ -37,7 +37,7 @@ def final_assembler_node(state: OrchestratorState) -> OrchestratorState:
 
         # Include both data and recommendation for multi-agent outputs
         service = output.get("service")
-        if service in ["forecast", "reservation", "inventory"] and output.get("data") is not None:
+        if output.get("data") is not None:
             return {**recommendation, "data": output["data"]}
 
         return recommendation

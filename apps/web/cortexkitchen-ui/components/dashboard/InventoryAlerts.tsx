@@ -17,6 +17,13 @@ interface InventoryData {
   overstock_alerts:    Alert[];
   high_demand_week:    boolean;
   demand_ratio:        number;
+  recommendation: {
+    restock_actions: string[];
+    waste_reduction_actions: string[];
+    priority?: string;
+    reasoning?: string;
+    risks: string[];
+  } | null;
 }
 
 interface Props {
@@ -41,6 +48,10 @@ function normalizeInventoryData(
   if (!raw) return null;
   const nested = raw.data as Record<string, unknown> | undefined;
   const payload = nested && typeof nested === "object" ? nested : raw;
+  const recommendationSource =
+    raw.recommendation && typeof raw.recommendation === "object"
+      ? (raw.recommendation as Record<string, unknown>)
+      : raw;
 
   const shortage  = Array.isArray(payload.shortage_alerts)  ? payload.shortage_alerts  : [];
   const overstock = Array.isArray(payload.overstock_alerts) ? payload.overstock_alerts : [];
@@ -51,6 +62,26 @@ function normalizeInventoryData(
     overstock_alerts:    overstock as Alert[],
     high_demand_week:    Boolean(payload.high_demand_week),
     demand_ratio:        Number(payload.demand_ratio ?? 1.0),
+    recommendation:
+      recommendationSource && typeof recommendationSource === "object"
+        ? {
+            restock_actions: Array.isArray(recommendationSource.restock_actions)
+              ? (recommendationSource.restock_actions as string[])
+              : [],
+            waste_reduction_actions: Array.isArray(recommendationSource.waste_reduction_actions)
+              ? (recommendationSource.waste_reduction_actions as string[])
+              : [],
+            priority: typeof recommendationSource.priority === "string"
+              ? String(recommendationSource.priority)
+              : undefined,
+            reasoning: typeof recommendationSource.reasoning === "string"
+              ? String(recommendationSource.reasoning)
+              : undefined,
+            risks: Array.isArray(recommendationSource.risks)
+              ? (recommendationSource.risks as string[])
+              : [],
+          }
+        : null,
   };
 }
 
@@ -92,6 +123,7 @@ export default function InventoryAlerts({ inventory }: Props) {
   const hasShortage  = data.shortage_alerts.length  > 0;
   const hasOverstock = data.overstock_alerts.length > 0;
   const allClear     = !hasShortage && !hasOverstock;
+  const recommendation = data.recommendation;
 
   return (
     <div className="space-y-5">
@@ -117,6 +149,66 @@ export default function InventoryAlerts({ inventory }: Props) {
           <p className="text-xs text-slate-500 mt-1">
             No restocking or waste-reduction actions required before Friday.
           </p>
+        </div>
+      )}
+
+      {recommendation && (
+        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-4 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-mono uppercase tracking-widest text-slate-500">
+              Recommendation
+            </p>
+            {recommendation.priority && (
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
+                {recommendation.priority} priority
+              </span>
+            )}
+          </div>
+          {recommendation.reasoning && (
+            <p className="text-sm text-slate-200">{recommendation.reasoning}</p>
+          )}
+          {recommendation.restock_actions.length > 0 && (
+            <div>
+              <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
+                Restock Actions
+              </p>
+              <ul className="space-y-1.5">
+                {recommendation.restock_actions.map((action, index) => (
+                  <li key={`restock-${index}`} className="text-xs text-slate-200 bg-slate-900/60 rounded-lg px-3 py-2 border border-white/5">
+                    {action}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {recommendation.waste_reduction_actions.length > 0 && (
+            <div>
+              <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
+                Waste Reduction
+              </p>
+              <ul className="space-y-1.5">
+                {recommendation.waste_reduction_actions.map((action, index) => (
+                  <li key={`waste-${index}`} className="text-xs text-slate-200 bg-slate-900/60 rounded-lg px-3 py-2 border border-white/5">
+                    {action}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {recommendation.risks.length > 0 && (
+            <div>
+              <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
+                Risks
+              </p>
+              <ul className="space-y-1.5">
+                {recommendation.risks.map((risk, index) => (
+                  <li key={`risk-${index}`} className="text-xs text-rose-300 bg-rose-500/10 rounded-lg px-3 py-2 border border-rose-500/20">
+                    {risk}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 

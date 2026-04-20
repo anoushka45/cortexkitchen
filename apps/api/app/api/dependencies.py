@@ -42,7 +42,7 @@ def get_llm():
     from app.infrastructure.llm.groq import GroqProvider
     from app.infrastructure.llm.gemini import GeminiProvider
 
-    return GeminiProvider()
+    return GroqProvider()
 
 
 # ── Vector memory ─────────────────────────────────────────────────────────────

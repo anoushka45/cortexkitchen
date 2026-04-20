@@ -202,6 +202,23 @@ class TestAnalyseAndRecommend:
 
         llm.complete_json.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_prompt_includes_actionable_restock_caps(self):
+        from app.domain.services.inventory_service import InventoryService
+
+        item = _make_item(stock=3.0, threshold=8.0, spoilage=True)
+        llm = _make_llm()
+        svc = InventoryService(db=_make_db([item]), llm=llm)
+
+        await svc.analyse_and_recommend(
+            forecast_data={"predicted_orders": 130.0, "avg_friday_orders": 100.0}
+        )
+
+        prompt = llm.complete_json.await_args.kwargs["prompt"]
+        assert "recommended_restock=5.0" in prompt
+        assert "max_actionable_restock=9.0" in prompt
+        assert "Prioritize critical shortages first" in prompt
+
 
 # ── inventory_node ────────────────────────────────────────────────────────────
 

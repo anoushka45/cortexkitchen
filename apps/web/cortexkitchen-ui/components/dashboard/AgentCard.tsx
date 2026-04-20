@@ -26,7 +26,7 @@ export default function AgentCard({ agentKey, data, index = 0 }: Props) {
   const meta = AGENT_META[agentKey] ?? { label: agentKey, icon: "🤖", accent: "border-t-slate-500", glow: "" };
 
   return (
-    <div className={`group card border-t-2 ${meta.accent} ${meta.glow} transition-all duration-300 stagger-${index + 3}`}>
+    <div className={`group card h-full flex flex-col border-t-2 ${meta.accent} ${meta.glow} transition-all duration-300 stagger-${index + 3}`}>
       {/* Header */}
       <button
         onClick={() => setExpanded((e) => !e)}
@@ -53,7 +53,7 @@ export default function AgentCard({ agentKey, data, index = 0 }: Props) {
 
       {/* Body */}
       {expanded && (
-        <div className="px-5 pb-5 border-t border-white/5 pt-4 space-y-2">
+        <div className="flex-1 px-5 pb-5 border-t border-white/5 pt-4 space-y-2">
           {!data ? (
             <p className="text-sm text-slate-600 italic">Agent did not return output.</p>
           ) : data.error ? (

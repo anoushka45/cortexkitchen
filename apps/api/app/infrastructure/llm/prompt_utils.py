@@ -42,6 +42,9 @@ Rules:
 - For overstock with spoilage risk, recommend immediate use or redistribution.
 - For overstock without spoilage risk, recommend pausing reorder for that ingredient.
 - Never recommend vague actions like "check stock" — always give a specific quantity and action.
+- Always prioritise critical shortages before overstock or lower-priority actions.
+- Keep every restock quantity realistic for a 24-hour window and never exceed the cap provided in the context.
+- Anchor each restock quantity to the stated shortfall or near-term Friday demand, not broad weekly replenishment.
 
 Respond ONLY with a valid JSON object — no markdown, no explanation outside JSON.
 The JSON must have these exact keys:
@@ -96,4 +99,3 @@ Respond with a JSON object containing:
 - "notes": string — explanation of your verdict
 """
     
-

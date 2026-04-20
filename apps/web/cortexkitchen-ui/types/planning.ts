@@ -36,6 +36,17 @@ export interface ReservationData {
 }
 
 export interface ComplaintData {
+  data?: {
+    unique_complaints?: string[];
+    unique_positives?: string[];
+    total_feedback?: number;
+    sentiment_breakdown?: {
+      negative: number;
+      positive: number;
+      neutral: number;
+      negative_pct: number;
+    };
+  };
   issues?: Array<{
     issue: string;
     frequency: string;
@@ -66,6 +77,18 @@ export interface MenuData {
 }
 
 export interface InventoryData {
+  data?: {
+    total_items_checked?: number;
+    shortage_alerts?: unknown[];
+    overstock_alerts?: unknown[];
+    high_demand_week?: boolean;
+    demand_ratio?: number;
+  };
+  restock_actions?: string[];
+  waste_reduction_actions?: string[];
+  priority?: string;
+  reasoning?: string;
+  risks?: string[];
   note?: string;
   shortage_alerts?: unknown[];
   overstock_alerts?: unknown[];

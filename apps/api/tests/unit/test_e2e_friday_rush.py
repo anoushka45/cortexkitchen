@@ -112,6 +112,34 @@ class TestFridayRushE2E:
         # Phase 2: forecast data includes predicted_covers, confidence, peak_window
         assert "predicted_covers" in forecast["data"] or "predicted_orders" in forecast["data"]
 
+    def test_final_assembler_keeps_complaint_data_with_recommendation(self):
+        from app.orchestration.nodes.final_assembler import final_assembler_node
+
+        state = {
+            "scenario": "friday_rush",
+            "target_date": "2026-04-11",
+            "critic_output": {"verdict": "approved", "score": 0.9, "notes": "", "decision_log_id": 1},
+            "aggregated_recommendation": {},
+            "complaint_output": {
+                "service": "complaint",
+                "data": {
+                    "total_feedback": 12,
+                    "unique_complaints": ["cold pizza"],
+                    "sentiment_breakdown": {"negative": 3, "positive": 7, "neutral": 2, "negative_pct": 25.0},
+                },
+                "recommendation": {
+                    "issues": [{"issue": "cold pizza", "frequency": "3 reports", "recommendation": "speed up pass", "priority": "high"}],
+                    "overall_summary": "Temperature complaints need attention.",
+                    "action_items": ["Audit pass timing"],
+                },
+            },
+        }
+
+        result = final_assembler_node(state)
+        complaint = result["final_response"]["recommendations"]["complaint"]
+        assert isinstance(complaint, dict)
+        assert complaint["data"]["total_feedback"] == 12
+
     @pytest.mark.asyncio
     async def test_rag_context_present_in_response(self, mock_deps):
         result = await run_friday_rush(

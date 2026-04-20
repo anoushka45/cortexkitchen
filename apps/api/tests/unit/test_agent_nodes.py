@@ -249,41 +249,58 @@ class TestMenuIntelligenceNode:
         assert result["menu_output"] is None
 
     @pytest.mark.asyncio
-    async def test_returns_top_items_and_promo_candidates(self, base_state, mock_db, mock_llm):
+    async def test_returns_structured_menu_recommendation(self, base_state, mock_db, mock_llm):
         from app.orchestration.nodes.menu_intelligence import menu_intelligence_node
 
-        top_items = [
-            {"item": "Margherita", "total_ordered": 80},
-            {"item": "Pepperoni", "total_ordered": 60},
-            {"item": "BBQ Chicken", "total_ordered": 40},
-        ]
+        mock_result = {
+            "service": "menu",
+            "data": {"top_items": [{"item": "Margherita", "total_ordered": 80}]},
+            "recommendation": {
+                "highlight_items": ["Margherita"],
+                "promo_candidates": ["Garlic Bread"],
+                "reasoning": "Lean into high-volume, low-risk items.",
+            },
+        }
 
-        with patch("app.orchestration.nodes.menu_intelligence.ForecastService") as MockService:
-            MockService.return_value.get_top_friday_items = MagicMock(return_value=top_items)
+        with patch("app.orchestration.nodes.menu_intelligence.MenuService") as MockService:
+            MockService.return_value.analyse_and_recommend = AsyncMock(return_value=mock_result)
             result = await menu_intelligence_node(base_state, db=mock_db, llm=mock_llm)
 
         output = result["menu_output"]
         assert output["service"] == "menu"
-        assert output["data"]["top_items"] == top_items
-        # Promo candidates should be the top 2
-        assert output["recommendation"]["promo_candidates"] == ["Margherita", "Pepperoni"]
+        assert output["recommendation"]["highlight_items"] == ["Margherita"]
+        assert output["recommendation"]["promo_candidates"] == ["Garlic Bread"]
 
     @pytest.mark.asyncio
-    async def test_promo_candidates_empty_when_no_top_items(self, base_state, mock_db, mock_llm):
+    async def test_passes_context_to_menu_service(self, base_state, mock_db, mock_llm):
         from app.orchestration.nodes.menu_intelligence import menu_intelligence_node
 
-        with patch("app.orchestration.nodes.menu_intelligence.ForecastService") as MockService:
-            MockService.return_value.get_top_friday_items = MagicMock(return_value=[])
-            result = await menu_intelligence_node(base_state, db=mock_db, llm=mock_llm)
+        state = {
+            **base_state,
+            "forecast_output": {"data": {"predicted_orders": 120}},
+            "complaint_output": {"data": {"unique_complaints": ["cold pizza"]}},
+            "inventory_output": {"data": {"shortage_alerts": [{"ingredient": "Mozzarella"}]}},
+        }
 
-        assert result["menu_output"]["recommendation"]["promo_candidates"] == []
+        with patch("app.orchestration.nodes.menu_intelligence.MenuService") as MockService:
+            mock_service = MockService.return_value
+            mock_service.analyse_and_recommend = AsyncMock(
+                return_value={"service": "menu", "data": {}, "recommendation": {}}
+            )
+            await menu_intelligence_node(state, db=mock_db, llm=mock_llm)
+
+        mock_service.analyse_and_recommend.assert_called_once_with(
+            forecast_data={"predicted_orders": 120},
+            complaint_data={"unique_complaints": ["cold pizza"]},
+            inventory_data={"shortage_alerts": [{"ingredient": "Mozzarella"}]},
+        )
 
     @pytest.mark.asyncio
     async def test_exception_captured_gracefully(self, base_state, mock_db, mock_llm):
         from app.orchestration.nodes.menu_intelligence import menu_intelligence_node
 
-        with patch("app.orchestration.nodes.menu_intelligence.ForecastService") as MockService:
-            MockService.return_value.get_top_friday_items = MagicMock(
+        with patch("app.orchestration.nodes.menu_intelligence.MenuService") as MockService:
+            MockService.return_value.analyse_and_recommend = AsyncMock(
                 side_effect=Exception("Forecast query failed")
             )
             result = await menu_intelligence_node(base_state, db=mock_db, llm=mock_llm)

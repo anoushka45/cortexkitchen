@@ -164,7 +164,7 @@ def build_graph(deps: dict[str, Any]):
 async def run_friday_rush(
     deps: dict[str, Any],
     target_date: str | None = None,
-    simulation_mode: bool = True,
+    simulation_mode: bool = False,
     force_critic_decision: str | None = None,
     debug: bool = False,
 ) -> dict:

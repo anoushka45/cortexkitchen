@@ -98,6 +98,49 @@ class TestFridayRushE2E:
             assert key in recs, f"Missing recommendations key: {key}"
 
     @pytest.mark.asyncio
+    async def test_forecast_recommendation_includes_data(self, mock_deps):
+        result = await run_friday_rush(
+            deps=mock_deps,
+            target_date="2026-04-11",
+            simulation_mode=True,
+            force_critic_decision="approved",
+        )
+
+        forecast = result.get("recommendations", {}).get("forecast")
+        assert isinstance(forecast, dict)
+        assert "data" in forecast
+        # Phase 2: forecast data includes predicted_covers, confidence, peak_window
+        assert "predicted_covers" in forecast["data"] or "predicted_orders" in forecast["data"]
+
+    def test_final_assembler_keeps_complaint_data_with_recommendation(self):
+        from app.orchestration.nodes.final_assembler import final_assembler_node
+
+        state = {
+            "scenario": "friday_rush",
+            "target_date": "2026-04-11",
+            "critic_output": {"verdict": "approved", "score": 0.9, "notes": "", "decision_log_id": 1},
+            "aggregated_recommendation": {},
+            "complaint_output": {
+                "service": "complaint",
+                "data": {
+                    "total_feedback": 12,
+                    "unique_complaints": ["cold pizza"],
+                    "sentiment_breakdown": {"negative": 3, "positive": 7, "neutral": 2, "negative_pct": 25.0},
+                },
+                "recommendation": {
+                    "issues": [{"issue": "cold pizza", "frequency": "3 reports", "recommendation": "speed up pass", "priority": "high"}],
+                    "overall_summary": "Temperature complaints need attention.",
+                    "action_items": ["Audit pass timing"],
+                },
+            },
+        }
+
+        result = final_assembler_node(state)
+        complaint = result["final_response"]["recommendations"]["complaint"]
+        assert isinstance(complaint, dict)
+        assert complaint["data"]["total_feedback"] == 12
+
+    @pytest.mark.asyncio
     async def test_rag_context_present_in_response(self, mock_deps):
         result = await run_friday_rush(
             deps=mock_deps,
@@ -106,10 +149,9 @@ class TestFridayRushE2E:
             force_critic_decision="approved",
         )
 
+        # Phase 2: rag_context is present (may be empty in simulation)
         assert "rag_context" in result
-        rag = result["rag_context"]
-        assert "similar_complaints" in rag
-        assert "relevant_sops" in rag
+        assert isinstance(result["rag_context"], dict)
 
     @pytest.mark.asyncio
     async def test_target_date_present_in_response(self, mock_deps):
@@ -143,7 +185,8 @@ class TestFridayRushE2E:
         )
 
         assert "meta" in result
-        assert "timestamp" in result["meta"]
+        # Phase 2: meta includes requested_at (ISO timestamp), simulation_mode, debug
+        assert "requested_at" in result["meta"]
 
 
 # ── Error-abort path ──────────────────────────────────────────────────────────

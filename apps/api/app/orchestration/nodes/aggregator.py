@@ -84,9 +84,60 @@ def _build_critic_summary(state: OrchestratorState) -> str:
             continue
         rec = output.get("recommendation", {})
         if isinstance(rec, dict):
-            rec_text = rec.get("recommendation") or rec.get("action") or rec.get("insight") or str(rec)
+            rec_text = (
+                rec.get("recommendation")
+                or rec.get("action")
+                or rec.get("insight")
+                or _summarize_recommendation_dict(label, rec)
+            )
         else:
             rec_text = str(rec)
         lines.append(f"[{label}] {rec_text}")
 
     return "\n".join(lines)
+
+
+def _summarize_recommendation_dict(label: str, recommendation: dict) -> str:
+    """Create a critic-friendly summary instead of dumping raw dicts."""
+    if label == "Inventory":
+        restock_actions = recommendation.get("restock_actions") or []
+        waste_actions = recommendation.get("waste_reduction_actions") or []
+        parts = []
+        if restock_actions:
+            parts.append(f"Restock: {', '.join(restock_actions[:2])}")
+        if waste_actions:
+            parts.append(f"Waste reduction: {', '.join(waste_actions[:2])}")
+        if recommendation.get("reasoning"):
+            parts.append(str(recommendation["reasoning"]))
+        return " | ".join(parts) if parts else "No concrete inventory actions provided."
+
+    if label == "Complaint":
+        issues = recommendation.get("issues") or []
+        action_items = recommendation.get("action_items") or []
+        parts = []
+        if issues:
+            top_issues = [str(issue.get("issue")) for issue in issues[:2] if isinstance(issue, dict) and issue.get("issue")]
+            if top_issues:
+                parts.append(f"Top issues: {', '.join(top_issues)}")
+        if action_items:
+            parts.append(f"Actions: {', '.join(map(str, action_items[:2]))}")
+        if recommendation.get("overall_summary"):
+            parts.append(str(recommendation["overall_summary"]))
+        return " | ".join(parts) if parts else "No concrete complaint actions provided."
+
+    if label == "Menu":
+        promo_candidates = recommendation.get("promo_candidates") or []
+        highlight_items = recommendation.get("highlight_items") or []
+        deprioritize_items = recommendation.get("deprioritize_items") or []
+        parts = []
+        if highlight_items:
+            parts.append(f"Highlight: {', '.join(map(str, highlight_items[:2]))}")
+        if deprioritize_items:
+            parts.append(f"Avoid pushing: {', '.join(map(str, deprioritize_items[:2]))}")
+        if promo_candidates:
+            parts.append(f"Promo candidates: {', '.join(map(str, promo_candidates[:2]))}")
+        if recommendation.get("reasoning"):
+            parts.append(str(recommendation["reasoning"]))
+        return " | ".join(parts) if parts else "No concrete menu actions provided."
+
+    return str(recommendation)

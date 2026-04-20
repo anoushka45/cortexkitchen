@@ -28,7 +28,10 @@ export function useFridayRush(): UseFridayRushReturn {
     setError(null);
 
     try {
-      const result = await runFridayRush({ target_date: targetDate ?? null });
+      const result = await runFridayRush({
+        target_date: targetDate ?? null,
+        simulation_mode: false,
+      });
       setData(result);
       setStatus("success");
 

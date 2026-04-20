@@ -84,6 +84,12 @@ class TestOpsManagerNode:
         assert result["target_date"] == valid_state["target_date"]
         assert result["requested_at"] == valid_state["requested_at"]
 
+    def test_sets_default_target_date_when_missing(self):
+        state = make_initial_state(scenario="friday_rush", target_date=None)
+        result = ops_manager_node(state)
+        assert result["target_date"] is not None
+        assert len(result["target_date"]) == 10
+
 
 # ── aggregator_node ───────────────────────────────────────────────────────────
 
@@ -127,6 +133,24 @@ class TestAggregatorNode:
         summary = result["aggregated_recommendation"]["summary_for_critic"]
         assert isinstance(summary, str)
         assert "friday_rush" in summary
+
+    def test_critic_summary_avoids_raw_inventory_dict_dump(self, populated_state):
+        state = {
+            **populated_state,
+            "inventory_output": {
+                "service": "inventory",
+                "data": {"shortage_alerts": [], "overstock_alerts": []},
+                "recommendation": {
+                    "restock_actions": ["Order 5kg mozzarella immediately"],
+                    "waste_reduction_actions": ["Use basil in lunch special"],
+                    "reasoning": "Critical ingredients need a same-day top-up.",
+                },
+            },
+        }
+        result = aggregator_node(state)
+        summary = result["aggregated_recommendation"]["summary_for_critic"]
+        assert "Order 5kg mozzarella immediately" in summary
+        assert "Use basil in lunch special" in summary
 
 
 # ── final_assembler_node ──────────────────────────────────────────────────────

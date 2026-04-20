@@ -9,11 +9,19 @@ Enhanced for P1-10:
 - Adds debug execution tracing
 """
 
+from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.orchestration.state import OrchestratorState
 from app.domain.services.forecast_service import ForecastService
 from app.infrastructure.llm.base import BaseLLMProvider
+
+
+def _parse_target_date(date_str: str | None) -> datetime | None:
+    """Parse ISO date string or return None for default."""
+    if date_str:
+        return datetime.fromisoformat(date_str)
+    return None
 
 
 async def demand_forecast_node(
@@ -55,8 +63,9 @@ async def demand_forecast_node(
             return {**state, "forecast_output": simulated_result}
 
         # ── Production Mode ─────────────────────────────────────────────────
+        target_date = _parse_target_date(state.get("target_date"))
         service = ForecastService(db=db, llm=llm)
-        result = await service.analyse_and_recommend()
+        result = await service.analyse_and_recommend(target_date=target_date)
         return {**state, "forecast_output": result}
 
     except Exception as exc:

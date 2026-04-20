@@ -127,11 +127,17 @@ def _summarize_recommendation_dict(label: str, recommendation: dict) -> str:
 
     if label == "Menu":
         promo_candidates = recommendation.get("promo_candidates") or []
+        highlight_items = recommendation.get("highlight_items") or []
+        deprioritize_items = recommendation.get("deprioritize_items") or []
         parts = []
-        if recommendation.get("insight"):
-            parts.append(str(recommendation["insight"]))
+        if highlight_items:
+            parts.append(f"Highlight: {', '.join(map(str, highlight_items[:2]))}")
+        if deprioritize_items:
+            parts.append(f"Avoid pushing: {', '.join(map(str, deprioritize_items[:2]))}")
         if promo_candidates:
             parts.append(f"Promo candidates: {', '.join(map(str, promo_candidates[:2]))}")
+        if recommendation.get("reasoning"):
+            parts.append(str(recommendation["reasoning"]))
         return " | ".join(parts) if parts else "No concrete menu actions provided."
 
     return str(recommendation)

@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import InventoryAlerts from "./InventoryAlerts";
+import MenuInsights from "./MenuInsights";
 import ReservationSummary from "./ReservationSummary";
 
 const AGENT_META: Record<string, {
@@ -60,6 +61,8 @@ export default function AgentCard({ agentKey, data, index = 0 }: Props) {
             <p className="text-sm text-rose-400">⚠ {String(data.error)}</p>
           ) : agentKey === "inventory" ? (
             <InventoryAlerts inventory={data} />
+          ) : agentKey === "menu" ? (
+            <MenuInsights data={data as Record<string, unknown>} />
           ) : agentKey === "reservation" ? (
             <ReservationSummary data={data as Record<string, unknown>} />
           ) : (

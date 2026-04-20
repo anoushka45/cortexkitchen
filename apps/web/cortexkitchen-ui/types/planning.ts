@@ -67,12 +67,37 @@ export interface ComplaintData {
 }
 
 export interface MenuData {
+  data?: {
+    top_items?: Array<{
+      item: string;
+      category: string;
+      total_ordered: number;
+    }>;
+    forecast_snapshot?: {
+      predicted_orders?: number;
+      predicted_peak_orders?: number;
+      avg_friday_orders?: number;
+      target_date?: string;
+    };
+    complaint_themes?: string[];
+    shortage_ingredients?: string[];
+    overstock_ingredients?: string[];
+    note?: string;
+  };
   top_items?: Array<{
     item: string;
     category: string;
     total_ordered: number;
   }>;
+  highlight_items?: string[];
+  deprioritize_items?: string[];
   promo_candidates?: string[];
+  inventory_blockers?: string[];
+  complaint_watchouts?: string[];
+  operational_notes?: string[];
+  reasoning?: string;
+  priority?: string;
+  risks?: string[];
   note?: string;
 }
 

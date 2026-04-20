@@ -19,6 +19,8 @@ class CriticService:
 6. Inventory reorder recommendations must be for realistic quantities (not more than 3x current stock).
 7. Do not recommend actions that would negatively impact already confirmed reservations.
 8. All recommendations must be actionable within a 24 hour window.
+9. When inventory has critical shortages, recommendations must explicitly prioritise those ingredients before non-critical actions.
+10. Inventory recommendations must focus on immediate restocking needed for the next Friday service window, not broad long-term replenishment.
 """
 
     def __init__(self, db: Session, llm: BaseLLMProvider):
@@ -28,7 +30,9 @@ class CriticService:
     async def evaluate(self, agent: str, recommendation: dict, input_summary: str = None) -> dict:
         """Evaluate a recommendation and return critic verdict."""
 
-        recommendation_text = str(recommendation.get("recommendation", recommendation))
+        recommendation_text = input_summary or str(
+            recommendation.get("recommendation", recommendation)
+        )
 
         prompt = PromptUtils.format_critic_prompt(
             recommendation=recommendation_text,

@@ -317,18 +317,24 @@ class TestInventoryNode:
         assert "recommendation" in output
 
     @pytest.mark.asyncio
-    async def test_no_llm_call_in_phase1(self, base_state, mock_db, mock_llm):
+    async def test_llm_called_in_production_mode(self, base_state, mock_db, mock_llm):
+        """Phase 2: In production mode, inventory node calls LLM for recommendations."""
         from app.orchestration.nodes.inventory import inventory_node
-
+        
+        mock_db.query.return_value.all.return_value = []
+        
         await inventory_node(base_state, db=mock_db, llm=mock_llm)
-        mock_llm.complete_json.assert_not_called()
+        mock_llm.complete_json.assert_called()
 
     @pytest.mark.asyncio
-    async def test_no_db_call_in_phase1(self, base_state, mock_db, mock_llm):
+    async def test_db_called_in_production_mode(self, base_state, mock_db, mock_llm):
+        """Phase 2: In production mode, inventory node calls DB to query inventory."""
         from app.orchestration.nodes.inventory import inventory_node
-
+        
+        mock_db.query.return_value.all.return_value = []
+        
         await inventory_node(base_state, db=mock_db, llm=mock_llm)
-        mock_db.query.assert_not_called()
+        mock_db.query.assert_called()
 
 
 # ── critic_node ───────────────────────────────────────────────────────────────

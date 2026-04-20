@@ -27,11 +27,11 @@ def get_db() -> Generator[Session, None, None]:
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
     db = SessionLocal()
-    print(f"[DEBUG] Database session created: {db}")
+    
     try:
         yield db
     finally:
-        print(f"[DEBUG] Database session closing: {db}")
+        
         db.close()
 
 

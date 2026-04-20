@@ -24,9 +24,7 @@ async def inventory_node(
     Detects stock pressure and waste risk using real inventory data.
     Writes to state['inventory_output'].
     """
-    print(f"[DEBUG] inventory_node starting - simulation_mode={state.get('simulation_mode', False)}")
     if state.get("error"):
-        print("[DEBUG] Error in state, returning early")
         return state
 
     if state.get("debug") and state.get("execution_trace") is not None:
@@ -34,7 +32,6 @@ async def inventory_node(
 
     try:
         if state.get("simulation_mode", False):
-            print("[DEBUG] Running inventory in simulation mode")
             return {
                 **state,
                 "inventory_output": {
@@ -66,7 +63,6 @@ async def inventory_node(
                 },
             }
 
-        print("[DEBUG] Running inventory in production mode")
         # Pull forecast data from state to compute demand ratio
         forecast_data = None
         forecast_output = state.get("forecast_output")
@@ -75,7 +71,6 @@ async def inventory_node(
 
         service = InventoryService(db=db, llm=llm)
         result  = await service.analyse_and_recommend(forecast_data=forecast_data)
-        print(f"[DEBUG] inventory_node got result: {result}")
 
         return {**state, "inventory_output": result}
 

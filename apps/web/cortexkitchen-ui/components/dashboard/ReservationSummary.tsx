@@ -25,10 +25,6 @@ export default function ReservationSummary({ data }: { data: ReservationData }) 
   const dataObj = (data as any)?.data || data;
   const recommendation = (data as any)?.recommendation || data?.recommendation;
 
-  console.log("[ReservationSummary] Full data:", data);
-  console.log("[ReservationSummary] dataObj:", dataObj);
-  console.log("[ReservationSummary] recommendation:", recommendation);
-
   if (!dataObj || Object.keys(dataObj).length === 0) {
     return <p className="text-sm text-slate-600 italic">No reservation data available.</p>;
   }

@@ -31,8 +31,7 @@ class InventoryService:
     # ── Data layer ────────────────────────────────────────────────────────────
 
     def get_all_stock(self) -> list[Inventory]:
-        items = self.db.query(Inventory).all()
-        print(f"[DEBUG] Inventory query returned {len(items)} items")
+        items = self.db.query(Inventory).all()        
         return items
 
     # ── Alert logic ───────────────────────────────────────────────────────────

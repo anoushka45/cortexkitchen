@@ -90,6 +90,82 @@ class InventoryService:
             "demand_ratio":        round(demand_ratio, 2),
         }
 
+    def build_capped_restock_actions(self, shortage_alerts: list[dict]) -> list[str]:
+        """Build deterministic restock actions that cannot exceed sanity caps."""
+        priority_order = {"critical": 0, "warning": 1}
+        sorted_alerts = sorted(
+            shortage_alerts,
+            key=lambda alert: priority_order.get(alert.get("severity"), 2),
+        )
+
+        actions = []
+        for alert in sorted_alerts:
+            ingredient = alert["ingredient"]
+            unit = alert["unit"]
+            current_stock = float(alert["quantity_in_stock"])
+            shortfall = float(alert["shortfall"])
+            recommended_qty = float(alert.get("recommended_restock_qty", alert["shortfall"]))
+            max_actionable_qty = float(
+                alert.get("max_actionable_restock_qty", recommended_qty)
+            )
+            capped_qty = round(min(recommended_qty, max_actionable_qty), 2)
+            urgency = (
+                "immediately"
+                if alert.get("severity") == "critical"
+                else "within 24 hours"
+            )
+            actions.append(
+                f"Order {capped_qty:g}{unit} {ingredient} {urgency} "
+                f"(covers {shortfall:g}{unit} shortfall; current stock {current_stock:g}{unit}; "
+                f"within max actionable cap {max_actionable_qty:g}{unit})."
+            )
+
+        return actions
+
+    def merge_guardrailed_recommendation(
+        self,
+        recommendation: dict,
+        actionable_shortages: list[dict],
+        overstock_alerts: list[dict],
+    ) -> dict:
+        """
+        Keep LLM reasoning, but make quantity-sensitive inventory actions deterministic.
+
+        The critic sanity checker should be a backstop, not the first place impossible
+        restock quantities are corrected.
+        """
+        guarded = recommendation if isinstance(recommendation, dict) else {}
+        restock_actions = self.build_capped_restock_actions(actionable_shortages)
+
+        waste_actions = guarded.get("waste_reduction_actions")
+        if not isinstance(waste_actions, list):
+            waste_actions = []
+
+        for alert in overstock_alerts:
+            ingredient = alert["ingredient"]
+            excess = alert["excess"]
+            unit = alert["unit"]
+            if alert.get("spoilage_risk"):
+                waste_actions.append(
+                    f"Use {excess:g}{unit} excess {ingredient} in specials before Friday service."
+                )
+            else:
+                waste_actions.append(
+                    f"Pause {ingredient} reorders; current stock exceeds Friday buffer by {excess:g}{unit}."
+                )
+
+        return {
+            **guarded,
+            "restock_actions": restock_actions,
+            "waste_reduction_actions": waste_actions,
+            "priority": guarded.get("priority") or ("high" if restock_actions else "medium"),
+            "reasoning": guarded.get("reasoning")
+            or "Critical shortages are prioritized with restock quantities capped to the immediate Friday need.",
+            "risks": guarded.get("risks") or [
+                "Friday service may stock out on critical ingredients if restocking is delayed."
+            ],
+        }
+
     # ── LLM recommendation ────────────────────────────────────────────────────
 
     async def analyse_and_recommend(
@@ -128,6 +204,7 @@ class InventoryService:
                 "recommended_restock_qty": shortfall,
                 "max_actionable_restock_qty": max_actionable_restock,
             })
+        alerts["shortage_alerts"] = actionable_shortages
 
         critical_shortages = [a for a in actionable_shortages if a["severity"] == "critical"]
         warning_shortages = [a for a in actionable_shortages if a["severity"] != "critical"]
@@ -175,6 +252,11 @@ Overstock alerts:
         recommendation = await self.llm.complete_json(
             prompt=prompt,
             system_prompt=PromptUtils.SYSTEM_INVENTORY_AGENT,
+        )
+        recommendation = self.merge_guardrailed_recommendation(
+            recommendation=recommendation,
+            actionable_shortages=actionable_shortages,
+            overstock_alerts=alerts["overstock_alerts"],
         )
 
         return {

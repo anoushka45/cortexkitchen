@@ -28,6 +28,7 @@ interface InventoryData {
 
 interface Props {
   inventory: Record<string, unknown> | null;
+  compact?: boolean;
 }
 
 const SEVERITY_STYLES: Record<string, string> = {
@@ -116,7 +117,7 @@ function AlertRow({ alert, type }: { alert: Alert; type: "shortage" | "overstock
   );
 }
 
-export default function InventoryAlerts({ inventory }: Props) {
+export default function InventoryAlerts({ inventory, compact = false }: Props) {
   const data = normalizeInventoryData(inventory);
   if (!data) return null;
 
@@ -125,8 +126,28 @@ export default function InventoryAlerts({ inventory }: Props) {
   const allClear     = !hasShortage && !hasOverstock;
   const recommendation = data.recommendation;
 
+  const shortageSorted = [...data.shortage_alerts].sort((a, b) => {
+    const score = (sev: Alert["severity"]) =>
+      sev === "critical" ? 2 : sev === "warning" ? 1 : 0;
+    return score(b.severity) - score(a.severity);
+  });
+
+  const shortagePreview = compact ? shortageSorted.slice(0, 3) : shortageSorted;
+  const overstockPreview = compact ? data.overstock_alerts.slice(0, 2) : data.overstock_alerts;
+
+  const restockPreview =
+    recommendation?.restock_actions
+      ? (compact ? recommendation.restock_actions.slice(0, 2) : recommendation.restock_actions)
+      : [];
+  const wastePreview =
+    recommendation?.waste_reduction_actions
+      ? (compact ? recommendation.waste_reduction_actions.slice(0, 1) : recommendation.waste_reduction_actions)
+      : [];
+  const riskPreview =
+    recommendation?.risks ? (compact ? recommendation.risks.slice(0, 1) : recommendation.risks) : [];
+
   return (
-    <div className="space-y-5">
+    <div className={compact ? "space-y-4" : "space-y-5"}>
       {/* Summary bar */}
       <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-slate-500">
         <span>{data.total_items_checked} ingredients checked</span>
@@ -153,7 +174,7 @@ export default function InventoryAlerts({ inventory }: Props) {
       )}
 
       {recommendation && (
-        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-4 space-y-3">
+        <div className={`rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-4 ${compact ? "space-y-2" : "space-y-3"}`}>
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xs font-mono uppercase tracking-widest text-slate-500">
               Recommendation
@@ -167,46 +188,61 @@ export default function InventoryAlerts({ inventory }: Props) {
           {recommendation.reasoning && (
             <p className="text-sm text-slate-200">{recommendation.reasoning}</p>
           )}
-          {recommendation.restock_actions.length > 0 && (
+          {restockPreview.length > 0 && (
             <div>
               <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
                 Restock Actions
               </p>
               <ul className="space-y-1.5">
-                {recommendation.restock_actions.map((action, index) => (
+                {restockPreview.map((action, index) => (
                   <li key={`restock-${index}`} className="text-xs text-slate-200 bg-slate-900/60 rounded-lg px-3 py-2 border border-white/5">
                     {action}
                   </li>
                 ))}
               </ul>
+              {compact && recommendation.restock_actions.length > restockPreview.length && (
+                <p className="text-xs text-slate-500 mt-2">
+                  {recommendation.restock_actions.length - restockPreview.length} more restock actions in details.
+                </p>
+              )}
             </div>
           )}
-          {recommendation.waste_reduction_actions.length > 0 && (
+          {wastePreview.length > 0 && (
             <div>
               <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
                 Waste Reduction
               </p>
               <ul className="space-y-1.5">
-                {recommendation.waste_reduction_actions.map((action, index) => (
+                {wastePreview.map((action, index) => (
                   <li key={`waste-${index}`} className="text-xs text-slate-200 bg-slate-900/60 rounded-lg px-3 py-2 border border-white/5">
                     {action}
                   </li>
                 ))}
               </ul>
+              {compact && recommendation.waste_reduction_actions.length > wastePreview.length && (
+                <p className="text-xs text-slate-500 mt-2">
+                  {recommendation.waste_reduction_actions.length - wastePreview.length} more waste actions in details.
+                </p>
+              )}
             </div>
           )}
-          {recommendation.risks.length > 0 && (
+          {riskPreview.length > 0 && (
             <div>
               <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
                 Risks
               </p>
               <ul className="space-y-1.5">
-                {recommendation.risks.map((risk, index) => (
+                {riskPreview.map((risk, index) => (
                   <li key={`risk-${index}`} className="text-xs text-rose-300 bg-rose-500/10 rounded-lg px-3 py-2 border border-rose-500/20">
                     {risk}
                   </li>
                 ))}
               </ul>
+              {compact && recommendation.risks.length > riskPreview.length && (
+                <p className="text-xs text-slate-500 mt-2">
+                  {recommendation.risks.length - riskPreview.length} more risks in details.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -219,10 +255,15 @@ export default function InventoryAlerts({ inventory }: Props) {
             Shortage alerts — {data.shortage_alerts.length}
           </p>
           <div className="space-y-2">
-            {data.shortage_alerts.map((a, i) => (
+            {shortagePreview.map((a, i) => (
               <AlertRow key={`shortage-${i}`} alert={a} type="shortage" />
             ))}
           </div>
+          {compact && data.shortage_alerts.length > shortagePreview.length && (
+            <p className="text-xs text-slate-500 mt-2">
+              {data.shortage_alerts.length - shortagePreview.length} more shortage alerts in details.
+            </p>
+          )}
         </div>
       )}
 
@@ -233,10 +274,15 @@ export default function InventoryAlerts({ inventory }: Props) {
             Overstock alerts — {data.overstock_alerts.length}
           </p>
           <div className="space-y-2">
-            {data.overstock_alerts.map((a, i) => (
+            {overstockPreview.map((a, i) => (
               <AlertRow key={`overstock-${i}`} alert={a} type="overstock" />
             ))}
           </div>
+          {compact && data.overstock_alerts.length > overstockPreview.length && (
+            <p className="text-xs text-slate-500 mt-2">
+              {data.overstock_alerts.length - overstockPreview.length} more overstock alerts in details.
+            </p>
+          )}
         </div>
       )}
     </div>

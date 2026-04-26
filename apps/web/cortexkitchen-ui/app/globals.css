@@ -56,12 +56,19 @@ body {
   border: 1px solid rgba(139,92,246,0.12);
   border-radius: 12px;
   box-shadow: 0 0 0 1px rgba(139,92,246,0.05), 0 4px 24px rgba(0,0,0,0.4);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  will-change: transform;
 }
 
 .card:hover {
   border-color: rgba(139,92,246,0.3);
   box-shadow: 0 0 0 1px rgba(139,92,246,0.15), 0 8px 32px rgba(0,0,0,0.5);
+  transform: translateY(-3px);
+}
+
+.card:focus-within {
+  border-color: rgba(139,92,246,0.35);
+  box-shadow: 0 0 0 1px rgba(139,92,246,0.20), 0 10px 36px rgba(0,0,0,0.55);
 }
 
 /* ── Pills ────────────────────────────────────────────── */
@@ -100,6 +107,24 @@ body {
 .stagger-7 { animation: fadeUp 0.4s ease 0.35s both; }
 
 /* ── Shadows ──────────────────────────────────────────── */
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .stagger-1,
+  .stagger-2,
+  .stagger-3,
+  .stagger-4,
+  .stagger-5,
+  .stagger-6,
+  .stagger-7 {
+    animation: none !important;
+  }
+
+  .card {
+    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+    transform: none !important;
+  }
+}
 
 .shadow-glow-violet  { box-shadow: 0 0 20px rgba(139,92,246,0.3);  }
 .shadow-glow-emerald { box-shadow: 0 0 20px rgba(16,185,129,0.3);  }

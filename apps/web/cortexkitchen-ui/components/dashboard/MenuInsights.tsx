@@ -68,6 +68,16 @@ function SectionList({
 }
 
 export default function MenuInsights({ data }: { data: MenuInsightsData }) {
+  return <MenuInsightsBody data={data} compact={false} />;
+}
+
+export function MenuInsightsBody({
+  data,
+  compact = false,
+}: {
+  data: MenuInsightsData;
+  compact?: boolean;
+}) {
   const detail = data.data ?? {};
   const topItems = detail.top_items ?? data.top_items ?? [];
   const complaintThemes = detail.complaint_themes ?? [];
@@ -112,7 +122,7 @@ export default function MenuInsights({ data }: { data: MenuInsightsData }) {
         </div>
       )}
 
-      {topItems.length > 0 && (
+      {!compact && topItems.length > 0 && (
         <div>
           <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
             Friday Best Sellers
@@ -147,7 +157,7 @@ export default function MenuInsights({ data }: { data: MenuInsightsData }) {
         <SectionList title="Complaint Watchouts" items={data.complaint_watchouts ?? complaintThemes} tone="warn" />
       </div>
 
-      {(overstockIngredients.length > 0 || (data.risks?.length ?? 0) > 0) && (
+      {!compact && (overstockIngredients.length > 0 || (data.risks?.length ?? 0) > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <SectionList title="Overstock Opportunities" items={overstockIngredients} />
           <SectionList title="Risks" items={data.risks ?? []} tone="risk" />

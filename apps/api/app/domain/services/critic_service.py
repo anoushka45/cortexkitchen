@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from app.infrastructure.db.models import DecisionLog, CriticVerdict
 from app.infrastructure.llm.base import BaseLLMProvider
 from app.infrastructure.llm.prompt_utils import PromptUtils
+from app.domain.services.evaluation_sanity import EvaluationSanityChecker
 
 
 class CriticService:
@@ -26,6 +27,7 @@ class CriticService:
     def __init__(self, db: Session, llm: BaseLLMProvider):
         self.db = db
         self.llm = llm
+        self.sanity_checker = EvaluationSanityChecker()
 
     async def evaluate(self, agent: str, recommendation: dict, input_summary: str = None) -> dict:
         """Evaluate a recommendation and return critic verdict."""
@@ -34,8 +36,18 @@ class CriticService:
             recommendation.get("recommendation", recommendation)
         )
 
+        sanity_report = (
+            self.sanity_checker.check_bundle(recommendation)
+            if isinstance(recommendation, dict)
+            else {"passed": True, "issues": [], "summary": "0 errors, 0 warnings"}
+        )
+
         prompt = PromptUtils.format_critic_prompt(
-            recommendation=recommendation_text,
+            recommendation=(
+                f"{recommendation_text}\n\n"
+                f"## Automated sanity checks\n"
+                f"{self.sanity_checker.format_report(sanity_report)}"
+            ),
             rules=self.RULES
         )
 
@@ -52,12 +64,36 @@ class CriticService:
         critic_score = float(verdict_raw.get("score", 0.5))
         critic_notes = verdict_raw.get("notes", "")
 
+        has_errors = any(
+            issue.get("severity") == "error"
+            for issue in sanity_report.get("issues", [])
+        )
+        has_hard_policy_error = any(
+            issue.get("code", "").startswith("policy.")
+            for issue in sanity_report.get("issues", [])
+            if issue.get("severity") == "error"
+        )
+
+        if has_hard_policy_error:
+            verdict_str = "rejected"
+            critic_score = min(critic_score, 0.3)
+        elif has_errors and verdict_str == "approved":
+            verdict_str = "revision"
+            critic_score = min(critic_score, 0.65)
+
+        if sanity_report.get("issues"):
+            critic_notes = (
+                f"{critic_notes} Automated sanity checks: "
+                f"{sanity_report['summary']}."
+            ).strip()
+
         return {
             "agent": agent,
             "verdict": verdict_str,
             "score": critic_score,
             "notes": critic_notes,
             "recommendation": recommendation_text,
+            "sanity_checks": sanity_report,
         }
 
     async def evaluate_and_log(
@@ -88,6 +124,7 @@ class CriticService:
             critic_verdict=verdict_map.get(result["verdict"], CriticVerdict.revision),
             critic_score=result["score"],
             critic_notes=result["notes"],
+            metadata_={"sanity_checks": result.get("sanity_checks")},
             created_at=datetime.now(timezone.utc),
 
         )

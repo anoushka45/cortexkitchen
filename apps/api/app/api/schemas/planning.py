@@ -106,6 +106,10 @@ class CriticResult(BaseModel):
         default=None,
         description="ID of the persisted DecisionLog row"
     )
+    sanity_checks: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Automated evaluation sanity-check report"
+    )
 
 
 # ── Response ──────────────────────────────────────────────────────────────────

@@ -69,6 +69,7 @@ def final_assembler_node(state: OrchestratorState) -> OrchestratorState:
             "score": critic.get("score", 0.0),
             "notes": critic.get("notes", ""),
             "decision_log_id": critic.get("decision_log_id"),
+            "sanity_checks": critic.get("sanity_checks"),
         },
 
         # Frontend status

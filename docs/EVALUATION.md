@@ -209,6 +209,7 @@ Focus on stronger optimization quality.
 - forecasting improves
 - dashboard becomes more informative
 - retrieval quality improves with richer memory
+- rubric, scenario checklist, automated sanity checks, and critic calibration are tracked in [Phase 2 Evaluation Refinement](PHASE2_EVALUATION_REFINEMENT.md)
 
 ---
 

@@ -219,6 +219,41 @@ class TestAnalyseAndRecommend:
         assert "max_actionable_restock=9.0" in prompt
         assert "Prioritize critical shortages first" in prompt
 
+    @pytest.mark.asyncio
+    async def test_returned_restock_actions_are_capped_even_if_llm_overorders(self):
+        from app.domain.services.inventory_service import InventoryService
+
+        garlic = _make_item(name="Garlic", unit="kg", stock=0.8, threshold=1.5, spoilage=True)
+        basil = _make_item(name="Fresh Basil", unit="kg", stock=0.4, threshold=1.0, spoilage=True)
+        llm = _make_llm(
+            response={
+                "restock_actions": [
+                    "Order 20kg Garlic immediately",
+                    "Order 15kg Fresh Basil immediately",
+                ],
+                "waste_reduction_actions": [],
+                "priority": "high",
+                "reasoning": "Model tried to over-order.",
+                "risks": ["Stockout risk"],
+            }
+        )
+        svc = InventoryService(db=_make_db([garlic, basil]), llm=llm)
+
+        result = await svc.analyse_and_recommend(
+            forecast_data={"predicted_orders": 130.0, "avg_friday_orders": 100.0}
+        )
+
+        actions = result["recommendation"]["restock_actions"]
+        assert (
+            "Order 0.7kg Garlic immediately "
+            "(covers 0.7kg shortfall; current stock 0.8kg; within max actionable cap 2.4kg)."
+        ) in actions
+        assert (
+            "Order 0.6kg Fresh Basil immediately "
+            "(covers 0.6kg shortfall; current stock 0.4kg; within max actionable cap 1.2kg)."
+        ) in actions
+        assert all("20kg" not in action and "15kg" not in action for action in actions)
+
 
 # ── inventory_node ────────────────────────────────────────────────────────────
 

@@ -6,11 +6,14 @@ POST /api/v1/planning/friday-rush
     and returns a validated recommendation bundle.
 """
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.dependencies import get_orchestration_deps
 from app.api.schemas.planning import FridayRushRequest, FridayRushResponse
 from app.core.exceptions import AppError
+from app.domain.services.run_service import RunService
 from app.orchestration import run_friday_rush
 
 router = APIRouter(prefix="/planning", tags=["planning"])
@@ -70,12 +73,19 @@ async def friday_rush(
 
     # Populate metadata when debug mode is enabled
     meta = result.get("meta", {})
+    meta.setdefault("timestamp", datetime.now(timezone.utc).isoformat())
     if body.debug:
         meta.setdefault("debug", True)
         meta.setdefault("simulation_mode", body.simulation_mode)
         meta.setdefault(
             "forced_critic_decision", body.force_critic_decision
         )
+
+    try:
+        run = RunService(deps["db"]).create_from_response({**result, "meta": meta})
+        meta.setdefault("planning_run_id", run.id)
+    except Exception as exc:
+        meta.setdefault("run_persistence_error", str(exc))
 
     # Shape the flat result dict into the typed response model
     return FridayRushResponse(

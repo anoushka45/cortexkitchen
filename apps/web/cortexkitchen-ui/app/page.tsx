@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import AgentCard from "@/components/dashboard/AgentCard";
 import CriticBanner from "@/components/dashboard/CriticBanner";
 import DashboardDetailModal from "@/components/dashboard/DashboardDetailModal";
@@ -286,13 +287,13 @@ function LoadingState() {
 
 export default function DashboardPage() {
   const { data, status, error, history, trigger, reset, loadFromHistory } = useFridayRush();
-  const [activeHistoryId, setActiveHistoryId] = useState<string | undefined>();
+  const [activeHistoryId, setActiveHistoryId] = useState<string | number | undefined>();
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
   const [showManagerBrief, setShowManagerBrief] = useState(false);
 
-  const handleHistorySelect = (entry: RunHistoryEntry) => {
+  const handleHistorySelect = async (entry: RunHistoryEntry) => {
     setActiveHistoryId(entry.id);
-    loadFromHistory(entry);
+    await loadFromHistory(entry);
     setShowHistoryDrawer(false);
   };
 
@@ -334,6 +335,27 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex w-full flex-col gap-3 xl:w-auto xl:flex-row xl:items-stretch">
+            <nav className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+              <Link
+                href="/"
+                className="rounded-xl bg-violet-500/15 px-3 py-2 text-xs font-mono uppercase tracking-[0.14em] text-violet-200"
+              >
+                dashboard
+              </Link>
+              <Link
+                href="/runs"
+                className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2 text-xs font-mono uppercase tracking-[0.14em] text-slate-300 transition-all hover:bg-slate-900 hover:text-white"
+              >
+                runs
+              </Link>
+              <Link
+                href="/data-health"
+                className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2 text-xs font-mono uppercase tracking-[0.14em] text-slate-300 transition-all hover:bg-slate-900 hover:text-white"
+              >
+                data
+              </Link>
+            </nav>
+
             {status !== "idle" && (
               <DatePicker onRun={handleRun} loading={status === "loading"} />
             )}

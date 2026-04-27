@@ -16,7 +16,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from app.api.schemas.common import MetaInfo
 
 
 # ── Request ───────────────────────────────────────────────────────────────────
@@ -130,4 +129,4 @@ class FridayRushResponse(BaseModel):
     recommendations: AgentRecommendations
     rag_context: Optional[Dict[str, Any]] = None
     critic: CriticResult
-    meta: MetaInfo = Field(default_factory=MetaInfo)
+    meta: Dict[str, Any] = Field(default_factory=dict)

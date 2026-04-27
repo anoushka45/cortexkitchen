@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from app.infrastructure.db.models import DecisionLog, CriticVerdict
 from app.infrastructure.llm.base import BaseLLMProvider
 from app.infrastructure.llm.prompt_utils import PromptUtils
+from app.domain.services.cost_aware_scoring import CostAwareScoringService
 from app.domain.services.evaluation_sanity import EvaluationSanityChecker
 
 
@@ -36,6 +37,7 @@ class CriticService:
         self.db = db
         self.llm = llm
         self.sanity_checker = EvaluationSanityChecker()
+        self.cost_scoring = CostAwareScoringService()
 
     async def evaluate(self, agent: str, recommendation: dict, input_summary: str = None) -> dict:
         """Evaluate a recommendation and return critic verdict."""
@@ -49,12 +51,19 @@ class CriticService:
             if isinstance(recommendation, dict)
             else {"passed": True, "issues": [], "summary": "0 errors, 0 warnings"}
         )
+        cost_analysis = (
+            self.cost_scoring.evaluate_bundle(recommendation)
+            if isinstance(recommendation, dict)
+            else {}
+        )
 
         prompt = PromptUtils.format_critic_prompt(
             recommendation=(
                 f"{recommendation_text}\n\n"
                 f"## Automated sanity checks\n"
-                f"{self.sanity_checker.format_report(sanity_report)}"
+                f"{self.sanity_checker.format_report(sanity_report)}\n\n"
+                f"## Cost-aware tradeoff analysis\n"
+                f"{self.cost_scoring.format_report(cost_analysis)}"
             ),
             rules=self.RULES
         )
@@ -90,6 +99,8 @@ class CriticService:
             for issue in sanity_report.get("issues", [])
             if issue.get("severity") == "error"
         )
+        tradeoff_score = float(cost_analysis.get("tradeoff_score", 0.5))
+        cost_pressure = float(cost_analysis.get("cost_pressure_score", 0.5))
 
         if has_hard_policy_error:
             verdict_str = "rejected"
@@ -106,6 +117,27 @@ class CriticService:
             if not revision_reasons:
                 revision_reasons.append(
                     "Automated sanity checks found operational issues that require revision."
+                )
+        elif (
+            verdict_str == "approved"
+            and tradeoff_score < 0.2
+            and cost_pressure >= 0.9
+        ):
+            verdict_str = "revision"
+            critic_score = min(critic_score, 0.68)
+            dimension_scores["actionability"] = min(
+                dimension_scores["actionability"], 0.68
+            )
+            revision_reasons.append(
+                "Operational cost and benefit tradeoffs are weak for this service window."
+            )
+
+        if cost_pressure >= 0.75:
+            dimension_scores["feasibility"] = min(dimension_scores["feasibility"], 0.7)
+            actionable_feedback.extend(cost_analysis.get("recommended_focus", []))
+            if not any("tradeoff" in reason.lower() or "operational cost" in reason.lower() for reason in revision_reasons):
+                revision_reasons.append(
+                    "High operational pressure means the plan should focus on the most valuable actions first."
                 )
 
         if sanity_report.get("issues"):
@@ -129,6 +161,7 @@ class CriticService:
             "notes": critic_notes,
             "recommendation": recommendation_text,
             "sanity_checks": sanity_report,
+            "cost_analysis": cost_analysis,
             "dimension_scores": dimension_scores,
             "revision_reasons": revision_reasons,
             "actionable_feedback": actionable_feedback,
@@ -164,6 +197,7 @@ class CriticService:
             critic_notes=result["notes"],
             metadata_={
                 "sanity_checks": result.get("sanity_checks"),
+                "cost_analysis": result.get("cost_analysis"),
                 "dimension_scores": result.get("dimension_scores"),
                 "revision_reasons": result.get("revision_reasons", []),
                 "actionable_feedback": result.get("actionable_feedback", []),

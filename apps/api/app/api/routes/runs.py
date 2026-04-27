@@ -9,11 +9,12 @@ from app.api.schemas.runs import (
     DataHealthResponse,
     DataRange,
     FeedbackHealth,
-    FutureFridayCoverage,
     InventoryHealth,
     PlanningRunDetail,
     PlanningRunListResponse,
+    ScenarioCoverage,
 )
+from app.domain.scenarios import list_scenarios
 from app.domain.services.inventory_service import InventoryService
 from app.domain.services.run_service import RunService
 from app.infrastructure.db.models import (
@@ -104,20 +105,15 @@ def data_health(db: Session = Depends(get_db)) -> DataHealthResponse:
             overstock_alerts=len(inventory_alerts["overstock_alerts"]),
         ),
         menu={"items": db.query(func.count(MenuItem.id)).scalar() or 0},
-        future_fridays=_future_friday_coverage(db),
+        scenario_coverage=_scenario_coverage(db),
     )
 
 
-def _future_friday_coverage(db: Session) -> list[FutureFridayCoverage]:
+def _scenario_coverage(db: Session) -> list[ScenarioCoverage]:
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    days_ahead = (4 - today.weekday()) % 7
-    if days_ahead == 0:
-        days_ahead = 7
-    first_friday = today + timedelta(days=days_ahead)
-
     coverage = []
-    for week in range(4):
-        target = first_friday + timedelta(weeks=week)
+    for scenario in list_scenarios():
+        target = _next_matching_service_date(today, scenario["default_weekday"])
         start = target.replace(hour=0, minute=0, second=0)
         end = target.replace(hour=23, minute=59, second=59)
         rows = db.query(Reservation).filter(
@@ -130,7 +126,9 @@ def _future_friday_coverage(db: Session) -> list[FutureFridayCoverage]:
         ).all()
         guests = sum(row.guest_count for row in rows)
         coverage.append(
-            FutureFridayCoverage(
+            ScenarioCoverage(
+                scenario=scenario["id"],
+                label=scenario["label"],
                 date=start.strftime("%Y-%m-%d"),
                 reservations=len(rows),
                 guests=guests,
@@ -139,6 +137,13 @@ def _future_friday_coverage(db: Session) -> list[FutureFridayCoverage]:
             )
         )
     return coverage
+
+
+def _next_matching_service_date(today: datetime, weekday: int) -> datetime:
+    days_ahead = (weekday - today.weekday()) % 7
+    if days_ahead == 0:
+        days_ahead = 7
+    return today + timedelta(days=days_ahead)
 
 
 def _date(value) -> str | None:

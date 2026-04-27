@@ -58,14 +58,15 @@ export default function DataHealthPage() {
 
             <section className="grid grid-cols-1 gap-5 xl:grid-cols-12">
               <div className="rounded-lg border border-white/10 bg-white/[0.03] p-5 xl:col-span-7">
-                <h2 className="text-sm font-semibold">Future Friday Coverage</h2>
+                <h2 className="text-sm font-semibold">Scenario Coverage</h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  Reservation pressure available before running a planning scenario.
+                  Best upcoming demo dates with reservation pressure already present in the database.
                 </p>
                 <div className="mt-4 overflow-hidden rounded-lg border border-white/10">
                   <table className="w-full text-left text-sm">
                     <thead className="bg-slate-950/60 text-xs uppercase tracking-[0.14em] text-slate-500">
                       <tr>
+                        <th className="px-3 py-3">Scenario</th>
                         <th className="px-3 py-3">Date</th>
                         <th className="px-3 py-3">Bookings</th>
                         <th className="px-3 py-3">Guests</th>
@@ -74,8 +75,14 @@ export default function DataHealthPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/10">
-                      {data.future_fridays.map((row) => (
-                        <tr key={row.date}>
+                      {data.scenario_coverage.map((row) => (
+                        <tr key={`${row.scenario}-${row.date}`}>
+                          <td className="px-3 py-3">
+                            <div className="flex flex-col">
+                              <span>{row.label}</span>
+                              <span className="text-xs font-mono text-slate-500">{row.scenario}</span>
+                            </div>
+                          </td>
                           <td className="px-3 py-3 font-mono text-xs text-slate-300">{row.date}</td>
                           <td className="px-3 py-3">{row.reservations}</td>
                           <td className="px-3 py-3">{row.guests}</td>

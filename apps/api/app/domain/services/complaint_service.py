@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timedelta
 
+from app.domain.scenarios import ScenarioDefinition
 from app.infrastructure.db.models import Feedback, SentimentType
 from app.infrastructure.llm.base import BaseLLMProvider
 from app.infrastructure.llm.prompt_utils import PromptUtils
@@ -59,18 +60,41 @@ class ComplaintService:
             "unique_positives": unique_positives,
         }
 
-    async def analyse_and_recommend(self, days: int = 28) -> dict:
+    async def analyse_and_recommend(
+        self,
+        days: int = 28,
+        scenario_profile: ScenarioDefinition | None = None,
+        target_date: datetime | None = None,
+    ) -> dict:
         """Use Gemini to analyse complaints and generate recommendation."""
 
         summary = self.get_complaint_summary(days)
+        scenario_label = scenario_profile["label"] if scenario_profile else "Friday Rush"
+        service_window = scenario_profile["service_window"] if scenario_profile else "18:00-22:00"
+        operational_focus = (
+            scenario_profile["operational_focus"]
+            if scenario_profile
+            else "Rush execution, table turns, and same-day quality control."
+        )
+        scenario_watchouts = self._scenario_watchouts((scenario_profile or {}).get("id", "friday_rush"))
+        summary["scenario_label"] = scenario_label
+        summary["service_window"] = service_window
+        summary["scenario_watchouts"] = scenario_watchouts
+        if target_date:
+            summary["target_date"] = target_date.strftime("%Y-%m-%d")
 
         prompt = f"""
 ## Context
-Customer feedback analysis for the last {summary['period_days']} days:
+Customer feedback analysis for {scenario_label} planning:
+- Target service window: {service_window}
+- Operational focus: {operational_focus}
 - Total feedback received: {summary['total_feedback']}
 - Negative: {summary['sentiment_breakdown']['negative']} ({summary['sentiment_breakdown']['negative_pct']}%)
 - Positive: {summary['sentiment_breakdown']['positive']}
 - Neutral:  {summary['sentiment_breakdown']['neutral']}
+
+Operational watchouts for this scenario:
+{chr(10).join(f'- {item}' for item in scenario_watchouts)}
 
 Complaint texts:
 {chr(10).join(f'- {c}' for c in summary['unique_complaints'])}
@@ -79,7 +103,7 @@ Positive feedback:
 {chr(10).join(f'- {p}' for p in summary['unique_positives'][:5])}
 
 ## Task
-Identify the top 3 recurring issues from these complaints and recommend specific operational fixes for each.
+Identify the top 3 recurring issues from these complaints and recommend specific operational fixes for this service scenario. Weight the issues that most threaten the target service window first.
 
 ## Response format
 Respond with a JSON object containing:
@@ -102,3 +126,26 @@ Respond with a JSON object containing:
             "data": summary,
             "recommendation": recommendation
         }
+
+    def _scenario_watchouts(self, scenario_id: str) -> list[str]:
+        watchouts = {
+            "weekday_lunch": [
+                "Fast lunch pacing matters more than broad menu experimentation.",
+                "Takeaway packaging, handoff speed, and cashier flow are high-sensitivity points.",
+            ],
+            "holiday_spike": [
+                "Queue growth and delayed dispatch will be amplified under surge demand.",
+                "Quality slippage under heavy volume is more damaging than small menu restraint.",
+            ],
+            "low_stock_weekend": [
+                "Stockout disappointment and inconsistent substitutions are the main guest risk.",
+                "Front-of-house communication needs to stay ahead of unavailable items.",
+            ],
+        }
+        return watchouts.get(
+            scenario_id,
+            [
+                "Wait times, pizza temperature, and table turns remain the main Friday rush risks.",
+                "Peak-hour guest communication should stay tight when the kitchen is under pressure.",
+            ],
+        )

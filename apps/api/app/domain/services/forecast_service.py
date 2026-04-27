@@ -14,23 +14,34 @@ from app.infrastructure.forecasting.prophet_forecaster import ProphetForecaster
 class ForecastService:
     """Analyses historical order data to forecast Friday demand."""
 
+    def get_friday_order_history(self, target_date: datetime | None = None) -> list[dict]:
+        """Backward-compatible wrapper for older Friday-specific callers/tests."""
+        return self.get_service_day_order_history(target_date)
+
+    def get_top_friday_items(self, target_date: datetime | None = None) -> list[dict]:
+        """Backward-compatible wrapper for older Friday-specific callers/tests."""
+        return self.get_top_service_day_items(target_date)
+
     def __init__(self, db: Session, llm: BaseLLMProvider):
         self.db = db
         self.llm = llm
 
-    def get_friday_order_history(self) -> list[dict]:
-        """Get order counts for the last 4 Fridays."""
+    def get_service_day_order_history(self, target_date: datetime | None = None) -> list[dict]:
+        """Get order counts for the last 4 matching weekdays for the target date."""
         results = []
+        service_day = self._get_target_date(target_date)
         today = datetime.now()
+        weekday = service_day.weekday()
 
-        for weeks_ago in range(1, 5):
-            friday = today - timedelta(weeks=weeks_ago)
-            # Roll back to Friday
-            while friday.weekday() != 4:
-                friday -= timedelta(days=1)
+        probe = today
+        found = 0
+        while found < 4:
+            probe -= timedelta(days=1)
+            if probe.weekday() != weekday:
+                continue
 
-            start = friday.replace(hour=0, minute=0, second=0)
-            end = friday.replace(hour=23, minute=59, second=59)
+            start = probe.replace(hour=0, minute=0, second=0)
+            end = probe.replace(hour=23, minute=59, second=59)
 
             count = self.db.query(func.count(Order.id)).filter(
                 Order.ordered_at >= start,
@@ -38,15 +49,16 @@ class ForecastService:
             ).scalar()
 
             peak_count = self.db.query(func.count(Order.id)).filter(
-                Order.ordered_at >= friday.replace(hour=18, minute=0, second=0),
-                Order.ordered_at <= friday.replace(hour=22, minute=59, second=59)
+                Order.ordered_at >= probe.replace(hour=18, minute=0, second=0),
+                Order.ordered_at <= probe.replace(hour=22, minute=59, second=59)
             ).scalar()
 
             results.append({
-                "date": friday.strftime("%Y-%m-%d"),
+                "date": probe.strftime("%Y-%m-%d"),
                 "total_orders": count,
                 "peak_orders_6pm_to_11pm": peak_count,
             })
+            found += 1
 
         return results
 
@@ -81,23 +93,25 @@ class ForecastService:
 
         return pd.DataFrame(results)
 
-    def get_top_friday_items(self) -> list[dict]:
-        """Get the most ordered menu items on Fridays."""
+    def get_top_service_day_items(self, target_date: datetime | None = None) -> list[dict]:
+        """Get the most ordered menu items on matching weekdays for the target date."""
         from app.infrastructure.db.models import MenuItem
 
+        service_day = self._get_target_date(target_date)
+        weekday = service_day.weekday()
         today = datetime.now()
-        friday_dates = []
+        matching_dates = []
 
-        for weeks_ago in range(1, 5):
-            friday = today - timedelta(weeks=weeks_ago)
-            while friday.weekday() != 4:
-                friday -= timedelta(days=1)
-            friday_dates.append(friday)
+        probe = today
+        while len(matching_dates) < 4:
+            probe -= timedelta(days=1)
+            if probe.weekday() == weekday:
+                matching_dates.append(probe)
 
         item_counts = {}
-        for friday in friday_dates:
-            start = friday.replace(hour=0, minute=0, second=0)
-            end = friday.replace(hour=23, minute=59, second=59)
+        for service_date in matching_dates:
+            start = service_date.replace(hour=0, minute=0, second=0)
+            end = service_date.replace(hour=23, minute=59, second=59)
 
             orders = self.db.query(Order).filter(
                 Order.ordered_at >= start,
@@ -123,24 +137,27 @@ class ForecastService:
 
     def calculate_baseline_forecast(self, target_date: datetime | None = None) -> dict:
         """Calculate predicted demand for target Friday using baseline method."""
-        history = self.get_friday_order_history()
+        history = self.get_friday_order_history(target_date)
         if not history:
             return {"predicted_orders": 0, "confidence": "low"}
 
         avg_orders = sum(h["total_orders"] for h in history) / len(history)
         avg_peak = sum(h["peak_orders_6pm_to_11pm"] for h in history) / len(history)
 
-        target_friday = self._get_target_friday(target_date)
+        target_service_date = self._get_target_date(target_date)
+        service_day_label = target_service_date.strftime("%A")
 
         return {
             "history": history,
             "avg_friday_orders": round(avg_orders, 1),
+            "avg_same_day_orders": round(avg_orders, 1),
             "avg_peak_orders": round(avg_peak, 1),
             "predicted_orders": round(avg_orders * 1.05, 1),  # 5% growth assumption
             "predicted_peak_orders": round(avg_peak * 1.05, 1),
-            "top_items": self.get_top_friday_items(),
+            "top_items": self.get_top_friday_items(target_date),
             "method": "baseline",
-            "target_date": target_friday.strftime("%Y-%m-%d")
+            "target_date": target_service_date.strftime("%Y-%m-%d"),
+            "service_day_label": service_day_label,
         }
 
 
@@ -150,37 +167,40 @@ class ForecastService:
         try:
             df = self.get_daily_order_history(days_back=90)
 
-            target_friday = self._get_target_friday(target_date)
+            target_service_date = self._get_target_date(target_date)
             forecaster = ProphetForecaster()
-            prediction = forecaster.fit_and_predict(df, target_friday)
+            prediction = forecaster.fit_and_predict(df, target_service_date)
 
             # Historical Friday context for the response
-            friday_history = self.get_friday_order_history()
+            service_day_history = self.get_friday_order_history(target_date)
             avg_friday_orders = (
-                sum(h["total_orders"] for h in friday_history) / len(friday_history)
-                if friday_history else 0
+                sum(h["total_orders"] for h in service_day_history) / len(service_day_history)
+                if service_day_history else 0
             )
             avg_peak_orders = (
-                sum(h["peak_orders_6pm_to_11pm"] for h in friday_history) / len(friday_history)
-                if friday_history else 0
+                sum(h["peak_orders_6pm_to_11pm"] for h in service_day_history) / len(service_day_history)
+                if service_day_history else 0
             )
 
             predicted_peak_orders = round(
                 prediction["yhat"] * prediction["peak_ratio_used"], 1
             )
+            service_day_label = target_service_date.strftime("%A")
 
             return {
-                "history": friday_history,
+                "history": service_day_history,
                 "avg_friday_orders": round(avg_friday_orders, 1),
+                "avg_same_day_orders": round(avg_friday_orders, 1),
                 "avg_peak_orders": round(avg_peak_orders, 1),
                 "predicted_orders": round(prediction["yhat"], 1),
                 "predicted_orders_lower": round(prediction["yhat_lower"], 1),
                 "predicted_orders_upper": round(prediction["yhat_upper"], 1),
                 "predicted_peak_orders": predicted_peak_orders,
-                "top_items": self.get_top_friday_items(),
+                "top_items": self.get_top_friday_items(target_date),
                 "method": "prophet",
                 "confidence": "high" if len(df) >= 60 else "medium",
-                "target_date": target_friday.strftime("%Y-%m-%d"),
+                "target_date": target_service_date.strftime("%Y-%m-%d"),
+                "service_day_label": service_day_label,
             }
 
         except Exception as e:
@@ -191,26 +211,15 @@ class ForecastService:
 
 
 
-    def _get_next_friday(self) -> datetime:
-        """Get the date of next Friday."""
+    def _get_target_date(self, target_date: datetime | None = None) -> datetime:
+        """Get the explicitly requested service date, or the next Friday by default."""
+        if target_date:
+            return target_date
         today = datetime.now()
         days_ahead = (4 - today.weekday()) % 7
-        if days_ahead == 0:  # Today is Friday, get next Friday
+        if days_ahead == 0:
             days_ahead = 7
         return today + timedelta(days=days_ahead)
-
-    def _get_target_friday(self, target_date: datetime | None = None) -> datetime:
-        """Get the target Friday date, or next Friday if not specified."""
-        if target_date:
-            # Ensure it's a Friday
-            if target_date.weekday() != 4:
-                # Find the next Friday from the target date
-                days_ahead = (4 - target_date.weekday()) % 7
-                if days_ahead == 0:  # Target date is Friday
-                    return target_date
-                return target_date + timedelta(days=days_ahead)
-            return target_date
-        return self._get_next_friday()
 
     def calculate_forecast(self, target_date: datetime | None = None) -> dict:
         """Calculate predicted demand for target Friday using Prophet (with baseline fallback)."""
@@ -221,18 +230,19 @@ class ForecastService:
 
         forecast = self.calculate_forecast(target_date)
 
+        service_day_label = forecast.get("service_day_label", "service day")
         prompt = PromptUtils.format_recommendation_prompt(
             context=f"""
-Friday demand forecast (using {forecast.get('method', 'baseline')} method):
-- Average orders over last 4 Fridays: {forecast['avg_friday_orders']}
+Demand forecast for the target {service_day_label} service (using {forecast.get('method', 'baseline')} method):
+- Average orders over last 4 matching service days: {forecast['avg_friday_orders']}
 - Average peak orders (6pm-11pm): {forecast['avg_peak_orders']}
-- Predicted orders this Friday: {forecast['predicted_orders']}
+- Predicted orders for the target service: {forecast['predicted_orders']}
 {f"- Prediction range: {forecast.get('predicted_orders_lower', 'N/A')} - {forecast.get('predicted_orders_upper', 'N/A')}" if forecast.get('predicted_orders_lower') else ""}
 - Predicted peak orders: {forecast['predicted_peak_orders']}
 - Forecast confidence: {forecast.get('confidence', 'medium')}
-- Top ordered items on Fridays: {forecast['top_items']}
+- Top ordered items on matching service days: {forecast['top_items']}
 """,
-            task="Based on this demand forecast, recommend specific staffing and preparation actions for this Friday."
+            task="Based on this demand forecast, recommend specific staffing and preparation actions for the target service window."
         )
 
         recommendation = await self.llm.complete_json(

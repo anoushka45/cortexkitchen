@@ -13,7 +13,42 @@ import ManagerActionPanel from "@/components/dashboard/ManagerActionPanel";
 import RagContextDrawer from "@/components/dashboard/RagContextDrawer";
 import RunHistory from "@/components/dashboard/RunHistory";
 import { useFridayRush } from "@/hooks/useFridayRush";
-import { RunHistoryEntry } from "@/types/planning";
+import { PlanningScenarioOption, RunHistoryEntry } from "@/types/planning";
+
+const SCENARIO_OPTIONS: PlanningScenarioOption[] = [
+  {
+    id: "friday_rush",
+    label: "Friday Rush",
+    description: "High-demand dinner rush with table-turn pressure and stock protection.",
+    default_weekday: 4,
+    service_window: "18:00-22:00",
+    operational_focus: "Peak dinner demand and rush execution.",
+  },
+  {
+    id: "weekday_lunch",
+    label: "Weekday Lunch",
+    description: "Lean midday service focused on pacing, efficiency, and cleaner prep burden.",
+    default_weekday: 2,
+    service_window: "12:00-15:00",
+    operational_focus: "Lunch pacing and staffing efficiency.",
+  },
+  {
+    id: "holiday_spike",
+    label: "Holiday Spike",
+    description: "Demand-surge planning for unusually heavy service conditions.",
+    default_weekday: 5,
+    service_window: "17:00-22:00",
+    operational_focus: "Queue protection, surge readiness, and quality retention.",
+  },
+  {
+    id: "low_stock_weekend",
+    label: "Low-Stock Weekend",
+    description: "Weekend planning with tighter ingredient constraints and stricter prioritization.",
+    default_weekday: 6,
+    service_window: "18:00-22:00",
+    operational_focus: "Shortage prioritization and menu restraint.",
+  },
+];
 
 function SectionHeader({
   label,
@@ -52,9 +87,14 @@ function SectionHeader({
 
 function IdleState({
   onRun,
+  selectedScenario,
+  onScenarioChange,
 }: {
   onRun: (date?: string) => void;
+  selectedScenario: PlanningScenarioOption["id"];
+  onScenarioChange: (scenario: PlanningScenarioOption["id"]) => void;
 }) {
+  const scenario = SCENARIO_OPTIONS.find((item) => item.id === selectedScenario) ?? SCENARIO_OPTIONS[0];
   return (
     <div className="py-10">
       <div className="stagger-1 relative overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(139,92,246,0.10),transparent_52%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.08),transparent_55%),rgba(255,255,255,0.03)] px-6 py-10 shadow-[0_28px_110px_rgba(2,8,23,0.45)] md:px-10 md:py-12">
@@ -89,13 +129,42 @@ function IdleState({
               and inventory pressure in a single run, then drill down by agent when needed.
             </p>
 
+            <div className="mt-7">
+              <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-slate-500">
+                Scenario preset
+              </p>
+              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                {SCENARIO_OPTIONS.map((option) => {
+                  const active = option.id === selectedScenario;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => onScenarioChange(option.id)}
+                      className={`rounded-2xl border px-4 py-4 text-left transition-all ${
+                        active
+                          ? "border-violet-400/30 bg-violet-500/10"
+                          : "border-white/10 bg-slate-950/30 hover:bg-white/[0.04]"
+                      }`}
+                    >
+                      <p className="text-sm font-semibold text-slate-100">{option.label}</p>
+                      <p className="mt-1 text-sm text-slate-400">{option.description}</p>
+                      <p className="mt-3 text-[11px] font-mono uppercase tracking-[0.16em] text-slate-500">
+                        {option.service_window}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="mt-7 rounded-2xl border border-white/10 bg-white/5 p-4">
               <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-slate-500">
                 How it works
               </p>
               <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
                 {[
-                  ["1. Choose date", "Pick a Friday preset or a custom day"],
+                  ["1. Choose scenario", "Pick the service pattern you want to frame"],
                   ["2. Run agents", "Parallel analysis across operations signals"],
                   ["3. Review plan", "Critic verdict plus per-card details"],
                 ].map(([title, desc]) => (
@@ -111,9 +180,9 @@ function IdleState({
             </div>
 
             <div className="mt-8 flex flex-col items-start gap-3">
-              <DatePicker onRun={onRun} loading={false} />
+              <DatePicker onRun={onRun} loading={false} scenario={scenario} />
               <p className="text-xs text-slate-500">
-                Tip: leave the date empty to run the default next Friday scenario.
+                Tip: leave the date empty to use the default planning date for {scenario.label}.
               </p>
             </div>
           </div>
@@ -132,12 +201,12 @@ function IdleState({
                 {[
                   [
                     "Demand forecast",
-                    "Predicted orders, peak pressure, and confidence band",
+                  "Predicted orders, peak pressure, and confidence band",
                     "border-violet-500/20 bg-violet-500/5",
                   ],
                   [
                     "Reservations",
-                    "Occupancy load, waitlist pressure, and busiest-hour risk",
+                  "Occupancy load, waitlist pressure, and busiest-hour risk",
                     "border-cyan-500/20 bg-cyan-500/5",
                   ],
                   [
@@ -147,7 +216,7 @@ function IdleState({
                   ],
                   [
                     "Menu insights",
-                    "What to push/avoid, promos, and operational notes",
+                  "What to push/avoid, promos, and operational notes for the selected service frame",
                     "border-amber-500/20 bg-amber-500/5",
                   ],
                   [
@@ -175,6 +244,41 @@ function IdleState({
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ScenarioSelector({
+  selectedScenario,
+  onScenarioChange,
+}: {
+  selectedScenario: PlanningScenarioOption["id"];
+  onScenarioChange: (scenario: PlanningScenarioOption["id"]) => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+      <p className="text-[11px] font-mono uppercase tracking-[0.18em] text-slate-500">
+        scenario
+      </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {SCENARIO_OPTIONS.map((option) => {
+          const active = option.id === selectedScenario;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => onScenarioChange(option.id)}
+              className={`rounded-xl px-3 py-2 text-xs font-mono uppercase tracking-[0.14em] transition-all ${
+                active
+                  ? "bg-violet-500/15 text-violet-200"
+                  : "border border-white/10 bg-slate-950/40 text-slate-300 hover:bg-slate-900 hover:text-white"
+              }`}
+            >
+              {option.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -290,6 +394,7 @@ export default function DashboardPage() {
   const [activeHistoryId, setActiveHistoryId] = useState<string | number | undefined>();
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
   const [showManagerBrief, setShowManagerBrief] = useState(false);
+  const [selectedScenario, setSelectedScenario] = useState<PlanningScenarioOption["id"]>("friday_rush");
 
   const handleHistorySelect = async (entry: RunHistoryEntry) => {
     setActiveHistoryId(entry.id);
@@ -299,7 +404,7 @@ export default function DashboardPage() {
 
   const handleRun = (date?: string) => {
     setActiveHistoryId(undefined);
-    trigger(date);
+    trigger(date, selectedScenario);
   };
 
   return (
@@ -335,6 +440,11 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex w-full flex-col gap-3 xl:w-auto xl:flex-row xl:items-stretch">
+            <ScenarioSelector
+              selectedScenario={selectedScenario}
+              onScenarioChange={setSelectedScenario}
+            />
+
             <nav className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
               <Link
                 href="/"
@@ -357,7 +467,11 @@ export default function DashboardPage() {
             </nav>
 
             {status !== "idle" && (
-              <DatePicker onRun={handleRun} loading={status === "loading"} />
+              <DatePicker
+                onRun={handleRun}
+                loading={status === "loading"}
+                scenario={SCENARIO_OPTIONS.find((item) => item.id === selectedScenario)}
+              />
             )}
 
             <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 xl:min-w-[180px] xl:flex-col xl:justify-between">
@@ -394,7 +508,13 @@ export default function DashboardPage() {
 
       <main className="mx-auto w-full max-w-[1520px] px-5 py-6 xl:px-8">
         <div className="space-y-5">
-          {status === "idle" && <IdleState onRun={handleRun} />}
+          {status === "idle" && (
+            <IdleState
+              onRun={handleRun}
+              selectedScenario={selectedScenario}
+              onScenarioChange={setSelectedScenario}
+            />
+          )}
 
           {status === "loading" && <LoadingState />}
 
@@ -440,7 +560,10 @@ export default function DashboardPage() {
                 />
                 <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
                   <div className="xl:col-span-8">
-                    <ForecastChart forecast={data.recommendations.forecast} />
+                    <ForecastChart
+                      forecast={data.recommendations.forecast}
+                      scenario={data.scenario}
+                    />
                   </div>
                   <div className="xl:col-span-4">
                     <AgentCard

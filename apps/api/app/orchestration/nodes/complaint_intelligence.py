@@ -7,6 +7,7 @@ Writes to `complaint_output`.
 """
 
 from sqlalchemy.orm import Session
+from datetime import datetime
 
 from app.orchestration.state import OrchestratorState
 from app.domain.services.complaint_service import ComplaintService
@@ -29,7 +30,16 @@ async def complaint_intelligence_node(
 
     try:
         service = ComplaintService(db=db, llm=llm)
-        result = await service.analyse_and_recommend(days=28)
+        target_date = (
+            datetime.fromisoformat(state["target_date"])
+            if state.get("target_date")
+            else None
+        )
+        result = await service.analyse_and_recommend(
+            days=28,
+            scenario_profile=state.get("scenario_profile"),
+            target_date=target_date,
+        )
 
         # Enrich with RAG context if MemoryService is available
         rag_context: dict = {"similar_complaints": [], "relevant_sops": []}

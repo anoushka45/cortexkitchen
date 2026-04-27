@@ -29,6 +29,7 @@ def keep_last(current, new):
 class OrchestratorState(TypedDict):
     # Core request metadata
     scenario:     Annotated[Optional[str], keep_last]
+    scenario_profile: Annotated[Optional[Dict[str, Any]], keep_last]
     target_date:  Annotated[Optional[str], keep_last]
     requested_at: Annotated[Optional[str], keep_last]
 
@@ -85,6 +86,7 @@ def make_initial_state(
     return OrchestratorState(
         # Core metadata
         scenario=scenario,
+        scenario_profile=None,
         target_date=target_date,
         requested_at=datetime.now(timezone.utc).isoformat(),
 

@@ -24,7 +24,7 @@ async def test_menu_service_returns_structured_output():
     )
 
     with patch("app.domain.services.menu_service.ForecastService") as MockForecastService:
-        MockForecastService.return_value.get_top_friday_items.return_value = [
+        MockForecastService.return_value.get_top_service_day_items.return_value = [
             {"item": "Margherita", "category": "pizza", "total_ordered": 80}
         ]
         service = MenuService(db=db, llm=llm)
@@ -48,7 +48,7 @@ async def test_menu_service_prompt_mentions_inventory_and_complaints():
     llm.complete_json = AsyncMock(return_value={})
 
     with patch("app.domain.services.menu_service.ForecastService") as MockForecastService:
-        MockForecastService.return_value.get_top_friday_items.return_value = []
+        MockForecastService.return_value.get_top_service_day_items.return_value = []
         service = MenuService(db=db, llm=llm)
         await service.analyse_and_recommend(
             forecast_data={"predicted_orders": 120},
@@ -60,3 +60,20 @@ async def test_menu_service_prompt_mentions_inventory_and_complaints():
     assert "cold pizza" in prompt
     assert "Mozzarella" in prompt
     assert "highlight_items" in prompt
+
+
+def test_menu_service_language_normalization_rewrites_non_friday_text():
+    from app.domain.services.menu_service import MenuService
+
+    service = MenuService(db=MagicMock(), llm=MagicMock())
+    normalized = service.normalize_scenario_language(
+        {
+            "reasoning": "Use Friday promotion slots for faster moving items.",
+            "operational_notes": ["Hold back on Friday if stock is tight."],
+        },
+        scenario_label="Holiday Spike",
+    )
+
+    assert "Friday" not in normalized["reasoning"]
+    assert "Holiday Spike" in normalized["reasoning"]
+    assert "Friday" not in normalized["operational_notes"][0]

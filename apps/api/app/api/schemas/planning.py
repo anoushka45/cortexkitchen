@@ -17,6 +17,14 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+PlanningScenarioId = Literal[
+    "friday_rush",
+    "weekday_lunch",
+    "holiday_spike",
+    "low_stock_weekend",
+]
+
+
 
 # ── Request ───────────────────────────────────────────────────────────────────
 
@@ -70,6 +78,26 @@ class FridayRushRequest(BaseModel):
         ),
         examples=[True],
     )
+
+
+class PlanningRunRequest(FridayRushRequest):
+    scenario: PlanningScenarioId = Field(
+        default="friday_rush",
+        description="Scenario preset to run through the shared planning workflow.",
+    )
+
+
+class PlanningScenarioOption(BaseModel):
+    id: PlanningScenarioId
+    label: str
+    description: str
+    default_weekday: int
+    service_window: str
+    operational_focus: str
+
+
+class PlanningScenarioListResponse(BaseModel):
+    scenarios: list[PlanningScenarioOption]
 
 
 # ── Per-agent recommendation block ───────────────────────────────────────────

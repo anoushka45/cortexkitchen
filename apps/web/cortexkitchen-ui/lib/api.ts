@@ -5,6 +5,7 @@ import {
   DataHealth,
   FridayRushRequest,
   FridayRushResponse,
+  PlanningScenarioOption,
   PlanningRunDetail,
   PlanningRunSummary,
 } from "@/types/planning";
@@ -14,6 +15,10 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"
 export async function runFridayRush(
   request: FridayRushRequest = {}
 ): Promise<FridayRushResponse> {
+  if (request.scenario && request.scenario !== "friday_rush") {
+    return runPlanningScenario(request);
+  }
+
   const res = await fetch(`${BASE_URL}/api/v1/planning/friday-rush`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -26,6 +31,37 @@ export async function runFridayRush(
   }
 
   return res.json() as Promise<FridayRushResponse>;
+}
+
+export async function runPlanningScenario(
+  request: FridayRushRequest = {}
+): Promise<FridayRushResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/planning/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Planning API error ${res.status}: ${detail}`);
+  }
+
+  return res.json() as Promise<FridayRushResponse>;
+}
+
+export async function getPlanningScenarios(): Promise<PlanningScenarioOption[]> {
+  const res = await fetch(`${BASE_URL}/api/v1/planning/scenarios`, {
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Scenario API error ${res.status}: ${detail}`);
+  }
+
+  const payload = await res.json() as { scenarios: PlanningScenarioOption[] };
+  return payload.scenarios;
 }
 
 export async function listPlanningRuns(limit = 25): Promise<PlanningRunSummary[]> {

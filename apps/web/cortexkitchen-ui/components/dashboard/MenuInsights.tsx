@@ -18,6 +18,9 @@ interface MenuInsightsData {
     complaint_themes?: string[];
     shortage_ingredients?: string[];
     overstock_ingredients?: string[];
+    scenario_label?: string;
+    service_window?: string;
+    scenario_watchouts?: string[];
     note?: string;
   };
   highlight_items?: string[];
@@ -83,6 +86,9 @@ export function MenuInsightsBody({
   const complaintThemes = detail.complaint_themes ?? [];
   const shortageIngredients = detail.shortage_ingredients ?? [];
   const overstockIngredients = detail.overstock_ingredients ?? [];
+  const scenarioLabel = detail.scenario_label ?? "service";
+  const serviceWindow = detail.service_window ?? "this service window";
+  const scenarioWatchouts = detail.scenario_watchouts ?? [];
 
   return (
     <div className="space-y-5">
@@ -90,12 +96,12 @@ export function MenuInsightsBody({
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
           <p className="text-xs font-mono uppercase tracking-widest text-slate-500 mb-1">Top Items</p>
           <p className="text-2xl font-semibold text-amber-300">{topItems.length}</p>
-          <p className="text-xs text-slate-500 mt-1">historically strong Friday sellers</p>
+          <p className="text-xs text-slate-500 mt-1">historically strong matching-day sellers</p>
         </div>
         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
           <p className="text-xs font-mono uppercase tracking-widest text-slate-500 mb-1">Highlight Items</p>
           <p className="text-2xl font-semibold text-emerald-300">{data.highlight_items?.length ?? 0}</p>
-          <p className="text-xs text-slate-500 mt-1">recommended to push this Friday</p>
+          <p className="text-xs text-slate-500 mt-1">recommended to push in {serviceWindow.toLowerCase()}</p>
         </div>
         <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3">
           <p className="text-xs font-mono uppercase tracking-widest text-slate-500 mb-1">Watchouts</p>
@@ -125,7 +131,7 @@ export function MenuInsightsBody({
       {!compact && topItems.length > 0 && (
         <div>
           <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
-            Friday Best Sellers
+            Best Sellers for {scenarioLabel}
           </p>
           <div className="space-y-2">
             {topItems.map((item, index) => (
@@ -154,8 +160,16 @@ export function MenuInsightsBody({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <SectionList title="Inventory Blockers" items={data.inventory_blockers ?? shortageIngredients} tone="risk" />
-        <SectionList title="Complaint Watchouts" items={data.complaint_watchouts ?? complaintThemes} tone="warn" />
+        <SectionList
+          title="Complaint Watchouts"
+          items={data.complaint_watchouts ?? complaintThemes}
+          tone="warn"
+        />
       </div>
+
+      {!compact && scenarioWatchouts.length > 0 && (
+        <SectionList title="Scenario Watchouts" items={scenarioWatchouts} tone="warn" />
+      )}
 
       {!compact && (overstockIngredients.length > 0 || (data.risks?.length ?? 0) > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -102,8 +102,11 @@ Respond with a JSON object containing:
 
 ## Response format
 Respond with a JSON object containing:
-- "verdict": string — "approved", "rejected", or "revision"
-- "score": float — between 0.0 and 1.0
-- "notes": string — explanation of your verdict
+- "verdict": string - "approved", "rejected", or "revision"
+- "score": float - between 0.0 and 1.0
+- "notes": string - explanation of your verdict
+- "dimension_scores": object - keys "safety", "feasibility", "evidence", "actionability", "clarity", each from 0.0 to 1.0
+- "revision_reasons": list of strings - concise reasons for revision, caution, or lower confidence
+- "actionable_feedback": list of strings - concrete next changes to improve the plan
 """
     

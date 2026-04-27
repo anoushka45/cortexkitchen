@@ -131,6 +131,9 @@ export interface CriticResult {
   verdict:         "approved" | "rejected" | "revision" | "unknown";
   score:           number;
   notes:           string;
+  dimension_scores?: Record<string, number> | null;
+  revision_reasons?: string[];
+  actionable_feedback?: string[];
   decision_log_id: number | null;
   sanity_checks?: {
     passed?: boolean;

@@ -51,6 +51,8 @@ The system is designed to simulate a real-world operational scenario:
 
 ---
 
+![Dashboard](<docs/images/ck dashboard.png>)
+
 ## Repository Structure
 
 - `apps/api` -> FastAPI backend and agent orchestration

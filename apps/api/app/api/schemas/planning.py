@@ -101,6 +101,18 @@ class CriticResult(BaseModel):
         description="0.0 – 1.0 quality score"
     )
     notes: str = ""
+    dimension_scores: Optional[Dict[str, float]] = Field(
+        default=None,
+        description="Per-dimension critic scoring for safety, feasibility, evidence, actionability, and clarity"
+    )
+    revision_reasons: list[str] = Field(
+        default_factory=list,
+        description="Short reasons explaining what weakened the plan"
+    )
+    actionable_feedback: list[str] = Field(
+        default_factory=list,
+        description="Concrete next changes the planner should make"
+    )
     decision_log_id: Optional[int] = Field(
         default=None,
         description="ID of the persisted DecisionLog row"

@@ -154,6 +154,55 @@ export default function RunsPage() {
                   <p className="mt-2 text-sm leading-6 text-slate-300">
                     {selected.critic?.notes ?? "No critic notes recorded."}
                   </p>
+
+                  {!!Object.keys(selected.critic?.dimension_scores ?? {}).length && (
+                    <div className="mt-4">
+                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500">
+                        dimension scores
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {Object.entries(selected.critic?.dimension_scores ?? {}).map(([label, value]) => (
+                          <span
+                            key={label}
+                            className="rounded-full border border-white/10 bg-slate-950/40 px-3 py-1 text-xs text-slate-300"
+                          >
+                            {label} {Math.round(value * 100)}/100
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selected.critic?.revision_reasons?.length ? (
+                    <div className="mt-4">
+                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500">
+                        revision reasons
+                      </p>
+                      <ul className="mt-2 space-y-2 text-sm text-slate-300">
+                        {selected.critic.revision_reasons.map((reason) => (
+                          <li key={reason} className="rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2">
+                            {reason}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  {selected.critic?.actionable_feedback?.length ? (
+                    <div className="mt-4">
+                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500">
+                        actionable feedback
+                      </p>
+                      <ul className="mt-2 space-y-2 text-sm text-slate-300">
+                        {selected.critic.actionable_feedback.map((item) => (
+                          <li key={item} className="rounded-lg border border-cyan-400/10 bg-cyan-500/5 px-3 py-2">
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
                   {selected.critic?.sanity_checks && (
                     <div className="mt-4 rounded-lg border border-white/10 bg-slate-950/40 p-3">
                       <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500">

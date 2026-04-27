@@ -19,6 +19,7 @@ from app.infrastructure.db.models import (
     Inventory,
     MenuItem,
     Order,
+    PlanningRun,
     Reservation,
     ReservationStatus,
     SentimentType,
@@ -65,6 +66,7 @@ print(f"  Future planning Fridays: {', '.join(str(d.date()) for d in FUTURE_FRID
 
 # Clear existing data.
 session.query(DecisionLog).delete()
+session.query(PlanningRun).delete()
 session.query(Feedback).delete()
 session.query(Order).delete()
 session.query(Reservation).delete()

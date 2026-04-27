@@ -132,6 +132,15 @@ export interface CriticResult {
   score:           number;
   notes:           string;
   decision_log_id: number | null;
+  sanity_checks?: {
+    passed?: boolean;
+    summary?: string;
+    issues?: Array<{
+      code: string;
+      severity: string;
+      message: string;
+    }>;
+  } | null;
 }
 
 export interface RagContext {
@@ -148,6 +157,7 @@ export interface FridayRushResponse {
   recommendations: AgentRecommendations;
   rag_context:     RagContext | null;
   critic:          CriticResult;
+  meta?:           Record<string, unknown>;
 }
 
 export interface FridayRushRequest {
@@ -157,11 +167,59 @@ export interface FridayRushRequest {
 
 // Run history entry — stored in memory during the session
 export interface RunHistoryEntry {
-  id:          string;
+  id:          string | number;
   targetDate:  string;
   runAt:       string;
   status:      FridayRushResponse["status"];
   verdict:     CriticResult["verdict"];
-  score:       number;
-  data:        FridayRushResponse;
+  score:       number | null;
+  data?:       FridayRushResponse;
+}
+
+export interface PlanningRunSummary {
+  id: number;
+  scenario: string;
+  target_date: string | null;
+  status: FridayRushResponse["status"];
+  critic_verdict: CriticResult["verdict"] | null;
+  critic_score: number | null;
+  decision_log_id: number | null;
+  generated_at: string | null;
+  created_at: string | null;
+}
+
+export interface PlanningRunDetail extends PlanningRunSummary {
+  final_response: FridayRushResponse;
+  recommendations: AgentRecommendations | null;
+  rag_context: RagContext | null;
+  critic: CriticResult | null;
+  metadata: Record<string, unknown> | null;
+}
+
+export interface DataHealth {
+  orders: { count: number; date_range: Array<string | null> };
+  reservations: { count: number; date_range: Array<string | null> };
+  feedback: {
+    count: number;
+    date_range: Array<string | null>;
+    negative: number;
+    positive: number;
+    neutral: number;
+    negative_pct: number;
+  };
+  inventory: {
+    items: number;
+    shortage_alerts: number;
+    critical_shortages: number;
+    overstock_alerts: number;
+  };
+  menu: { items: number };
+  future_fridays: Array<{
+    date: string;
+    reservations: number;
+    guests: number;
+    waitlist: number;
+    occupancy_pct: number;
+  }>;
+  status: "ok";
 }

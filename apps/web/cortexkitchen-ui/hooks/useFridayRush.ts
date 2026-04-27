@@ -1,9 +1,9 @@
 // hooks/useFridayRush.ts
 "use client";
 
-import { useState, useCallback } from "react";
-import { runFridayRush } from "@/lib/api";
-import { FridayRushResponse, RunHistoryEntry } from "@/types/planning";
+import { useState, useCallback, useEffect } from "react";
+import { getPlanningRun, listPlanningRuns, runFridayRush } from "@/lib/api";
+import { FridayRushResponse, PlanningRunSummary, RunHistoryEntry } from "@/types/planning";
 
 type Status = "idle" | "loading" | "success" | "error";
 
@@ -14,7 +14,19 @@ interface UseFridayRushReturn {
   history:    RunHistoryEntry[];
   trigger:    (targetDate?: string) => Promise<void>;
   reset:      () => void;
-  loadFromHistory: (entry: RunHistoryEntry) => void;
+  loadFromHistory: (entry: RunHistoryEntry) => Promise<void>;
+  refreshHistory: () => Promise<void>;
+}
+
+function toHistoryEntry(run: PlanningRunSummary): RunHistoryEntry {
+  return {
+    id: run.id,
+    targetDate: run.target_date ?? "Next Friday",
+    runAt: run.created_at ?? run.generated_at ?? new Date().toISOString(),
+    status: run.status,
+    verdict: run.critic_verdict ?? "unknown",
+    score: run.critic_score,
+  };
 }
 
 export function useFridayRush(): UseFridayRushReturn {
@@ -22,6 +34,20 @@ export function useFridayRush(): UseFridayRushReturn {
   const [status,  setStatus]  = useState<Status>("idle");
   const [error,   setError]   = useState<string | null>(null);
   const [history, setHistory] = useState<RunHistoryEntry[]>([]);
+
+  const refreshHistory = useCallback(async () => {
+    const runs = await listPlanningRuns(10);
+    setHistory(runs.map(toHistoryEntry));
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      refreshHistory().catch(() => {
+        // History should not block the main planning experience.
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [refreshHistory]);
 
   const trigger = useCallback(async (targetDate?: string) => {
     setStatus("loading");
@@ -34,24 +60,12 @@ export function useFridayRush(): UseFridayRushReturn {
       });
       setData(result);
       setStatus("success");
-
-      // Add to history (keep last 5)
-      const entry: RunHistoryEntry = {
-        id:         crypto.randomUUID(),
-        targetDate: targetDate ?? result.target_date ?? "Next Friday",
-        runAt:      new Date().toISOString(),
-        status:     result.status,
-        verdict:    result.critic.verdict,
-        score:      result.critic.score,
-        data:       result,
-      };
-
-      setHistory((prev) => [entry, ...prev].slice(0, 5));
+      await refreshHistory();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
       setStatus("error");
     }
-  }, []);
+  }, [refreshHistory]);
 
   const reset = useCallback(() => {
     setData(null);
@@ -59,11 +73,22 @@ export function useFridayRush(): UseFridayRushReturn {
     setError(null);
   }, []);
 
-  const loadFromHistory = useCallback((entry: RunHistoryEntry) => {
-    setData(entry.data);
-    setStatus("success");
-    setError(null);
+  const loadFromHistory = useCallback(async (entry: RunHistoryEntry) => {
+    try {
+      setStatus("loading");
+      setError(null);
+      if (entry.data) {
+        setData(entry.data);
+      } else {
+        const detail = await getPlanningRun(Number(entry.id));
+        setData(detail.final_response);
+      }
+      setStatus("success");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown history load error");
+      setStatus("error");
+    }
   }, []);
 
-  return { data, status, error, history, trigger, reset, loadFromHistory };
+  return { data, status, error, history, trigger, reset, loadFromHistory, refreshHistory };
 }

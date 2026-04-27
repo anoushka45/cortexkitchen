@@ -1,24 +1,15 @@
-"""
-Demand Forecast Agent node.
-
-Wraps ForecastService — runs the baseline demand forecast and
-writes the result to `forecast_output` in shared state.
-
-Enhanced for P1-10:
-- Supports simulation mode
-- Adds debug execution tracing
-"""
+"""Demand Forecast Agent node."""
 
 from datetime import datetime
+
 from sqlalchemy.orm import Session
 
-from app.orchestration.state import OrchestratorState
 from app.domain.services.forecast_service import ForecastService
 from app.infrastructure.llm.base import BaseLLMProvider
+from app.orchestration.state import OrchestratorState
 
 
 def _parse_target_date(date_str: str | None) -> datetime | None:
-    """Parse ISO date string or return None for default."""
     if date_str:
         return datetime.fromisoformat(date_str)
     return None
@@ -29,28 +20,26 @@ async def demand_forecast_node(
     db: Session,
     llm: BaseLLMProvider,
 ) -> OrchestratorState:
-    """
-    Predicts Friday demand and peak windows.
-    Writes to state['forecast_output'].
-    """
+    """Predict demand and peak windows for the selected planning scenario."""
     if state.get("error"):
         return state
 
-    # ── Debug tracing ───────────────────────────────────────────────────────
     if state.get("debug") and state.get("execution_trace") is not None:
         state["execution_trace"].append("demand_forecast")
 
     try:
-        # ── P1-10: Simulation Mode ──────────────────────────────────────────
-        if state.get("simulation_mode", False):
-            target_date = state.get("target_date") or "next Friday"
+        scenario_profile = state.get("scenario_profile") or {}
 
+        if state.get("simulation_mode", False):
+            target_date = state.get("target_date") or "next planning window"
             simulated_result = {
                 "service": "forecast",
                 "data": {
                     "predicted_covers": 180,
-                    "peak_window": "19:00–21:00",
+                    "peak_window": scenario_profile.get("service_window", "18:00-22:00"),
                     "confidence": 0.87,
+                    "service_day_label": scenario_profile.get("label", "Friday Rush"),
+                    "service_window": scenario_profile.get("service_window", "18:00-22:00"),
                 },
                 "recommendation": {
                     "expected_demand": "High",
@@ -59,13 +48,14 @@ async def demand_forecast_node(
                 },
                 "target_date": target_date,
             }
-
             return {**state, "forecast_output": simulated_result}
 
-        # ── Production Mode ─────────────────────────────────────────────────
         target_date = _parse_target_date(state.get("target_date"))
         service = ForecastService(db=db, llm=llm)
         result = await service.analyse_and_recommend(target_date=target_date)
+        result.setdefault("data", {})
+        result["data"]["service_window"] = scenario_profile.get("service_window", "18:00-22:00")
+        result["data"]["scenario_label"] = scenario_profile.get("label", state.get("scenario"))
         return {**state, "forecast_output": result}
 
     except Exception as exc:

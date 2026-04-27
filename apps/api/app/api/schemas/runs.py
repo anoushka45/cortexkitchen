@@ -32,7 +32,9 @@ class DataRange(BaseModel):
     date_range: list[str | None] = Field(default_factory=list)
 
 
-class FutureFridayCoverage(BaseModel):
+class ScenarioCoverage(BaseModel):
+    scenario: str
+    label: str
     date: str
     reservations: int
     guests: int
@@ -60,5 +62,5 @@ class DataHealthResponse(BaseModel):
     feedback: FeedbackHealth
     inventory: InventoryHealth
     menu: dict[str, int]
-    future_fridays: list[FutureFridayCoverage]
+    scenario_coverage: list[ScenarioCoverage]
     status: Literal["ok"] = "ok"

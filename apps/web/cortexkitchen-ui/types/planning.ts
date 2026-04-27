@@ -16,6 +16,10 @@ export interface ForecastData {
     total_orders: number;
     peak_orders_6pm_to_11pm: number;
   }>;
+  hourly_projection?: Array<{
+    hour: string;
+    covers: number;
+  }>;
   top_items?: Array<{
     item: string;
     category: string;
@@ -176,6 +180,16 @@ export interface FridayRushResponse {
 export interface FridayRushRequest {
   target_date?: string | null;
   simulation_mode?: boolean;
+  scenario?: "friday_rush" | "weekday_lunch" | "holiday_spike" | "low_stock_weekend";
+}
+
+export interface PlanningScenarioOption {
+  id: "friday_rush" | "weekday_lunch" | "holiday_spike" | "low_stock_weekend";
+  label: string;
+  description: string;
+  default_weekday: number;
+  service_window: string;
+  operational_focus: string;
 }
 
 // Run history entry — stored in memory during the session
@@ -227,7 +241,9 @@ export interface DataHealth {
     overstock_alerts: number;
   };
   menu: { items: number };
-  future_fridays: Array<{
+  scenario_coverage: Array<{
+    scenario: "friday_rush" | "weekday_lunch" | "holiday_spike" | "low_stock_weekend";
+    label: string;
     date: string;
     reservations: number;
     guests: number;

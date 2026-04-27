@@ -28,6 +28,7 @@ def aggregator_node(state: OrchestratorState) -> OrchestratorState:
 
     bundle = {
         "scenario": state.get("scenario"),
+        "scenario_profile": state.get("scenario_profile"),
         "target_date": state.get("target_date"),
         "agents": {
             "forecast": {
@@ -64,7 +65,13 @@ def _build_critic_summary(state: OrchestratorState) -> str:
     Build a concise plain-text summary of all agent recommendations
     for the Critic Agent prompt. Omits errored/null agents gracefully.
     """
-    lines = [f"Scenario: {state.get('scenario')} | Date: {state.get('target_date', 'next Friday')}"]
+    scenario_profile = state.get("scenario_profile") or {}
+    scenario_label = scenario_profile.get("label") or state.get("scenario")
+    lines = [f"Scenario: {scenario_label} ({state.get('scenario')}) | Date: {state.get('target_date', 'next planning window')}"]
+    if scenario_profile:
+        lines.append(
+            f"Operational focus: {scenario_profile.get('operational_focus')} | Service window: {scenario_profile.get('service_window')}"
+        )
     lines.append("")
 
     agent_map = {

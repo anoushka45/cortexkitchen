@@ -151,6 +151,26 @@ class TestComputeAlerts:
 
         assert result["total_items_checked"] == 5
 
+    def test_scenario_projection_makes_low_stock_weekend_harsher_than_weekday_lunch(self):
+        from app.domain.services.inventory_service import InventoryService
+
+        mozzarella = _make_item(name="Mozzarella Cheese", stock=3.5, threshold=8.0, spoilage=True)
+        svc = InventoryService(db=_make_db([]), llm=_make_llm())
+
+        lunch_projection = svc.project_stock_for_scenario(
+            [mozzarella],
+            scenario_profile={"id": "weekday_lunch"},
+            demand_ratio=1.0,
+        )[0]
+        low_stock_projection = svc.project_stock_for_scenario(
+            [mozzarella],
+            scenario_profile={"id": "low_stock_weekend"},
+            demand_ratio=1.0,
+        )[0]
+
+        assert low_stock_projection.quantity_in_stock < lunch_projection.quantity_in_stock
+        assert "weekend" in low_stock_projection.scenario_adjustment_reason.lower()
+
 
 # ── InventoryService.analyse_and_recommend ───────────────────────────────────
 
@@ -215,8 +235,8 @@ class TestAnalyseAndRecommend:
         )
 
         prompt = llm.complete_json.await_args.kwargs["prompt"]
-        assert "recommended_restock=5.0" in prompt
-        assert "max_actionable_restock=9.0" in prompt
+        assert "recommended_restock=6.87" in prompt
+        assert "max_actionable_restock=6.87" in prompt
         assert "Prioritize critical shortages first" in prompt
 
     @pytest.mark.asyncio
@@ -245,14 +265,30 @@ class TestAnalyseAndRecommend:
 
         actions = result["recommendation"]["restock_actions"]
         assert (
-            "Order 0.7kg Garlic immediately "
-            "(covers 0.7kg shortfall; current stock 0.8kg; within max actionable cap 2.4kg)."
+            "Order 1.05kg Garlic immediately "
+            "(covers 1.05kg shortfall; current stock 0.45kg; within max actionable cap 1.35kg)."
         ) in actions
         assert (
-            "Order 0.6kg Fresh Basil immediately "
-            "(covers 0.6kg shortfall; current stock 0.4kg; within max actionable cap 1.2kg)."
+            "Order 0.83kg Fresh Basil immediately "
+            "(covers 0.83kg shortfall; current stock 0.17kg; within max actionable cap 0.83kg)."
         ) in actions
         assert all("20kg" not in action and "15kg" not in action for action in actions)
+
+    def test_inventory_language_normalization_rewrites_non_friday_text(self):
+        from app.domain.services.inventory_service import InventoryService
+
+        svc = InventoryService(db=_make_db([]), llm=_make_llm())
+        normalized = svc.normalize_scenario_language(
+            {
+                "reasoning": "Restock before Friday rush to meet Friday's demand.",
+                "risks": ["Friday service may stock out."],
+            },
+            scenario_label="Low-Stock Weekend",
+        )
+
+        assert "Friday" not in normalized["reasoning"]
+        assert "Low-Stock Weekend" in normalized["reasoning"]
+        assert "Friday" not in normalized["risks"][0]
 
 
 # ── inventory_node ────────────────────────────────────────────────────────────
@@ -320,7 +356,8 @@ class TestInventoryNode:
             await inventory_node(state_with_forecast, db=mock_db, llm=mock_llm)
 
         mock_svc.analyse_and_recommend.assert_called_once_with(
-            forecast_data={"predicted_orders": 130.0, "avg_friday_orders": 100.0}
+            forecast_data={"predicted_orders": 130.0, "avg_friday_orders": 100.0},
+            scenario_profile=None,
         )
 
     @pytest.mark.asyncio

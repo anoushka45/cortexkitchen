@@ -85,6 +85,7 @@ def final_assembler_node(state: OrchestratorState) -> OrchestratorState:
             "simulation_mode": state.get("simulation_mode", False),
             "debug": state.get("debug", False),
             "execution_trace": state.get("execution_trace", []),
+            "scenario_profile": state.get("scenario_profile"),
         },
     }
 

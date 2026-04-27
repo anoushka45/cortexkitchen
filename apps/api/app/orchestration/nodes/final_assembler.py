@@ -68,6 +68,7 @@ def final_assembler_node(state: OrchestratorState) -> OrchestratorState:
             "verdict": critic.get("verdict", "unknown"),
             "score": critic.get("score", 0.0),
             "notes": critic.get("notes", ""),
+            "cost_analysis": critic.get("cost_analysis"),
             "dimension_scores": critic.get("dimension_scores"),
             "revision_reasons": critic.get("revision_reasons", []),
             "actionable_feedback": critic.get("actionable_feedback", []),

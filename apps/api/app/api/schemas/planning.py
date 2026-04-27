@@ -87,6 +87,23 @@ class AgentRecommendations(BaseModel):
     inventory: Optional[Dict[str, Any]] = None
 
 
+class CostAnalysisResult(BaseModel):
+    cost_pressure_score: float = Field(
+        description="0.0 to 1.0 score where higher means more operational pressure"
+    )
+    benefit_score: float = Field(
+        description="0.0 to 1.0 score where higher means stronger expected operational benefit"
+    )
+    tradeoff_score: float = Field(
+        description="0.0 to 1.0 score where higher means better cost/benefit balance"
+    )
+    pressure_components: Dict[str, float] = Field(default_factory=dict)
+    benefit_components: Dict[str, float] = Field(default_factory=dict)
+    tradeoff_notes: list[str] = Field(default_factory=list)
+    recommended_focus: list[str] = Field(default_factory=list)
+    signals: Dict[str, Any] = Field(default_factory=dict)
+
+
 # ── Critic block ──────────────────────────────────────────────────────────────
 
 class CriticResult(BaseModel):
@@ -101,6 +118,7 @@ class CriticResult(BaseModel):
         description="0.0 – 1.0 quality score"
     )
     notes: str = ""
+    cost_analysis: Optional[CostAnalysisResult] = None
     dimension_scores: Optional[Dict[str, float]] = Field(
         default=None,
         description="Per-dimension critic scoring for safety, feasibility, evidence, actionability, and clarity"

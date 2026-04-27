@@ -92,6 +92,7 @@ async def test_critic_returns_dimension_scores_and_feedback():
         "Quantify extra staffing by role and shift.",
         "Add one explicit waitlist-control action.",
     ]
+    assert result["cost_analysis"]["tradeoff_score"] >= 0.0
 
 
 @pytest.mark.asyncio
@@ -139,8 +140,102 @@ async def test_critic_persists_advanced_metadata_in_decision_log():
 
     log = db.add.call_args.args[0]
     assert log.metadata_["dimension_scores"]["feasibility"] == 0.6
+    assert "cost_analysis" in log.metadata_
     assert log.metadata_["revision_reasons"] == ["Execution sequencing is unclear."]
     assert log.metadata_["actionable_feedback"] == [
         "Separate prep actions from service-floor actions."
     ]
     assert result["decision_log_id"] == 321
+
+
+@pytest.mark.asyncio
+async def test_critic_revises_plan_when_tradeoff_score_is_weak():
+    from app.domain.services.critic_service import CriticService
+
+    recommendation = {
+        "scenario": "friday_rush",
+        "target_date": "2026-05-15",
+        "summary_for_critic": "Scenario: friday_rush | Date: 2026-05-15",
+        "agents": {
+            "forecast": {
+                "data": {"predicted_orders": 150, "avg_friday_orders": 90},
+                "recommendation": {"recommendation": "Increase staffing by 25% and prepare 35% more ingredients with temporary seating and batch prep."},
+            },
+            "reservation": {
+                "data": {"occupancy_pct": 100, "waitlist_count": 5},
+                "recommendation": {"recommendation": "Protect peak reservations."},
+            },
+            "complaint": {"recommendation": {"action_items": ["Watch service timing"]}},
+            "menu": {"recommendation": {"highlight_items": ["Chicken Tikka Pizza"], "promo_candidates": ["Margherita"]}},
+            "inventory": {
+                "data": {
+                    "shortage_alerts": [{"severity": "critical"} for _ in range(8)],
+                    "overstock_alerts": [{} for _ in range(3)],
+                },
+                "recommendation": {"restock_actions": ["Order capped inventory immediately."], "priority": "high"},
+            },
+        },
+    }
+
+    db = MagicMock()
+    llm = MagicMock()
+    llm.complete_json = AsyncMock(
+        return_value={
+            "verdict": "approved",
+            "score": 0.86,
+            "notes": "The plan generally addresses the demand scenario.",
+            "dimension_scores": {
+                "safety": 0.84,
+                "feasibility": 0.83,
+                "evidence": 0.8,
+                "actionability": 0.82,
+                "clarity": 0.78,
+            },
+        }
+    )
+
+    service = CriticService(db=db, llm=llm)
+    service.cost_scoring.evaluate_bundle = MagicMock(
+        return_value={
+            "cost_pressure_score": 0.93,
+            "benefit_score": 0.58,
+            "tradeoff_score": 0.18,
+            "pressure_components": {
+                "prep_burden": 1.0,
+                "staffing_burden": 0.82,
+                "stock_risk": 0.95,
+                "reservation_pressure": 0.9,
+            },
+            "benefit_components": {
+                "demand_alignment": 0.8,
+                "inventory_protection": 0.55,
+                "service_protection": 0.4,
+            },
+            "tradeoff_notes": [
+                "Prep burden is high for this service window.",
+                "Reservation pressure leaves limited slack for risky changes.",
+            ],
+            "recommended_focus": [
+                "Protect seating flow and table turns during the peak window.",
+                "Favor low-complexity prep changes over broad execution changes.",
+            ],
+            "signals": {
+                "demand_ratio": 1.67,
+                "occupancy_pct": 100,
+                "waitlist_count": 5,
+                "critical_shortages": 8,
+            },
+        }
+    )
+    result = await service.evaluate(
+        agent="ops_manager",
+        recommendation=recommendation,
+        input_summary=recommendation["summary_for_critic"],
+    )
+
+    assert result["verdict"] == "revision"
+    assert result["score"] == 0.68
+    assert result["cost_analysis"]["cost_pressure_score"] >= 0.9
+    assert result["cost_analysis"]["tradeoff_score"] < 0.2
+    assert any("Operational cost and benefit tradeoffs are weak" in reason for reason in result["revision_reasons"])
+    assert result["actionable_feedback"]

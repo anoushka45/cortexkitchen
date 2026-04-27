@@ -131,6 +131,16 @@ export interface CriticResult {
   verdict:         "approved" | "rejected" | "revision" | "unknown";
   score:           number;
   notes:           string;
+  cost_analysis?: {
+    cost_pressure_score: number;
+    benefit_score: number;
+    tradeoff_score: number;
+    pressure_components?: Record<string, number>;
+    benefit_components?: Record<string, number>;
+    tradeoff_notes?: string[];
+    recommended_focus?: string[];
+    signals?: Record<string, unknown>;
+  } | null;
   dimension_scores?: Record<string, number> | null;
   revision_reasons?: string[];
   actionable_feedback?: string[];

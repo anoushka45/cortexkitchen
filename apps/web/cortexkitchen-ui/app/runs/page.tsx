@@ -155,6 +155,61 @@ export default function RunsPage() {
                     {selected.critic?.notes ?? "No critic notes recorded."}
                   </p>
 
+                  {selected.critic?.cost_analysis && (
+                    <div className="mt-4 rounded-lg border border-cyan-400/10 bg-cyan-500/5 p-4">
+                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-cyan-200">
+                        cost-aware scoring
+                      </p>
+                      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                        <Metric
+                          label="cost pressure"
+                          value={`${Math.round(selected.critic.cost_analysis.cost_pressure_score * 100)} / 100`}
+                        />
+                        <Metric
+                          label="benefit"
+                          value={`${Math.round(selected.critic.cost_analysis.benefit_score * 100)} / 100`}
+                        />
+                        <Metric
+                          label="tradeoff"
+                          value={`${Math.round(selected.critic.cost_analysis.tradeoff_score * 100)} / 100`}
+                        />
+                      </div>
+
+                      {!!Object.keys(selected.critic.cost_analysis.pressure_components ?? {}).length && (
+                        <div className="mt-4">
+                          <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500">
+                            pressure components
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {Object.entries(selected.critic.cost_analysis.pressure_components ?? {}).map(([label, value]) => (
+                              <span
+                                key={label}
+                                className="rounded-full border border-white/10 bg-slate-950/40 px-3 py-1 text-xs text-slate-300"
+                              >
+                                {label} {Math.round(value * 100)}/100
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {selected.critic.cost_analysis.tradeoff_notes?.length ? (
+                        <div className="mt-4">
+                          <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500">
+                            tradeoff notes
+                          </p>
+                          <ul className="mt-2 space-y-2 text-sm text-slate-300">
+                            {selected.critic.cost_analysis.tradeoff_notes.map((note) => (
+                              <li key={note} className="rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2">
+                                {note}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
                   {!!Object.keys(selected.critic?.dimension_scores ?? {}).length && (
                     <div className="mt-4">
                       <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500">

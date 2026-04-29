@@ -1,39 +1,171 @@
-# CortexKitchen
+# 🍽️ CortexKitchen
 
-CortexKitchen is a local-first restaurant operations planning system built around a multi-agent workflow. It combines forecasting, reservation pressure analysis, complaint retrieval, menu guidance, inventory checks, and a critic layer that reviews recommendations before they are presented in the UI.
+### Multi-agent restaurant operations copilot
 
-Status snapshot: April 29, 2026.
+![Status](https://img.shields.io/badge/status-active-success)
+![Phase](https://img.shields.io/badge/phase-3_complete-blue)
+![Backend](https://img.shields.io/badge/backend-FastAPI-009688)
+![Frontend](https://img.shields.io/badge/frontend-Next.js-black)
+![Orchestration](https://img.shields.io/badge/orchestration-LangGraph-purple)
+![Vector DB](https://img.shields.io/badge/vector_db-Qdrant-orange)
+![Database](https://img.shields.io/badge/database-PostgreSQL-blue)
+![Cache](https://img.shields.io/badge/cache-Redis-red)
+![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
-## What is implemented today
+---
 
-- FastAPI backend with health, planning, runs, and data-health endpoints
-- LangGraph-based orchestration for multiple service-planning scenarios
-- Scenario presets for `friday_rush`, `weekday_lunch`, `holiday_spike`, and `low_stock_weekend`
-- Persisted planning runs with critic verdicts and audit detail
-- Next.js dashboard with run history and data-health views
-- Local Docker Compose stack for PostgreSQL, Qdrant, and Redis
-- Synthetic seed data, Qdrant memory seeding, and backend unit/integration coverage
+## 🧠 What is CortexKitchen?
 
-## What is not finished yet
+CortexKitchen is a **multi-agent decision system** for restaurant operations.
 
-- Production deployment and hardening
-- Authentication and multi-tenant access control
-- Real POS, reservations, or review-platform integrations
-- Shared runtime code in `packages/core`
-- Broader scenario coverage beyond the current four presets
+It transforms fragmented service data into a **pre-shift execution plan** by coordinating forecasting, reservations, complaints (RAG), menu strategy, and inventory — then validating everything through a critic layer.
 
-## Repository layout
+> Not a chatbot.
+> A structured planning workflow.
 
-- `apps/api` - FastAPI backend, orchestration, services, DB models, tests
-- `apps/web/cortexkitchen-ui` - Next.js frontend
-- `data` - raw, seed, and processed dataset folders
-- `docs` - architecture, API, roadmap, evaluation, and implementation notes
-- `infra` - local infrastructure documentation
-- `scripts` - local seed and retrieval scripts
-- `tests` - cross-project test documentation
-- `packages/core` - reserved shared package, currently a placeholder
+---
 
-## Local setup
+
+## 🚀 Core capabilities
+
+### 📊 Multi-scenario planning
+
+Run workflows for:
+
+* `friday_rush`
+* `weekday_lunch`
+* `holiday_spike`
+* `low_stock_weekend`
+
+---
+
+### 📈 Demand forecasting
+
+* Peak detection
+* Service pressure estimation
+* Risk signals before shift
+
+---
+
+### 🪑 Reservation intelligence
+
+* Booking density analysis
+* Overload window detection
+
+---
+
+### 🧾 Complaint intelligence (RAG)
+
+* Qdrant-backed retrieval
+* Pattern-aware recommendations
+
+---
+
+### 🍝 Menu guidance
+
+* Top vs weak items
+* Promotion strategy aligned with demand
+
+---
+
+### 📦 Inventory risk detection
+
+* Shortage / overstock alerts
+* Feasibility-aware planning
+
+---
+
+### 🧑‍⚖️ Critic layer
+
+* Scores recommendations
+* Flags weak outputs
+* Adds revision feedback
+
+---
+
+### 🧾 Runs & audit trail
+
+* Persisted planning runs
+* Traceable outputs + critic notes
+
+---
+
+## 🖥️ Product surface
+
+### Dashboard (`/`)
+
+* Scenario selection
+* Structured planning output
+* KPI-style summaries
+
+### Runs (`/runs`)
+
+* Historical runs
+* Critic scores
+* Full audit trail
+
+### Data health (`/data-health`)
+
+* Scenario coverage
+* Data completeness signals
+
+---
+
+## 🏗️ System architecture
+
+* **Backend:** FastAPI
+* **Frontend:** Next.js
+* **Orchestration:** LangGraph
+* **Database:** PostgreSQL
+* **Vector DB:** Qdrant
+* **Cache / future async:** Redis
+* **LLM layer:** provider abstraction (not hardwired)
+
+---
+
+## 🧪 What’s working today
+
+* End-to-end planning pipeline (multi-stage)
+* Scenario-aware workflows
+* RAG-powered complaint intelligence
+* Prophet-backed forecasting
+* Critic scoring + validation
+* Persisted runs with audit trail
+* Dashboard + runs + data-health UI
+* Docker-based local stack
+* Seeded data for reproducible demos
+
+---
+
+## 📊 Project maturity
+
+| Phase   | Status     | Highlights                               |
+| ------- | ---------- | ---------------------------------------- |
+| Phase 0 | ✅ Complete | Architecture, PRD, system design         |
+| Phase 1 | ✅ Complete | API, infra, core services, Friday flow   |
+| Phase 2 | ✅ Complete | Forecasting, inventory, menu, dashboard  |
+| Phase 3 | ✅ Complete | Runs, critic, scoring, multi-scenarios   |
+| Phase 4 | 🔜 Planned | Auth, integrations, async, observability |
+
+---
+
+## 📁 Project structure
+
+```
+apps/
+  api/                  # FastAPI backend (services, orchestration, DB)
+  web/cortexkitchen-ui # Next.js frontend
+
+data/                   # raw, seed, processed datasets
+docs/                   # architecture, roadmap, evaluation
+infra/                  # infra setup docs
+scripts/                # seeding + retrieval scripts
+packages/core/          # shared logic (planned)
+```
+
+---
+
+## 🧑‍💻 Local setup
 
 ### 1. Start infrastructure
 
@@ -41,7 +173,7 @@ Status snapshot: April 29, 2026.
 docker compose up -d
 ```
 
-### 2. Start the API
+### 2. Backend
 
 ```bash
 cd apps/api
@@ -54,7 +186,7 @@ python ..\..\scripts\seed_qdrant_memory.py
 uvicorn app.main:app --reload
 ```
 
-### 3. Start the frontend
+### 3. Frontend
 
 ```bash
 cd apps/web/cortexkitchen-ui
@@ -62,27 +194,30 @@ npm install
 npm run dev
 ```
 
-Frontend default URL: `http://localhost:3000`
+* Frontend → [http://localhost:3000](http://localhost:3000)
+* API → [http://localhost:8000](http://localhost:8000)
 
-API default URL: `http://localhost:8000`
+---
 
-## Current API surface
+## 🔌 API surface
 
-- `GET /api/v1/health`
-- `GET /api/v1/health/dependencies`
-- `GET /api/v1/planning/scenarios`
-- `POST /api/v1/planning/run`
-- `POST /api/v1/planning/friday-rush`
-- `GET /api/v1/runs`
-- `GET /api/v1/runs/{run_id}`
-- `GET /api/v1/data-health`
+* `GET /api/v1/health`
+* `GET /api/v1/health/dependencies`
+* `GET /api/v1/planning/scenarios`
+* `POST /api/v1/planning/run`
+* `GET /api/v1/runs`
+* `GET /api/v1/runs/{run_id}`
+* `GET /api/v1/data-health`
 
-## Frontend views
+---
 
-- `/` - main planning dashboard
-- `/runs` - persisted run inspection and critic audit trail
-- `/data-health` - seeded data coverage and operational signal summary
+## 🧭 Roadmap (next phase)
 
-## Notes on this doc refresh
+* Multi-tenant + authentication
+* Real-world data integrations (POS, reservations, inventory)
+* Async planning runs (Redis queue)
+* Observability (latency, cost, traces)
+* Configurable restaurant settings
 
-This README was updated to match the codebase as it exists on April 29, 2026. It does not claim a fresh test run as part of this documentation-only update.
+
+

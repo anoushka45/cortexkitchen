@@ -26,6 +26,22 @@ It transforms fragmented service data into a **pre-shift execution plan** by coo
 ---
 
 
+## ⚡ What happens in one run?
+
+1. Forecast demand and service pressure  
+2. Analyze reservations and occupancy risk  
+3. Retrieve complaint patterns (RAG)  
+4. Evaluate menu performance  
+5. Check inventory feasibility  
+6. Generate a coordinated plan  
+7. Critic scores and validates output  
+
+➡️ Output: **actionable, pre-shift execution plan**
+
+
+![Dashboard preview](<docs/images/ck dashboard.png>)
+
+
 ## 🚀 Core capabilities
 
 ### 📊 Multi-scenario planning

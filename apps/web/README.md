@@ -1,33 +1,24 @@
-# CortexKitchen UI
+# CortexKitchen Web
 
-Next.js dashboard for CortexKitchen — displays Friday Rush planning results from the API.
+This folder contains the web application for CortexKitchen. The active frontend lives in `apps/web/cortexkitchen-ui`.
 
-## What's in here (Phase 1 complete)
+## What the frontend currently includes
 
-- Dashboard page with date picker and Run button
-- Forecast chart (Recharts)
-- Agent cards — forecast, reservations, complaints, menu, inventory
-- Critic banner — verdict + score + notes
-- RAG context drawer — similar complaints + relevant SOPs
-- Run history panel
-- `useFridayRush` hook wiring to the backend planning endpoint
+- Planning dashboard for scenario-driven service runs
+- Run history and persisted audit view
+- Data-health page for seeded operational coverage
+- Client-side API helpers for planning, runs, and data-health endpoints
 
-## Run locally
+## Start the app
 
 ```bash
+cd cortexkitchen-ui
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Make sure the API is running on port 8000.
+By default the frontend expects the API at `http://localhost:8000`.
 
 ## Environment
 
-The API base URL is configured in `lib/api.ts`. Update it if your API runs on a different port.
-
-## Stack
-
-- Next.js 14 (App Router)
-- Tailwind CSS
-- Recharts
-- TypeScript
+Set `NEXT_PUBLIC_API_BASE_URL` if the backend runs elsewhere.

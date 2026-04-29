@@ -1,35 +1,23 @@
 # CortexKitchen Docs
 
-This folder contains the core design and planning documents for CortexKitchen.
+This folder contains the living project documentation for CortexKitchen.
 
-## Documents
+Status snapshot: April 29, 2026.
 
-- `PRD.md` — product requirements and project definition
-- `ROADMAP.md` — phase-wise delivery plan
-- `DECISIONS.md` — major architecture and workflow decisions
-- `ARCHITECTURE.md` — system design overview
-- `AGENTS.md` — agent roles, responsibilities, and outputs
-- `DATA_MODEL.md` — PostgreSQL, Qdrant, and Redis data design
-- `APIS.md` — planned FastAPI contracts
-- `EVALUATION.md` — testing and AI quality evaluation strategy
-- `IMPLEMENTATION_PLAN.md` — practical build order and delivery sequence
+## Start here
 
-## Recommended Reading Order
+- `ARCHITECTURE.md` - current system shape and implementation notes
+- `APIS.md` - current backend route surface
+- `ROADMAP.md` - what is done, in progress, and next
+- `EVALUATION.md` - how quality is assessed today
+- `IMPLEMENTATION_PLAN.md` - current delivery priorities
+- `AGENTS.md` - active agent roles in the orchestration flow
 
-1. `PRD.md`
-2. `ARCHITECTURE.md`
-3. `AGENTS.md`
-4. `DATA_MODEL.md`
-5. `APIS.md`
-6. `ROADMAP.md`
-7. `EVALUATION.md`
-8. `IMPLEMENTATION_PLAN.md`
-9. `DECISIONS.md`
+## Historical or design-heavy docs
 
-## Current Status
+- `PRD.md`
+- `DATA_MODEL.md`
+- `DECISIONS.md`
+- `PHASE2_EVALUATION_REFINEMENT.md`
 
-Phase 0 documentation is being completed before implementation begins.
-
-## Guiding Principle
-
-Docs first. Then implementation. Then refinement.
+These are still useful, but some sections were written as design docs before the current implementation landed. Use the docs listed in "Start here" first when you need the present-day view of the project.

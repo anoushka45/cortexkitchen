@@ -1,51 +1,74 @@
 # CortexKitchen API
 
-FastAPI backend for CortexKitchen — including all agent orchestration, services, and the Friday Rush planning endpoint.
+FastAPI backend for CortexKitchen. This app owns the orchestration entrypoints, domain services, DB models, run persistence, and backend test suite.
 
-## What's in here (Phase 1 complete)
+## Current backend scope
 
-- FastAPI app with settings, health endpoints, dependency health checks
-- Docker Compose for Postgres, Qdrant, Redis
-- SQLAlchemy DB models + Alembic migrations
-- Seed data scripts (pizza-heavy, Friday-spike patterns)
-- LLM provider layer — Gemini + Groq + base interface + prompt utilities
-- Core domain services — forecast, reservations, complaints, critic
-- Qdrant vector memory — complaint retrieval + SOP retrieval
-- LangGraph orchestration graph — ops manager → fan-out agents → aggregator → critic → assembler
-- Friday Rush planning endpoint (`POST /api/v1/planning/friday-rush`)
-- Full test suite — unit, integration, and E2E
+- Health and dependency health endpoints
+- Shared planning endpoint for multiple scenario presets
+- Legacy Friday Rush route kept for backward compatibility
+- Persisted planning run list and detail endpoints
+- Data-health summary endpoint for seeded operational coverage
+- LangGraph orchestration with forecast, reservation, complaint, menu, inventory, aggregator, critic, and final-assembly stages
 
-## Run locally
+## Active scenario presets
+
+- `friday_rush`
+- `weekday_lunch`
+- `holiday_spike`
+- `low_stock_weekend`
+
+## Main routes
+
+- `GET /`
+- `GET /api/v1/health`
+- `GET /api/v1/health/dependencies`
+- `GET /api/v1/planning/scenarios`
+- `POST /api/v1/planning/run`
+- `POST /api/v1/planning/friday-rush`
+- `GET /api/v1/runs`
+- `GET /api/v1/runs/{run_id}`
+- `GET /api/v1/data-health`
+
+## Local run flow
 
 ```bash
-# Start infrastructure
-docker compose up -d
-
-# Install dependencies
+python -m venv venv
+venv\Scripts\activate
 pip install -r requirements.txt
-
-# Run migrations + seed data
 alembic upgrade head
-python scripts/seed_demo_data.py
-python scripts/seed_qdrant_memory.py
-
-# Start API
+python ..\..\scripts\seed_demo_data.py
+python ..\..\scripts\seed_qdrant_memory.py
 uvicorn app.main:app --reload
 ```
 
-## Available endpoints
+## Configuration
 
-- `GET /` — root
-- `GET /api/v1/health` — health check
-- `GET /api/v1/health/dependencies` — dependency health (Postgres, Qdrant, Redis)
-- `POST /api/v1/planning/friday-rush` — Friday Rush orchestration (main demo endpoint)
+Important settings come from `.env`:
 
-## Running tests
+- `APP_NAME`
+- `APP_ENV`
+- `APP_DEBUG`
+- `API_V1_PREFIX`
+- `POSTGRES_URL`
+- `QDRANT_URL`
+- `REDIS_URL`
+- `LLM_PROVIDER`
+- `GEMINI_API_KEY`
+- `GROQ_API_KEY`
+
+## Tests
+
+Backend tests live in `apps/api/tests` and are split into:
+
+- `tests/unit`
+- `tests/integration`
+
+Example commands:
 
 ```bash
-# Unit + integration tests (no live infra needed)
-pytest tests/unit -v
-
-# Integration tests (requires Docker infra + .env)
-pytest tests/integration -v
+venv\Scripts\python -m pytest tests\unit -q
+venv\Scripts\python -m pytest tests\integration -q
 ```
+
+This README reflects the current route and feature set, but it does not certify that tests were re-run during this doc update.

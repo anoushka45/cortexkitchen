@@ -70,7 +70,10 @@ async def inventory_node(
             forecast_data = forecast_output.get("data")
 
         service = InventoryService(db=db, llm=llm)
-        result  = await service.analyse_and_recommend(forecast_data=forecast_data)
+        result  = await service.analyse_and_recommend(
+            forecast_data=forecast_data,
+            scenario_profile=state.get("scenario_profile"),
+        )
 
         return {**state, "inventory_output": result}
 

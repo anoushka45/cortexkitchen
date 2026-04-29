@@ -17,6 +17,8 @@ interface InventoryData {
   overstock_alerts:    Alert[];
   high_demand_week:    boolean;
   demand_ratio:        number;
+  scenario_label?:     string;
+  service_window?:     string;
   recommendation: {
     restock_actions: string[];
     waste_reduction_actions: string[];
@@ -63,6 +65,8 @@ function normalizeInventoryData(
     overstock_alerts:    overstock as Alert[],
     high_demand_week:    Boolean(payload.high_demand_week),
     demand_ratio:        Number(payload.demand_ratio ?? 1.0),
+    scenario_label:      typeof payload.scenario_label === "string" ? String(payload.scenario_label) : undefined,
+    service_window:      typeof payload.service_window === "string" ? String(payload.service_window) : undefined,
     recommendation:
       recommendationSource && typeof recommendationSource === "object"
         ? {
@@ -125,6 +129,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
   const hasOverstock = data.overstock_alerts.length > 0;
   const allClear     = !hasShortage && !hasOverstock;
   const recommendation = data.recommendation;
+  const serviceWindow = data.service_window ?? "this service window";
 
   const shortageSorted = [...data.shortage_alerts].sort((a, b) => {
     const score = (sev: Alert["severity"]) =>
@@ -168,7 +173,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
             All stock levels are within safe range.
           </p>
           <p className="text-xs text-slate-500 mt-1">
-            No restocking or waste-reduction actions required before Friday.
+            No restocking or waste-reduction actions required before {serviceWindow.toLowerCase()}.
           </p>
         </div>
       )}

@@ -4,11 +4,20 @@ from datetime import datetime, timezone
 from app.infrastructure.db.models import DecisionLog, CriticVerdict
 from app.infrastructure.llm.base import BaseLLMProvider
 from app.infrastructure.llm.prompt_utils import PromptUtils
+from app.domain.services.cost_aware_scoring import CostAwareScoringService
 from app.domain.services.evaluation_sanity import EvaluationSanityChecker
 
 
 class CriticService:
     """Validates AI recommendations against operational rules and logs decisions."""
+
+    DEFAULT_DIMENSIONS = {
+        "safety": 0.5,
+        "feasibility": 0.5,
+        "evidence": 0.5,
+        "actionability": 0.5,
+        "clarity": 0.5,
+    }
 
     # Operational rules the critic enforces
     RULES = """
@@ -28,6 +37,7 @@ class CriticService:
         self.db = db
         self.llm = llm
         self.sanity_checker = EvaluationSanityChecker()
+        self.cost_scoring = CostAwareScoringService()
 
     async def evaluate(self, agent: str, recommendation: dict, input_summary: str = None) -> dict:
         """Evaluate a recommendation and return critic verdict."""
@@ -41,12 +51,19 @@ class CriticService:
             if isinstance(recommendation, dict)
             else {"passed": True, "issues": [], "summary": "0 errors, 0 warnings"}
         )
+        cost_analysis = (
+            self.cost_scoring.evaluate_bundle(recommendation)
+            if isinstance(recommendation, dict)
+            else {}
+        )
 
         prompt = PromptUtils.format_critic_prompt(
             recommendation=(
                 f"{recommendation_text}\n\n"
                 f"## Automated sanity checks\n"
-                f"{self.sanity_checker.format_report(sanity_report)}"
+                f"{self.sanity_checker.format_report(sanity_report)}\n\n"
+                f"## Cost-aware tradeoff analysis\n"
+                f"{self.cost_scoring.format_report(cost_analysis)}"
             ),
             rules=self.RULES
         )
@@ -63,6 +80,15 @@ class CriticService:
 
         critic_score = float(verdict_raw.get("score", 0.5))
         critic_notes = verdict_raw.get("notes", "")
+        dimension_scores = self._normalize_dimension_scores(
+            verdict_raw.get("dimension_scores")
+        )
+        revision_reasons = self._normalize_string_list(
+            verdict_raw.get("revision_reasons")
+        )
+        actionable_feedback = self._normalize_string_list(
+            verdict_raw.get("actionable_feedback")
+        )
 
         has_errors = any(
             issue.get("severity") == "error"
@@ -73,19 +99,60 @@ class CriticService:
             for issue in sanity_report.get("issues", [])
             if issue.get("severity") == "error"
         )
+        tradeoff_score = float(cost_analysis.get("tradeoff_score", 0.5))
+        cost_pressure = float(cost_analysis.get("cost_pressure_score", 0.5))
 
         if has_hard_policy_error:
             verdict_str = "rejected"
             critic_score = min(critic_score, 0.3)
+            dimension_scores["safety"] = 0.3
+            if not revision_reasons:
+                revision_reasons.append(
+                    "Policy violations must be resolved before this plan can be approved."
+                )
         elif has_errors and verdict_str == "approved":
             verdict_str = "revision"
             critic_score = min(critic_score, 0.65)
+            dimension_scores["feasibility"] = 0.65
+            if not revision_reasons:
+                revision_reasons.append(
+                    "Automated sanity checks found operational issues that require revision."
+                )
+        elif (
+            verdict_str == "approved"
+            and tradeoff_score < 0.2
+            and cost_pressure >= 0.9
+        ):
+            verdict_str = "revision"
+            critic_score = min(critic_score, 0.68)
+            dimension_scores["actionability"] = min(
+                dimension_scores["actionability"], 0.68
+            )
+            revision_reasons.append(
+                "Operational cost and benefit tradeoffs are weak for this service window."
+            )
+
+        if cost_pressure >= 0.75:
+            dimension_scores["feasibility"] = min(dimension_scores["feasibility"], 0.7)
+            actionable_feedback.extend(cost_analysis.get("recommended_focus", []))
+            if not any("tradeoff" in reason.lower() or "operational cost" in reason.lower() for reason in revision_reasons):
+                revision_reasons.append(
+                    "High operational pressure means the plan should focus on the most valuable actions first."
+                )
 
         if sanity_report.get("issues"):
             critic_notes = (
                 f"{critic_notes} Automated sanity checks: "
                 f"{sanity_report['summary']}."
             ).strip()
+            actionable_feedback.extend(
+                issue.get("message", "")
+                for issue in sanity_report.get("issues", [])
+                if issue.get("severity") == "error"
+            )
+
+        revision_reasons = self._dedupe_preserve_order(revision_reasons)
+        actionable_feedback = self._dedupe_preserve_order(actionable_feedback)
 
         return {
             "agent": agent,
@@ -94,6 +161,10 @@ class CriticService:
             "notes": critic_notes,
             "recommendation": recommendation_text,
             "sanity_checks": sanity_report,
+            "cost_analysis": cost_analysis,
+            "dimension_scores": dimension_scores,
+            "revision_reasons": revision_reasons,
+            "actionable_feedback": actionable_feedback,
         }
 
     async def evaluate_and_log(
@@ -124,7 +195,13 @@ class CriticService:
             critic_verdict=verdict_map.get(result["verdict"], CriticVerdict.revision),
             critic_score=result["score"],
             critic_notes=result["notes"],
-            metadata_={"sanity_checks": result.get("sanity_checks")},
+            metadata_={
+                "sanity_checks": result.get("sanity_checks"),
+                "cost_analysis": result.get("cost_analysis"),
+                "dimension_scores": result.get("dimension_scores"),
+                "revision_reasons": result.get("revision_reasons", []),
+                "actionable_feedback": result.get("actionable_feedback", []),
+            },
             created_at=datetime.now(timezone.utc),
 
         )
@@ -135,3 +212,31 @@ class CriticService:
 
         result["decision_log_id"] = log.id
         return result
+
+    def _normalize_dimension_scores(self, raw_scores: dict | None) -> dict:
+        scores = dict(self.DEFAULT_DIMENSIONS)
+        if not isinstance(raw_scores, dict):
+            return scores
+
+        for key in scores:
+            value = raw_scores.get(key)
+            try:
+                if value is not None:
+                    scores[key] = max(0.0, min(float(value), 1.0))
+            except (TypeError, ValueError):
+                continue
+        return scores
+
+    def _normalize_string_list(self, value: object) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        return [item.strip() for item in value if isinstance(item, str) and item.strip()]
+
+    def _dedupe_preserve_order(self, items: list[str]) -> list[str]:
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for item in items:
+            if item not in seen:
+                seen.add(item)
+                ordered.append(item)
+        return ordered

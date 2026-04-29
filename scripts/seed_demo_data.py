@@ -19,6 +19,7 @@ from app.infrastructure.db.models import (
     Inventory,
     MenuItem,
     Order,
+    PlanningRun,
     Reservation,
     ReservationStatus,
     SentimentType,
@@ -36,6 +37,27 @@ FUTURE_FRIDAY_TARGETS = [
     datetime(2026, 5, 15),
     datetime(2026, 5, 22),
 ]
+FUTURE_SCENARIO_TARGETS = {
+    "friday_rush": [
+        datetime(2026, 5, 1),
+        datetime(2026, 5, 8),
+        datetime(2026, 5, 15),
+        datetime(2026, 5, 22),
+    ],
+    "weekday_lunch": [
+        datetime(2026, 4, 29),
+        datetime(2026, 5, 6),
+        datetime(2026, 5, 13),
+    ],
+    "holiday_spike": [
+        datetime(2026, 5, 2),
+        datetime(2026, 5, 9),
+    ],
+    "low_stock_weekend": [
+        datetime(2026, 5, 3),
+        datetime(2026, 5, 10),
+    ],
+}
 
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
@@ -62,9 +84,18 @@ print("Seeding CortexKitchen demo data...")
 print(f"  Seed as-of date: {SEED_AS_OF.date()}")
 print(f"  Friday rush now historical: {FRIDAY_RUSH_DATE.date()}")
 print(f"  Future planning Fridays: {', '.join(str(d.date()) for d in FUTURE_FRIDAY_TARGETS)}")
+print(
+    "  Expanded future scenario dates: "
+    + ", ".join(
+        f"{scenario}={','.join(str(d.date()) for d in dates)}"
+        for scenario, dates in FUTURE_SCENARIO_TARGETS.items()
+        if scenario != "friday_rush"
+    )
+)
 
 # Clear existing data.
 session.query(DecisionLog).delete()
+session.query(PlanningRun).delete()
 session.query(Feedback).delete()
 session.query(Order).delete()
 session.query(Reservation).delete()
@@ -212,6 +243,19 @@ future_friday_profiles = {
     datetime(2026, 5, 15).date(): {"count": 14, "waitlist_from": 12, "guest_adjustment": 1},
     datetime(2026, 5, 22).date(): {"count": 10, "waitlist_from": 9, "guest_adjustment": 0},
 }
+future_weekday_lunch_profiles = {
+    datetime(2026, 4, 29).date(): {"count": 8, "waitlist_from": 7, "guest_adjustment": -1},
+    datetime(2026, 5, 6).date(): {"count": 9, "waitlist_from": 8, "guest_adjustment": 0},
+    datetime(2026, 5, 13).date(): {"count": 7, "waitlist_from": 6, "guest_adjustment": -1},
+}
+future_holiday_spike_profiles = {
+    datetime(2026, 5, 2).date(): {"count": 17, "waitlist_from": 13, "guest_adjustment": 1},
+    datetime(2026, 5, 9).date(): {"count": 16, "waitlist_from": 12, "guest_adjustment": 1},
+}
+future_low_stock_weekend_profiles = {
+    datetime(2026, 5, 3).date(): {"count": 11, "waitlist_from": 9, "guest_adjustment": 0},
+    datetime(2026, 5, 10).date(): {"count": 10, "waitlist_from": 8, "guest_adjustment": 0},
+}
 
 for target_friday in FUTURE_FRIDAY_TARGETS:
     profile = future_friday_profiles[target_friday.date()]
@@ -233,9 +277,75 @@ for target_friday in FUTURE_FRIDAY_TARGETS:
             )
         )
 
+for target_date in FUTURE_SCENARIO_TARGETS["weekday_lunch"]:
+    profile = future_weekday_lunch_profiles[target_date.date()]
+    for index, (name, guests) in enumerate(future_booking_names[: profile["count"]]):
+        adjusted_guests = max(2, guests + profile["guest_adjustment"])
+        reservations.append(
+            Reservation(
+                guest_name=name,
+                guest_count=adjusted_guests,
+                reserved_at=target_date.replace(
+                    hour=random.choice([12, 13, 14]),
+                    minute=random.choice([0, 15, 30, 45]),
+                ),
+                status=ReservationStatus.waitlist
+                if index >= profile["waitlist_from"]
+                else ReservationStatus.confirmed,
+                table_number=random.randint(1, 15),
+                notes=random.choice([None, None, "Office lunch", "Window seat please"]),
+            )
+        )
+
+for target_date in FUTURE_SCENARIO_TARGETS["holiday_spike"]:
+    profile = future_holiday_spike_profiles[target_date.date()]
+    for index, (name, guests) in enumerate(future_booking_names[: profile["count"]]):
+        adjusted_guests = max(2, guests + profile["guest_adjustment"])
+        reservations.append(
+            Reservation(
+                guest_name=name,
+                guest_count=adjusted_guests,
+                reserved_at=target_date.replace(
+                    hour=random.choice([18, 19, 20, 21]),
+                    minute=random.choice([0, 15, 30, 45]),
+                ),
+                status=ReservationStatus.waitlist
+                if index >= profile["waitlist_from"]
+                else ReservationStatus.confirmed,
+                table_number=random.randint(1, 15),
+                notes=random.choice([None, "Festival outing", "Birthday celebration", "Large group"]),
+            )
+        )
+
+for target_date in FUTURE_SCENARIO_TARGETS["low_stock_weekend"]:
+    profile = future_low_stock_weekend_profiles[target_date.date()]
+    for index, (name, guests) in enumerate(future_booking_names[: profile["count"]]):
+        adjusted_guests = max(2, guests + profile["guest_adjustment"])
+        reservations.append(
+            Reservation(
+                guest_name=name,
+                guest_count=adjusted_guests,
+                reserved_at=target_date.replace(
+                    hour=random.choice([18, 19, 20]),
+                    minute=random.choice([0, 15, 30, 45]),
+                ),
+                status=ReservationStatus.waitlist
+                if index >= profile["waitlist_from"]
+                else ReservationStatus.confirmed,
+                table_number=random.randint(1, 15),
+                notes=random.choice([None, "Weekend dinner", "Keep seating flexible"]),
+            )
+        )
+
 session.add_all(reservations)
 session.commit()
-print(f"  Added {len(reservations)} reservations, including 4 future planning Fridays")
+print(
+    f"  Added {len(reservations)} reservations, including "
+    f"{len(FUTURE_SCENARIO_TARGETS['friday_rush'])} future Fridays, "
+    f"{len(FUTURE_SCENARIO_TARGETS['weekday_lunch'])} weekday lunches, "
+    f"{len(FUTURE_SCENARIO_TARGETS['holiday_spike'])} holiday spikes, and "
+    f"{len(FUTURE_SCENARIO_TARGETS['low_stock_weekend'])} low-stock weekends"
+)
 
 # 4. Orders through Apr 26 with explicit Apr 24 rush data.
 menu_items_db = session.query(MenuItem).all()

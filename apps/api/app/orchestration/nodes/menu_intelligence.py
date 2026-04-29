@@ -1,5 +1,6 @@
 """Menu Intelligence Agent node."""
 
+from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.orchestration.state import OrchestratorState
@@ -59,6 +60,7 @@ async def menu_intelligence_node(
 
         service = MenuService(db=db, llm=llm)
         result = await service.analyse_and_recommend(
+            target_date=datetime.fromisoformat(state.get("target_date")) if state.get("target_date") else None,
             forecast_data=(state.get("forecast_output") or {}).get("data"),
             complaint_data=(state.get("complaint_output") or {}).get("data"),
             inventory_data=(state.get("inventory_output") or {}).get("data"),

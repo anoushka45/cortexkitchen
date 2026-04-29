@@ -157,3 +157,17 @@ class TestFridayRushEndpoint:
 
         assert "meta" in resp.json()
         assert "timestamp" in resp.json()["meta"]
+
+    def test_persists_planning_run_and_returns_run_id_in_meta(self, client):
+        persisted_run = MagicMock()
+        persisted_run.id = 42
+
+        with patch.object(planning_module, "run_friday_rush", new=AsyncMock(return_value=MOCK_FINAL_RESPONSE)), \
+             patch.object(planning_module, "RunService") as MockRunService:
+            MockRunService.return_value.create_from_response.return_value = persisted_run
+            resp = client.post("/api/v1/planning/friday-rush", json={"target_date": "2026-05-08"})
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["meta"]["planning_run_id"] == 42
+        MockRunService.return_value.create_from_response.assert_called_once()

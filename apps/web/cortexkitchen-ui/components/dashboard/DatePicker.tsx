@@ -1,43 +1,51 @@
 "use client";
 
 import { useState } from "react";
+import { PlanningScenarioOption } from "@/types/planning";
 
 interface Props {
   onRun: (date?: string) => void;
   loading: boolean;
+  scenario?: PlanningScenarioOption;
 }
 
-function getUpcomingFridays(count = 6): { label: string; value: string }[] {
-  const fridays = [];
+function getUpcomingDates(
+  weekday: number,
+  scenarioLabel: string,
+  count = 6
+): { label: string; value: string }[] {
+  const dates = [];
   const today = new Date();
   const day = today.getDay();
-  const daysToFriday = day <= 5 ? 5 - day : 6;
+  const daysAhead = (weekday - ((day + 6) % 7) + 7) % 7;
 
-  const nextFriday = new Date(today);
-  nextFriday.setDate(today.getDate() + (daysToFriday === 0 ? 7 : daysToFriday));
+  const nextDate = new Date(today);
+  nextDate.setDate(today.getDate() + (daysAhead === 0 ? 7 : daysAhead));
 
   for (let index = 0; index < count; index++) {
-    const date = new Date(nextFriday);
+    const date = new Date(nextDate);
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const dayOfMonth = String(date.getDate()).padStart(2, "0");
     const value = `${year}-${month}-${dayOfMonth}`;
     const label =
       index === 0
-        ? `This Friday (${value})`
+        ? `Next ${scenarioLabel} (${value})`
         : index === 1
-        ? `Next Friday (${value})`
+        ? `${scenarioLabel} +1 week (${value})`
         : value;
 
-    fridays.push({ label, value });
-    nextFriday.setDate(nextFriday.getDate() + 7);
+    dates.push({ label, value });
+    nextDate.setDate(nextDate.getDate() + 7);
   }
 
-  return fridays;
+  return dates;
 }
 
-export default function DatePicker({ onRun, loading }: Props) {
-  const fridays = getUpcomingFridays(6);
+export default function DatePicker({ onRun, loading, scenario }: Props) {
+  const scenarioLabel = scenario?.label ?? "Friday Rush";
+  const weekday = scenario?.default_weekday ?? 4;
+  const dates = getUpcomingDates(weekday, scenarioLabel, 6);
   const [selected, setSelected] = useState<string>("");
   const [custom, setCustom] = useState(false);
   const [customDate, setCustomDate] = useState("");
@@ -57,7 +65,7 @@ export default function DatePicker({ onRun, loading }: Props) {
                 Planning Window
               </p>
               <p className="text-sm text-slate-400 mt-1">
-                Choose a Friday preset or run the workflow for a custom date
+                Choose a scenario-aligned preset or run the workflow for a custom date
               </p>
             </div>
             <div className="inline-flex items-center rounded-full border border-white/10 bg-slate-950/70 p-1 self-start">
@@ -105,10 +113,10 @@ export default function DatePicker({ onRun, loading }: Props) {
               "
               style={{ background: "#121a2e" }}
             >
-              <option value="">Next Friday (default)</option>
-              {fridays.map((friday) => (
-                <option key={friday.value} value={friday.value}>
-                  {friday.label}
+              <option value="">{scenarioLabel} default date</option>
+              {dates.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
               ))}
             </select>

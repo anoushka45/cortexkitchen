@@ -168,11 +168,30 @@ async def run_friday_rush(
     force_critic_decision: str | None = None,
     debug: bool = False,
 ) -> dict:
+    return await run_planning_scenario(
+        deps=deps,
+        scenario="friday_rush",
+        target_date=target_date,
+        simulation_mode=simulation_mode,
+        force_critic_decision=force_critic_decision,
+        debug=debug,
+    )
+
+
+async def run_planning_scenario(
+    deps: dict[str, Any],
+    scenario: str,
+    target_date: str | None = None,
+    simulation_mode: bool = False,
+    force_critic_decision: str | None = None,
+    debug: bool = False,
+) -> dict:
     """
-    Top-level convenience function for the Friday Rush scenario.
+    Top-level convenience function for a named planning scenario.
 
     Args:
         deps: Infrastructure dependencies.
+        scenario: Scenario id from the scenario registry.
         target_date: Optional ISO date string.
         simulation_mode: Enables deterministic simulation.
         force_critic_decision: Overrides critic verdict for testing.
@@ -186,7 +205,7 @@ async def run_friday_rush(
 
     # Create initial state with P1-10 enhancements
     initial_state = make_initial_state(
-        scenario="friday_rush",
+        scenario=scenario,
         target_date=target_date,
         simulation_mode=simulation_mode,
         force_critic_decision=force_critic_decision,

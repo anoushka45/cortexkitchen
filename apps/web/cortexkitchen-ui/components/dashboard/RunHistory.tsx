@@ -7,7 +7,7 @@ import { RunHistoryEntry } from "@/types/planning";
 
 interface Props {
   history:         RunHistoryEntry[];
-  activeId?:       string;
+  activeId?:       string | number;
   onSelect:        (entry: RunHistoryEntry) => void;
 }
 
@@ -38,7 +38,7 @@ export default function RunHistory({ history, activeId, onSelect }: Props) {
           const isActive  = entry.id === activeId;
           const colors    = VERDICT_COLOR[entry.verdict] ?? VERDICT_COLOR.unknown;
           const dot       = VERDICT_DOT[entry.verdict]  ?? VERDICT_DOT.unknown;
-          const scorePct  = Math.round(entry.score * 100);
+          const scorePct  = entry.score == null ? null : Math.round(entry.score * 100);
           const time      = new Date(entry.runAt).toLocaleTimeString([], {
             hour: "2-digit", minute: "2-digit",
           });
@@ -69,7 +69,7 @@ export default function RunHistory({ history, activeId, onSelect }: Props) {
                     <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
                     {entry.verdict}
                   </span>
-                  <span>{scorePct}%</span>
+                  <span>{scorePct == null ? "--" : `${scorePct}%`}</span>
                 </div>
 
                 {/* Time */}

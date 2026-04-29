@@ -16,7 +16,14 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from app.api.schemas.common import MetaInfo
+
+PlanningScenarioId = Literal[
+    "friday_rush",
+    "weekday_lunch",
+    "holiday_spike",
+    "low_stock_weekend",
+]
+
 
 
 # ── Request ───────────────────────────────────────────────────────────────────
@@ -73,6 +80,26 @@ class FridayRushRequest(BaseModel):
     )
 
 
+class PlanningRunRequest(FridayRushRequest):
+    scenario: PlanningScenarioId = Field(
+        default="friday_rush",
+        description="Scenario preset to run through the shared planning workflow.",
+    )
+
+
+class PlanningScenarioOption(BaseModel):
+    id: PlanningScenarioId
+    label: str
+    description: str
+    default_weekday: int
+    service_window: str
+    operational_focus: str
+
+
+class PlanningScenarioListResponse(BaseModel):
+    scenarios: list[PlanningScenarioOption]
+
+
 # ── Per-agent recommendation block ───────────────────────────────────────────
 
 class AgentRecommendations(BaseModel):
@@ -86,6 +113,23 @@ class AgentRecommendations(BaseModel):
     complaint: Optional[Dict[str, Any]] = None
     menu: Optional[Dict[str, Any]] = None
     inventory: Optional[Dict[str, Any]] = None
+
+
+class CostAnalysisResult(BaseModel):
+    cost_pressure_score: float = Field(
+        description="0.0 to 1.0 score where higher means more operational pressure"
+    )
+    benefit_score: float = Field(
+        description="0.0 to 1.0 score where higher means stronger expected operational benefit"
+    )
+    tradeoff_score: float = Field(
+        description="0.0 to 1.0 score where higher means better cost/benefit balance"
+    )
+    pressure_components: Dict[str, float] = Field(default_factory=dict)
+    benefit_components: Dict[str, float] = Field(default_factory=dict)
+    tradeoff_notes: list[str] = Field(default_factory=list)
+    recommended_focus: list[str] = Field(default_factory=list)
+    signals: Dict[str, Any] = Field(default_factory=dict)
 
 
 # ── Critic block ──────────────────────────────────────────────────────────────
@@ -102,6 +146,19 @@ class CriticResult(BaseModel):
         description="0.0 – 1.0 quality score"
     )
     notes: str = ""
+    cost_analysis: Optional[CostAnalysisResult] = None
+    dimension_scores: Optional[Dict[str, float]] = Field(
+        default=None,
+        description="Per-dimension critic scoring for safety, feasibility, evidence, actionability, and clarity"
+    )
+    revision_reasons: list[str] = Field(
+        default_factory=list,
+        description="Short reasons explaining what weakened the plan"
+    )
+    actionable_feedback: list[str] = Field(
+        default_factory=list,
+        description="Concrete next changes the planner should make"
+    )
     decision_log_id: Optional[int] = Field(
         default=None,
         description="ID of the persisted DecisionLog row"
@@ -130,4 +187,4 @@ class FridayRushResponse(BaseModel):
     recommendations: AgentRecommendations
     rag_context: Optional[Dict[str, Any]] = None
     critic: CriticResult
-    meta: MetaInfo = Field(default_factory=MetaInfo)
+    meta: Dict[str, Any] = Field(default_factory=dict)

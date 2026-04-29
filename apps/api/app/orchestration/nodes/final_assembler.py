@@ -68,6 +68,10 @@ def final_assembler_node(state: OrchestratorState) -> OrchestratorState:
             "verdict": critic.get("verdict", "unknown"),
             "score": critic.get("score", 0.0),
             "notes": critic.get("notes", ""),
+            "cost_analysis": critic.get("cost_analysis"),
+            "dimension_scores": critic.get("dimension_scores"),
+            "revision_reasons": critic.get("revision_reasons", []),
+            "actionable_feedback": critic.get("actionable_feedback", []),
             "decision_log_id": critic.get("decision_log_id"),
             "sanity_checks": critic.get("sanity_checks"),
         },
@@ -81,6 +85,7 @@ def final_assembler_node(state: OrchestratorState) -> OrchestratorState:
             "simulation_mode": state.get("simulation_mode", False),
             "debug": state.get("debug", False),
             "execution_trace": state.get("execution_trace", []),
+            "scenario_profile": state.get("scenario_profile"),
         },
     }
 

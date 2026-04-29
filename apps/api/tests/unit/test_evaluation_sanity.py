@@ -144,6 +144,11 @@ async def test_critic_downgrades_approved_verdict_when_sanity_checks_fail():
     assert result["verdict"] == "revision"
     assert result["score"] == 0.65
     assert result["sanity_checks"]["passed"] is False
+    assert result["dimension_scores"]["feasibility"] == 0.65
+    assert result["revision_reasons"] == [
+        "Automated sanity checks found operational issues that require revision."
+    ]
+    assert any("Mozzarella Cheese" in item for item in result["actionable_feedback"])
 
 
 @pytest.mark.asyncio
@@ -169,6 +174,10 @@ async def test_critic_rejects_hard_policy_errors():
 
     assert result["verdict"] == "rejected"
     assert result["score"] == 0.3
+    assert result["dimension_scores"]["safety"] == 0.3
+    assert result["revision_reasons"] == [
+        "Policy violations must be resolved before this plan can be approved."
+    ]
     assert any(
         issue["code"] == "policy.capacity_limit"
         for issue in result["sanity_checks"]["issues"]

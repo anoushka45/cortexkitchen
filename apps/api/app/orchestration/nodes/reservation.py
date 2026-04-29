@@ -39,7 +39,10 @@ async def reservation_node(
     try:
         target_date = _parse_target_date(state.get("target_date"))
         service = ReservationService(db=db, llm=llm)
-        result = await service.analyse_and_recommend(target_date=target_date)
+        result = await service.analyse_and_recommend(
+            target_date=target_date,
+            scenario_profile=state.get("scenario_profile"),
+        )
         return {**state, "reservation_output": result}
 
     except Exception as exc:

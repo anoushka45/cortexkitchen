@@ -128,6 +128,25 @@ class DecisionLog(Base):
     created_at         = Column(DateTime, default=datetime.utcnow)
 
 
+class PlanningRun(Base):
+    __tablename__ = "planning_runs"
+
+    id                 = Column(Integer, primary_key=True, autoincrement=True)
+    scenario           = Column(String(80), nullable=False)
+    target_date        = Column(String(20), nullable=True)
+    status             = Column(String(40), nullable=False)
+    critic_verdict     = Column(String(40), nullable=True)
+    critic_score       = Column(Float, nullable=True)
+    decision_log_id    = Column(Integer, nullable=True)
+    final_response     = Column(JSONB, nullable=False)
+    recommendations    = Column(JSONB, nullable=True)
+    rag_context        = Column(JSONB, nullable=True)
+    critic             = Column(JSONB, nullable=True)
+    metadata_          = Column("metadata", JSONB, nullable=True)
+    generated_at       = Column(DateTime, default=datetime.utcnow)
+    created_at         = Column(DateTime, default=datetime.utcnow)
+
+
 """
 MenuItem  ──< Order >── Feedback
                            

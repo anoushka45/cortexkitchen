@@ -16,6 +16,10 @@ export interface ForecastData {
     total_orders: number;
     peak_orders_6pm_to_11pm: number;
   }>;
+  hourly_projection?: Array<{
+    hour: string;
+    covers: number;
+  }>;
   top_items?: Array<{
     item: string;
     category: string;
@@ -131,7 +135,29 @@ export interface CriticResult {
   verdict:         "approved" | "rejected" | "revision" | "unknown";
   score:           number;
   notes:           string;
+  cost_analysis?: {
+    cost_pressure_score: number;
+    benefit_score: number;
+    tradeoff_score: number;
+    pressure_components?: Record<string, number>;
+    benefit_components?: Record<string, number>;
+    tradeoff_notes?: string[];
+    recommended_focus?: string[];
+    signals?: Record<string, unknown>;
+  } | null;
+  dimension_scores?: Record<string, number> | null;
+  revision_reasons?: string[];
+  actionable_feedback?: string[];
   decision_log_id: number | null;
+  sanity_checks?: {
+    passed?: boolean;
+    summary?: string;
+    issues?: Array<{
+      code: string;
+      severity: string;
+      message: string;
+    }>;
+  } | null;
 }
 
 export interface RagContext {
@@ -148,20 +174,81 @@ export interface FridayRushResponse {
   recommendations: AgentRecommendations;
   rag_context:     RagContext | null;
   critic:          CriticResult;
+  meta?:           Record<string, unknown>;
 }
 
 export interface FridayRushRequest {
   target_date?: string | null;
   simulation_mode?: boolean;
+  scenario?: "friday_rush" | "weekday_lunch" | "holiday_spike" | "low_stock_weekend";
+}
+
+export interface PlanningScenarioOption {
+  id: "friday_rush" | "weekday_lunch" | "holiday_spike" | "low_stock_weekend";
+  label: string;
+  description: string;
+  default_weekday: number;
+  service_window: string;
+  operational_focus: string;
 }
 
 // Run history entry — stored in memory during the session
 export interface RunHistoryEntry {
-  id:          string;
+  id:          string | number;
   targetDate:  string;
   runAt:       string;
   status:      FridayRushResponse["status"];
   verdict:     CriticResult["verdict"];
-  score:       number;
-  data:        FridayRushResponse;
+  score:       number | null;
+  data?:       FridayRushResponse;
+}
+
+export interface PlanningRunSummary {
+  id: number;
+  scenario: string;
+  target_date: string | null;
+  status: FridayRushResponse["status"];
+  critic_verdict: CriticResult["verdict"] | null;
+  critic_score: number | null;
+  decision_log_id: number | null;
+  generated_at: string | null;
+  created_at: string | null;
+}
+
+export interface PlanningRunDetail extends PlanningRunSummary {
+  final_response: FridayRushResponse;
+  recommendations: AgentRecommendations | null;
+  rag_context: RagContext | null;
+  critic: CriticResult | null;
+  metadata: Record<string, unknown> | null;
+}
+
+export interface DataHealth {
+  orders: { count: number; date_range: Array<string | null> };
+  reservations: { count: number; date_range: Array<string | null> };
+  feedback: {
+    count: number;
+    date_range: Array<string | null>;
+    negative: number;
+    positive: number;
+    neutral: number;
+    negative_pct: number;
+  };
+  inventory: {
+    items: number;
+    shortage_alerts: number;
+    critical_shortages: number;
+    overstock_alerts: number;
+  };
+  menu: { items: number };
+  scenario_coverage: Array<{
+    scenario: "friday_rush" | "weekday_lunch" | "holiday_spike" | "low_stock_weekend";
+    label: string;
+    date: string;
+    reservations: number;
+    guests: number;
+    waitlist: number;
+    occupancy_pct: number;
+  }>;
+  status: "ok";
 }

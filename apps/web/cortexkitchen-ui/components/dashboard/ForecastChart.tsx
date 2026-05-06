@@ -235,7 +235,7 @@ export default function ForecastChart({ forecast, scenario }: Props) {
     : null;
 
   return (
-    <div className="card p-6 h-full">
+    <div className="card p-6 h-full flex flex-col">
       <div className="mb-6 flex flex-col gap-5">
         <div className="flex items-start justify-between gap-6">
           <div className="min-w-0 flex-1">
@@ -294,7 +294,8 @@ export default function ForecastChart({ forecast, scenario }: Props) {
         )}
       </div>
 
-      <ResponsiveContainer width="100%" height={180}>
+      <div className="flex-1 min-h-0" style={{ minHeight: 160 }}>
+      <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
           <CartesianGrid
             strokeDasharray="3 3"
@@ -327,8 +328,10 @@ export default function ForecastChart({ forecast, scenario }: Props) {
               fontFamily: "Space Mono",
               color: "#f8fafc",
             }}
+            itemStyle={{ color: "#e2e8f0" }}
+            labelStyle={{ color: "#94a3b8" }}
             formatter={(value: unknown) => [`${value} covers`, "Expected"]}
-            labelStyle={{ color: "#cbd5e1" }}
+            cursor={{ fill: "rgba(139,92,246,0.08)" }}
           />
           <Bar dataKey="covers" radius={[4, 4, 0, 0]}>
             {data.map((entry) => (
@@ -346,6 +349,7 @@ export default function ForecastChart({ forecast, scenario }: Props) {
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+      </div>
 
       <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
         <span>Service window: {service_window ?? "18:00-22:00"}</span>

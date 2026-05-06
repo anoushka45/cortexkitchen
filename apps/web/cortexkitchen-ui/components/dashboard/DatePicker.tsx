@@ -56,105 +56,66 @@ export default function DatePicker({ onRun, loading, scenario }: Props) {
   };
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 min-w-[320px] xl:min-w-[540px]">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between mb-2">
-            <div>
-              <p className="text-[11px] font-mono uppercase tracking-[0.18em] text-slate-500">
-                Planning Window
-              </p>
-              <p className="text-sm text-slate-400 mt-1">
-                Choose a scenario-aligned preset or run the workflow for a custom date
-              </p>
-            </div>
-            <div className="inline-flex items-center rounded-full border border-white/10 bg-slate-950/70 p-1 self-start">
-              <button
-                onClick={() => {
-                  setCustom(false);
-                  setCustomDate("");
-                }}
-                disabled={loading}
-                className={`px-3 py-1.5 rounded-full text-[11px] font-mono transition-colors ${
-                  !custom
-                    ? "bg-violet-500/20 text-violet-200"
-                    : "text-slate-500 hover:text-slate-300"
-                }`}
-              >
-                presets
-              </button>
-              <button
-                onClick={() => {
-                  setCustom(true);
-                  setSelected("");
-                }}
-                disabled={loading}
-                className={`px-3 py-1.5 rounded-full text-[11px] font-mono transition-colors ${
-                  custom
-                    ? "bg-violet-500/20 text-violet-200"
-                    : "text-slate-500 hover:text-slate-300"
-                }`}
-              >
-                custom
-              </button>
-            </div>
-          </div>
-
-          {!custom ? (
-            <select
-              value={selected}
-              onChange={(event) => setSelected(event.target.value)}
-              disabled={loading}
-              className="
-                w-full text-xs font-mono bg-navy-800 border border-white/10
-                text-slate-300 rounded-xl px-3 py-3
-                focus:outline-none focus:border-violet-500/50
-                disabled:opacity-50
-              "
-              style={{ background: "#121a2e" }}
-            >
-              <option value="">{scenarioLabel} default date</option>
-              {dates.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              type="date"
-              value={customDate}
-              onChange={(event) => setCustomDate(event.target.value)}
-              disabled={loading}
-              className="
-                w-full text-xs font-mono bg-navy-800 border border-white/10
-                text-slate-300 rounded-xl px-3 py-3
-                focus:outline-none focus:border-violet-500/50
-                disabled:opacity-50
-              "
-              style={{ background: "#121a2e", colorScheme: "dark" }}
-            />
-          )}
-        </div>
-
-        <div className="flex flex-col gap-2 xl:w-44">
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 w-full">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[11px] font-mono uppercase tracking-[0.18em] text-slate-500">
+          Planning Window
+        </p>
+        <div className="inline-flex items-center rounded-full border border-white/10 bg-slate-950/70 p-0.5">
           <button
-            onClick={handleRun}
-            disabled={loading || (custom && !customDate)}
-            className="
-              inline-flex items-center justify-center gap-2 px-4 py-3
-              bg-violet-600 hover:bg-violet-500
-              disabled:opacity-40 disabled:cursor-not-allowed
-              text-white text-xs font-mono font-semibold rounded-xl
-              transition-all duration-200 border border-violet-500/50
-            "
+            onClick={() => { setCustom(false); setCustomDate(""); }}
+            disabled={loading}
+            className={`px-2.5 py-1 rounded-full text-[11px] font-mono transition-colors ${
+              !custom ? "bg-violet-500/20 text-violet-200" : "text-slate-500 hover:text-slate-300"
+            }`}
           >
-            {loading ? "running…" : "⚡ Generate Plan"}
+            presets
           </button>
-          <p className="text-[11px] text-slate-500 font-mono text-center">
-            {custom ? "Custom planning run" : "Preset planning run"}
-          </p>
+          <button
+            onClick={() => { setCustom(true); setSelected(""); }}
+            disabled={loading}
+            className={`px-2.5 py-1 rounded-full text-[11px] font-mono transition-colors ${
+              custom ? "bg-violet-500/20 text-violet-200" : "text-slate-500 hover:text-slate-300"
+            }`}
+          >
+            custom
+          </button>
         </div>
+      </div>
+
+      <div className="flex gap-2">
+        {!custom ? (
+          <select
+            value={selected}
+            onChange={(event) => setSelected(event.target.value)}
+            disabled={loading}
+            className="flex-1 text-xs font-mono border border-white/10 text-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-500/50 disabled:opacity-50"
+            style={{ background: "#121a2e" }}
+          >
+            <option value="">{scenarioLabel} default date</option>
+            {dates.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type="date"
+            value={customDate}
+            onChange={(event) => setCustomDate(event.target.value)}
+            disabled={loading}
+            className="flex-1 text-xs font-mono border border-white/10 text-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-500/50 disabled:opacity-50"
+            style={{ background: "#121a2e", colorScheme: "dark" }}
+          />
+        )}
+        <button
+          onClick={handleRun}
+          disabled={loading || (custom && !customDate)}
+          className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-mono font-semibold rounded-xl transition-all duration-200 border border-violet-500/50 whitespace-nowrap"
+        >
+          {loading ? "running…" : "⚡ Generate Plan"}
+        </button>
       </div>
     </div>
   );

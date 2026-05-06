@@ -159,6 +159,141 @@ function getDetailHighlights(agentKey: string, data: Record<string, unknown> | n
   return [];
 }
 
+function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
+  const nestedData = asObject(data.data) ?? data;
+
+  // Sentiment
+  const sentiment = asObject(data.sentiment_breakdown) ?? asObject(nestedData.sentiment_breakdown);
+  const positive   = sentiment ? Number(sentiment.positive  ?? 0) : 0;
+  const neutral    = sentiment ? Number(sentiment.neutral   ?? 0) : 0;
+  const negative   = sentiment ? Number(sentiment.negative  ?? 0) : 0;
+  const negativePct = sentiment ? Number(sentiment.negative_pct ?? 0) : 0;
+  const hasSentiment = positive + neutral + negative > 0;
+
+  // Counts
+  const totalFeedback     = Number(data.total_feedback ?? nestedData.total_feedback ?? 0);
+  const uniqueComplaints  = Array.isArray(data.unique_complaints)  ? data.unique_complaints  as string[]
+                          : Array.isArray(nestedData.unique_complaints) ? nestedData.unique_complaints as string[]
+                          : [];
+  const uniquePositives   = Array.isArray(data.unique_positives)   ? data.unique_positives   as string[]
+                          : Array.isArray(nestedData.unique_positives)  ? nestedData.unique_positives  as string[]
+                          : [];
+
+  const issues      = Array.isArray(data.issues)       ? data.issues       as Record<string, unknown>[] : [];
+  const actionItems = Array.isArray(data.action_items) ? data.action_items as string[]                  : [];
+  const overallSummary = typeof data.overall_summary === "string" ? data.overall_summary : null;
+
+  return (
+    <div className="space-y-4">
+      {/* Sentiment breakdown */}
+      {hasSentiment && (
+        <div className="space-y-2">
+          <p className="text-[11px] font-mono uppercase tracking-widest text-slate-600">Sentiment</p>
+          <div className="flex gap-2 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/8 px-2.5 py-1 text-xs font-mono text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              {positive} positive
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-500/20 bg-slate-500/8 px-2.5 py-1 text-xs font-mono text-slate-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+              {neutral} neutral
+            </span>
+            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-mono ${
+              negativePct > 30 ? "border-rose-500/30 bg-rose-500/8 text-rose-400"
+              : negativePct > 15 ? "border-amber-500/30 bg-amber-500/8 text-amber-400"
+              : "border-slate-500/20 bg-slate-500/8 text-slate-400"
+            }`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${negativePct > 30 ? "bg-rose-400" : negativePct > 15 ? "bg-amber-400" : "bg-slate-400"}`} />
+              {negative} negative{negativePct > 0 ? ` · ${negativePct}%` : ""}
+            </span>
+          </div>
+
+          {/* Sentiment bar */}
+          {(positive + neutral + negative) > 0 && (
+            <div className="flex h-1.5 overflow-hidden rounded-full bg-white/5">
+              <div className="bg-emerald-500/50 transition-all" style={{ width: `${(positive / (positive + neutral + negative)) * 100}%` }} />
+              <div className="bg-slate-500/40 transition-all"  style={{ width: `${(neutral  / (positive + neutral + negative)) * 100}%` }} />
+              <div className={`transition-all ${negativePct > 30 ? "bg-rose-500/60" : "bg-amber-500/50"}`} style={{ width: `${(negative / (positive + neutral + negative)) * 100}%` }} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Unique signals row */}
+      {(uniqueComplaints.length > 0 || uniquePositives.length > 0 || totalFeedback > 0) && (
+        <div className="flex flex-wrap gap-3 text-xs font-mono text-slate-500">
+          {totalFeedback > 0 && <span>{totalFeedback} total feedback</span>}
+          {uniqueComplaints.length > 0 && (
+            <><span>·</span><span className="text-rose-400/80">{uniqueComplaints.length} unique complaint{uniqueComplaints.length !== 1 ? "s" : ""}</span></>
+          )}
+          {uniquePositives.length > 0 && (
+            <><span>·</span><span className="text-emerald-400/80">{uniquePositives.length} positive signal{uniquePositives.length !== 1 ? "s" : ""}</span></>
+          )}
+        </div>
+      )}
+
+      {/* Summary */}
+      {overallSummary && (
+        <p className="text-xs text-slate-400 leading-relaxed">{overallSummary}</p>
+      )}
+
+      {/* Issues with per-issue recommendation */}
+      {issues.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[11px] font-mono uppercase tracking-widest text-slate-600">Issues</p>
+          {issues.slice(0, 3).map((issue, i) => {
+            const priority = String(issue.priority ?? "");
+            const rec = typeof issue.recommendation === "string" ? issue.recommendation : null;
+            return (
+              <div key={i} className="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2.5 space-y-1">
+                <div className="flex items-start gap-2">
+                  <span className={`mt-0.5 h-1.5 w-1.5 rounded-full shrink-0 ${
+                    priority === "high" ? "bg-rose-400" : priority === "medium" ? "bg-amber-400" : "bg-slate-500"
+                  }`} />
+                  <span className="text-xs font-medium text-slate-200 leading-snug">{String(issue.issue ?? "")}</span>
+                </div>
+                {rec && (
+                  <p className="text-[11px] text-slate-400 leading-relaxed pl-3.5">{rec}</p>
+                )}
+              </div>
+            );
+          })}
+          {issues.length > 3 && (
+            <p className="text-xs text-slate-600 pl-1">+{issues.length - 3} more in details</p>
+          )}
+        </div>
+      )}
+
+      {/* What's working — unique positives */}
+      {uniquePositives.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-mono uppercase tracking-widest text-slate-600">What's working</p>
+          {uniquePositives.slice(0, 2).map((p, i) => (
+            <div key={i} className="rounded-xl border border-emerald-500/15 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-300 leading-snug">
+              {p}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Actions */}
+      {actionItems.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-mono uppercase tracking-widest text-slate-600">Actions</p>
+          {actionItems.slice(0, 3).map((action, i) => (
+            <div key={i} className="rounded-xl border border-cyan-500/15 bg-cyan-500/5 px-3 py-2 text-xs text-cyan-200 leading-snug">
+              {action}
+            </div>
+          ))}
+          {actionItems.length > 3 && (
+            <p className="text-xs text-slate-600 pl-1">+{actionItems.length - 3} more in details</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AgentCard({ agentKey, data, index = 0 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -201,11 +336,13 @@ export default function AgentCard({ agentKey, data, index = 0 }: Props) {
             ) : data.error ? (
               <p className="text-sm text-rose-400">⚠ {String(data.error)}</p>
             ) : agentKey === "inventory" ? (
-              <InventoryAlerts inventory={data} />
+              <InventoryAlerts inventory={data} compact />
             ) : agentKey === "menu" ? (
               <MenuInsightsBody data={data as Record<string, unknown>} compact />
             ) : agentKey === "reservation" ? (
-              <ReservationSummary data={data as Record<string, unknown>} />
+              <ReservationSummary data={data as Record<string, unknown>} compact />
+            ) : agentKey === "complaint" ? (
+              <CompactComplaintView data={data} />
             ) : (
               <AgentDataRows data={data} />
             )}

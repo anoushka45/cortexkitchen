@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import AgentCard from "@/components/dashboard/AgentCard";
@@ -286,32 +286,51 @@ function ScenarioSelector({
 
 function LoadingState() {
   const agents = [
-    { key: "forecast", label: "Demand forecast", tone: "violet" },
-    { key: "reservation", label: "Reservations", tone: "cyan" },
-    { key: "complaint", label: "Complaints", tone: "rose" },
-    { key: "menu", label: "Menu insights", tone: "amber" },
-    { key: "inventory", label: "Inventory", tone: "emerald" },
+    { key: "forecast",    label: "Demand forecast", tone: "violet"  },
+    { key: "reservation", label: "Reservations",    tone: "cyan"    },
+    { key: "complaint",   label: "Complaints",      tone: "rose"    },
+    { key: "menu",        label: "Menu insights",   tone: "amber"   },
+    { key: "inventory",   label: "Inventory",       tone: "emerald" },
   ] as const;
 
+  const [doneAgents, setDoneAgents] = useState<Set<number>>(new Set());
+  const [criticPhase, setCriticPhase] = useState(false);
+
+  useEffect(() => {
+    // Randomised completion in a tight 2–4s window — parallel fan-out, not sequential
+    const delays = agents.map(() => 2000 + Math.random() * 2000);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    delays.forEach((delay, i) => {
+      timers.push(setTimeout(() => setDoneAgents((prev) => new Set([...prev, i])), delay));
+    });
+    const maxDelay = Math.max(...delays);
+    timers.push(setTimeout(() => setCriticPhase(true), maxDelay + 600));
+    return () => timers.forEach(clearTimeout);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const dotClass: Record<(typeof agents)[number]["tone"], string> = {
-    violet: "bg-violet-400",
-    cyan: "bg-cyan-300",
-    rose: "bg-rose-400",
-    amber: "bg-amber-300",
+    violet:  "bg-violet-400",
+    cyan:    "bg-cyan-300",
+    rose:    "bg-rose-400",
+    amber:   "bg-amber-300",
     emerald: "bg-emerald-300",
   };
 
   const barGradient: Record<(typeof agents)[number]["tone"], string> = {
-    violet:
-      "linear-gradient(90deg, rgba(139,92,246,0.10), rgba(139,92,246,0.70), rgba(139,92,246,0.10))",
-    cyan:
-      "linear-gradient(90deg, rgba(34,211,238,0.10), rgba(34,211,238,0.65), rgba(34,211,238,0.10))",
-    rose:
-      "linear-gradient(90deg, rgba(244,63,94,0.10), rgba(244,63,94,0.60), rgba(244,63,94,0.10))",
-    amber:
-      "linear-gradient(90deg, rgba(251,191,36,0.10), rgba(251,191,36,0.65), rgba(251,191,36,0.10))",
-    emerald:
-      "linear-gradient(90deg, rgba(52,211,153,0.10), rgba(52,211,153,0.65), rgba(52,211,153,0.10))",
+    violet:  "linear-gradient(90deg, rgba(139,92,246,0.10), rgba(139,92,246,0.70), rgba(139,92,246,0.10))",
+    cyan:    "linear-gradient(90deg, rgba(34,211,238,0.10), rgba(34,211,238,0.65), rgba(34,211,238,0.10))",
+    rose:    "linear-gradient(90deg, rgba(244,63,94,0.10), rgba(244,63,94,0.60), rgba(244,63,94,0.10))",
+    amber:   "linear-gradient(90deg, rgba(251,191,36,0.10), rgba(251,191,36,0.65), rgba(251,191,36,0.10))",
+    emerald: "linear-gradient(90deg, rgba(52,211,153,0.10), rgba(52,211,153,0.65), rgba(52,211,153,0.10))",
+  };
+
+  const solidBar: Record<(typeof agents)[number]["tone"], string> = {
+    violet:  "bg-violet-500/50",
+    cyan:    "bg-cyan-400/50",
+    rose:    "bg-rose-400/50",
+    amber:   "bg-amber-300/50",
+    emerald: "bg-emerald-400/50",
   };
 
   return (
@@ -335,43 +354,78 @@ function LoadingState() {
         </div>
 
         <div className="mt-8 grid grid-cols-1 gap-3 text-left">
-          {agents.map((agent, index) => (
-            <div
-              key={agent.key}
-              className="rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-4"
-            >
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`h-2 w-2 rounded-full ${dotClass[agent.tone]}`}
-                    style={{ animation: `ck-dot 1.3s ease-in-out ${index * 0.12}s infinite` }}
-                  />
-                  <p className="text-sm font-semibold text-slate-200">{agent.label}</p>
-                </div>
-                <span className="text-[11px] font-mono uppercase tracking-[0.18em] text-slate-500">
-                  active
-                </span>
-              </div>
+          {agents.map((agent, index) => {
+            const isDone = doneAgents.has(index);
 
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/5">
-                <div
-                  className="h-full w-[65%] rounded-full"
-                  style={{
-                    backgroundImage: barGradient[agent.tone],
-                    backgroundSize: "220% 100%",
-                    animation: `ck-shimmer 1.35s ease-in-out ${index * 0.1}s infinite`,
-                  }}
-                />
+            return (
+              <div
+                key={agent.key}
+                className={`rounded-2xl border px-4 py-4 transition-all duration-500 ${
+                  isDone
+                    ? "border-white/5 bg-slate-950/20 opacity-55"
+                    : "border-white/10 bg-slate-950/30"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    {isDone ? (
+                      <span className="flex h-2 w-2 items-center justify-center">
+                        <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                          <path d="M1 4l2 2 4-4" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </span>
+                    ) : (
+                      <span
+                        className={`h-2 w-2 rounded-full ${dotClass[agent.tone]}`}
+                        style={{ animation: `ck-dot 1.3s ease-in-out ${index * 0.12}s infinite` }}
+                      />
+                    )}
+                    <p className={`text-sm font-semibold ${isDone ? "text-slate-500" : "text-slate-200"}`}>
+                      {agent.label}
+                    </p>
+                  </div>
+                  <span className={`text-[11px] font-mono uppercase tracking-[0.18em] ${
+                    isDone ? "text-emerald-600" : "text-slate-500"
+                  }`}>
+                    {isDone ? "done" : "active"}
+                  </span>
+                </div>
+
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/5">
+                  {isDone ? (
+                    <div className={`h-full w-full rounded-full transition-all duration-700 ${solidBar[agent.tone]}`} />
+                  ) : (
+                    <div
+                      className="h-full w-[65%] rounded-full"
+                      style={{
+                        backgroundImage: barGradient[agent.tone],
+                        backgroundSize: "220% 100%",
+                        animation: `ck-shimmer 1.35s ease-in-out ${index * 0.1}s infinite`,
+                      }}
+                    />
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        <div className="mt-8 flex flex-col items-center gap-1">
-          <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-slate-500">
-            fan-out | aggregate | critic
-          </p>
-          <p className="text-xs text-slate-600">This usually takes a few seconds.</p>
+        <div className="mt-6 flex flex-col items-center gap-1">
+          {criticPhase ? (
+            <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/5 px-4 py-2">
+              <span className="relative inline-flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-60 animate-ping" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-violet-400" />
+              </span>
+              <span className="text-[11px] font-mono uppercase tracking-[0.22em] text-violet-400">
+                critic reviewing
+              </span>
+            </div>
+          ) : (
+            <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-slate-600">
+              fan-out | aggregate | critic
+            </p>
+          )}
         </div>
       </div>
 
@@ -417,7 +471,7 @@ export default function DashboardPage() {
           borderColor: "rgba(139,92,246,0.25)",
         }}
       >
-        <div className="mx-auto flex max-w-[1520px] flex-col gap-5 px-5 py-4 xl:flex-row xl:items-center xl:justify-between xl:px-8">
+        <div className="mx-auto flex max-w-[1520px] items-center justify-between gap-4 px-6 py-4 xl:px-14">
           <div className="flex items-center gap-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/30 overflow-hidden">
               <Image
@@ -439,7 +493,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="flex w-full flex-col gap-3 xl:w-auto xl:flex-row xl:items-stretch">
+          <div className="flex items-center gap-3">
             <ScenarioSelector
               selectedScenario={selectedScenario}
               onScenarioChange={setSelectedScenario}
@@ -466,48 +520,38 @@ export default function DashboardPage() {
               </Link>
             </nav>
 
-            {status !== "idle" && (
-              <DatePicker
-                onRun={handleRun}
-                loading={status === "loading"}
-                scenario={SCENARIO_OPTIONS.find((item) => item.id === selectedScenario)}
-              />
-            )}
-
-            <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 xl:min-w-[180px] xl:flex-col xl:justify-between">
-              <div>
-                <p className="text-[11px] font-mono uppercase tracking-[0.18em] text-slate-500">
-                  Session
-                </p>
-                <p className="mt-1 text-sm text-slate-400">
-                  Recent runs and quick dashboard reset
-                </p>
-              </div>
-              <div className="flex gap-2 xl:flex-col">
-                {history.length > 0 && (
-                  <button
-                    onClick={() => setShowHistoryDrawer(true)}
-                    className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-xs font-mono text-slate-300 transition-all hover:bg-slate-900 hover:text-white hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
-                  >
-                    history ({history.length})
-                  </button>
-                )}
-                {data && status === "success" && (
-                  <button
-                    onClick={reset}
-                    className="rounded-xl border border-white/10 bg-transparent px-3 py-2 text-xs font-mono text-slate-400 transition-all hover:bg-white/5 hover:text-slate-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
-                  >
-                    reset view
-                  </button>
-                )}
-              </div>
+            <div className="flex gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+              {history.length > 0 && (
+                <button
+                  onClick={() => setShowHistoryDrawer(true)}
+                  className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-xs font-mono text-slate-300 transition-all hover:bg-slate-900 hover:text-white hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
+                >
+                  history ({history.length})
+                </button>
+              )}
+              {data && status === "success" && (
+                <button
+                  onClick={reset}
+                  className="rounded-xl border border-white/10 bg-transparent px-3 py-2 text-xs font-mono text-slate-400 transition-all hover:bg-white/5 hover:text-slate-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
+                >
+                  reset view
+                </button>
+              )}
             </div>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[1520px] px-5 py-6 xl:px-8">
-        <div className="space-y-5">
+      <main className="mx-auto w-full max-w-[1520px] px-6 py-8 xl:px-14">
+        <div className="space-y-6">
+          {status !== "idle" && (
+            <DatePicker
+              onRun={handleRun}
+              loading={status === "loading"}
+              scenario={SCENARIO_OPTIONS.find((item) => item.id === selectedScenario)}
+            />
+          )}
+
           {status === "idle" && (
             <IdleState
               onRun={handleRun}

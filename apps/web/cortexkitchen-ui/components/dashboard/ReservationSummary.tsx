@@ -20,7 +20,7 @@ interface ReservationData {
   [key: string]: unknown;
 }
 
-export default function ReservationSummary({ data }: { data: ReservationData }) {
+export default function ReservationSummary({ data, compact = false }: { data: ReservationData; compact?: boolean }) {
   // Handle both direct data object and nested structure
   const source = data as Record<string, unknown>;
   const dataObj = (source.data as Record<string, unknown> | undefined) || source;
@@ -99,7 +99,6 @@ export default function ReservationSummary({ data }: { data: ReservationData }) 
         </div>
       </div>
 
-      {/* Recommendation section */}
       {recommendation && (
         <div className="bg-navy-900/50 border border-blue-500/10 rounded-lg p-4 space-y-3 w-full">
           {/* If recommendation is a string, display it directly */}
@@ -151,8 +150,9 @@ export default function ReservationSummary({ data }: { data: ReservationData }) 
 
                   // Handle arrays of actions/items
                   if (Array.isArray(value) && value.length > 0) {
-                    const items = value.filter(item => item !== null && item !== undefined);
-                    if (items.length === 0) return null;
+                    const allItems = value.filter(item => item !== null && item !== undefined);
+                    if (allItems.length === 0) return null;
+                    const items = compact ? allItems.slice(0, 2) : allItems;
 
                     return (
                       <div key={key} className="mt-3 pt-3 border-t border-blue-500/10 w-full">
@@ -175,6 +175,9 @@ export default function ReservationSummary({ data }: { data: ReservationData }) 
                             );
                           })}
                         </ul>
+                        {compact && allItems.length > items.length && (
+                          <p className="text-xs text-slate-600 mt-1.5">+{allItems.length - items.length} more in details</p>
+                        )}
                       </div>
                     );
                   }

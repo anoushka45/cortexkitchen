@@ -295,7 +295,6 @@ function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
 }
 
 export default function AgentCard({ agentKey, data, index = 0 }: Props) {
-  const [expanded, setExpanded] = useState(true);
   const [detailOpen, setDetailOpen] = useState(false);
   const meta = AGENT_META[agentKey] ?? { label: agentKey, icon: "🤖", accent: "border-t-slate-500", glow: "" };
 
@@ -305,10 +304,7 @@ export default function AgentCard({ agentKey, data, index = 0 }: Props) {
     <>
       <div className={`group card h-full flex flex-col border-t-2 ${meta.accent} ${meta.glow} transition-all duration-300 stagger-${index + 3}`}>
         {/* Header */}
-        <button
-          onClick={() => setExpanded((e) => !e)}
-          className="w-full flex items-center justify-between px-5 py-4 text-left"
-        >
+        <div className="w-full flex items-center justify-between px-5 py-4">
           <div className="flex items-center gap-3">
             <span className="text-lg">{meta.icon}</span>
             <span className="text-sm font-semibold text-slate-200">{meta.label}</span>
@@ -323,42 +319,37 @@ export default function AgentCard({ agentKey, data, index = 0 }: Props) {
               </span>
             )}
           </div>
-          <span className="text-slate-600 text-xs font-mono">
-            {expanded ? "▲" : "▼"}
-          </span>
-        </button>
+        </div>
 
         {/* Body */}
-        {expanded && (
-          <div className="flex-1 px-5 pb-5 border-t border-white/5 pt-4 space-y-4">
-            {!data ? (
-              <p className="text-sm text-slate-600 italic">Agent did not return output.</p>
-            ) : data.error ? (
-              <p className="text-sm text-rose-400">⚠ {String(data.error)}</p>
-            ) : agentKey === "inventory" ? (
-              <InventoryAlerts inventory={data} compact />
-            ) : agentKey === "menu" ? (
-              <MenuInsightsBody data={data as Record<string, unknown>} compact />
-            ) : agentKey === "reservation" ? (
-              <ReservationSummary data={data as Record<string, unknown>} compact />
-            ) : agentKey === "complaint" ? (
-              <CompactComplaintView data={data} />
-            ) : (
-              <AgentDataRows data={data} />
-            )}
+        <div className="flex-1 px-5 pb-5 border-t border-white/5 pt-4 space-y-4">
+          {!data ? (
+            <p className="text-sm text-slate-600 italic">Agent did not return output.</p>
+          ) : data.error ? (
+            <p className="text-sm text-rose-400">⚠ {String(data.error)}</p>
+          ) : agentKey === "inventory" ? (
+            <InventoryAlerts inventory={data} compact />
+          ) : agentKey === "menu" ? (
+            <MenuInsightsBody data={data as Record<string, unknown>} compact />
+          ) : agentKey === "reservation" ? (
+            <ReservationSummary data={data as Record<string, unknown>} compact />
+          ) : agentKey === "complaint" ? (
+            <CompactComplaintView data={data} />
+          ) : (
+            <AgentDataRows data={data} />
+          )}
 
-            {canShowDetails && (
-              <div className="pt-2 border-t border-white/5 flex justify-end">
-                <button
-                  onClick={() => setDetailOpen(true)}
-                  className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-mono text-slate-300 hover:bg-white/10 transition-colors"
-                >
-                  view details
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+          {canShowDetails && (
+            <div className="pt-2 border-t border-white/5 flex justify-end">
+              <button
+                onClick={() => setDetailOpen(true)}
+                className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-mono text-slate-300 hover:bg-white/10 transition-colors"
+              >
+                view details
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <DashboardDetailModal

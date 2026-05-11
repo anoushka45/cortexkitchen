@@ -276,7 +276,7 @@ export default function RunsPage() {
                       <p className="font-mono text-xs uppercase tracking-[0.16em] text-slate-500">
                         {name}
                       </p>
-                      <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap text-xs leading-5 text-slate-300">
+                      <pre className="mt-3 max-h-48 overflow-y-auto rounded-lg border border-white/5 bg-slate-950/60 p-3 whitespace-pre-wrap text-xs leading-5 text-slate-300">
                         {JSON.stringify(value, null, 2)}
                       </pre>
                     </div>
@@ -285,7 +285,7 @@ export default function RunsPage() {
 
                 <div className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
                   <h3 className="text-sm font-semibold">RAG Context</h3>
-                  <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap text-xs leading-5 text-slate-300">
+                  <pre className="mt-3 max-h-48 overflow-y-auto rounded-lg border border-white/5 bg-slate-950/60 p-3 whitespace-pre-wrap text-xs leading-5 text-slate-300">
                     {JSON.stringify(selected.rag_context ?? {}, null, 2)}
                   </pre>
                 </div>

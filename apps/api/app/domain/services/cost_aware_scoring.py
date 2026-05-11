@@ -131,13 +131,16 @@ class CostAwareScoringService:
 
     def _extract_percent_or_count(self, recommendation: Any) -> int:
         text = str(recommendation)
-        matches = re.findall(r"(\d+(?:\.\d+)?)\s*%", text)
-        if matches:
-            return round(max(float(match) for match in matches))
+        staffing_matches = re.findall(
+            r"(?:increase|add|extra|additional|increase\s+staff(?:ing)?\s+by)\s+(\d+(?:\.\d+)?)\s*%",
+            text, re.I
+        )
+        if staffing_matches:
+            return min(round(max(float(m) for m in staffing_matches)), 30)
 
         count_matches = re.findall(r"(?:increase|add|extra|additional)\s+(?:staff(?:ing)?\s+by\s+)?(\d+)", text, re.I)
         if count_matches:
-            return max(int(match) for match in count_matches)
+            return min(max(int(m) for m in count_matches), 30)
         return 0
 
     def _estimate_prep_complexity(self, forecast_rec: Any, menu_rec: Any) -> int:

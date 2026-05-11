@@ -294,67 +294,78 @@ export default function ForecastChart({ forecast, scenario }: Props) {
         )}
       </div>
 
-      <div className="flex-1 min-h-0" style={{ minHeight: 160 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="rgba(255,255,255,0.05)"
-            vertical={false}
-          />
-          <XAxis
-            dataKey="hour"
-            tick={{ fontSize: 10, fill: "#94a3b8", fontFamily: "Space Mono" }}
-            axisLine={false}
-            tickLine={false}
-          />
-          <YAxis
-            tick={{ fontSize: 10, fill: "#94a3b8", fontFamily: "Space Mono" }}
-            axisLine={false}
-            tickLine={false}
-          />
-          <ReferenceLine
-            y={avg}
-            stroke="rgba(139,92,246,0.3)"
-            strokeDasharray="4 4"
-            label={{ value: "avg", position: "right", fontSize: 9, fill: "#94a3b8" }}
-          />
-          <Tooltip
-            contentStyle={{
-              background: "#0d1320",
-              border: "1px solid rgba(139,92,246,0.2)",
-              borderRadius: "10px",
-              fontSize: "12px",
-              fontFamily: "Space Mono",
-              color: "#f8fafc",
-            }}
-            itemStyle={{ color: "#e2e8f0" }}
-            labelStyle={{ color: "#94a3b8" }}
-            formatter={(value: unknown) => [`${value} covers`, "Expected"]}
-            cursor={{ fill: "rgba(139,92,246,0.08)" }}
-          />
-          <Bar dataKey="covers" radius={[4, 4, 0, 0]}>
-            {data.map((entry) => (
-              <Cell
-                key={entry.hour}
-                fill={
-                  entry.covers === peak
-                    ? "#8b5cf6"
-                    : entry.inWindow
-                      ? "rgba(139,92,246,0.45)"
-                      : "rgba(139,92,246,0.18)"
-                }
-              />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-      </div>
+      <ResponsiveContainer width="100%" height={250}>
+          <BarChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="rgba(255,255,255,0.05)"
+              vertical={false}
+            />
+            <XAxis
+              dataKey="hour"
+              tick={{ fontSize: 10, fill: "#94a3b8", fontFamily: "Space Mono" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fontSize: 10, fill: "#94a3b8", fontFamily: "Space Mono" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <ReferenceLine
+              y={avg}
+              stroke="rgba(139,92,246,0.3)"
+              strokeDasharray="4 4"
+              label={{ value: "avg", position: "right", fontSize: 9, fill: "#94a3b8" }}
+            />
+            <Tooltip
+              contentStyle={{
+                background: "#0d1320",
+                border: "1px solid rgba(139,92,246,0.2)",
+                borderRadius: "10px",
+                fontSize: "12px",
+                fontFamily: "Space Mono",
+                color: "#f8fafc",
+              }}
+              itemStyle={{ color: "#e2e8f0" }}
+              labelStyle={{ color: "#94a3b8" }}
+              formatter={(value: unknown) => [`${value} covers`, "Expected"]}
+              cursor={{ fill: "rgba(139,92,246,0.08)" }}
+            />
+            <Bar dataKey="covers" radius={[4, 4, 0, 0]}>
+              {data.map((entry) => (
+                <Cell
+                  key={entry.hour}
+                  fill={
+                    entry.covers === peak
+                      ? "#8b5cf6"
+                      : entry.inWindow
+                        ? "rgba(139,92,246,0.45)"
+                        : "rgba(139,92,246,0.18)"
+                  }
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
 
-      <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-        <span>Service window: {service_window ?? "18:00-22:00"}</span>
-        <span>Peak: {peak} covers</span>
+      <div className="mt-4 border-t border-white/5 pt-3 grid grid-cols-3 gap-2">
+        <div>
+          <p className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Peak / hr</p>
+          <p className="mt-0.5 text-sm font-semibold text-slate-200">{peak} covers</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Avg / hr</p>
+          <p className="mt-0.5 text-sm font-semibold text-slate-200">{avg} covers</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Window</p>
+          <p className="mt-0.5 text-sm font-semibold text-slate-200">{service_window ?? "18:00-22:00"}</p>
+        </div>
       </div>
+      {rangeText && (
+        <p className="mt-2 text-[10px] font-mono text-slate-500">range: {rangeText} covers</p>
+      )}
     </div>
   );
 }

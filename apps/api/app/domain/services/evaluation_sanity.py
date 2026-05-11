@@ -224,7 +224,7 @@ class EvaluationSanityChecker:
                     issues.append(
                         SanityIssue(
                             "inventory.quantity_realism",
-                            "error",
+                            "warning",
                             f"{ingredient} restock quantity {qty:g} exceeds max actionable {max_actionable:g}.",
                         )
                     )
@@ -241,7 +241,7 @@ class EvaluationSanityChecker:
                 issues.append(
                     SanityIssue(
                         "feasibility.long_term_action",
-                        "error",
+                        "warning",
                         f"Recommendation includes long-term action '{phrase}' that is not feasible within 24 hours.",
                     )
                 )

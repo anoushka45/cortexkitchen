@@ -54,10 +54,16 @@ function SectionHeader({
   label,
   description,
   tone = "default",
+  isOpen,
+  onToggle,
+  cards,
 }: {
   label: string;
   description: string;
   tone?: "violet" | "cyan" | "rose" | "emerald" | "amber" | "default";
+  isOpen?: boolean;
+  onToggle?: () => void;
+  cards?: string[];
 }) {
   const toneClass: Record<
     NonNullable<Parameters<typeof SectionHeader>[0]["tone"]>,
@@ -73,14 +79,37 @@ function SectionHeader({
   const toneStyle = toneClass[tone] ?? toneClass.default;
 
   return (
-    <div className="px-1 flex items-start gap-3">
-      <div className={`mt-1.5 h-10 w-1 rounded-full ${toneStyle.bar}`} />
-      <div>
+    <div
+      className={`px-1 flex items-center gap-3 ${onToggle ? "cursor-pointer select-none group" : ""}`}
+      onClick={onToggle}
+    >
+      <div className={`h-10 w-1 rounded-full flex-shrink-0 ${toneStyle.bar}`} />
+      <div className="flex-1 min-w-0">
         <p className={`text-xs font-mono uppercase tracking-[0.18em] ${toneStyle.label}`}>
           {label}
         </p>
         <p className="mt-1 text-sm text-slate-400">{description}</p>
+        {!isOpen && cards && cards.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {cards.map((card) => (
+              <span
+                key={card}
+                className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[10px] font-mono tracking-wide text-slate-500"
+              >
+                {card}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
+      {onToggle !== undefined && (
+        <svg
+          className={`flex-shrink-0 h-4 w-4 text-slate-500 transition-transform duration-200 group-hover:text-slate-300 ${isOpen ? "rotate-0" : "-rotate-90"}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      )}
     </div>
   );
 }
@@ -100,7 +129,7 @@ function IdleState({
       <div className="stagger-1 relative overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(139,92,246,0.10),transparent_52%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.08),transparent_55%),rgba(255,255,255,0.03)] px-6 py-10 shadow-[0_28px_110px_rgba(2,8,23,0.45)] md:px-10 md:py-12">
         {/* Subtle grid texture */}
         <div
-          className="pointer-events-none absolute inset-0 opacity-[0.07]"
+          className="pointer-events-none absolute inset-0 opacity-[0.14]"
           style={{
             backgroundImage:
               "linear-gradient(rgba(148,163,184,0.35) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.35) 1px, transparent 1px)",
@@ -294,7 +323,6 @@ function LoadingState() {
   ] as const;
 
   const [doneAgents, setDoneAgents] = useState<Set<number>>(new Set());
-  const [criticPhase, setCriticPhase] = useState(false);
 
   useEffect(() => {
     // Randomised completion in a tight 2–4s window — parallel fan-out, not sequential
@@ -303,8 +331,6 @@ function LoadingState() {
     delays.forEach((delay, i) => {
       timers.push(setTimeout(() => setDoneAgents((prev) => new Set([...prev, i])), delay));
     });
-    const maxDelay = Math.max(...delays);
-    timers.push(setTimeout(() => setCriticPhase(true), maxDelay + 600));
     return () => timers.forEach(clearTimeout);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -411,21 +437,9 @@ function LoadingState() {
         </div>
 
         <div className="mt-6 flex flex-col items-center gap-1">
-          {criticPhase ? (
-            <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/5 px-4 py-2">
-              <span className="relative inline-flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-60 animate-ping" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-violet-400" />
-              </span>
-              <span className="text-[11px] font-mono uppercase tracking-[0.22em] text-violet-400">
-                critic reviewing
-              </span>
-            </div>
-          ) : (
-            <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-slate-600">
-              fan-out | aggregate | critic
-            </p>
-          )}
+          <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-slate-600">
+            fan-out | aggregate | critic
+          </p>
         </div>
       </div>
 
@@ -449,6 +463,9 @@ export default function DashboardPage() {
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
   const [showManagerBrief, setShowManagerBrief] = useState(false);
   const [selectedScenario, setSelectedScenario] = useState<PlanningScenarioOption["id"]>("friday_rush");
+  const [servicePlanningOpen, setServicePlanningOpen] = useState(true);
+  const [operationalRiskOpen, setOperationalRiskOpen] = useState(false);
+  const [menuDirectionOpen, setMenuDirectionOpen] = useState(false);
 
   const handleHistorySelect = async (entry: RunHistoryEntry) => {
     setActiveHistoryId(entry.id);
@@ -601,22 +618,27 @@ export default function DashboardPage() {
                   label="Service Planning"
                   description="Demand pacing and reservation pressure for the current run."
                   tone="violet"
+                  isOpen={servicePlanningOpen}
+                  onToggle={() => setServicePlanningOpen((v) => !v)}
+                  cards={["Demand Forecast", "Reservation Pressure"]}
                 />
-                <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
-                  <div className="xl:col-span-8">
-                    <ForecastChart
-                      forecast={data.recommendations.forecast}
-                      scenario={data.scenario}
-                    />
+                {servicePlanningOpen && (
+                  <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+                    <div className="xl:col-span-8">
+                      <ForecastChart
+                        forecast={data.recommendations.forecast}
+                        scenario={data.scenario}
+                      />
+                    </div>
+                    <div className="xl:col-span-4">
+                      <AgentCard
+                        agentKey="reservation"
+                        data={data.recommendations.reservation as Record<string, unknown> | null}
+                        index={0}
+                      />
+                    </div>
                   </div>
-                  <div className="xl:col-span-4">
-                    <AgentCard
-                      agentKey="reservation"
-                      data={data.recommendations.reservation as Record<string, unknown> | null}
-                      index={0}
-                    />
-                  </div>
-                </div>
+                )}
               </div>
 
               <div className="space-y-3">
@@ -624,23 +646,28 @@ export default function DashboardPage() {
                   label="Operational Risk"
                   description="Customer sentiment and stock pressure shaping service execution."
                   tone="rose"
+                  isOpen={operationalRiskOpen}
+                  onToggle={() => setOperationalRiskOpen((v) => !v)}
+                  cards={["Complaint Intelligence", "Inventory Status"]}
                 />
-                <div className="grid grid-cols-1 items-stretch gap-5 xl:grid-cols-12">
-                  <div className="xl:col-span-7">
-                    <AgentCard
-                      agentKey="complaint"
-                      data={data.recommendations.complaint as Record<string, unknown> | null}
-                      index={1}
-                    />
+                {operationalRiskOpen && (
+                  <div className="grid grid-cols-1 items-stretch gap-5 xl:grid-cols-12">
+                    <div className="xl:col-span-7">
+                      <AgentCard
+                        agentKey="complaint"
+                        data={data.recommendations.complaint as Record<string, unknown> | null}
+                        index={1}
+                      />
+                    </div>
+                    <div className="xl:col-span-5">
+                      <AgentCard
+                        agentKey="inventory"
+                        data={data.recommendations.inventory as Record<string, unknown> | null}
+                        index={2}
+                      />
+                    </div>
                   </div>
-                  <div className="xl:col-span-5">
-                    <AgentCard
-                      agentKey="inventory"
-                      data={data.recommendations.inventory as Record<string, unknown> | null}
-                      index={2}
-                    />
-                  </div>
-                </div>
+                )}
               </div>
 
               <div className="space-y-3">
@@ -648,12 +675,17 @@ export default function DashboardPage() {
                   label="Menu Direction"
                   description="Commercial and operational guidance synthesized for this planning window."
                   tone="amber"
+                  isOpen={menuDirectionOpen}
+                  onToggle={() => setMenuDirectionOpen((v) => !v)}
+                  cards={["Menu Intelligence"]}
                 />
-                <AgentCard
-                  agentKey="menu"
-                  data={data.recommendations.menu as Record<string, unknown> | null}
-                  index={3}
-                />
+                {menuDirectionOpen && (
+                  <AgentCard
+                    agentKey="menu"
+                    data={data.recommendations.menu as Record<string, unknown> | null}
+                    index={3}
+                  />
+                )}
               </div>
 
               <RagContextDrawer ragContext={data.rag_context} />

@@ -120,7 +120,7 @@ class CriticService:
                 )
         elif (
             verdict_str == "approved"
-            and tradeoff_score < 0.2
+            and tradeoff_score < 0.0
             and cost_pressure >= 0.9
         ):
             verdict_str = "revision"

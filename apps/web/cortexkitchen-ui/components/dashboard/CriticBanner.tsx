@@ -53,9 +53,10 @@ export default function CriticBanner({
   const circumference = 2 * Math.PI * 45;
 
   useEffect(() => {
-    const timer = setTimeout(() => setAnimatedScore(scorePct), 100);
+    setAnimatedScore(0);
+    const timer = setTimeout(() => setAnimatedScore(scorePct), 150);
     return () => clearTimeout(timer);
-  }, [scorePct]);
+  }, [scorePct, generatedAt]);
 
   const formattedTime = new Date(generatedAt).toLocaleTimeString([], {
     hour: "2-digit",
@@ -153,8 +154,8 @@ export default function CriticBanner({
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="font-mono text-2xl font-bold" style={{ color: scoreColor }}>
-                {scorePct}
+              <span className="font-mono text-2xl font-bold tabular-nums" style={{ color: scoreColor }}>
+                {animatedScore}
               </span>
               <span className="-mt-1 text-xs text-slate-500">/ 100</span>
             </div>

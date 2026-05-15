@@ -38,11 +38,11 @@ export default function DashboardDetailModal({
     <div className="fixed inset-0 z-[70]">
       <button
         aria-label="Close detail modal"
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-[backdropIn_0.15s_ease_both]"
         onClick={onClose}
       />
       <div className="absolute inset-x-4 top-6 bottom-6 xl:inset-x-16 2xl:inset-x-28">
-        <div className="card h-full flex flex-col rounded-3xl overflow-hidden border-white/10 shadow-2xl">
+        <div className="card h-full flex flex-col rounded-3xl overflow-hidden border-white/10 shadow-2xl animate-[modalIn_0.2s_ease-out_both]">
           <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-white/5 bg-white/5">
             <div>
               <p className="text-xs font-mono uppercase tracking-[0.18em] text-slate-500">

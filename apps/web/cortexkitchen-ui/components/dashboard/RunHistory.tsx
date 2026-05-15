@@ -28,13 +28,16 @@ const VERDICT_DOT: Record<string, string> = {
 export default function RunHistory({ history, activeId, onSelect }: Props) {
   if (history.length === 0) return null;
 
+  const STAGGER = ["stagger-1","stagger-2","stagger-3","stagger-4","stagger-5"] as const;
+
   return (
     <div className="w-56 shrink-0">
       <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-3 px-1">
         Run History
       </p>
-      <ul className="space-y-2">
-        {history.map((entry) => {
+      <div className="relative">
+      <ul className="space-y-2 max-h-[380px] overflow-y-auto pr-0.5">
+        {history.map((entry, idx) => {
           const isActive  = entry.id === activeId;
           const colors    = VERDICT_COLOR[entry.verdict] ?? VERDICT_COLOR.unknown;
           const dot       = VERDICT_DOT[entry.verdict]  ?? VERDICT_DOT.unknown;
@@ -44,7 +47,7 @@ export default function RunHistory({ history, activeId, onSelect }: Props) {
           });
 
           return (
-            <li key={entry.id}>
+            <li key={entry.id} className={STAGGER[Math.min(idx, 4)]}>
               <button
                 onClick={() => onSelect(entry)}
                 className={`
@@ -79,6 +82,8 @@ export default function RunHistory({ history, activeId, onSelect }: Props) {
           );
         })}
       </ul>
+      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-navy-950 to-transparent" />
+      </div>
     </div>
   );
 }

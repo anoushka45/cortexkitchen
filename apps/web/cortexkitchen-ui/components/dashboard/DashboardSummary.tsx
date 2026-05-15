@@ -1,6 +1,25 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { FridayRushResponse } from "@/types/planning";
+
+function useCountUp(target: number | null, duration = 700): number | null {
+  const [value, setValue] = useState<number | null>(null);
+  useEffect(() => {
+    if (target === null) { setValue(null); return; }
+    setValue(0);
+    const steps = 28;
+    const interval = duration / steps;
+    let step = 0;
+    const timer = setInterval(() => {
+      step++;
+      setValue(Math.round((target * step) / steps));
+      if (step >= steps) clearInterval(timer);
+    }, interval);
+    return () => clearInterval(timer);
+  }, [target, duration]);
+  return value;
+}
 
 interface Props {
   data: FridayRushResponse;
@@ -84,32 +103,39 @@ const CARD_STYLES = [
 export default function DashboardSummary({ data }: Props) {
   const forecastOrders = extractForecastOrders(data);
   const occupancy = extractReservationOccupancy(data);
+  const animatedOrders = useCountUp(forecastOrders !== null ? Math.round(forecastOrders) : null);
+  const animatedOccupancy = useCountUp(occupancy !== null ? Math.round(occupancy) : null);
 
   const summaryCards = [
     {
       label: "Forecasted Orders",
-      value: forecastOrders !== null ? String(Math.round(forecastOrders)) : "--",
+      value: animatedOrders !== null ? String(animatedOrders) : "--",
       detail: data.target_date ? `target ${data.target_date}` : "next service window",
+      numeric: true,
     },
     {
       label: "Capacity Load",
-      value: occupancy !== null ? `${Math.round(occupancy)}%` : "--",
+      value: animatedOccupancy !== null ? `${animatedOccupancy}%` : "--",
       detail: "reservation pressure snapshot",
+      numeric: true,
     },
     {
       label: "Complaint Signal",
       value: extractComplaintRisk(data),
       detail: "guest experience watch",
+      numeric: false,
     },
     {
       label: "Inventory Risk",
       value: extractInventoryRisk(data),
       detail: "restock urgency",
+      numeric: false,
     },
     {
       label: "Menu Focus",
       value: extractMenuFocus(data),
       detail: "service plan guidance",
+      numeric: false,
     },
   ];
 
@@ -123,7 +149,7 @@ export default function DashboardSummary({ data }: Props) {
           <p className="mb-2 text-[11px] font-mono uppercase tracking-[0.18em] text-slate-500">
             {card.label}
           </p>
-          <p className="text-lg font-semibold leading-tight text-slate-100">{card.value}</p>
+          <p className={`text-lg font-semibold leading-tight text-slate-100 ${card.numeric ? "tabular-nums font-mono" : ""}`}>{card.value}</p>
           <p className="mt-2 text-xs text-slate-500">{card.detail}</p>
         </div>
       ))}

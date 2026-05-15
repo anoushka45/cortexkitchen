@@ -83,19 +83,28 @@ export default function RunsPage() {
                 <p className="text-xs text-slate-500">Newest planning runs first.</p>
               </div>
               {loading ? (
-                <p className="px-4 py-6 text-sm text-slate-500">Loading runs...</p>
+                <div className="divide-y divide-white/10">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="px-4 py-4 space-y-2.5 animate-pulse">
+                      <div className="h-2 w-10 rounded bg-slate-800" />
+                      <div className="h-3.5 w-44 rounded bg-slate-800" />
+                      <div className="h-2 w-28 rounded bg-slate-800" />
+                    </div>
+                  ))}
+                </div>
               ) : runs.length === 0 ? (
                 <p className="px-4 py-6 text-sm text-slate-500">No persisted runs yet.</p>
               ) : (
                 <div className="divide-y divide-white/10">
-                  {runs.map((run) => {
+                  {runs.map((run, idx) => {
                     const isActive = selected?.id === run.id;
                     const verdict = run.critic_verdict ?? "unknown";
+                    const stagger = `stagger-${Math.min(idx + 1, 7)}`;
                     return (
                       <button
                         key={run.id}
                         onClick={() => openRun(run)}
-                        className={`w-full px-4 py-4 text-left transition-colors hover:bg-white/[0.04] ${isActive ? "bg-violet-500/10" : ""}`}
+                        className={`w-full px-4 py-4 text-left transition-colors hover:bg-white/[0.04] ${stagger} ${isActive ? "bg-violet-500/10" : ""}`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
@@ -276,18 +285,30 @@ export default function RunsPage() {
                       <p className="font-mono text-xs uppercase tracking-[0.16em] text-slate-500">
                         {name}
                       </p>
-                      <pre className="mt-3 max-h-48 overflow-y-auto rounded-lg border border-white/5 bg-slate-950/60 p-3 whitespace-pre-wrap text-xs leading-5 text-slate-300">
-                        {JSON.stringify(value, null, 2)}
-                      </pre>
+                      <div className="mt-3 rounded-lg border border-white/5 bg-slate-950/60 overflow-hidden">
+                        <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/5 bg-slate-900/60">
+                          <span className="font-mono text-[10px] uppercase tracking-widest text-slate-600">json</span>
+                          <span className="font-mono text-[10px] text-slate-700">{name}</span>
+                        </div>
+                        <pre className="max-h-48 overflow-y-auto p-3 whitespace-pre-wrap text-xs leading-5 text-slate-300">
+                          {JSON.stringify(value, null, 2)}
+                        </pre>
+                      </div>
                     </div>
                   ))}
                 </div>
 
                 <div className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
                   <h3 className="text-sm font-semibold">RAG Context</h3>
-                  <pre className="mt-3 max-h-48 overflow-y-auto rounded-lg border border-white/5 bg-slate-950/60 p-3 whitespace-pre-wrap text-xs leading-5 text-slate-300">
-                    {JSON.stringify(selected.rag_context ?? {}, null, 2)}
-                  </pre>
+                  <div className="mt-3 rounded-lg border border-white/5 bg-slate-950/60 overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/5 bg-slate-900/60">
+                      <span className="font-mono text-[10px] uppercase tracking-widest text-slate-600">json</span>
+                      <span className="font-mono text-[10px] text-slate-700">rag_context</span>
+                    </div>
+                    <pre className="max-h-48 overflow-y-auto p-3 whitespace-pre-wrap text-xs leading-5 text-slate-300">
+                      {JSON.stringify(selected.rag_context ?? {}, null, 2)}
+                    </pre>
+                  </div>
                 </div>
               </>
             )}

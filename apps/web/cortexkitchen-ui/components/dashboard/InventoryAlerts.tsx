@@ -95,8 +95,16 @@ function AlertRow({ alert, type }: { alert: Alert; type: "shortage" | "overstock
   return (
     <div className={`rounded-xl border px-4 py-3 ${SEVERITY_STYLES[sev]}`}>
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-sm font-semibold text-slate-200">{alert.ingredient}</span>
         <div className="flex items-center gap-2">
+          {sev === "critical" && (
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-rose-500" />
+            </span>
+          )}
+          <span className="text-sm font-semibold text-slate-200">{alert.ingredient}</span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
           {alert.spoilage_risk && (
             <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400">
               spoilage risk

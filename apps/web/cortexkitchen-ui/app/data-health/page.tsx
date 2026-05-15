@@ -45,15 +45,23 @@ export default function DataHealthPage() {
         )}
 
         {!data ? (
-          <p className="text-sm text-slate-500">Loading data health...</p>
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="rounded-lg border border-white/10 bg-white/[0.03] p-5 animate-pulse">
+                <div className="h-2.5 w-20 rounded bg-slate-800 mb-4" />
+                <div className="h-8 w-16 rounded bg-slate-800 mb-3" />
+                <div className="h-2.5 w-32 rounded bg-slate-800" />
+              </div>
+            ))}
+          </section>
         ) : (
           <>
             <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-              <HealthCard title="Orders" value={data.orders.count} detail={range(data.orders.date_range)} />
-              <HealthCard title="Reservations" value={data.reservations.count} detail={range(data.reservations.date_range)} />
-              <HealthCard title="Feedback" value={data.feedback.count} detail={`${data.feedback.negative} negative (${data.feedback.negative_pct}%)`} />
-              <HealthCard title="Inventory" value={data.inventory.items} detail={`${data.inventory.critical_shortages} critical shortages`} />
-              <HealthCard title="Menu Items" value={data.menu.items} detail="active catalog" />
+              <HealthCard title="Orders"       value={data.orders.count}       detail={range(data.orders.date_range)}                                    stagger={1} />
+              <HealthCard title="Reservations" value={data.reservations.count} detail={range(data.reservations.date_range)}                              stagger={2} />
+              <HealthCard title="Feedback"     value={data.feedback.count}     detail={`${data.feedback.negative} negative (${data.feedback.negative_pct}%)`} stagger={3} />
+              <HealthCard title="Inventory"    value={data.inventory.items}    detail={`${data.inventory.critical_shortages} critical shortages`}         stagger={4} />
+              <HealthCard title="Menu Items"   value={data.menu.items}         detail="active catalog"                                                   stagger={5} />
             </section>
 
             <section className="grid grid-cols-1 gap-5 xl:grid-cols-12">
@@ -76,7 +84,7 @@ export default function DataHealthPage() {
                     </thead>
                     <tbody className="divide-y divide-white/10">
                       {data.scenario_coverage.map((row) => (
-                        <tr key={`${row.scenario}-${row.date}`}>
+                        <tr key={`${row.scenario}-${row.date}`} className="hover:bg-white/[0.03] transition-colors duration-150">
                           <td className="px-3 py-3">
                             <div className="flex flex-col">
                               <span>{row.label}</span>
@@ -113,11 +121,11 @@ export default function DataHealthPage() {
   );
 }
 
-function HealthCard({ title, value, detail }: { title: string; value: number; detail: string }) {
+function HealthCard({ title, value, detail, stagger }: { title: string; value: number; detail: string; stagger: number }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
+    <div className={`rounded-lg border border-white/10 bg-white/[0.03] p-5 stagger-${stagger}`}>
       <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500">{title}</p>
-      <p className="mt-3 text-3xl font-semibold">{value}</p>
+      <p className="mt-3 text-3xl font-semibold tabular-nums">{value}</p>
       <p className="mt-2 text-xs text-slate-400">{detail}</p>
     </div>
   );

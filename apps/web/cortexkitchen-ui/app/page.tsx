@@ -313,141 +313,226 @@ function ScenarioSelector({
   );
 }
 
+
 function LoadingState() {
   const agents = [
-    { key: "forecast",    label: "Demand forecast", tone: "violet"  },
-    { key: "reservation", label: "Reservations",    tone: "cyan"    },
-    { key: "complaint",   label: "Complaints",      tone: "rose"    },
-    { key: "menu",        label: "Menu insights",   tone: "amber"   },
-    { key: "inventory",   label: "Inventory",       tone: "emerald" },
+    { key: "reservation", label: "Reservations", tone: "cyan", desc: "Occupancy load & waitlist pressure" },
+    { key: "complaint",   label: "Complaints",   tone: "rose", desc: "Guest issues & experience risk" },
+    { key: "menu",        label: "Menu insights", tone: "amber", desc: "Push/avoid signals & promo notes" },
+    { key: "inventory",   label: "Inventory",    tone: "emerald", desc: "Shortages, overstock & restock alerts" },
   ] as const;
 
-  const [doneAgents, setDoneAgents] = useState<Set<number>>(new Set());
+  const [opsDone,       setOpsDone]       = useState(false);
+  const [forecastDone,  setForecastDone]  = useState(false);
+  const [doneAgents,    setDoneAgents]    = useState<Set<number>>(new Set());
+  const [aggregateDone, setAggregateDone] = useState(false);
+  const [criticDone,    setCriticDone]    = useState(false);
 
   useEffect(() => {
-    // Randomised completion in a tight 2–4s window — parallel fan-out, not sequential
-    const delays = agents.map(() => 2000 + Math.random() * 2000);
     const timers: ReturnType<typeof setTimeout>[] = [];
-    delays.forEach((delay, i) => {
-      timers.push(setTimeout(() => setDoneAgents((prev) => new Set([...prev, i])), delay));
-    });
+    timers.push(setTimeout(() => setOpsDone(true), 500));
+    timers.push(
+      setTimeout(() => {
+        setForecastDone(true);
+        agents.forEach((_, i) => {
+          const delay = 400 + Math.random() * 1200;
+          timers.push(setTimeout(() => setDoneAgents((prev) => new Set([...prev, i])), delay));
+        });
+        timers.push(setTimeout(() => setAggregateDone(true), 2200));
+        timers.push(setTimeout(() => setCriticDone(true), 3000));
+      }, 1200)
+    );
     return () => timers.forEach(clearTimeout);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const dotClass: Record<(typeof agents)[number]["tone"], string> = {
-    violet:  "bg-violet-400",
+  const dotColor: Record<(typeof agents)[number]["tone"], string> = {
     cyan:    "bg-cyan-300",
     rose:    "bg-rose-400",
     amber:   "bg-amber-300",
     emerald: "bg-emerald-300",
   };
 
-  const barGradient: Record<(typeof agents)[number]["tone"], string> = {
-    violet:  "linear-gradient(90deg, rgba(139,92,246,0.10), rgba(139,92,246,0.70), rgba(139,92,246,0.10))",
-    cyan:    "linear-gradient(90deg, rgba(34,211,238,0.10), rgba(34,211,238,0.65), rgba(34,211,238,0.10))",
-    rose:    "linear-gradient(90deg, rgba(244,63,94,0.10), rgba(244,63,94,0.60), rgba(244,63,94,0.10))",
-    amber:   "linear-gradient(90deg, rgba(251,191,36,0.10), rgba(251,191,36,0.65), rgba(251,191,36,0.10))",
-    emerald: "linear-gradient(90deg, rgba(52,211,153,0.10), rgba(52,211,153,0.65), rgba(52,211,153,0.10))",
-  };
+  type NodeState = "idle" | "running" | "done";
 
-  const solidBar: Record<(typeof agents)[number]["tone"], string> = {
-    violet:  "bg-violet-500/50",
-    cyan:    "bg-cyan-400/50",
-    rose:    "bg-rose-400/50",
-    amber:   "bg-amber-300/50",
-    emerald: "bg-emerald-400/50",
-  };
+  function nodeStyle(state: NodeState) {
+    return {
+      border:
+        state === "done"    ? "border-emerald-400/20 bg-emerald-400/[0.04]" :
+        state === "running" ? "border-violet-400/25 bg-violet-500/[0.07]"   :
+                              "border-white/10 bg-white/[0.03]",
+      tag:
+        state === "done"    ? "text-emerald-300/70" :
+        state === "running" ? "text-violet-300/70"  :
+                              "text-slate-500",
+    };
+  }
+
+  function ProgressBar({ state }: { state: NodeState }) {
+    return (
+      <div className="h-1 overflow-hidden rounded-full bg-white/5">
+        <div className={`h-full transition-all duration-700 ${
+          state === "done"    ? "w-full bg-emerald-400/50" :
+          state === "running" ? "w-[50%] bar-shimmer"      :
+                                "w-0"
+        }`} />
+      </div>
+    );
+  }
+
+  function VCard({ state, tag, title, desc }: { state: NodeState; tag: string; title: string; desc: string }) {
+    const s = nodeStyle(state);
+    return (
+      <div className={`rounded-2xl border px-4 py-3 transition-all duration-500 ${s.border}`}>
+        <div className={`text-[9px] font-mono uppercase ${s.tag}`}>{tag}</div>
+        <div className="mt-1 text-sm font-semibold text-white">{title}</div>
+        <div className="mt-0.5 text-[10px] leading-snug text-slate-500">{desc}</div>
+        <div className="mt-2"><ProgressBar state={state} /></div>
+      </div>
+    );
+  }
+
+  function HCard({ state, tag, title, desc, width = "w-[152px]" }: { state: NodeState; tag: string; title: string; desc: string; width?: string }) {
+    const s = nodeStyle(state);
+    return (
+      <div className={`flex h-[116px] flex-shrink-0 flex-col justify-between rounded-2xl border p-4 transition-all duration-500 ${width} ${s.border}`}>
+        <div className={`text-[9px] font-mono uppercase ${s.tag}`}>{tag}</div>
+        <div>
+          <div className="text-sm font-semibold text-white">{title}</div>
+          <div className="mt-1 text-[10px] leading-snug text-slate-500">{desc}</div>
+        </div>
+        <ProgressBar state={state} />
+      </div>
+    );
+  }
+
+  function HArrow({ active }: { active: boolean }) {
+    return <div className={`mx-3 h-px w-10 flex-shrink-0 transition-colors duration-700 ${active ? "bg-slate-500" : "bg-slate-700/70"}`} />;
+  }
+
+  function VConnector({ active }: { active: boolean }) {
+    return (
+      <div className="flex justify-center py-1">
+        <div className={`h-5 w-px transition-colors duration-500 ${active ? "bg-slate-500" : "bg-slate-700/40"}`} />
+      </div>
+    );
+  }
+
+  const opsState:      NodeState = opsDone       ? "done" : "running";
+  const forecastState: NodeState = forecastDone  ? "done" : opsDone ? "running" : "idle";
+  const aggState:      NodeState = aggregateDone ? "done" : doneAgents.size === agents.length ? "running" : "idle";
+  const criticState:   NodeState = criticDone    ? "done" : aggregateDone ? "running" : "idle";
 
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="stagger-1 w-full max-w-3xl rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(139,92,246,0.10),transparent_48%),rgba(255,255,255,0.04)] px-8 py-10 shadow-[0_28px_110px_rgba(2,8,23,0.45)]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-slate-950/40 px-4 py-2">
-            <span className="relative inline-flex h-2.5 w-2.5">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-50 animate-ping" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-violet-400" />
+    <div className="py-10">
+      <div className="relative w-full overflow-hidden rounded-[28px] border border-white/10 bg-[#050816] px-6 py-10 shadow-[0_35px_120px_rgba(0,0,0,0.55)] xl:px-10 xl:py-12">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(139,92,246,0.12),transparent_45%)]" />
+
+        {/* Header */}
+        <div className="relative z-10 flex flex-col items-center text-center">
+          <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inset-0 rounded-full bg-violet-400 animate-ping opacity-60" />
+              <span className="relative rounded-full bg-violet-400" />
             </span>
-            <span className="text-[11px] font-mono uppercase tracking-[0.22em] text-slate-400">
-              running
-            </span>
+            <span className="text-[11px] font-mono uppercase tracking-[0.24em] text-slate-400">orchestration live</span>
+          </div>
+          <h2 className="mt-4 text-xl font-semibold text-white">Multi-agent execution pipeline</h2>
+          <p className="mt-2 max-w-xl text-sm text-slate-400">
+            Ops manager sequences the run — forecast gates first, then agents analyze in parallel before synthesis and critique.
+          </p>
+        </div>
+
+        {/* ── VERTICAL (below xl) ── */}
+        <div className="relative z-10 mt-10 xl:hidden">
+          <VCard state={opsState}      tag="orchestrator" title="Ops Manager"     desc="Routes and sequences agents" />
+          <VConnector active={opsDone} />
+          <VCard state={forecastState} tag="prerequisite" title="Demand Forecast" desc="Gates all downstream agents" />
+          <VConnector active={forecastDone} />
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+            <p className="mb-2 text-[9px] font-mono uppercase tracking-[0.18em] text-slate-600">parallel agents</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {agents.map((agent, i) => {
+                const isDone = doneAgents.has(i);
+                const state: NodeState = isDone ? "done" : forecastDone ? "running" : "idle";
+                const s = nodeStyle(state);
+                return (
+                  <div key={agent.key} className={`rounded-xl border px-3 py-2.5 transition-all duration-500 ${s.border}`}>
+                    <div className="flex items-center gap-2">
+                      <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${dotColor[agent.tone]} ${isDone ? "" : forecastDone ? "animate-pulse" : "opacity-30"}`} />
+                      <span className={`text-[9px] font-mono uppercase ${s.tag}`}>
+                        {isDone ? "done" : forecastDone ? "running" : "waiting"}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-white">{agent.label}</div>
+                    <div className="mt-0.5 text-[10px] text-slate-500">{agent.desc}</div>
+                    <div className="mt-2"><ProgressBar state={state} /></div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          <h2 className="text-xl font-semibold text-slate-100">Planning pipeline in motion</h2>
-          <p className="mt-1 max-w-xl text-sm leading-6 text-slate-400">
-            Agents execute in parallel, then results are aggregated and reviewed before the dashboard updates.
-          </p>
+          <VConnector active={doneAgents.size === agents.length} />
+          <VCard state={aggState}    tag="synthesis"  title="Aggregator" desc="Merges all agent outputs" />
+          <VConnector active={aggregateDone} />
+          <VCard state={criticState} tag="validation" title="Critic"     desc="Scores and verifies plan" />
         </div>
 
-        <div className="mt-8 grid grid-cols-5 gap-3 text-left">
-          {agents.map((agent, index) => {
-            const isDone = doneAgents.has(index);
-
-            return (
-              <div
-                key={agent.key}
-                className={`flex flex-col gap-3 rounded-2xl border px-3 py-4 transition-all duration-500 ${
-                  isDone
-                    ? "border-white/5 bg-slate-950/20 opacity-55"
-                    : "border-white/10 bg-slate-950/30"
-                }`}
-              >
-                <div className="flex items-center gap-1.5">
-                  {isDone ? (
-                    <svg width="8" height="8" viewBox="0 0 8 8" fill="none" className="shrink-0">
-                      <path d="M1 4l2 2 4-4" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  ) : (
-                    <span
-                      className={`h-2 w-2 shrink-0 rounded-full ${dotClass[agent.tone]}`}
-                      style={{ animation: `ck-dot 1.3s ease-in-out ${index * 0.12}s infinite` }}
-                    />
-                  )}
-                  <span className={`text-[10px] font-mono uppercase tracking-[0.16em] ${
-                    isDone ? "text-emerald-600" : "text-slate-500"
-                  }`}>
-                    {isDone ? "done" : "active"}
-                  </span>
-                </div>
-
-                <p className={`text-xs font-semibold leading-snug ${isDone ? "text-slate-500" : "text-slate-200"}`}>
-                  {agent.label}
-                </p>
-
-                <div className="h-1 overflow-hidden rounded-full bg-white/5">
-                  {isDone ? (
-                    <div className={`h-full w-full rounded-full transition-all duration-700 ${solidBar[agent.tone]}`} />
-                  ) : (
-                    <div
-                      className="h-full w-[65%] rounded-full"
-                      style={{
-                        backgroundImage: barGradient[agent.tone],
-                        backgroundSize: "220% 100%",
-                        animation: `ck-shimmer 1.35s ease-in-out ${index * 0.1}s infinite`,
-                      }}
-                    />
-                  )}
-                </div>
+        {/* ── HORIZONTAL (xl+) ── */}
+        <div className="relative z-10 mt-14 hidden xl:block">
+          <div className="flex items-center justify-center">
+            <div className="flex flex-shrink-0 items-center">
+              <HCard state={opsState}      tag="orchestrator" title="Ops Manager"     desc="Routes and sequences agents" />
+              <HArrow active={opsDone} />
+            </div>
+            <div className="flex flex-shrink-0 items-center">
+              <HCard state={forecastState} tag="prerequisite" title="Demand Forecast" desc="Gates all downstream agents" width="w-[175px]" />
+              <HArrow active={forecastDone} />
+            </div>
+            <div className="flex flex-shrink-0 items-center">
+              <div className="grid grid-cols-2 gap-3">
+                {agents.map((agent, i) => {
+                  const isDone = doneAgents.has(i);
+                  const state: NodeState = isDone ? "done" : forecastDone ? "running" : "idle";
+                  const s = nodeStyle(state);
+                  return (
+                    <div key={agent.key} className={`flex h-[116px] w-[155px] flex-col justify-between rounded-2xl border p-4 transition-all duration-500 ${s.border}`}>
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2 w-2 flex-shrink-0 rounded-full ${dotColor[agent.tone]} ${isDone ? "" : forecastDone ? "animate-pulse" : "opacity-30"}`} />
+                        <span className={`text-[9px] font-mono uppercase ${s.tag}`}>
+                          {isDone ? "done" : forecastDone ? "running" : "waiting"}
+                        </span>
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-white">{agent.label}</div>
+                        <div className="mt-1 text-[10px] leading-snug text-slate-500">{agent.desc}</div>
+                      </div>
+                      <ProgressBar state={state} />
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
-
-        <div className="mt-6 flex flex-col items-center gap-1">
-          <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-slate-600">
-            fan-out | aggregate | critic
-          </p>
+              <HArrow active={doneAgents.size === agents.length} />
+            </div>
+            <div className="flex flex-shrink-0 items-center gap-3">
+              <HCard state={aggState}    tag="synthesis"  title="Aggregator" desc="Merges all agent outputs"  width="w-[145px]" />
+              <HArrow active={aggregateDone} />
+              <HCard state={criticState} tag="validation" title="Critic"     desc="Scores and verifies plan"  width="w-[135px]" />
+            </div>
+          </div>
         </div>
       </div>
 
       <style>{`
-        @keyframes ck-shimmer {
-          0%, 100% { background-position: 0% 50%; opacity: 0.55; }
-          50% { background-position: 100% 50%; opacity: 1; }
+        .bar-shimmer {
+          background: linear-gradient(90deg, rgba(139,92,246,0.1), rgba(139,92,246,0.9), rgba(139,92,246,0.1));
+          background-size: 200% 100%;
+          animation: shimmer 1.2s linear infinite;
         }
-        @keyframes ck-dot {
-          0%, 100% { opacity: 0.45; transform: translateY(0); }
-          50% { opacity: 1; transform: translateY(-2px); }
+        @keyframes shimmer {
+          0%   { background-position: 0% 50%; }
+          100% { background-position: 100% 50%; }
         }
       `}</style>
     </div>

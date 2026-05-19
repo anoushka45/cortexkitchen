@@ -1,37 +1,44 @@
 # CortexKitchen Roadmap
 
-Status snapshot: April 29, 2026.
+Status snapshot: May 2026.
+
+---
 
 ## Completed
 
 - Local Docker Compose stack for PostgreSQL, Qdrant, and Redis
-- FastAPI application scaffold and health endpoints
-- SQLAlchemy models and Alembic migrations
-- Seed scripts for demo data and Qdrant memory
-- LLM provider abstraction with Gemini and Groq support points
-- LangGraph orchestration for service-planning workflows
-- Forecast, reservation, complaint, menu, inventory, and critic service layers
-- Scenario-aware planning endpoint
+- FastAPI application with health, planning, runs, and data-health endpoints
+- SQLAlchemy ORM models and Alembic migrations
+- Seed scripts for demo data (`seed_demo_data.py`) and Qdrant memory (`seed_qdrant_memory.py`)
+- LLM provider abstraction with Gemini and Groq backends
+- LangGraph nine-node orchestration graph with parallel fan-out
+- ForecastService with Prophet time-series forecasting
+- ReservationService, ComplaintService, MenuService, and InventoryService
+- CriticService with five-dimension scoring, cost analysis, and sanity checks
+- Scenario-aware planning endpoint supporting four scenario presets
+- Persisted planning runs with full audit inspection via `/runs`
 - Frontend dashboard, runs page, and data-health page
-- Planning run persistence and audit inspection
 - Backend unit and integration test structure
+- Documentation rewritten to reflect implemented codebase (all major docs updated May 2026)
 
-## In progress
-
-- Making docs reflect the post-Phase-2 codebase instead of the original build plan
-- Expanding scenario coverage beyond the original Friday-only framing
-- Tightening the relationship between critic outputs, audit visibility, and operator-facing summaries
+---
 
 ## Next
 
-- Production-readiness work such as auth, deployment, and environment hardening
-- Stronger run filtering and richer audit exploration in the UI
-- More realistic external data ingestion paths
+- Production-readiness: authentication, environment hardening, secrets management
+- Cloud deployment: containerisation, Railway/Fly.io/cloud-run deployment path, CI/CD
+- Stronger audit exploration in the UI: filtering, comparison, diff views
+- Async planning runs via Redis queue (non-blocking execution)
 - Shared cross-app contracts in `packages/core`
-- Additional planning scenarios and more explicit scenario-specific business rules
+- Additional scenario presets and more explicit scenario-specific business rules
+- Observability: latency tracking, LLM cost instrumentation, trace export
+
+---
 
 ## Known gaps
 
-- The repo is still local-first and demo-first
-- No cloud deployment path is documented here yet
-- Real platform integrations are not part of the current implementation
+- No production security model or authentication
+- No cloud deployment path documented or implemented
+- Real platform integrations (POS, Zomato, Google Reviews) are not part of the current implementation — all data is synthetic
+- `packages/core` is empty; types are not yet shared between frontend and backend
+- Redis is present but not yet used beyond connectivity health checks

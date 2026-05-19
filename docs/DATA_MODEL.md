@@ -1,402 +1,239 @@
-# Data Model
-# CortexKitchen
+# CortexKitchen Data Model
 
-## 1. Purpose
-
-This document defines the planned core data model for CortexKitchen.
-
-The project uses:
-- PostgreSQL for structured operational data
-- Qdrant for vector memory
-- Redis for short-term cache/state
-
-The data model is designed for a pizza-focused restaurant and the flagship Friday Night Rush Optimization scenario.
+Last updated: May 2026. Reflects the implemented schema as defined in `apps/api/app/infrastructure/db/models.py` and the current Alembic migrations.
 
 ---
 
-## 2. PostgreSQL Data Domains
+## Overview
 
-The main structured data domains are:
-- reservations
-- orders
-- order items
-- menu items
-- ingredients
-- inventory
-- complaints/reviews metadata
-- decision traces
-- critic evaluations
+CortexKitchen uses three storage systems:
+
+| Store | Role |
+|-------|------|
+| **PostgreSQL 16** | Structured operational data and persisted planning runs |
+| **Qdrant** | Vector embeddings for complaint and SOP retrieval (RAG) |
+| **Redis 7** | Available for caching; not yet used as primary state |
 
 ---
 
-## 3. Core Tables
+## PostgreSQL Schema
 
-## 3.1 restaurants
-Stores restaurant-level context.
+### Enumerations
 
-### Fields
-- id
-- name
-- cuisine_type
-- timezone
-- created_at
-- updated_at
+```python
+class ReservationStatus(str, Enum):
+    confirmed = "confirmed"
+    cancelled = "cancelled"
+    waitlist  = "waitlist"
+    completed = "completed"
 
-### Notes
-Initially, the project may operate as a single-restaurant simulation, but this table keeps the model expandable.
+class SentimentType(str, Enum):
+    positive = "positive"
+    neutral  = "neutral"
+    negative = "negative"
 
----
+class FeedbackSource(str, Enum):
+    google    = "google"
+    in_person = "in_person"
+    zomato    = "zomato"
+    swiggy    = "swiggy"
 
-## 3.2 table_capacity_config
-Defines reservation and seating limits.
-
-### Fields
-- id
-- restaurant_id
-- total_seats
-- max_reservations_per_slot
-- slot_duration_minutes
-- created_at
-- updated_at
-
-### Notes
-Used by the Reservation Agent and Critic Agent.
+class CriticVerdict(str, Enum):
+    approved = "approved"
+    rejected = "rejected"
+    revision = "revision"
+```
 
 ---
 
-## 3.3 reservations
-Stores reservation records.
+### `menu_items`
 
-### Fields
-- id
-- restaurant_id
-- source
-- customer_name
-- party_size
-- reservation_date
-- reservation_time
-- slot_label
-- status
-- notes
-- created_at
-- updated_at
+Stores the restaurant's menu catalog.
 
-### Example source values
-- walk_in
-- phone
-- zomato_simulated
-- dineout_simulated
-- website
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | Integer PK | Auto-increment |
+| `name` | String(100) | NOT NULL |
+| `category` | String(50) | e.g. `pizza`, `beverage`, `dessert` |
+| `price` | Float | NOT NULL |
+| `is_available` | Boolean | Default `true` |
+| `created_at` | DateTime | UTC, set on insert |
 
-### Example status values
-- confirmed
-- cancelled
-- waitlisted
-- completed
+**Relationships:** one `MenuItem` has many `Order` records.
 
 ---
 
-## 3.4 orders
-Stores order-level information.
+### `reservations`
 
-### Fields
-- id
-- restaurant_id
-- order_datetime
-- order_channel
-- order_type
-- total_amount
-- status
-- created_at
+Stores guest booking records.
 
-### Example order_channel values
-- dine_in
-- takeaway
-- delivery
-
-### Example order_type values
-- regular
-- rush
-- promo
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | Integer PK | Auto-increment |
+| `guest_name` | String(100) | NOT NULL |
+| `guest_count` | Integer | NOT NULL |
+| `reserved_at` | DateTime | Booking slot — used by Reservation node for peak-load analysis |
+| `status` | Enum(`ReservationStatus`) | Default `confirmed` |
+| `table_number` | Integer | Nullable |
+| `notes` | Text | Nullable |
+| `created_at` | DateTime | UTC, set on insert |
 
 ---
 
-## 3.5 order_items
-Stores line items for each order.
+### `orders`
 
-### Fields
-- id
-- order_id
-- menu_item_id
-- quantity
-- unit_price
-- line_total
-- created_at
+Stores individual order records. The `ordered_at` timestamp is the primary signal for demand forecasting.
 
-### Notes
-Supports menu analytics and demand forecasting features.
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | Integer PK | Auto-increment |
+| `menu_item_id` | Integer FK → `menu_items.id` | NOT NULL |
+| `quantity` | Integer | NOT NULL |
+| `total_price` | Float | NOT NULL |
+| `ordered_at` | DateTime | Default UTC now — drives demand forecasting and Friday-spike detection |
+| `is_delivery` | Boolean | Default `false` |
 
----
-
-## 3.6 menu_items
-Stores menu catalog entries.
-
-### Fields
-- id
-- restaurant_id
-- item_name
-- category
-- is_pizza
-- price
-- estimated_cost
-- is_active
-- created_at
-- updated_at
-
-### Example categories
-- pizza
-- beverage
-- appetizer
-- dessert
+**Relationships:** `Order` belongs to `MenuItem`; one `Order` may have many `Feedback` records.
 
 ---
 
-## 3.7 ingredients
-Stores ingredient definitions.
+### `inventory`
 
-### Fields
-- id
-- restaurant_id
-- ingredient_name
-- unit
-- reorder_threshold
-- shelf_life_days
-- created_at
-- updated_at
+Stores ingredient stock levels and alerts.
 
-### Notes
-Supports inventory and spoilage awareness.
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | Integer PK | Auto-increment |
+| `ingredient_name` | String(100) | NOT NULL |
+| `unit` | String(20) | e.g. `kg`, `litres`, `units` |
+| `quantity_in_stock` | Float | NOT NULL |
+| `reorder_threshold` | Float | Alert threshold — stock below this value triggers a shortage signal |
+| `spoilage_risk` | Boolean | Default `false` |
+| `updated_at` | DateTime | Auto-updated on write |
 
 ---
 
-## 3.8 inventory_levels
-Stores current stock levels.
+### `feedback`
 
-### Fields
-- id
-- restaurant_id
-- ingredient_id
-- quantity_on_hand
-- last_updated_at
-- expiry_date
-- batch_notes
+Stores customer feedback and complaint text. Optionally linked to an order.
 
-### Notes
-Supports shortage and overstock detection.
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | Integer PK | Auto-increment |
+| `order_id` | Integer FK → `orders.id` | Nullable — feedback may not be tied to a specific order |
+| `raw_text` | Text | NOT NULL — the complaint or review text |
+| `sentiment` | Enum(`SentimentType`) | Nullable |
+| `source` | Enum(`FeedbackSource`) | Default `in_person` |
+| `created_at` | DateTime | UTC, set on insert |
 
----
-
-## 3.9 menu_item_ingredients
-Maps menu items to ingredients.
-
-### Fields
-- id
-- menu_item_id
-- ingredient_id
-- quantity_required
-
-### Notes
-Important later for connecting demand forecasts to ingredient usage.
+**Relationships:** `Feedback` optionally belongs to `Order`.
 
 ---
 
-## 3.10 complaints
-Stores complaint or review metadata.
+### `decision_logs`
 
-### Fields
-- id
-- restaurant_id
-- platform
-- rating
-- complaint_date
-- complaint_text
-- complaint_type
-- sentiment_label
-- is_resolved
-- created_at
+Stores per-agent decision records for traceability. Each row captures what one agent reasoned, retrieved, and recommended.
 
-### Example platform values
-- google_simulated
-- zomato_simulated
-- dineout_simulated
-- internal_feedback
-
-### Example complaint_type values
-- slow_service
-- pizza_delay
-- cold_food
-- wrong_order
-- rude_staff
-- general
-
-### Notes
-The text may also be embedded and stored in Qdrant.
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | Integer PK | Auto-increment |
+| `agent` | String(50) | Which node produced this record |
+| `input_summary` | Text | Nullable — summary of inputs the agent received |
+| `retrieved_context` | Text | Nullable — RAG context used |
+| `reasoning_summary` | Text | Nullable — LLM reasoning summary |
+| `action_recommended` | Text | NOT NULL — the recommendation produced |
+| `critic_verdict` | Enum(`CriticVerdict`) | Nullable |
+| `critic_score` | Float | Nullable — 0.0 to 1.0 |
+| `critic_notes` | Text | Nullable |
+| `metadata_` | JSONB | Nullable — flexible extra data (stored as `metadata` in DB) |
+| `created_at` | DateTime | UTC, set on insert |
 
 ---
 
-## 3.11 decision_traces
-Stores the outcome of system decisions.
+### `planning_runs`
 
-### Fields
-- id
-- restaurant_id
-- scenario_type
-- request_timestamp
-- participating_agents
-- structured_inputs_json
-- retrieved_context_summary
-- proposed_actions_json
-- final_output_json
-- critic_status
-- critic_score
-- created_at
+Stores the full output of each planning execution. This is the primary audit table and backs the `/runs` API surface.
 
-### Notes
-A core enterprise-style table for explainability and demos.
-
----
-
-## 3.12 critic_evaluations
-Stores critic-specific review data.
-
-### Fields
-- id
-- decision_trace_id
-- validation_status
-- violations_json
-- revision_notes
-- score
-- created_at
-
-### Notes
-Can either stay separate or be partially duplicated in decision traces depending on implementation simplicity.
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | Integer PK | Auto-increment |
+| `scenario` | String(80) | NOT NULL — scenario id, e.g. `friday_rush` |
+| `target_date` | String(20) | Nullable — ISO date the plan targeted |
+| `status` | String(40) | NOT NULL — `ready`, `needs_review`, or `blocked` |
+| `critic_verdict` | String(40) | Nullable — `approved`, `rejected`, or `revision` |
+| `critic_score` | Float | Nullable — 0.0 to 1.0 |
+| `decision_log_id` | Integer | Nullable — link to `decision_logs` |
+| `final_response` | JSONB | NOT NULL — full planning response payload |
+| `recommendations` | JSONB | Nullable — per-agent recommendation blocks |
+| `rag_context` | JSONB | Nullable — complaint and SOP context used |
+| `critic` | JSONB | Nullable — full critic output block |
+| `metadata_` | JSONB | Nullable — stored as `metadata` in DB |
+| `generated_at` | DateTime | UTC, set on insert |
+| `created_at` | DateTime | UTC, set on insert |
 
 ---
 
-## 4. Relationships (Conceptual)
+## Entity Relationships
 
-### Key relationships
-- one restaurant has many reservations
-- one restaurant has many orders
-- one order has many order_items
-- one restaurant has many menu_items
-- many menu_items use many ingredients through menu_item_ingredients
-- one restaurant has many complaints
-- one restaurant has many decision_traces
-- one decision_trace may have one critic_evaluation
+```
+MenuItem ──< Order >──< Feedback
+                           │
+                           └── (optional FK to order)
 
----
-
-## 5. Qdrant Collections
-
-Qdrant is used for vector memory and retrieval.
-
-## 5.1 complaints_memory
-Stores embedded complaint texts.
-
-### Metadata examples
-- restaurant_id
-- complaint_id
-- platform
-- complaint_type
-- date
-- rating
-- tags
-
-### Use cases
-- retrieve similar past complaints
-- identify recurring operational issues
+Reservation   (standalone — no FK to other operational tables)
+Inventory     (standalone — per-ingredient stock record)
+DecisionLog   (standalone — per-agent trace)
+PlanningRun   (standalone — full orchestration output, optionally links to DecisionLog)
+```
 
 ---
 
-## 5.2 sop_memory
-Stores operational SOPs and guidance.
+## Qdrant Collections
 
-### Metadata examples
-- restaurant_id
-- category
-- title
-- applicable_area
-- tags
+### `complaints_memory`
 
-### Use cases
-- retrieve rules related to kitchen operations
-- support evidence-backed recommendations
-- help critic validate actions
+Stores embedded complaint and review text for RAG retrieval.
 
----
+**Payload fields per point:**
+- `text` — the raw complaint or review
+- `complaint_type` — e.g. `slow_service`, `cold_food`, `wrong_order`
+- `sentiment` — `positive`, `neutral`, or `negative`
+- `source` — platform of origin
+- `date` — when the complaint was recorded
+- `tags` — list of operational tags
 
-## 5.3 decision_memory
-Stores embedded summaries of past decisions.
-
-### Metadata examples
-- restaurant_id
-- decision_trace_id
-- scenario_type
-- date
-- tags
-- critic_status
-
-### Use cases
-- retrieve similar past decisions
-- support future memory-aware planning
+**Used by:** Complaint Intelligence node to retrieve historically similar operational problems before generating recommendations.
 
 ---
 
-## 6. Redis Usage Model
+### `sop_memory`
 
-Redis will not be a primary source of truth.
+Stores embedded standard operating procedures and operational guidance.
 
-### Planned uses
-- cache forecast results
-- cache complaint summaries
-- temporary orchestration state
-- future job coordination
+**Payload fields per point:**
+- `text` — the SOP or guideline content
+- `category` — operational area, e.g. `kitchen`, `service`, `inventory`
+- `title` — short descriptive title
+- `applicable_area` — where this SOP applies
+- `tags` — list of tags for filtering
 
-### Important note
-If Redis is cleared, the system should still function correctly.
-
----
-
-## 7. Seed Data Strategy
-
-The project will rely on synthetic seed data initially.
-
-### Seed datasets planned
-- reservations across multiple channels
-- orders with strong Friday evening patterns
-- pizza-heavy menu
-- ingredient stock levels
-- complaints/reviews with repeated complaint themes
-
-### Why seed data matters
-Strong seed data will make the demo believable and improve forecasting and complaint intelligence quality.
+**Used by:** Complaint Intelligence node to pair complaint patterns with relevant SOPs as evidence-backed action guidance.
 
 ---
 
-## 8. Future Data Expansion
+## Redis
 
-The model is designed so future sources can be added:
-- Google Reviews
-- Zomato-style reservation feeds
-- POS-style sales ingestion
-- staffing tables
-- supplier purchase orders
+Redis is present in the local stack and available for use. It is not currently used as primary state by any service. It is reserved for future caching of forecast results and async job coordination.
 
-These are not needed for MVP but are supported conceptually.
+Connection default: `redis://localhost:6379/0`.
 
 ---
 
-## 9. Summary
+## Seed Data
 
-CortexKitchen’s data model uses PostgreSQL for structured operational records, Qdrant for vector memory, and Redis for short-term state/caching. The schema is designed to support realistic restaurant operations while remaining manageable for a solo-built capstone.
+Demo data is populated by two scripts in `scripts/`:
+
+- `seed_demo_data.py` — generates 90+ days of simulated orders, reservations, feedback, inventory, and menu items into PostgreSQL
+- `seed_qdrant_memory.py` — embeds and loads complaint patterns and SOPs into Qdrant
+
+These scripts must be run after running `alembic upgrade head`. See the root README for the full setup sequence.

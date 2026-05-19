@@ -71,4 +71,4 @@ venv\Scripts\python -m pytest tests\unit -q
 venv\Scripts\python -m pytest tests\integration -q
 ```
 
-This README reflects the current route and feature set, but it does not certify that tests were re-run during this doc update.
+Run tests from the `apps/api` directory with the virtual environment activated.

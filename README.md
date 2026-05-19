@@ -21,7 +21,7 @@ The system coordinates nine specialised pipeline nodes, validates the output thr
 
 > Not a chatbot. A structured planning workflow.
 
-![Dashboard preview](<docs/images/ck dashboard.png>)
+![ck dashboard](<docs/images/home page ck.png>)
 
 ---
 

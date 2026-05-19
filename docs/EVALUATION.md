@@ -1,45 +1,43 @@
 # CortexKitchen Evaluation
 
-This document summarizes how the current project should be evaluated as of April 29, 2026.
+Last updated: May 2026.
 
-## What matters now
+---
 
-Evaluation is no longer just "did the Friday route return JSON?" The project should be judged on:
+## Evaluation layers
 
-- scenario fit
-- critic quality
-- operational realism
-- auditability of persisted runs
-- stability of seeded demo behavior
-
-## Current evaluation layers
+CortexKitchen is evaluated across four layers: software correctness, planning quality, data realism, and audit visibility.
 
 ### Software correctness
 
-- unit coverage for services, graph logic, and critic helpers
-- integration coverage for routes and infrastructure boundaries
+- Unit tests cover individual service logic, graph nodes, and critic helpers (`apps/api/tests/unit/`)
+- Integration tests cover API routes and infrastructure boundaries (`apps/api/tests/integration/`)
+- Run the suite with `pytest tests/unit -q` and `pytest tests/integration -q` from `apps/api/`
 
 ### Planning quality
 
-- recommendations should match the selected scenario
-- outputs should be specific enough for an operator to act on
-- critic notes should explain approval, revision, or rejection clearly
+- Recommendations should match the selected scenario's operational framing
+- Outputs should be specific enough for an operator to act on without further clarification
+- Critic notes should clearly explain the verdict (`approved`, `revision`, or `rejected`)
+- Dimension scores (safety, feasibility, evidence, actionability, clarity) should reflect actual plan strength
+- `revision_reasons` and `actionable_feedback` should be present and non-generic when the verdict is not `approved`
 
 ### Data realism
 
-- seeded reservation pressure should line up with the scenario selected
-- inventory and complaint signals should affect the plan in visible ways
+- Seeded reservation pressure for the target date should align with the scenario (e.g. Friday Rush has high guest counts and waitlist entries)
+- Inventory shortage and overstock signals should be reflected in the inventory recommendations
+- Complaint patterns retrieved from Qdrant should match the operational context (e.g. high-volume service scenarios surface delay-related complaints)
 
 ### Audit visibility
 
-- persisted runs should preserve critic verdict, score, and recommendation detail
-- the `/runs` page should remain useful for reviewing prior outputs
+- Every planning run should be persisted to the `planning_runs` table with critic verdict, score, and recommendation detail intact
+- The `/runs` page should remain usable for reviewing and comparing prior outputs
+- The `/data-health` endpoint should accurately reflect current seeded data coverage
 
-## Current evaluation references
+---
 
-- `PHASE2_EVALUATION_REFINEMENT.md` - scenario rubric and sanity-check detail
-- backend tests in `apps/api/tests`
+## References
 
-## Known limitation for this doc update
-
-This documentation refresh did not include a fresh test execution. Treat the status here as codebase-aligned documentation, not a new verification report.
+- `docs/PHASE2_EVALUATION_REFINEMENT.md` — scenario rubric and sanity-check detail
+- `apps/api/tests/` — backend test suite
+- `docs/AGENTS.md` — node-level responsibilities used for evaluating per-agent output quality

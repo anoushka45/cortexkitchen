@@ -40,6 +40,10 @@ Override with:
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
 
-## Notes
+## Environment
 
-This is no longer the default `create-next-app` starter. The README was rewritten to match the actual CortexKitchen dashboard and routes.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8000` | Backend API base URL |
+
+Set this in a `.env.local` file in this directory to point at a non-local backend.

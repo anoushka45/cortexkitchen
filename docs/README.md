@@ -1,23 +1,31 @@
-# CortexKitchen Docs
+# CortexKitchen Documentation
 
-This folder contains the living project documentation for CortexKitchen.
+Last updated: May 2026.
 
-Status snapshot: April 29, 2026.
+All documents in this folder reflect the implemented codebase.
 
-## Start here
+---
 
-- `ARCHITECTURE.md` - current system shape and implementation notes
-- `APIS.md` - current backend route surface
-- `ROADMAP.md` - what is done, in progress, and next
-- `EVALUATION.md` - how quality is assessed today
-- `IMPLEMENTATION_PLAN.md` - current delivery priorities
-- `AGENTS.md` - active agent roles in the orchestration flow
+## Reference documents
 
-## Historical or design-heavy docs
+| Document | Contents |
+|----------|---------|
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | System shape, graph topology, layer descriptions, data flow |
+| [`APIS.md`](APIS.md) | Full API reference — all endpoints with request/response schemas |
+| [`AGENTS.md`](AGENTS.md) | Orchestration node descriptions, graph wiring, state management |
+| [`DATA_MODEL.md`](DATA_MODEL.md) | PostgreSQL schema (all tables and columns), Qdrant collections |
+| [`ROADMAP.md`](ROADMAP.md) | Completed work, planned next phase, known gaps |
+| [`EVALUATION.md`](EVALUATION.md) | Evaluation criteria across correctness, quality, realism, and auditability |
+| [`DECISIONS.md`](DECISIONS.md) | Architecture decision log (D-001 through D-008) |
 
-- `PRD.md`
-- `DATA_MODEL.md`
-- `DECISIONS.md`
-- `PHASE2_EVALUATION_REFINEMENT.md`
+---
 
-These are still useful, but some sections were written as design docs before the current implementation landed. Use the docs listed in "Start here" first when you need the present-day view of the project.
+## Design and planning documents
+
+| Document | Notes |
+|----------|-------|
+| [`PRD.md`](PRD.md) | Original product requirements and vision |
+| [`PHASE2_EVALUATION_REFINEMENT.md`](PHASE2_EVALUATION_REFINEMENT.md) | Scenario rubric and sanity-check detail from Phase 2 |
+| [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) | Original delivery phasing |
+
+These documents capture design intent and planning context. The reference documents above reflect what is actually implemented.

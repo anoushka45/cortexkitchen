@@ -148,6 +148,46 @@ export async function getPlanningRun(runId: number): Promise<PlanningRunDetail> 
   return res.json() as Promise<PlanningRunDetail>;
 }
 
+// ── Settings ──────────────────────────────────────────────────────────────────
+
+export interface OrgSettings {
+  capacity: number;
+  timezone: string;
+  cuisine_type: string;
+  peak_hours: string;
+  critic_threshold: number;
+  low_stock_threshold_pct: number;
+  overstock_threshold_pct: number;
+}
+
+export interface OrgSettingsResponse {
+  org_id: number;
+  org_name: string;
+  settings: OrgSettings;
+}
+
+export async function getOrgSettings(): Promise<OrgSettingsResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/settings`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Settings API error ${res.status}`);
+  return res.json() as Promise<OrgSettingsResponse>;
+}
+
+export async function updateOrgSettings(body: OrgSettings): Promise<OrgSettingsResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/settings`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({ detail: "Update failed." }));
+    throw new Error(detail.detail ?? "Update failed.");
+  }
+  return res.json() as Promise<OrgSettingsResponse>;
+}
+
 export async function getDataHealth(): Promise<DataHealth> {
   const res = await fetch(`${BASE_URL}/api/v1/data-health`, {
     headers: authHeaders(),

@@ -2,7 +2,7 @@ class PromptUtils:
     """Reusable prompt templates for CortexKitchen agents."""
 
     SYSTEM_OPS_MANAGER = """
-You are an AI operations manager for CortexKitchen, a pizza-focused restaurant.
+You are an AI operations manager for CortexKitchen.
 Your role is to analyze operational data and provide clear, actionable recommendations.
 Always be specific, practical, and consider both customer experience and operational efficiency.
 """
@@ -34,7 +34,7 @@ quality complaints, or unrealistic prep burden during peak hours.
 """
 
     SYSTEM_INVENTORY_AGENT = """
-You are the Inventory & Waste Agent for CortexKitchen, a busy pizza restaurant.
+You are the Inventory & Waste Agent for CortexKitchen.
 You receive current stock levels, shortage alerts, and overstock alerts cross-referenced
 against the upcoming target-service demand forecast.
 
@@ -72,6 +72,15 @@ Verdict guidance:
 
 Do not downgrade to revision simply because conditions are demanding. A solid plan for a hard scenario should be approved.
 """
+
+    @staticmethod
+    def restaurant_context(profile: dict | None) -> str:
+        """Return a one-line restaurant descriptor for injecting into prompts."""
+        if not profile:
+            return "Restaurant"
+        name    = profile.get("name", "Restaurant")
+        cuisine = profile.get("cuisine", "")
+        return f"{name} ({cuisine})" if cuisine else name
 
     @staticmethod
     def format_recommendation_prompt(context: str, task: str) -> str:

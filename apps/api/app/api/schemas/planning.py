@@ -85,6 +85,10 @@ class PlanningRunRequest(FridayRushRequest):
         default="friday_rush",
         description="Scenario preset to run through the shared planning workflow.",
     )
+    restaurant_id: Optional[int] = Field(
+        default=None,
+        description="ID of a restaurant profile to use for this run. Overrides org-level capacity and peak_hours.",
+    )
 
 
 class PlanningScenarioOption(BaseModel):

@@ -17,7 +17,7 @@ export default function NavBar() {
   if (!user) return null;
 
   const navLinks = user.role === "owner"
-    ? [...BASE_NAV, { href: "/settings", label: "Settings" }]
+    ? [...BASE_NAV, { href: "/restaurant-profiles", label: "Profiles" }, { href: "/settings", label: "Settings" }]
     : BASE_NAV;
 
   return (

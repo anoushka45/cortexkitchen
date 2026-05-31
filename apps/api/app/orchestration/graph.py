@@ -223,6 +223,7 @@ async def run_planning_scenario(
     debug: bool = False,
     org_capacity: int = 70,
     org_peak_hours: str = "18:00-22:00",
+    restaurant_profile: dict | None = None,
 ) -> dict:
     """
     Top-level convenience function for a named planning scenario.
@@ -248,6 +249,10 @@ async def run_planning_scenario(
     structlog.contextvars.bind_contextvars(run_id=run_id, scenario=scenario)
     log = structlog.get_logger()
 
+    # Restaurant profile overrides org-level capacity/peak_hours when supplied
+    effective_capacity   = restaurant_profile["capacity"]   if restaurant_profile else org_capacity
+    effective_peak_hours = restaurant_profile["peak_hours"] if restaurant_profile else org_peak_hours
+
     # Create initial state with P1-10 enhancements
     initial_state = make_initial_state(
         scenario=scenario,
@@ -255,14 +260,15 @@ async def run_planning_scenario(
         simulation_mode=simulation_mode,
         force_critic_decision=force_critic_decision,
         debug=debug,
+        restaurant_profile=restaurant_profile,
     )
 
     # Inject P1-10 testing flags
     initial_state["simulation_mode"] = simulation_mode
     initial_state["force_critic_decision"] = force_critic_decision
     initial_state["debug"] = debug
-    initial_state["org_capacity"] = org_capacity
-    initial_state["org_peak_hours"] = org_peak_hours
+    initial_state["org_capacity"] = effective_capacity
+    initial_state["org_peak_hours"] = effective_peak_hours
 
     # Initialize debug trace container
     if debug:

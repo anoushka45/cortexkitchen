@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +13,13 @@ from app.core.settings import get_settings
 
 # 1. Initialize Settings
 settings = get_settings()
+
+# 2. Propagate LangSmith config into OS env so the langsmith SDK picks it up
+if settings.langsmith_api_key:
+    os.environ.setdefault("LANGSMITH_TRACING",  settings.langsmith_tracing)
+    os.environ.setdefault("LANGSMITH_API_KEY",   settings.langsmith_api_key)
+    os.environ.setdefault("LANGSMITH_PROJECT",   settings.langsmith_project)
+    os.environ.setdefault("LANGSMITH_ENDPOINT",  settings.langsmith_endpoint)
 
 
 # 2. Create the FastAPI Instance

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user, get_db, get_orchestration_deps
-from app.infrastructure.db.models import Organization
+from app.infrastructure.db.models import Organization, RestaurantProfile
 from app.api.schemas.planning import (
     FridayRushRequest,
     FridayRushResponse,
@@ -83,6 +83,23 @@ async def run_planning(
     org_capacity   = int(org_settings.get("capacity",   70))
     org_peak_hours = str(org_settings.get("peak_hours", "18:00-22:00"))
 
+    # Resolve restaurant profile if provided — scoped to the caller's org
+    restaurant_profile = None
+    if body.restaurant_id:
+        rp = db.query(RestaurantProfile).filter(
+            RestaurantProfile.id == body.restaurant_id,
+            RestaurantProfile.org_id == current_user["org_id"],
+        ).first()
+        if rp:
+            restaurant_profile = {
+                "id":         rp.id,
+                "name":       rp.name,
+                "cuisine":    rp.cuisine,
+                "capacity":   rp.capacity,
+                "peak_hours": rp.peak_hours,
+                "timezone":   rp.timezone,
+            }
+
     try:
         result = await run_planning_scenario(
             deps=deps,
@@ -93,6 +110,7 @@ async def run_planning(
             debug=body.debug,
             org_capacity=org_capacity,
             org_peak_hours=org_peak_hours,
+            restaurant_profile=restaurant_profile,
         )
     except AppError:
         raise

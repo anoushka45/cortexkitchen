@@ -37,6 +37,9 @@ class OrchestratorState(TypedDict):
     org_capacity:  Annotated[Optional[int], keep_last]
     org_peak_hours: Annotated[Optional[str], keep_last]
 
+    # Restaurant profile — overrides org defaults when restaurant_id is supplied in the request
+    restaurant_profile: Annotated[Optional[Dict[str, Any]], keep_last]
+
     # P1-10 Testing & Simulation Controls
     simulation_mode: Annotated[Optional[bool], keep_last]
     force_critic_decision: Annotated[Optional[str], keep_last]
@@ -73,6 +76,7 @@ def make_initial_state(
     simulation_mode: bool = False,
     force_critic_decision: Optional[str] = None,
     debug: bool = False,
+    restaurant_profile: Optional[Dict[str, Any]] = None,
 ) -> OrchestratorState:
     """
     Build a clean initial state for a new orchestration run.
@@ -114,6 +118,7 @@ def make_initial_state(
         # Tenant settings
         org_capacity=None,
         org_peak_hours=None,
+        restaurant_profile=restaurant_profile,
 
         # Observability — always-on
         execution_trace=[],

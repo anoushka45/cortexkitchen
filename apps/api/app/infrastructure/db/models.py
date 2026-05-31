@@ -61,8 +61,9 @@ class Organization(Base):
     settings   = Column(JSONB, nullable=True, default=_DEFAULT_SETTINGS)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    members       = relationship("UserOrganization", back_populates="organization")
-    planning_runs = relationship("PlanningRun", back_populates="organization")
+    members             = relationship("UserOrganization", back_populates="organization")
+    planning_runs       = relationship("PlanningRun", back_populates="organization")
+    restaurant_profiles = relationship("RestaurantProfile", back_populates="organization")
 
 
 class User(Base):
@@ -205,6 +206,24 @@ class PlanningRun(Base):
     created_at         = Column(DateTime, default=datetime.utcnow)
 
     organization = relationship("Organization", back_populates="planning_runs")
+
+
+# ── 7. restaurant_profiles ─────────────────────────────
+
+class RestaurantProfile(Base):
+    __tablename__ = "restaurant_profiles"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    org_id     = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    name       = Column(String(100), nullable=False)
+    cuisine    = Column(String(100), nullable=False, default="pizza")
+    capacity   = Column(Integer, nullable=False, default=70)
+    peak_hours = Column(String(50), nullable=False, default="18:00-22:00")
+    timezone   = Column(String(50), nullable=False, default="Asia/Kolkata")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    organization = relationship("Organization", back_populates="restaurant_profiles")
 
 
 """

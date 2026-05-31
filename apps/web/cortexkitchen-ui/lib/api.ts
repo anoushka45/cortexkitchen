@@ -207,6 +207,72 @@ export async function updateOrgSettings(body: OrgSettings): Promise<OrgSettingsR
   return res.json() as Promise<OrgSettingsResponse>;
 }
 
+// ── Restaurant Profiles ───────────────────────────────────────────────────────
+
+export interface RestaurantProfile {
+  id: number;
+  org_id: number;
+  name: string;
+  cuisine: string;
+  capacity: number;
+  peak_hours: string;
+  timezone: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RestaurantProfileCreate {
+  name: string;
+  cuisine: string;
+  capacity: number;
+  peak_hours: string;
+  timezone: string;
+}
+
+export async function listRestaurantProfiles(): Promise<RestaurantProfile[]> {
+  const res = await fetch(`${BASE_URL}/api/v1/restaurant-profiles`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Restaurant profiles API error ${res.status}`);
+  const payload = await res.json() as { profiles: RestaurantProfile[] };
+  return payload.profiles;
+}
+
+export async function createRestaurantProfile(body: RestaurantProfileCreate): Promise<RestaurantProfile> {
+  const res = await fetch(`${BASE_URL}/api/v1/restaurant-profiles`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({ detail: "Create failed." }));
+    throw new Error(detail.detail ?? "Create failed.");
+  }
+  return res.json() as Promise<RestaurantProfile>;
+}
+
+export async function updateRestaurantProfile(id: number, body: Partial<RestaurantProfileCreate>): Promise<RestaurantProfile> {
+  const res = await fetch(`${BASE_URL}/api/v1/restaurant-profiles/${id}`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({ detail: "Update failed." }));
+    throw new Error(detail.detail ?? "Update failed.");
+  }
+  return res.json() as Promise<RestaurantProfile>;
+}
+
+export async function deleteRestaurantProfile(id: number): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/v1/restaurant-profiles/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
+}
+
 export async function getDataHealth(): Promise<DataHealth> {
   const res = await fetch(`${BASE_URL}/api/v1/data-health`, {
     headers: authHeaders(),

@@ -9,8 +9,10 @@ Enhanced for P1-10:
 """
 
 import functools
+import os
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, END
 
 from app.orchestration.state import OrchestratorState, make_initial_state
@@ -221,8 +223,14 @@ async def run_planning_scenario(
     if debug:
         initial_state["execution_trace"] = []
 
-    # Execute graph
-    final_state = await graph.ainvoke(initial_state)
+    # Execute graph with LangSmith trace metadata
+    run_label = f"{scenario}/{target_date or 'next'}"
+    config = RunnableConfig(
+        run_name=f"cortexkitchen/{run_label}",
+        tags=[scenario, "planning_run"],
+        metadata={"scenario": scenario, "target_date": target_date or ""},
+    )
+    final_state = await graph.ainvoke(initial_state, config=config)
 
     # Append debug metadata
     final_response = final_state.get("final_response", {})

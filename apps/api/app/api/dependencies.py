@@ -10,8 +10,11 @@ collection never triggers missing-package errors when deps are mocked.
 
 from typing import Generator
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
+
+_bearer = HTTPBearer(auto_error=False)
 
 
 # ── Database ─────────────────────────────────────────────────────────────────
@@ -27,12 +30,33 @@ def get_db() -> Generator[Session, None, None]:
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
     db = SessionLocal()
-    
+
     try:
         yield db
     finally:
-        
         db.close()
+
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> dict:
+    """Decode the Bearer JWT and return {user_id, org_id, role}."""
+    from app.core.auth import decode_token
+
+    if not credentials:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated.")
+
+    payload = decode_token(credentials.credentials)
+    user_id = payload.get("sub")
+    org_id  = payload.get("org_id")
+    role    = payload.get("role")
+
+    if not user_id or not org_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token.")
+
+    return {"user_id": int(user_id), "org_id": int(org_id), "role": role}
 
 
 # ── LLM provider ─────────────────────────────────────────────────────────────

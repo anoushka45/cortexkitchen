@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.api.dependencies import get_orchestration_deps
+from app.api.dependencies import get_current_user, get_orchestration_deps
 from app.api.schemas.planning import (
     FridayRushRequest,
     FridayRushResponse,
@@ -72,6 +72,7 @@ def _decorate_meta(result: dict, body, scenario: str) -> dict:
 async def run_planning(
     body: PlanningRunRequest,
     deps: dict = Depends(get_orchestration_deps),
+    current_user: dict = Depends(get_current_user),
 ) -> FridayRushResponse:
     try:
         result = await run_planning_scenario(
@@ -98,7 +99,10 @@ async def run_planning(
 
     meta = _decorate_meta(result, body, body.scenario)
     try:
-        run = RunService(deps["db"]).create_from_response({**result, "meta": meta})
+        run = RunService(deps["db"]).create_from_response(
+            {**result, "meta": meta},
+            org_id=current_user.get("org_id"),
+        )
         meta.setdefault("planning_run_id", run.id)
     except Exception as exc:
         meta.setdefault("run_persistence_error", str(exc))
@@ -118,6 +122,7 @@ async def run_planning(
 async def friday_rush(
     body: FridayRushRequest,
     deps: dict = Depends(get_orchestration_deps),
+    current_user: dict = Depends(get_current_user),
 ) -> FridayRushResponse:
     try:
         result = await run_friday_rush(

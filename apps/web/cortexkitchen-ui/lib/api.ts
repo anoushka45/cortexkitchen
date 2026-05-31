@@ -119,8 +119,27 @@ export async function getPlanningScenarios(): Promise<PlanningScenarioOption[]> 
   return payload.scenarios;
 }
 
-export async function listPlanningRuns(limit = 25): Promise<PlanningRunSummary[]> {
-  const res = await fetch(`${BASE_URL}/api/v1/runs?limit=${limit}`, {
+export interface RunsFilter {
+  limit?: number;
+  scenario?: string;
+  verdict?: string;
+  date_from?: string;
+  date_to?: string;
+}
+
+export async function listPlanningRuns(limitOrFilter: number | RunsFilter = 50): Promise<PlanningRunSummary[]> {
+  const params = new URLSearchParams();
+  if (typeof limitOrFilter === "number") {
+    params.set("limit", String(limitOrFilter));
+  } else {
+    if (limitOrFilter.limit)     params.set("limit",     String(limitOrFilter.limit));
+    if (limitOrFilter.scenario)  params.set("scenario",  limitOrFilter.scenario);
+    if (limitOrFilter.verdict)   params.set("verdict",   limitOrFilter.verdict);
+    if (limitOrFilter.date_from) params.set("date_from", limitOrFilter.date_from);
+    if (limitOrFilter.date_to)   params.set("date_to",   limitOrFilter.date_to);
+  }
+
+  const res = await fetch(`${BASE_URL}/api/v1/runs?${params.toString()}`, {
     headers: authHeaders(),
     cache: "no-store",
   });

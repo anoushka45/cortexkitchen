@@ -42,6 +42,7 @@ async def reservation_node(
         result = await service.analyse_and_recommend(
             target_date=target_date,
             scenario_profile=state.get("scenario_profile"),
+            capacity=state.get("org_capacity") or 70,
         )
         return {**state, "reservation_output": result}
 

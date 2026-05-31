@@ -221,6 +221,8 @@ async def run_planning_scenario(
     simulation_mode: bool = False,
     force_critic_decision: str | None = None,
     debug: bool = False,
+    org_capacity: int = 70,
+    org_peak_hours: str = "18:00-22:00",
 ) -> dict:
     """
     Top-level convenience function for a named planning scenario.
@@ -259,6 +261,8 @@ async def run_planning_scenario(
     initial_state["simulation_mode"] = simulation_mode
     initial_state["force_critic_decision"] = force_critic_decision
     initial_state["debug"] = debug
+    initial_state["org_capacity"] = org_capacity
+    initial_state["org_peak_hours"] = org_peak_hours
 
     # Initialize debug trace container
     if debug:

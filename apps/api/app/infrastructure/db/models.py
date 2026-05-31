@@ -41,12 +41,24 @@ class UserRole(str, enum.Enum):
 
 # ── Auth models ────────────────────────────────────────
 
+_DEFAULT_SETTINGS = {
+    "capacity": 70,
+    "timezone": "Asia/Kolkata",
+    "cuisine_type": "pizza",
+    "peak_hours": "18:00-22:00",
+    "critic_threshold": 0.7,
+    "low_stock_threshold_pct": 20.0,
+    "overstock_threshold_pct": 150.0,
+}
+
+
 class Organization(Base):
     __tablename__ = "organizations"
 
     id         = Column(Integer, primary_key=True, autoincrement=True)
     name       = Column(String(100), nullable=False)
     slug       = Column(String(100), nullable=False, unique=True)
+    settings   = Column(JSONB, nullable=True, default=_DEFAULT_SETTINGS)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     members       = relationship("UserOrganization", back_populates="organization")

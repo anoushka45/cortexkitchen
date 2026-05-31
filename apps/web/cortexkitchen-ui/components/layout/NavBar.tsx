@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
-const NAV_LINKS = [
+const BASE_NAV = [
   { href: "/", label: "Dashboard" },
   { href: "/runs", label: "Runs" },
   { href: "/data-health", label: "Data Health" },
@@ -16,13 +16,17 @@ export default function NavBar() {
 
   if (!user) return null;
 
+  const navLinks = user.role === "owner"
+    ? [...BASE_NAV, { href: "/settings", label: "Settings" }]
+    : BASE_NAV;
+
   return (
     <header className="border-b border-neutral-800 bg-neutral-950/80 backdrop-blur-sm sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-6">
         <span className="font-bold text-white text-sm tracking-tight shrink-0">CortexKitchen</span>
 
         <nav className="flex items-center gap-1 flex-1">
-          {NAV_LINKS.map(({ href, label }) => (
+          {navLinks.map(({ href, label }) => (
             <Link
               key={href}
               href={href}

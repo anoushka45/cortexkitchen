@@ -5,6 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, get_db
+from app.infrastructure.db.models import Organization
 from app.api.schemas.runs import (
     DataHealthResponse,
     DataRange,
@@ -59,7 +60,10 @@ def get_run(run_id: int, db: Session = Depends(get_db), current_user: dict = Dep
 
 
 @router.get("/data-health", response_model=DataHealthResponse)
-def data_health(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)) -> DataHealthResponse:
+def data_health(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+) -> DataHealthResponse:
     order_min, order_max = db.query(func.min(Order.ordered_at), func.max(Order.ordered_at)).one()
     reservation_min, reservation_max = db.query(
         func.min(Reservation.reserved_at),
@@ -74,6 +78,10 @@ def data_health(db: Session = Depends(get_db), current_user: dict = Depends(get_
     negative = db.query(func.count(Feedback.id)).filter(Feedback.sentiment == SentimentType.negative).scalar() or 0
     positive = db.query(func.count(Feedback.id)).filter(Feedback.sentiment == SentimentType.positive).scalar() or 0
     neutral = db.query(func.count(Feedback.id)).filter(Feedback.sentiment == SentimentType.neutral).scalar() or 0
+
+    # Read org capacity from settings (falls back to 70 if not set)
+    org = db.query(Organization).filter(Organization.id == current_user["org_id"]).first()
+    capacity = int((org.settings or {}).get("capacity", 70)) if org else 70
 
     inventory_items = db.query(Inventory).all()
     inventory_alerts = InventoryService(db=db, llm=None).compute_alerts(inventory_items)
@@ -106,11 +114,11 @@ def data_health(db: Session = Depends(get_db), current_user: dict = Depends(get_
             overstock_alerts=len(inventory_alerts["overstock_alerts"]),
         ),
         menu={"items": db.query(func.count(MenuItem.id)).scalar() or 0},
-        scenario_coverage=_scenario_coverage(db),
+        scenario_coverage=_scenario_coverage(db, capacity=capacity),
     )
 
 
-def _scenario_coverage(db: Session) -> list[ScenarioCoverage]:
+def _scenario_coverage(db: Session, capacity: int = 70) -> list[ScenarioCoverage]:
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     coverage = []
     for scenario in list_scenarios():
@@ -134,7 +142,7 @@ def _scenario_coverage(db: Session) -> list[ScenarioCoverage]:
                 reservations=len(rows),
                 guests=guests,
                 waitlist=sum(1 for row in rows if row.status == ReservationStatus.waitlist),
-                occupancy_pct=round((guests / 70) * 100, 1),
+                occupancy_pct=round((guests / capacity) * 100, 1),
             )
         )
     return coverage

@@ -33,6 +33,10 @@ class OrchestratorState(TypedDict):
     target_date:  Annotated[Optional[str], keep_last]
     requested_at: Annotated[Optional[str], keep_last]
 
+    # Tenant settings — passed in from org config, used by agents
+    org_capacity:  Annotated[Optional[int], keep_last]
+    org_peak_hours: Annotated[Optional[str], keep_last]
+
     # P1-10 Testing & Simulation Controls
     simulation_mode: Annotated[Optional[bool], keep_last]
     force_critic_decision: Annotated[Optional[str], keep_last]
@@ -106,6 +110,10 @@ def make_initial_state(
         aggregated_recommendation=None,
         critic_output=None,
         final_response=None,
+
+        # Tenant settings
+        org_capacity=None,
+        org_peak_hours=None,
 
         # Observability — always-on
         execution_trace=[],

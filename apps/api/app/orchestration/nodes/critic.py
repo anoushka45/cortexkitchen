@@ -59,7 +59,7 @@ async def critic_node(
         }
 
     try:
-        service = CriticService(db=db, llm=llm)
+        service = CriticService(db=db, llm=llm, capacity=state.get("org_capacity") or 70)
         result = await service.evaluate_and_log(
             agent="ops_manager",
             recommendation=bundle,

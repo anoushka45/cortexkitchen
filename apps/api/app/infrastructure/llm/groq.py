@@ -12,7 +12,8 @@ class GroqProvider(BaseLLMProvider):
     Set GROQ_API_KEY in your .env file.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        super().__init__()
         from groq import Groq
         from app.core.settings import get_settings
 
@@ -23,7 +24,7 @@ class GroqProvider(BaseLLMProvider):
         self.client = Groq(api_key=api_key)
         self.model = "llama-3.3-70b-versatile"  # best free model on Groq for reasoning
 
-    async def complete(self, prompt: str, system_prompt: str = None) -> str:
+    async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
         """Send a prompt to Groq and return text response."""
         messages = []
 
@@ -36,9 +37,17 @@ class GroqProvider(BaseLLMProvider):
             model=self.model,
             messages=messages,
         )
+
+        if response.usage:
+            self.record_usage(
+                model=self.model,
+                prompt_tokens=response.usage.prompt_tokens or 0,
+                completion_tokens=response.usage.completion_tokens or 0,
+            )
+
         return response.choices[0].message.content
 
-    async def complete_json(self, prompt: str, system_prompt: str = None) -> dict:
+    async def complete_json(self, prompt: str, system_prompt: str | None = None) -> dict:
         """Send a prompt to Groq and return parsed JSON response."""
         json_system = "You must respond with valid JSON only. No explanation, no markdown, no backticks."
         combined_system = f"{json_system}\n{system_prompt}" if system_prompt else json_system

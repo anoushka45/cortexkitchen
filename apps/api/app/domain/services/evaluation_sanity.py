@@ -20,7 +20,7 @@ class SanityIssue:
 class EvaluationSanityChecker:
     """Deterministic checks that complement the LLM critic."""
 
-    MAX_CAPACITY = 70
+    MAX_CAPACITY = 70  # overridden per-instance when org capacity is known
     MAX_ADDITIONAL_STAFF = 20
     MAX_PRICE_CHANGE_PCT = 30
     SHORT_TERM_WORDS = {
@@ -48,6 +48,9 @@ class EvaluationSanityChecker:
         "menu redesign",
         "brand campaign",
     }
+
+    def __init__(self, capacity: int = 70) -> None:
+        self.MAX_CAPACITY = capacity
 
     def check_bundle(self, bundle: dict[str, Any]) -> dict[str, Any]:
         issues: list[SanityIssue] = []

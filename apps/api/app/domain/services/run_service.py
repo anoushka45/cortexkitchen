@@ -12,11 +12,12 @@ class RunService:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_from_response(self, response: dict[str, Any]) -> PlanningRun:
+    def create_from_response(self, response: dict[str, Any], org_id: int | None = None) -> PlanningRun:
         critic = response.get("critic") or {}
         meta = response.get("meta") or {}
 
         run = PlanningRun(
+            org_id=org_id,
             scenario=response.get("scenario") or "unknown",
             target_date=response.get("target_date"),
             status=response.get("status") or "unknown",

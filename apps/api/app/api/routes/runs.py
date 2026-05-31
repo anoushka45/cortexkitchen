@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_db
+from app.api.dependencies import get_current_user, get_db
 from app.api.schemas.runs import (
     DataHealthResponse,
     DataRange,
@@ -37,6 +37,7 @@ def list_runs(
     status: str | None = None,
     verdict: str | None = None,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ) -> PlanningRunListResponse:
     service = RunService(db)
     runs = service.list_runs(
@@ -49,7 +50,7 @@ def list_runs(
 
 
 @router.get("/runs/{run_id}", response_model=PlanningRunDetail)
-def get_run(run_id: int, db: Session = Depends(get_db)) -> PlanningRunDetail:
+def get_run(run_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)) -> PlanningRunDetail:
     service = RunService(db)
     run = service.get_run(run_id)
     if run is None:
@@ -58,7 +59,7 @@ def get_run(run_id: int, db: Session = Depends(get_db)) -> PlanningRunDetail:
 
 
 @router.get("/data-health", response_model=DataHealthResponse)
-def data_health(db: Session = Depends(get_db)) -> DataHealthResponse:
+def data_health(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)) -> DataHealthResponse:
     order_min, order_max = db.query(func.min(Order.ordered_at), func.max(Order.ordered_at)).one()
     reservation_min, reservation_max = db.query(
         func.min(Reservation.reserved_at),

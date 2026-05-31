@@ -1,5 +1,7 @@
 import os
+import time
 
+import structlog
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,13 +10,18 @@ from app.api.routes import get_api_router
 from app.api.schemas.common import ErrorResponse
 from app.core.constants import SERVICE_NAME
 from app.core.exceptions import AppError
+from app.core.logging import configure_logging
 from app.core.settings import get_settings
 
 
 # 1. Initialize Settings
 settings = get_settings()
 
-# 2. Propagate LangSmith config into OS env so the langsmith SDK picks it up
+# 2. Configure structlog
+configure_logging(debug=settings.app_debug)
+log = structlog.get_logger()
+
+# 3. Propagate LangSmith config into OS env so the langsmith SDK picks it up
 if settings.langsmith_api_key:
     os.environ.setdefault("LANGSMITH_TRACING",  settings.langsmith_tracing)
     os.environ.setdefault("LANGSMITH_API_KEY",   settings.langsmith_api_key)
@@ -43,7 +50,24 @@ app.add_middleware(
 )
 
 
-# 4. Global Exception Handler
+# 4. HTTP access log middleware
+@app.middleware("http")
+async def http_logging_middleware(request: Request, call_next):
+    structlog.contextvars.clear_contextvars()
+    t0 = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = round((time.perf_counter() - t0) * 1000, 2)
+    log.info(
+        "http_request",
+        method=request.method,
+        path=request.url.path,
+        status_code=response.status_code,
+        duration_ms=duration_ms,
+    )
+    return response
+
+
+# 5. Global Exception Handler
 @app.exception_handler(AppError)
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     payload = ErrorResponse(
@@ -62,5 +86,5 @@ def root() -> dict[str, str]:
     }
 
 
-# 5. Include Modular Routes
+# 6. Include Modular Routes
 app.include_router(get_api_router())

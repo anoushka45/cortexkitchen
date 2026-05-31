@@ -10,8 +10,11 @@ Enhanced for P1-10:
 
 import functools
 import os
+import time
+import uuid
 from typing import Any
 
+import structlog
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, END
 
@@ -45,18 +48,48 @@ FINAL_ASSEMBLER = "final_assembler"
 # ── Dependency injection helper ──────────────────────────────────────────────
 
 def _inject(node_fn, **deps):
-    """Wrap async node functions with injected dependencies."""
+    """Wrap async node functions with dependency injection and structlog tracing."""
     @functools.wraps(node_fn)
     async def _wrapped(state: OrchestratorState) -> OrchestratorState:
-        return await node_fn(state, **deps)
+        log = structlog.get_logger()
+        node = node_fn.__name__.replace("_node", "")
+        t0 = time.perf_counter()
+        log.info("node_start", node=node)
+        try:
+            result = await node_fn(state, **deps)
+            log.info("node_end", node=node, duration_ms=round((time.perf_counter() - t0) * 1000, 2))
+            return result
+        except Exception as exc:
+            log.error("node_error", node=node, duration_ms=round((time.perf_counter() - t0) * 1000, 2), error=str(exc))
+            raise
     return _wrapped
 
 
 def _inject_sync(node_fn, **deps):
-    """Wrap synchronous node functions with injected dependencies."""
+    """Wrap synchronous node functions with dependency injection and structlog tracing."""
     @functools.wraps(node_fn)
     def _wrapped(state: OrchestratorState) -> OrchestratorState:
-        return node_fn(state, **deps)
+        log = structlog.get_logger()
+        node = node_fn.__name__.replace("_node", "")
+        t0 = time.perf_counter()
+        log.info("node_start", node=node)
+        result = node_fn(state, **deps)
+        log.info("node_end", node=node, duration_ms=round((time.perf_counter() - t0) * 1000, 2))
+        return result
+    return _wrapped
+
+
+def _log_node(node_fn):
+    """Wrap plain (no-dep) nodes with structlog tracing."""
+    @functools.wraps(node_fn)
+    def _wrapped(state: OrchestratorState) -> OrchestratorState:
+        log = structlog.get_logger()
+        node = node_fn.__name__.replace("_node", "")
+        t0 = time.perf_counter()
+        log.info("node_start", node=node)
+        result = node_fn(state)
+        log.info("node_end", node=node, duration_ms=round((time.perf_counter() - t0) * 1000, 2))
+        return result
     return _wrapped
 
 
@@ -96,7 +129,7 @@ def build_graph(deps: dict[str, Any]):
 
     # ── Register nodes ───────────────────────────────────────────────────────
 
-    graph.add_node(OPS_MANAGER, ops_manager_node)
+    graph.add_node(OPS_MANAGER, _log_node(ops_manager_node))
 
     graph.add_node(
         DEMAND_FORECAST,
@@ -119,14 +152,14 @@ def build_graph(deps: dict[str, Any]):
         _inject(inventory_node, db=db, llm=llm),
     )
 
-    graph.add_node(AGGREGATOR, aggregator_node)
+    graph.add_node(AGGREGATOR, _log_node(aggregator_node))
 
     graph.add_node(
         CRITIC,
         _inject(critic_node, db=db, llm=llm),
     )
 
-    graph.add_node(FINAL_ASSEMBLER, final_assembler_node)
+    graph.add_node(FINAL_ASSEMBLER, _log_node(final_assembler_node))
 
     # ── Wire edges ───────────────────────────────────────────────────────────
 
@@ -204,6 +237,11 @@ async def run_planning_scenario(
     """
     graph = build_graph(deps)
 
+    # Bind run_id + scenario to structlog context — propagates into every node log
+    run_id = uuid.uuid4().hex[:8]
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(run_id=run_id, scenario=scenario)
+    log = structlog.get_logger()
 
     # Create initial state with P1-10 enhancements
     initial_state = make_initial_state(
@@ -228,9 +266,12 @@ async def run_planning_scenario(
     config = RunnableConfig(
         run_name=f"cortexkitchen/{run_label}",
         tags=[scenario, "planning_run"],
-        metadata={"scenario": scenario, "target_date": target_date or ""},
+        metadata={"scenario": scenario, "target_date": target_date or "", "run_id": run_id},
     )
+    t0 = time.perf_counter()
+    log.info("graph_start", target_date=target_date or "next")
     final_state = await graph.ainvoke(initial_state, config=config)
+    log.info("graph_end", duration_ms=round((time.perf_counter() - t0) * 1000, 2))
 
     # Append debug metadata
     final_response = final_state.get("final_response", {})

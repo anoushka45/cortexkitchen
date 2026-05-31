@@ -137,3 +137,30 @@ PostgreSQL, Qdrant, and Redis will run via Docker Compose.
 - cleaner local setup
 - stronger demo and collaboration story
 - requires initial infrastructure configuration
+
+## D-009 — Qdrant collection strategy at multi-tenant scale
+
+**Date:** 31 May 2026
+**Status:** Decided
+
+**Decision:**
+At Phase 5 multi-tenant scale, migrate to a single shared Qdrant collection with payload filters
+instead of per-tenant or per-type collections.
+
+Filter pattern:
+- `restaurant_id` — tenant isolation
+- `doc_type` — semantic separation (complaint / sop)
+
+**Rationale:**
+Current separate collections (complaint_memory, sop_memory) are correct for Phase 1–4 with
+a single restaurant. At multi-tenant scale, per-tenant collections cause collection sprawl —
+100 restaurants = 200+ collections, which Qdrant explicitly discourages operationally.
+Shared collection with payload pre-filtering is the recommended production pattern.
+
+**Validated by:**
+Qdrant community discussion, May 2026. Confirmed by Shakthi and Srimon that payload
+pre-filtering on a shared collection is the more scalable approach.
+
+**Impact:**
+P5-07 (Multi-tenant workspace isolation) — Qdrant migration is part of this task.
+Technical doc section 4.3 to be updated when P5-07 ships.

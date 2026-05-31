@@ -8,7 +8,7 @@ class OrgSettings(BaseModel):
     peak_hours:             str   = Field(default="18:00-22:00")
     critic_threshold:       float = Field(default=0.7,   ge=0.0, le=1.0,  description="Min critic score to auto-approve")
     low_stock_threshold_pct: float = Field(default=20.0, ge=0.0, le=100.0, description="% below which stock is flagged low")
-    overstock_threshold_pct: float = Field(default=150.0, ge=100.0,        description="% above which stock is flagged excess")
+    overstock_threshold_pct: float = Field(default=150.0, ge=0.0,          description="% of capacity above which stock is flagged excess (e.g. 150 = 1.5x capacity)")
 
 
 class OrgSettingsResponse(BaseModel):

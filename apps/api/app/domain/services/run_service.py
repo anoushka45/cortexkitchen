@@ -42,6 +42,8 @@ class RunService:
         scenario: str | None = None,
         status: str | None = None,
         verdict: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
     ) -> list[PlanningRun]:
         query = self.db.query(PlanningRun)
         if scenario:
@@ -50,6 +52,10 @@ class RunService:
             query = query.filter(PlanningRun.status == status)
         if verdict:
             query = query.filter(PlanningRun.critic_verdict == verdict)
+        if date_from:
+            query = query.filter(PlanningRun.created_at >= date_from)
+        if date_to:
+            query = query.filter(PlanningRun.created_at <= date_to + " 23:59:59")
         return (
             query.order_by(PlanningRun.created_at.desc(), PlanningRun.id.desc())
             .limit(limit)

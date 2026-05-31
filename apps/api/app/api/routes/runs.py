@@ -33,10 +33,12 @@ router = APIRouter(tags=["runs"])
 
 @router.get("/runs", response_model=PlanningRunListResponse)
 def list_runs(
-    limit: int = Query(default=25, ge=1, le=100),
+    limit: int = Query(default=50, ge=1, le=200),
     scenario: str | None = None,
     status: str | None = None,
     verdict: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ) -> PlanningRunListResponse:
@@ -46,6 +48,8 @@ def list_runs(
         scenario=scenario,
         status=status,
         verdict=verdict,
+        date_from=date_from,
+        date_to=date_to,
     )
     return PlanningRunListResponse(runs=[service.to_summary(run) for run in runs])
 

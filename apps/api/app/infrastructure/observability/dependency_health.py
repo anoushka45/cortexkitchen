@@ -1,6 +1,6 @@
-# Importing the 'DependencyStatus' schema we commented on previously
+import time
+
 from app.api.schemas.common import DependencyStatus
-# Importing string constants (e.g., "PostgreSQL", "Redis") to avoid typos
 from app.core.constants import (
     DEPENDENCY_LLM,
     DEPENDENCY_POSTGRES,
@@ -10,55 +10,76 @@ from app.core.constants import (
 from app.core.settings import Settings
 
 
-# Individual health check functions for each service.
-# Currently, these check if the connection strings exist (Configuration Check).
-# In a later phase, these would include 'ping' logic to the actual databases
-
 def check_postgres(settings: Settings) -> DependencyStatus:
-    # Placeholder for now; real DB connectivity added in later phase
-    ok = bool(settings.postgres_url)
-    return DependencyStatus(
-        name=DEPENDENCY_POSTGRES,
-        ok=ok,
-        detail="Configured" if ok else "Missing POSTGRES_URL",
-    )
+    import psycopg2
+
+    t0 = time.perf_counter()
+    try:
+        conn = psycopg2.connect(settings.postgres_url, connect_timeout=3)
+        conn.close()
+        latency = round((time.perf_counter() - t0) * 1000, 2)
+        return DependencyStatus(
+            name=DEPENDENCY_POSTGRES, ok=True,
+            detail="Connected", latency_ms=latency,
+        )
+    except Exception as exc:
+        latency = round((time.perf_counter() - t0) * 1000, 2)
+        return DependencyStatus(
+            name=DEPENDENCY_POSTGRES, ok=False,
+            detail=str(exc)[:200], latency_ms=latency,
+        )
 
 
 def check_qdrant(settings: Settings) -> DependencyStatus:
-    ok = bool(settings.qdrant_url)
-    return DependencyStatus(
-        name=DEPENDENCY_QDRANT,
-        ok=ok,
-        detail="Configured" if ok else "Missing QDRANT_URL",
-    )
+    from qdrant_client import QdrantClient
+
+    t0 = time.perf_counter()
+    try:
+        client = QdrantClient(url=settings.qdrant_url, timeout=3)
+        client.get_collections()
+        latency = round((time.perf_counter() - t0) * 1000, 2)
+        return DependencyStatus(
+            name=DEPENDENCY_QDRANT, ok=True,
+            detail="Connected", latency_ms=latency,
+        )
+    except Exception as exc:
+        latency = round((time.perf_counter() - t0) * 1000, 2)
+        return DependencyStatus(
+            name=DEPENDENCY_QDRANT, ok=False,
+            detail=str(exc)[:200], latency_ms=latency,
+        )
 
 
 def check_redis(settings: Settings) -> DependencyStatus:
-    ok = bool(settings.redis_url)
-    return DependencyStatus(
-        name=DEPENDENCY_REDIS,
-        ok=ok,
-        detail="Configured" if ok else "Missing REDIS_URL",
-    )
+    import redis
+
+    t0 = time.perf_counter()
+    try:
+        client = redis.from_url(settings.redis_url, socket_timeout=3, socket_connect_timeout=3)
+        client.ping()
+        latency = round((time.perf_counter() - t0) * 1000, 2)
+        return DependencyStatus(
+            name=DEPENDENCY_REDIS, ok=True,
+            detail="Connected", latency_ms=latency,
+        )
+    except Exception as exc:
+        latency = round((time.perf_counter() - t0) * 1000, 2)
+        return DependencyStatus(
+            name=DEPENDENCY_REDIS, ok=False,
+            detail=str(exc)[:200], latency_ms=latency,
+        )
 
 
 def check_llm(settings: Settings) -> DependencyStatus:
     has_provider = bool(settings.llm_provider)
-    has_key = bool(settings.gemini_api_key) if settings.llm_provider == "gemini" else True
+    has_key = bool(settings.gemini_api_key) if settings.llm_provider == "gemini" else bool(settings.groq_api_key)
     ok = has_provider and has_key
-    detail = "Configured" if ok else "Missing provider config or API key"
     return DependencyStatus(
-        name=DEPENDENCY_LLM,
-        ok=ok,
-        detail=detail,
+        name=DEPENDENCY_LLM, ok=ok,
+        detail="Configured" if ok else "Missing provider config or API key",
     )
 
 
-"""
-    Orchestrator function:
-    Collects the results of all individual checks into a single list.
-    This list can then be passed into the 'DependenciesHealthResponse' schema.
-    """
 def get_dependency_statuses(settings: Settings) -> list[DependencyStatus]:
     return [
         check_postgres(settings),

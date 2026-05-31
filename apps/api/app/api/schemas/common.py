@@ -16,9 +16,10 @@ class MessageResponse(BaseModel):
 
 # Represents the health of a single external service (like Postgres or Redis)
 class DependencyStatus(BaseModel):
-    name: str    # e.g., "PostgreSQL"
-    ok: bool     # e.g., True
-    detail: str  # e.g., "Connected successfully"
+    name: str
+    ok: bool
+    detail: str
+    latency_ms: float | None = None
 
 
 # A complex response used for a /health check endpoint

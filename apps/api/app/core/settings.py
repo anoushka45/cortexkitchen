@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     qdrant_url: str = Field(default="http://localhost:6333", alias="QDRANT_URL")
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
 
-    llm_provider: str = Field(default="gemini", alias="LLM_PROVIDER")
+    llm_provider: str = Field(default="groq", alias="LLM_PROVIDER")
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
 

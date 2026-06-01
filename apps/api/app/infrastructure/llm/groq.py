@@ -22,6 +22,7 @@ class GroqProvider(BaseLLMProvider):
             raise ValueError("GROQ_API_KEY is not set in environment variables.")
 
         self.client = Groq(api_key=api_key)
+        self.provider_name = "groq"
         self.model = "llama-3.3-70b-versatile"  # best free model on Groq for reasoning
 
     async def complete(self, prompt: str, system_prompt: str | None = None) -> str:

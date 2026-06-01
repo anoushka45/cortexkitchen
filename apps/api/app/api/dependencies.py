@@ -62,11 +62,10 @@ def get_current_user(
 # ── LLM provider ─────────────────────────────────────────────────────────────
 
 def get_llm():
-    """Return the configured LLM provider (Gemini for Phase 1)."""
-    from app.infrastructure.llm.groq import GroqProvider
-    from app.infrastructure.llm.gemini import GeminiProvider
+    """Return the configured LLM provider with automatic fallback."""
+    from app.infrastructure.llm.factory import create_llm_provider
 
-    return GroqProvider()
+    return create_llm_provider()
 
 
 # ── Vector memory ─────────────────────────────────────────────────────────────

@@ -46,6 +46,23 @@ CRITIC = "critic"
 FINAL_ASSEMBLER = "final_assembler"
 
 
+def _llm_log_fields(llm: Any | None) -> dict:
+    if llm is None:
+        return {}
+
+    fields = {}
+    provider_used = getattr(llm, "last_provider_used", None)
+    if provider_used:
+        fields["llm_provider_used"] = provider_used
+        fields["llm_fallback_used"] = bool(getattr(llm, "last_fallback_used", False))
+
+    metadata = getattr(llm, "provider_metadata", None)
+    if isinstance(metadata, dict):
+        fields.update(metadata)
+
+    return fields
+
+
 # ── Dependency injection helper ──────────────────────────────────────────────
 
 def _inject(node_fn, traces: list, **deps):
@@ -60,14 +77,20 @@ def _inject(node_fn, traces: list, **deps):
         try:
             result = await node_fn(state, **deps)
             duration_ms = round((time.perf_counter() - t0) * 1000, 2)
-            log.info("node_end", node=node, duration_ms=duration_ms)
+            log.info("node_end", node=node, duration_ms=duration_ms, **_llm_log_fields(deps.get("llm")))
             traces.append({"node": node, "started_at": started_at,
                            "ended_at": datetime.now(timezone.utc).isoformat(),
                            "duration_ms": duration_ms})
             return result
         except Exception as exc:
             duration_ms = round((time.perf_counter() - t0) * 1000, 2)
-            log.error("node_error", node=node, duration_ms=duration_ms, error=str(exc))
+            log.error(
+                "node_error",
+                node=node,
+                duration_ms=duration_ms,
+                error=str(exc),
+                **_llm_log_fields(deps.get("llm")),
+            )
             traces.append({"node": node, "started_at": started_at,
                            "ended_at": datetime.now(timezone.utc).isoformat(),
                            "duration_ms": duration_ms, "error": str(exc)})
@@ -276,13 +299,14 @@ async def run_planning_scenario(
 
     # Execute graph with LangSmith trace metadata
     run_label = f"{scenario}/{target_date or 'next'}"
+    llm_metadata = _llm_log_fields(deps.get("llm"))
     config = RunnableConfig(
         run_name=f"cortexkitchen/{run_label}",
         tags=[scenario, "planning_run"],
-        metadata={"scenario": scenario, "target_date": target_date or "", "run_id": run_id},
+        metadata={"scenario": scenario, "target_date": target_date or "", "run_id": run_id, **llm_metadata},
     )
     t0 = time.perf_counter()
-    log.info("graph_start", target_date=target_date or "next")
+    log.info("graph_start", target_date=target_date or "next", **llm_metadata)
     final_state = await graph.ainvoke(initial_state, config=config)
     total_duration_ms = round((time.perf_counter() - t0) * 1000, 2)
 
@@ -291,8 +315,9 @@ async def run_planning_scenario(
     total_cost_usd  = round(sum(u.get("cost_usd", 0)  for u in llm_usage), 6)
     total_tokens    = sum(u.get("prompt_tokens", 0) + u.get("completion_tokens", 0) for u in llm_usage)
 
+    llm_metadata = _llm_log_fields(deps.get("llm"))
     log.info("graph_end", duration_ms=total_duration_ms,
-             total_tokens=total_tokens, total_cost_usd=total_cost_usd)
+             total_tokens=total_tokens, total_cost_usd=total_cost_usd, **llm_metadata)
 
     # Attach observability data to the final response meta so RunService persists it
     final_response = final_state.get("final_response", {})
@@ -303,6 +328,7 @@ async def run_planning_scenario(
         "total_duration_ms": total_duration_ms,
         "total_tokens": total_tokens,
         "total_cost_usd": total_cost_usd,
+        **llm_metadata,
     }
     final_response.setdefault("meta", {}).update(obs)
     final_state = {**final_state, "final_response": final_response}

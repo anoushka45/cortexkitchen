@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import AgentCard from "@/components/dashboard/AgentCard";
 import CriticBanner from "@/components/dashboard/CriticBanner";
 import DashboardDetailModal from "@/components/dashboard/DashboardDetailModal";
@@ -49,6 +48,78 @@ const SCENARIO_OPTIONS: PlanningScenarioOption[] = [
     operational_focus: "Shortage prioritization and menu restraint.",
   },
 ];
+
+const LOADING_AGENTS = [
+  { key: "reservation", label: "Reservations", tone: "cyan", desc: "Occupancy load & waitlist pressure" },
+  { key: "complaint", label: "Complaints", tone: "rose", desc: "Guest issues & experience risk" },
+  { key: "menu", label: "Menu insights", tone: "amber", desc: "Push/avoid signals & promo notes" },
+  { key: "inventory", label: "Inventory", tone: "emerald", desc: "Shortages, overstock & restock alerts" },
+] as const;
+
+type NodeState = "idle" | "running" | "done";
+
+function nodeStyle(state: NodeState) {
+  return {
+    border:
+      state === "done" ? "border-emerald-400/20 bg-emerald-400/[0.04]" :
+      state === "running" ? "border-violet-400/25 bg-violet-500/[0.07]" :
+      "border-white/10 bg-white/[0.03]",
+    tag:
+      state === "done" ? "text-emerald-300/70" :
+      state === "running" ? "text-violet-300/70" :
+      "text-slate-500",
+  };
+}
+
+function ProgressBar({ state }: { state: NodeState }) {
+  return (
+    <div className="h-1 overflow-hidden rounded-full bg-white/5">
+      <div className={`h-full transition-all duration-700 ${
+        state === "done" ? "w-full bg-emerald-400/50" :
+        state === "running" ? "w-[50%] bar-shimmer" :
+        "w-0"
+      }`} />
+    </div>
+  );
+}
+
+function VCard({ state, tag, title, desc }: { state: NodeState; tag: string; title: string; desc: string }) {
+  const s = nodeStyle(state);
+  return (
+    <div className={`rounded-2xl border px-4 py-3 transition-all duration-500 ${s.border}`}>
+      <div className={`text-[9px] font-mono uppercase ${s.tag}`}>{tag}</div>
+      <div className="mt-1 text-sm font-semibold text-white">{title}</div>
+      <div className="mt-0.5 text-[10px] leading-snug text-slate-500">{desc}</div>
+      <div className="mt-2"><ProgressBar state={state} /></div>
+    </div>
+  );
+}
+
+function HCard({ state, tag, title, desc, width = "w-[152px]" }: { state: NodeState; tag: string; title: string; desc: string; width?: string }) {
+  const s = nodeStyle(state);
+  return (
+    <div className={`flex h-[116px] flex-shrink-0 flex-col justify-between rounded-2xl border p-4 transition-all duration-500 ${width} ${s.border}`}>
+      <div className={`text-[9px] font-mono uppercase ${s.tag}`}>{tag}</div>
+      <div>
+        <div className="text-sm font-semibold text-white">{title}</div>
+        <div className="mt-1 text-[10px] leading-snug text-slate-500">{desc}</div>
+      </div>
+      <ProgressBar state={state} />
+    </div>
+  );
+}
+
+function HArrow({ active }: { active: boolean }) {
+  return <div className={`mx-3 h-px w-10 flex-shrink-0 transition-colors duration-700 ${active ? "bg-slate-500" : "bg-slate-700/70"}`} />;
+}
+
+function VConnector({ active }: { active: boolean }) {
+  return (
+    <div className="flex justify-center py-1">
+      <div className={`h-5 w-px transition-colors duration-500 ${active ? "bg-slate-500" : "bg-slate-700/40"}`} />
+    </div>
+  );
+}
 
 function SectionHeader({
   label,
@@ -315,13 +386,6 @@ function ScenarioSelector({
 
 
 function LoadingState() {
-  const agents = [
-    { key: "reservation", label: "Reservations", tone: "cyan", desc: "Occupancy load & waitlist pressure" },
-    { key: "complaint",   label: "Complaints",   tone: "rose", desc: "Guest issues & experience risk" },
-    { key: "menu",        label: "Menu insights", tone: "amber", desc: "Push/avoid signals & promo notes" },
-    { key: "inventory",   label: "Inventory",    tone: "emerald", desc: "Shortages, overstock & restock alerts" },
-  ] as const;
-
   const [opsDone,       setOpsDone]       = useState(false);
   const [forecastDone,  setForecastDone]  = useState(false);
   const [doneAgents,    setDoneAgents]    = useState<Set<number>>(new Set());
@@ -334,7 +398,7 @@ function LoadingState() {
     timers.push(
       setTimeout(() => {
         setForecastDone(true);
-        agents.forEach((_, i) => {
+        LOADING_AGENTS.forEach((_, i) => {
           const delay = 400 + Math.random() * 1200;
           timers.push(setTimeout(() => setDoneAgents((prev) => new Set([...prev, i])), delay));
         });
@@ -345,81 +409,16 @@ function LoadingState() {
     return () => timers.forEach(clearTimeout);
   }, []);
 
-  const dotColor: Record<(typeof agents)[number]["tone"], string> = {
+  const dotColor: Record<(typeof LOADING_AGENTS)[number]["tone"], string> = {
     cyan:    "bg-cyan-300",
     rose:    "bg-rose-400",
     amber:   "bg-amber-300",
     emerald: "bg-emerald-300",
   };
 
-  type NodeState = "idle" | "running" | "done";
-
-  function nodeStyle(state: NodeState) {
-    return {
-      border:
-        state === "done"    ? "border-emerald-400/20 bg-emerald-400/[0.04]" :
-        state === "running" ? "border-violet-400/25 bg-violet-500/[0.07]"   :
-                              "border-white/10 bg-white/[0.03]",
-      tag:
-        state === "done"    ? "text-emerald-300/70" :
-        state === "running" ? "text-violet-300/70"  :
-                              "text-slate-500",
-    };
-  }
-
-  function ProgressBar({ state }: { state: NodeState }) {
-    return (
-      <div className="h-1 overflow-hidden rounded-full bg-white/5">
-        <div className={`h-full transition-all duration-700 ${
-          state === "done"    ? "w-full bg-emerald-400/50" :
-          state === "running" ? "w-[50%] bar-shimmer"      :
-                                "w-0"
-        }`} />
-      </div>
-    );
-  }
-
-  function VCard({ state, tag, title, desc }: { state: NodeState; tag: string; title: string; desc: string }) {
-    const s = nodeStyle(state);
-    return (
-      <div className={`rounded-2xl border px-4 py-3 transition-all duration-500 ${s.border}`}>
-        <div className={`text-[9px] font-mono uppercase ${s.tag}`}>{tag}</div>
-        <div className="mt-1 text-sm font-semibold text-white">{title}</div>
-        <div className="mt-0.5 text-[10px] leading-snug text-slate-500">{desc}</div>
-        <div className="mt-2"><ProgressBar state={state} /></div>
-      </div>
-    );
-  }
-
-  function HCard({ state, tag, title, desc, width = "w-[152px]" }: { state: NodeState; tag: string; title: string; desc: string; width?: string }) {
-    const s = nodeStyle(state);
-    return (
-      <div className={`flex h-[116px] flex-shrink-0 flex-col justify-between rounded-2xl border p-4 transition-all duration-500 ${width} ${s.border}`}>
-        <div className={`text-[9px] font-mono uppercase ${s.tag}`}>{tag}</div>
-        <div>
-          <div className="text-sm font-semibold text-white">{title}</div>
-          <div className="mt-1 text-[10px] leading-snug text-slate-500">{desc}</div>
-        </div>
-        <ProgressBar state={state} />
-      </div>
-    );
-  }
-
-  function HArrow({ active }: { active: boolean }) {
-    return <div className={`mx-3 h-px w-10 flex-shrink-0 transition-colors duration-700 ${active ? "bg-slate-500" : "bg-slate-700/70"}`} />;
-  }
-
-  function VConnector({ active }: { active: boolean }) {
-    return (
-      <div className="flex justify-center py-1">
-        <div className={`h-5 w-px transition-colors duration-500 ${active ? "bg-slate-500" : "bg-slate-700/40"}`} />
-      </div>
-    );
-  }
-
   const opsState:      NodeState = opsDone       ? "done" : "running";
   const forecastState: NodeState = forecastDone  ? "done" : opsDone ? "running" : "idle";
-  const aggState:      NodeState = aggregateDone ? "done" : doneAgents.size === agents.length ? "running" : "idle";
+  const aggState:      NodeState = aggregateDone ? "done" : doneAgents.size === LOADING_AGENTS.length ? "running" : "idle";
   const criticState:   NodeState = criticDone    ? "done" : aggregateDone ? "running" : "idle";
 
   return (
@@ -452,7 +451,7 @@ function LoadingState() {
           <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3">
             <p className="mb-2 text-[9px] font-mono uppercase tracking-[0.18em] text-slate-600">parallel agents</p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {agents.map((agent, i) => {
+              {LOADING_AGENTS.map((agent, i) => {
                 const isDone = doneAgents.has(i);
                 const state: NodeState = isDone ? "done" : forecastDone ? "running" : "idle";
                 const s = nodeStyle(state);
@@ -473,7 +472,7 @@ function LoadingState() {
             </div>
           </div>
 
-          <VConnector active={doneAgents.size === agents.length} />
+          <VConnector active={doneAgents.size === LOADING_AGENTS.length} />
           <VCard state={aggState}    tag="synthesis"  title="Aggregator" desc="Merges all agent outputs" />
           <VConnector active={aggregateDone} />
           <VCard state={criticState} tag="validation" title="Critic"     desc="Scores and verifies plan" />
@@ -492,7 +491,7 @@ function LoadingState() {
             </div>
             <div className="flex flex-shrink-0 items-center">
               <div className="grid grid-cols-2 gap-3">
-                {agents.map((agent, i) => {
+                {LOADING_AGENTS.map((agent, i) => {
                   const isDone = doneAgents.has(i);
                   const state: NodeState = isDone ? "done" : forecastDone ? "running" : "idle";
                   const s = nodeStyle(state);
@@ -513,7 +512,7 @@ function LoadingState() {
                   );
                 })}
               </div>
-              <HArrow active={doneAgents.size === agents.length} />
+              <HArrow active={doneAgents.size === LOADING_AGENTS.length} />
             </div>
             <div className="flex flex-shrink-0 items-center gap-3">
               <HCard state={aggState}    tag="synthesis"  title="Aggregator" desc="Merges all agent outputs"  width="w-[145px]" />
@@ -597,27 +596,6 @@ export default function DashboardPage() {
               selectedScenario={selectedScenario}
               onScenarioChange={setSelectedScenario}
             />
-
-            <nav className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
-              <Link
-                href="/"
-                className="rounded-xl bg-violet-500/15 px-3 py-2 text-xs font-mono uppercase tracking-[0.14em] text-violet-200"
-              >
-                dashboard
-              </Link>
-              <Link
-                href="/runs"
-                className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2 text-xs font-mono uppercase tracking-[0.14em] text-slate-300 transition-all hover:bg-slate-900 hover:text-white"
-              >
-                runs
-              </Link>
-              <Link
-                href="/data-health"
-                className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2 text-xs font-mono uppercase tracking-[0.14em] text-slate-300 transition-all hover:bg-slate-900 hover:text-white"
-              >
-                data
-              </Link>
-            </nav>
 
             <div className="flex gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
               {history.length > 0 && (

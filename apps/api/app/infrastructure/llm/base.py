@@ -25,10 +25,13 @@ class BaseLLMProvider(ABC):
     def __init__(self) -> None:
         self._usage_records: list[dict] = []
         self._lock = Lock()
+        self.provider_name = self.__class__.__name__.removesuffix("Provider").lower()
+        self.model = "unknown"
 
     def record_usage(self, model: str, prompt_tokens: int, completion_tokens: int) -> None:
         """Called by concrete providers after every LLM call."""
         record = {
+            "provider": self.provider_name,
             "model": model,
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,

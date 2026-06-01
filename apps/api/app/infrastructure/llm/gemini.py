@@ -16,6 +16,7 @@ class GeminiProvider(BaseLLMProvider):
         if not api_key:
             raise ValueError("GEMINI_API_KEY is not set in environment variables.")
         self.client = genai.Client(api_key=api_key)
+        self.provider_name = "gemini"
         self.model = "gemini-2.5-flash"
 
     async def complete(self, prompt: str, system_prompt: str | None = None) -> str:

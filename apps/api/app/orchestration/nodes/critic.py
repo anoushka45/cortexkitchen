@@ -17,6 +17,17 @@ from app.domain.services.critic_service import CriticService
 from app.infrastructure.llm.base import BaseLLMProvider
 
 
+def _safe_critic_error_message(exc: Exception) -> str:
+    raw = str(exc).lower()
+    if any(term in raw for term in ("rate limit", "ratelimit", "429", "quota", "too many requests")):
+        return "Oops - the LLM provider is rate limited right now. Please try again in a few minutes."
+    if any(term in raw for term in ("api_key", "api key", "credential", "unauthorized", "401", "403")):
+        return "Oops - the LLM provider is unavailable because its credentials are not configured correctly."
+    if any(term in raw for term in ("timeout", "connection", "unreachable", "temporarily unavailable", "503", "502")):
+        return "Oops - the LLM provider is temporarily unavailable. Please try again shortly."
+    return "Oops - the critic could not reach the LLM provider. Please try again shortly."
+
+
 async def critic_node(
     state: OrchestratorState,
     db: Session,
@@ -77,12 +88,13 @@ async def critic_node(
         return {**state, "critic_output": result}
 
     except Exception as exc:
+        safe_message = _safe_critic_error_message(exc)
         return {
             **state,
             "critic_output": {
                 "verdict": "revision",
                 "score": 0.0,
-                "notes": f"Critic evaluation failed: {exc}",
-                "error": str(exc),
+                "notes": safe_message,
+                "error": "llm_unavailable",
             },
         }

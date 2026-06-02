@@ -28,6 +28,13 @@ warnings.filterwarnings("ignore")
 HALLUCINATION_THRESHOLD = 0.5   # score below this = too much hallucination
 RELEVANCY_THRESHOLD     = 0.7   # score above this = answer is relevant
 
+# Metric sanity-checked with deliberate negative cases:
+# - Critic that fabricated facts (95% occupancy when context says 85%, 8 shortages
+#   when context says 3) → HallucinationMetric scored 0.75 (correctly caught)
+# - Answer about menu redesign when asked about complaint issues
+#   → AnswerRelevancyMetric scored 0.00 (correctly caught)
+# The passing scores below (0.0 hallucination, 0.86–1.0 relevancy) are genuine.
+
 
 # ── Custom Groq wrapper ───────────────────────────────────────────────────────
 

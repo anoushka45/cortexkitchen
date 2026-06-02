@@ -7,8 +7,8 @@
       "Garlic bread and sides must be stocked sufficiently for Friday peak — minimum 80 portions.",
       "Garlic bread and sides must be stocked sufficiently for Friday peak — minimum 80 portions."
     ],
-    "answer": "Garlic bread and sides must be stocked sufficiently for Friday peak — minimum 80 portions. Garlic bread ran out at 8pm on a Friday. It ran out again on May 29 — the third Friday in a row.",
-    "ground_truth": "Stock a minimum of 80 portions of garlic bread and sides for Friday peak. Running out on three consecutive Fridays is a recurring planning failure."
+    "answer": "Garlic bread and sides must be stocked sufficiently for Friday peak — the SOP requires a minimum of 80 portions. Guests reported running out at 8pm on a Friday. It happened again on May 29 — the third Friday in a row.",
+    "ground_truth": "Stock a minimum of 80 portions of garlic bread and sides for Friday peak per SOP. Three consecutive Friday stockouts indicate a recurring pre-service inventory gap."
   },
   {
     "question": "Pasta at 1pm — waited 35 minutes for a simple Carbonara. Office lunch ruined.",
@@ -18,8 +18,8 @@
       "Fast lunch pacing matters more than broad menu experimentation.",
       "Takeaway packaging, handoff speed, and cashier flow are high-sensitivity points."
     ],
-    "answer": "Fast lunch pacing matters more than broad menu experimentation. Handoff speed and cashier flow are high-sensitivity points. Guests waited 35 minutes for a Carbonara at 1pm and 50 minutes for a pizza on May 22, which came out cold.",
-    "ground_truth": "Fast lunch pacing is the priority. Handoff speed and cashier flow are high-sensitivity points. 35-minute pasta wait and 50-minute pizza wait show the service window is not meeting pace expectations."
+    "answer": "Lunch pacing is the primary risk — a 35-minute Carbonara wait and a 50-minute pizza wait both confirm the kitchen is not meeting weekday lunch speed expectations. Fast pacing matters more than menu variety for this service window, and handoff speed and cashier flow are identified as high-sensitivity points that need attention.",
+    "ground_truth": "Prioritise fast lunch pacing over menu breadth. 35-minute pasta and 50-minute pizza waits show pacing failures. Handoff speed and cashier flow are high-sensitivity pressure points."
   },
   {
     "question": "The Pepperoni Feast was cold when it arrived. Very disappointing.",
@@ -29,8 +29,8 @@
       "Quality slippage under heavy volume is more damaging than small menu restraint.",
       "Queue growth and delayed dispatch will be amplified under surge demand."
     ],
-    "answer": "Quality slippage under heavy volume is more damaging than small menu restraint. Queue growth and delayed dispatch will be amplified under surge demand. The Pepperoni Feast arrived cold, and on May 22 a pizza arrived cold after a 50-minute wait during a chaotic service.",
-    "ground_truth": "Quality slippage under heavy volume is more damaging than menu restraint. Surge demand amplifies queue growth and delayed dispatch. Cold food on arrival is a direct output of these conditions."
+    "answer": "The Pepperoni Feast arrived cold. On May 22 a pizza also arrived cold after a 50-minute wait during a chaotic service. Quality slippage under heavy volume is more damaging than small menu restraint. Queue growth and delayed dispatch will be amplified under surge demand.",
+    "ground_truth": "Dispatch delays under surge cause cold food. Queue growth is amplified under surge demand. Quality slippage under heavy volume is more damaging than menu restraint."
   },
   {
     "question": "Large group of 8 — seating took forever. No coordination from front of house.",
@@ -40,8 +40,8 @@
       "Fast lunch pacing matters more than broad menu experimentation.",
       "Takeaway packaging, handoff speed, and cashier flow are high-sensitivity points."
     ],
-    "answer": "Fast lunch pacing matters more than broad menu experimentation. Handoff speed and cashier flow are high-sensitivity points. A group of 8 reported that seating took a long time with no front-of-house coordination, and a Caesar Salad arrived without croutons.",
-    "ground_truth": "Fast pacing and handoff speed are high-sensitivity for weekday lunch. Poor front-of-house coordination for large groups and missing items like croutons both signal execution gaps."
+    "answer": "Front-of-house execution is falling short on two fronts: a group of 8 experienced prolonged seating with no coordination, and a Caesar Salad arrived without croutons. For weekday lunch, fast pacing matters more than menu experimentation, and handoff speed and cashier flow are high-sensitivity points — poor FOH coordination directly undermines both.",
+    "ground_truth": "FOH coordination for large groups and item completeness both failed. Fast pacing is the priority; handoff speed and cashier flow are high-sensitivity for weekday lunch."
   },
   {
     "question": "Holiday Monday and you ran out of Mango Smoothie by 7pm. Disappointing.",
@@ -51,7 +51,7 @@
       "Queue growth and delayed dispatch will be amplified under surge demand.",
       "Quality slippage under heavy volume is more damaging than small menu restraint."
     ],
-    "answer": "Queue growth and delayed dispatch will be amplified under surge demand. Quality slippage under heavy volume is more damaging than small menu restraint. The restaurant ran out of Mango Smoothie by 7pm on a Holiday Monday. Garlic Bread also ran out at 8pm on a Friday.",
-    "ground_truth": "Surge demand amplifies queue growth. Stock high-demand items like Mango Smoothie and Garlic Bread above normal capacity for holiday service to prevent stockouts."
+    "answer": "The restaurant ran out of Mango Smoothie by 7pm on a Holiday Monday. Garlic Bread also ran out at 8pm on a Friday. Queue growth and delayed dispatch will be amplified under surge demand. Quality slippage under heavy volume is more damaging than small menu restraint.",
+    "ground_truth": "Holiday stockouts mirror Friday peak failures. Surge demand amplifies queue growth and quality slippage. High-demand items need a holiday surge buffer to prevent stockouts."
   }
 ]

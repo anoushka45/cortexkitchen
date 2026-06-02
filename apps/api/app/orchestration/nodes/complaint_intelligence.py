@@ -35,23 +35,25 @@ async def complaint_intelligence_node(
             if state.get("target_date")
             else None
         )
-        result = await service.analyse_and_recommend(
-            days=28,
-            scenario_profile=state.get("scenario_profile"),
-            target_date=target_date,
-        )
 
-        # Enrich with RAG context if MemoryService is available
+        # RAG retrieval happens BEFORE the LLM call so context feeds the prompt
         rag_context: dict = {"similar_complaints": [], "relevant_sops": []}
         if memory is not None:
-            # Use the top complaint theme as the retrieval query
-            top_complaint = (result.get("data", {}).get("unique_complaints") or ["slow service"])[0]
+            summary = service.get_complaint_summary(days=28)
+            top_complaint = (summary.get("unique_complaints") or ["slow service"])[0]
             rag_context["similar_complaints"] = memory.retrieve_similar_complaints(
                 query=top_complaint, top_k=3
             )
             rag_context["relevant_sops"] = memory.retrieve_relevant_sops(
                 query=top_complaint, top_k=2
             )
+
+        result = await service.analyse_and_recommend(
+            days=28,
+            scenario_profile=state.get("scenario_profile"),
+            target_date=target_date,
+            rag_context=rag_context,
+        )
 
         result["rag_context"] = rag_context
         return {**state, "complaint_output": result}

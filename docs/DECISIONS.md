@@ -164,3 +164,77 @@ pre-filtering on a shared collection is the more scalable approach.
 **Impact:**
 P5-07 (Multi-tenant workspace isolation) — Qdrant migration is part of this task.
 Technical doc section 4.3 to be updated when P5-07 ships.
+
+---
+
+## D-010 — Groq as default LLM provider (replacing Gemini default)
+
+**Date:** June 2026
+**Status:** Accepted
+
+**Decision:**
+Change `LLM_PROVIDER` default from `gemini` to `groq`. Gemini becomes the automatic fallback when Groq fails.
+
+**Rationale:**
+Groq free tier has higher request-per-minute limits than Gemini free tier, which makes development and demo runs smoother. Gemini is retained in the stack as fallback so the system degrades gracefully rather than failing hard on a rate limit.
+
+**Consequences:**
+- `LLM_PROVIDER=groq` is the default; set `LLM_PROVIDER=gemini` to invert
+- Both keys should be set in `.env` so fallback is available
+- Cost rates are tracked separately per provider in `llm/base.py`
+
+---
+
+## D-011 — RAGAS + DeepEval for LLM output quality gating
+
+**Date:** June 2026
+**Status:** Accepted
+
+**Decision:**
+Use RAGAS for RAG pipeline faithfulness evaluation and DeepEval for LLM output hallucination and relevancy checks. Both run as separate pytest suites in `apps/api/evals/` outside the normal `testpaths`.
+
+**Rationale:**
+Unit tests verify code logic, not LLM output quality. A separate eval layer using LLM-as-judge scoring catches hallucination and relevancy drift that would be invisible in standard tests. Keeping evals outside `testpaths` means normal CI is not slowed by live LLM calls.
+
+**Consequences:**
+- RAGAS faithfulness threshold: ≥ 0.8 (hard-gated)
+- DeepEval hallucination threshold: ≤ 0.5; relevancy threshold: ≥ 0.7
+- Eval datasets are static JSON — meaningful only once the complaint node passes RAG context into the LLM prompt (fixed in P4-10)
+- Groq is used as the evaluator LLM for both suites
+
+---
+
+## D-012 — MCP server via stdio, not HTTP
+
+**Date:** June 2026
+**Status:** Accepted
+
+**Decision:**
+Implement the MCP server as a stdio subprocess (`mcp_server.py`) rather than an HTTP MCP endpoint added to the existing FastAPI app.
+
+**Rationale:**
+stdio is the standard transport for local MCP servers in Claude Code and Claude Desktop. Embedding MCP inside FastAPI would complicate the existing app and make it harder to run the MCP server independently. A separate process communicates with the FastAPI backend over HTTP with JWT auth, keeping clear separation between the planning API and the tool interface.
+
+**Consequences:**
+- `mcp_server.py` is a standalone script spawned by Claude as a subprocess
+- Auth is handled via `CORTEX_EMAIL` / `CORTEX_PASSWORD` env vars in `.mcp.json`
+- JWT is obtained on first tool call and reused for the session
+- The FastAPI app does not need to know about MCP at all
+
+---
+
+## D-013 — Static eval datasets rather than live capture
+
+**Date:** June 2026
+**Status:** Accepted
+
+**Decision:**
+RAGAS and DeepEval eval datasets (`complaint_rag_samples.json`, test cases in `test_deepeval_quality.py`) are hand-crafted static JSON rather than captured from live planning runs.
+
+**Rationale:**
+Live capture requires a running DB + LLM + Qdrant stack during test collection, which is too heavy for CI and makes evals non-deterministic. Static datasets are reproducible and version-controlled. The trade-off is that datasets can become stale as prompts evolve.
+
+**Consequences:**
+- Dataset answers must be manually updated when the complaint prompt or critic behaviour changes significantly
+- Faithfulness scores reflect the quality of the eval dataset as much as the system — a score of 1.0 likely means the dataset is too easy (answers are verbatim context)
+- For production use, datasets should be rebuilt from captured live outputs periodically

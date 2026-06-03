@@ -14,8 +14,10 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.api.dependencies import get_orchestration_deps
+from app.api.dependencies import get_orchestration_deps, get_current_user
 import app.api.routes.planning as planning_module  # direct import so patch targets always resolve
+
+MOCK_USER = {"id": 1, "org_id": 1, "email": "test@test.com", "role": "owner"}
 
 
 # ── Shared mock result ────────────────────────────────────────────────────────
@@ -57,8 +59,9 @@ def mock_deps():
 
 @pytest.fixture
 def client(mock_deps):
-    """Test client with orchestration deps overridden."""
+    """Test client with orchestration deps and auth overridden."""
     app.dependency_overrides[get_orchestration_deps] = lambda: mock_deps
+    app.dependency_overrides[get_current_user] = lambda: MOCK_USER
     yield TestClient(app)
     app.dependency_overrides.clear()
 

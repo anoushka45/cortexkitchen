@@ -192,6 +192,11 @@ class TestComplaintIntelligenceNode:
         }
 
         with patch("app.orchestration.nodes.complaint_intelligence.ComplaintService") as MockService:
+            MockService.return_value.get_complaint_summary.return_value = {
+                "unique_complaints": ["cold pizza"],
+                "total_feedback": 20,
+                "sentiment_breakdown": {},
+            }
             MockService.return_value.analyse_and_recommend = AsyncMock(return_value=mock_service_result)
             result = await complaint_intelligence_node(
                 base_state, db=mock_db, llm=mock_llm, memory=mock_memory

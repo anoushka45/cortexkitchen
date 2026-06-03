@@ -57,7 +57,13 @@ def test_ops_manager_attaches_scenario_profile():
 
 @pytest.mark.asyncio
 async def test_run_planning_scenario_supports_non_friday_presets():
-    deps = {"db": object(), "llm": object(), "memory": object()}
+    from unittest.mock import MagicMock
+    mock_llm = MagicMock()
+    mock_llm.drain_usage.return_value = []
+    mock_llm.provider_metadata = {}
+    mock_llm.last_provider_used = "groq"
+    mock_llm.last_fallback_used = False
+    deps = {"db": object(), "llm": mock_llm, "memory": object()}
 
     result = await run_planning_scenario(
         deps=deps,

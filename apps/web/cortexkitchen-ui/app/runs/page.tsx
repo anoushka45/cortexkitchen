@@ -6,6 +6,7 @@ import {
   Tooltip, XAxis, YAxis,
 } from "recharts";
 import { getPlanningRun, listPlanningRuns } from "@/lib/api";
+import { getAuthToken } from "@/lib/auth-cookies";
 import { PlanningRunDetail, PlanningRunSummary } from "@/types/planning";
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -222,6 +223,31 @@ export default function RunsPage() {
   const [compareIds, setCompareIds]             = useState<number[]>([]);
   const [diffRuns,   setDiffRuns]               = useState<[PlanningRunDetail, PlanningRunDetail] | null>(null);
   const [diffLoading, setDiffLoading]           = useState(false);
+
+  // PDF export
+  const [exporting, setExporting] = useState(false);
+  async function downloadPdf(runId: number, scenario: string) {
+    setExporting(true);
+    try {
+      const token = getAuthToken();
+      const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+      const res = await fetch(`${base}/api/v1/runs/${runId}/export`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `cortexkitchen-${scenario.replace(/_/g, "-")}-${runId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("PDF export error:", err);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -443,9 +469,18 @@ export default function RunsPage() {
                         target {selected.target_date ?? "-"} · generated {selected.generated_at?.slice(0, 10) ?? "-"}
                       </p>
                     </div>
-                    <span className={`rounded-full border px-3 py-1 text-sm ${VERDICT_STYLE[selected.critic_verdict ?? "unknown"]}`}>
-                      {selected.critic_verdict ?? "unknown"}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded-full border px-3 py-1 text-sm ${VERDICT_STYLE[selected.critic_verdict ?? "unknown"]}`}>
+                        {selected.critic_verdict ?? "unknown"}
+                      </span>
+                      <button
+                        onClick={() => downloadPdf(selected.id, selected.scenario)}
+                        disabled={exporting}
+                        className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+                      >
+                        {exporting ? "Exporting…" : "↓ PDF"}
+                      </button>
+                    </div>
                   </div>
                   <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
                     <Metric label="status" value={selected.status} />

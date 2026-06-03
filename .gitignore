@@ -42,3 +42,4 @@ data/processed/*
 # Project tracker (local only)
 *.xlsx
 *.xls
+apps/api/.deepeval/

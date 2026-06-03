@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -61,6 +62,32 @@ def get_run(run_id: int, db: Session = Depends(get_db), current_user: dict = Dep
     if run is None:
         raise HTTPException(status_code=404, detail="Planning run not found.")
     return PlanningRunDetail(**service.to_detail(run))
+
+
+@router.get("/runs/{run_id}/export", summary="Export planning run as PDF")
+def export_run_pdf(
+    run_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+) -> Response:
+    from app.infrastructure.pdf.report_generator import generate_run_pdf
+
+    service = RunService(db)
+    run = service.get_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Planning run not found.")
+
+    detail = service.to_detail(run)
+    pdf_bytes = generate_run_pdf(detail)
+
+    scenario = (detail.get("scenario") or "run").replace("_", "-")
+    filename = f"cortexkitchen-{scenario}-{run_id}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/data-health", response_model=DataHealthResponse)

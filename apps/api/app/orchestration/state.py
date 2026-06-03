@@ -33,6 +33,13 @@ class OrchestratorState(TypedDict):
     target_date:  Annotated[Optional[str], keep_last]
     requested_at: Annotated[Optional[str], keep_last]
 
+    # Tenant settings — passed in from org config, used by agents
+    org_capacity:  Annotated[Optional[int], keep_last]
+    org_peak_hours: Annotated[Optional[str], keep_last]
+
+    # Restaurant profile — overrides org defaults when restaurant_id is supplied in the request
+    restaurant_profile: Annotated[Optional[Dict[str, Any]], keep_last]
+
     # P1-10 Testing & Simulation Controls
     simulation_mode: Annotated[Optional[bool], keep_last]
     force_critic_decision: Annotated[Optional[str], keep_last]
@@ -54,8 +61,8 @@ class OrchestratorState(TypedDict):
     # Final response returned to the API layer
     final_response: Annotated[Optional[Dict[str, Any]], keep_last]
 
-    # Debug and observability
-    execution_trace: Annotated[Optional[List[str]], keep_last]
+    # Observability — always-on node timing records
+    execution_trace: Annotated[Optional[List[Dict[str, Any]]], keep_last]
 
     # Error handling
     error: Annotated[Optional[str], keep_last]
@@ -69,6 +76,7 @@ def make_initial_state(
     simulation_mode: bool = False,
     force_critic_decision: Optional[str] = None,
     debug: bool = False,
+    restaurant_profile: Optional[Dict[str, Any]] = None,
 ) -> OrchestratorState:
     """
     Build a clean initial state for a new orchestration run.
@@ -107,8 +115,13 @@ def make_initial_state(
         critic_output=None,
         final_response=None,
 
-        # Observability
-        execution_trace=[] if debug else None,
+        # Tenant settings
+        org_capacity=None,
+        org_peak_hours=None,
+        restaurant_profile=restaurant_profile,
+
+        # Observability — always-on
+        execution_trace=[],
 
         # Error handling
         error=None,

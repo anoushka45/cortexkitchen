@@ -12,11 +12,12 @@ class RunService:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_from_response(self, response: dict[str, Any]) -> PlanningRun:
+    def create_from_response(self, response: dict[str, Any], org_id: int | None = None) -> PlanningRun:
         critic = response.get("critic") or {}
         meta = response.get("meta") or {}
 
         run = PlanningRun(
+            org_id=org_id,
             scenario=response.get("scenario") or "unknown",
             target_date=response.get("target_date"),
             status=response.get("status") or "unknown",
@@ -41,6 +42,8 @@ class RunService:
         scenario: str | None = None,
         status: str | None = None,
         verdict: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
     ) -> list[PlanningRun]:
         query = self.db.query(PlanningRun)
         if scenario:
@@ -49,6 +52,10 @@ class RunService:
             query = query.filter(PlanningRun.status == status)
         if verdict:
             query = query.filter(PlanningRun.critic_verdict == verdict)
+        if date_from:
+            query = query.filter(PlanningRun.created_at >= date_from)
+        if date_to:
+            query = query.filter(PlanningRun.created_at <= date_to + " 23:59:59")
         return (
             query.order_by(PlanningRun.created_at.desc(), PlanningRun.id.desc())
             .limit(limit)

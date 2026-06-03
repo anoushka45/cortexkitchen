@@ -30,13 +30,19 @@ def ops_manager_node(state: OrchestratorState) -> OrchestratorState:
             "error": f"Unknown scenario '{scenario}'. Supported: {SUPPORTED_SCENARIOS}",
         }
 
-    scenario_profile = get_scenario_definition(scenario)
+    scenario_profile = dict(get_scenario_definition(scenario))
 
-    # Stub: In Phase 2+ this node could dynamically decide which agents to skip
-    # based on scenario config, feature flags, or cached results.
+    # Stamp restaurant profile context into scenario_profile so all downstream
+    # nodes can read cuisine/name without needing a separate state key lookup.
+    restaurant_profile = state.get("restaurant_profile")
+    if restaurant_profile:
+        scenario_profile["restaurant_name"]    = restaurant_profile.get("name", "Restaurant")
+        scenario_profile["restaurant_cuisine"] = restaurant_profile.get("cuisine", "")
+        scenario_profile["restaurant_timezone"] = restaurant_profile.get("timezone", "Asia/Kolkata")
+
     return {
         **state,
         "scenario_profile": scenario_profile,
         "target_date": state.get("target_date") or resolve_default_target_date(scenario),
-        "error": None,  # Ensure error is cleared for a valid scenario
+        "error": None,
     }

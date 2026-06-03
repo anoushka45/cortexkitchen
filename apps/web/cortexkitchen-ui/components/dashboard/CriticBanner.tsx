@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode } from "react";
 import Badge from "@/components/ui/Badge";
 import { CriticResult } from "@/types/planning";
 
@@ -47,16 +47,10 @@ export default function CriticBanner({
   targetDate,
   actions,
 }: Props) {
-  const [animatedScore, setAnimatedScore] = useState(0);
   const config = VERDICT_CONFIG[critic.verdict] ?? VERDICT_CONFIG.unknown;
   const scorePct = Math.round(critic.score * 100);
+  const animatedScore = scorePct;
   const circumference = 2 * Math.PI * 45;
-
-  useEffect(() => {
-    setAnimatedScore(0);
-    const timer = setTimeout(() => setAnimatedScore(scorePct), 150);
-    return () => clearTimeout(timer);
-  }, [scorePct, generatedAt]);
 
   const formattedTime = new Date(generatedAt).toLocaleTimeString([], {
     hour: "2-digit",

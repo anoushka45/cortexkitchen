@@ -38,3 +38,8 @@ data/processed/*
 
 # Docker
 *.pid
+
+# Project tracker (local only)
+*.xlsx
+*.xls
+apps/api/.deepeval/

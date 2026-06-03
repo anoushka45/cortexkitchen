@@ -65,8 +65,9 @@ class ComplaintService:
         days: int = 28,
         scenario_profile: ScenarioDefinition | None = None,
         target_date: datetime | None = None,
+        rag_context: dict | None = None,
     ) -> dict:
-        """Use Gemini to analyse complaints and generate recommendation."""
+        """Analyse complaints and generate recommendation, grounded in RAG context when provided."""
 
         summary = self.get_complaint_summary(days)
         scenario_label = scenario_profile["label"] if scenario_profile else "Friday Rush"
@@ -82,6 +83,22 @@ class ComplaintService:
         summary["scenario_watchouts"] = scenario_watchouts
         if target_date:
             summary["target_date"] = target_date.strftime("%Y-%m-%d")
+
+        similar_complaints = (rag_context or {}).get("similar_complaints", [])
+        relevant_sops      = (rag_context or {}).get("relevant_sops", [])
+
+        rag_section = ""
+        if similar_complaints or relevant_sops:
+            parts = []
+            if similar_complaints:
+                texts = [r["text"] for r in similar_complaints if r.get("text")]
+                parts.append("Similar past complaints retrieved from memory:\n" +
+                             "\n".join(f"- {t}" for t in texts))
+            if relevant_sops:
+                texts = [r["text"] for r in relevant_sops if r.get("text")]
+                parts.append("Relevant operational SOPs:\n" +
+                             "\n".join(f"- {t}" for t in texts))
+            rag_section = "\n\n## Retrieved context (ground your recommendations in this)\n" + "\n\n".join(parts)
 
         prompt = f"""
 ## Context
@@ -101,9 +118,10 @@ Complaint texts:
 
 Positive feedback:
 {chr(10).join(f'- {p}' for p in summary['unique_positives'][:5])}
+{rag_section}
 
 ## Task
-Identify the top 3 recurring issues from these complaints and recommend specific operational fixes for this service scenario. Weight the issues that most threaten the target service window first.
+Identify the top 3 recurring issues from these complaints and recommend specific operational fixes for this service scenario. Weight the issues that most threaten the target service window first. Where relevant SOPs or similar past complaints are provided above, ground your recommendations in them.
 
 ## Response format
 Respond with a JSON object containing:

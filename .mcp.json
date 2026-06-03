@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "cortexkitchen": {
+      "command": "C:/Users/ANOUSHKA/OneDrive/Desktop/cortexkitchen/apps/api/venv/Scripts/python.exe",
+      "args": ["C:/Users/ANOUSHKA/OneDrive/Desktop/cortexkitchen/apps/api/mcp_server.py"],
+      "env": {
+        "CORTEX_API_BASE": "http://localhost:8000/api/v1",
+        "CORTEX_EMAIL": "verify@test.com",
+        "CORTEX_PASSWORD": "test1234"
+      }
+    }
+  }
+}

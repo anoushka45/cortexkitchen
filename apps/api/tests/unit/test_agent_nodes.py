@@ -15,6 +15,8 @@ Run with:
     cd apps/api && pytest tests/unit/test_agent_nodes.py -v
 """
 
+from datetime import datetime
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -190,6 +192,11 @@ class TestComplaintIntelligenceNode:
         }
 
         with patch("app.orchestration.nodes.complaint_intelligence.ComplaintService") as MockService:
+            MockService.return_value.get_complaint_summary.return_value = {
+                "unique_complaints": ["cold pizza"],
+                "total_feedback": 20,
+                "sentiment_breakdown": {},
+            }
             MockService.return_value.analyse_and_recommend = AsyncMock(return_value=mock_service_result)
             result = await complaint_intelligence_node(
                 base_state, db=mock_db, llm=mock_llm, memory=mock_memory
@@ -290,6 +297,7 @@ class TestMenuIntelligenceNode:
             await menu_intelligence_node(state, db=mock_db, llm=mock_llm)
 
         mock_service.analyse_and_recommend.assert_called_once_with(
+            target_date=datetime.fromisoformat("2026-04-11"),
             forecast_data={"predicted_orders": 120},
             complaint_data={"unique_complaints": ["cold pizza"]},
             inventory_data={"shortage_alerts": [{"ingredient": "Mozzarella"}]},
@@ -457,7 +465,8 @@ class TestCriticNode:
 
         output = result["critic_output"]
         assert output["verdict"] == "revision"
-        assert "LLM rate limit" in output["notes"]
+        assert output["notes"] == "Oops - the LLM provider is rate limited right now. Please try again in a few minutes."
+        assert output["error"] == "llm_unavailable"
         # State-level error is NOT set — node contains the exception
         assert result.get("error") is None
 

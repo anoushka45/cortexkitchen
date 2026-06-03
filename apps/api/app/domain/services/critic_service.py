@@ -19,9 +19,8 @@ class CriticService:
         "clarity": 0.5,
     }
 
-    # Operational rules the critic enforces
-    RULES = """
-1. Maximum restaurant capacity is 70 guests at any time.
+    _RULES_TEMPLATE = """
+1. Maximum restaurant capacity is {capacity} guests at any time.
 2. Do not recommend closing the restaurant or cancelling all reservations.
 3. Staffing recommendations must not exceed 20 additional staff members.
 4. Price changes must not exceed 30% increase or decrease from current price.
@@ -30,13 +29,15 @@ class CriticService:
 7. Do not recommend actions that would negatively impact already confirmed reservations.
 8. All recommendations must be actionable within a 24 hour window.
 9. When inventory has critical shortages, recommendations must explicitly prioritise those ingredients before non-critical actions.
-10. Inventory recommendations must focus on immediate restocking needed for the next Friday service window, not broad long-term replenishment.
+10. Inventory recommendations must focus on immediate restocking needed for the next service window, not broad long-term replenishment.
 """
 
-    def __init__(self, db: Session, llm: BaseLLMProvider):
+    def __init__(self, db: Session, llm: BaseLLMProvider, capacity: int = 70):
         self.db = db
         self.llm = llm
-        self.sanity_checker = EvaluationSanityChecker()
+        self.capacity = capacity
+        self.RULES = self._RULES_TEMPLATE.format(capacity=capacity)
+        self.sanity_checker = EvaluationSanityChecker(capacity=capacity)
         self.cost_scoring = CostAwareScoringService()
 
     async def evaluate(self, agent: str, recommendation: dict, input_summary: str = None) -> dict:
@@ -120,7 +121,7 @@ class CriticService:
                 )
         elif (
             verdict_str == "approved"
-            and tradeoff_score < 0.0
+            and tradeoff_score < 0.2
             and cost_pressure >= 0.9
         ):
             verdict_str = "revision"

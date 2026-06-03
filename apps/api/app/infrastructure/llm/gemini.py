@@ -8,16 +8,18 @@ from app.infrastructure.llm.base import BaseLLMProvider
 class GeminiProvider(BaseLLMProvider):
     """Gemini LLM provider using the google-genai SDK."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        super().__init__()
         from app.core.settings import get_settings
 
         api_key = get_settings().gemini_api_key
         if not api_key:
             raise ValueError("GEMINI_API_KEY is not set in environment variables.")
         self.client = genai.Client(api_key=api_key)
+        self.provider_name = "gemini"
         self.model = "gemini-2.5-flash"
 
-    async def complete(self, prompt: str, system_prompt: str = None) -> str:
+    async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
         """Send a prompt to Gemini and return text response."""
         contents = []
 
@@ -40,9 +42,18 @@ class GeminiProvider(BaseLLMProvider):
             model=self.model,
             contents=contents,
         )
+
+        usage = response.usage_metadata
+        if usage:
+            self.record_usage(
+                model=self.model,
+                prompt_tokens=usage.prompt_token_count or 0,
+                completion_tokens=usage.candidates_token_count or 0,
+            )
+
         return response.text
 
-    async def complete_json(self, prompt: str, system_prompt: str = None) -> dict:
+    async def complete_json(self, prompt: str, system_prompt: str | None = None) -> dict:
         """Send a prompt to Gemini and return parsed JSON response."""
         json_system = "You must respond with valid JSON only. No explanation, no markdown, no backticks."
         combined_system = f"{json_system}\n{system_prompt}" if system_prompt else json_system

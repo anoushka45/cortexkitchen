@@ -23,6 +23,7 @@ class ReservationService:
         self,
         target_date: datetime,
         scenario_profile: ScenarioDefinition | None = None,
+        capacity: int = 70,
     ) -> dict:
         """Get reservations for the relevant target service window and analyse capacity."""
         window_start_hour, window_end_hour = self._parse_service_window(
@@ -70,9 +71,9 @@ class ReservationService:
             "service_window": service_window,
             "total_reservations": len(reservations),
             "total_guests": total_guests,
-            "capacity": 70,
-            "occupancy_pct": round((total_guests / 70) * 100, 1),
-            "overbooking_risk": total_guests > 63,  # 90% threshold
+            "capacity": capacity,
+            "occupancy_pct": round((total_guests / capacity) * 100, 1),
+            "overbooking_risk": total_guests > round(capacity * 0.9),
             "busiest_hour": busiest_hour,
             "peak_hours": peak_hours,
             "waitlist_count": sum(1 for r in reservations if r.status == ReservationStatus.waitlist),
@@ -82,10 +83,11 @@ class ReservationService:
         self,
         target_date: datetime,
         scenario_profile: ScenarioDefinition | None = None,
+        capacity: int = 70,
     ) -> dict:
         """Use Gemini to analyse reservation data and generate recommendation."""
 
-        data = self.get_service_reservations(target_date, scenario_profile=scenario_profile)
+        data = self.get_service_reservations(target_date, scenario_profile=scenario_profile, capacity=capacity)
 
         prompt = PromptUtils.format_recommendation_prompt(
             context=f"""

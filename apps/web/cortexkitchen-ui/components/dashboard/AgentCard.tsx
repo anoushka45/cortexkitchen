@@ -267,7 +267,7 @@ function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
       {/* What's working — unique positives */}
       {uniquePositives.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[11px] font-mono uppercase tracking-widest text-slate-600">What's working</p>
+          <p className="text-[11px] font-mono uppercase tracking-widest text-slate-600">What&apos;s working</p>
           {uniquePositives.slice(0, 2).map((p, i) => (
             <div key={i} className="rounded-xl border border-emerald-500/15 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-300 leading-snug">
               {p}

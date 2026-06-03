@@ -4,7 +4,9 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.api.dependencies import get_orchestration_deps
+from sqlalchemy.orm import Session
+from app.api.dependencies import get_current_user, get_db, get_orchestration_deps
+from app.infrastructure.db.models import Organization, RestaurantProfile
 from app.api.schemas.planning import (
     FridayRushRequest,
     FridayRushResponse,
@@ -72,7 +74,32 @@ def _decorate_meta(result: dict, body, scenario: str) -> dict:
 async def run_planning(
     body: PlanningRunRequest,
     deps: dict = Depends(get_orchestration_deps),
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> FridayRushResponse:
+    # Pull org settings so agents use tenant-configured capacity and hours
+    org = db.query(Organization).filter(Organization.id == current_user["org_id"]).first()
+    org_settings = org.settings or {} if org else {}
+    org_capacity   = int(org_settings.get("capacity",   70))
+    org_peak_hours = str(org_settings.get("peak_hours", "18:00-22:00"))
+
+    # Resolve restaurant profile if provided — scoped to the caller's org
+    restaurant_profile = None
+    if body.restaurant_id:
+        rp = db.query(RestaurantProfile).filter(
+            RestaurantProfile.id == body.restaurant_id,
+            RestaurantProfile.org_id == current_user["org_id"],
+        ).first()
+        if rp:
+            restaurant_profile = {
+                "id":         rp.id,
+                "name":       rp.name,
+                "cuisine":    rp.cuisine,
+                "capacity":   rp.capacity,
+                "peak_hours": rp.peak_hours,
+                "timezone":   rp.timezone,
+            }
+
     try:
         result = await run_planning_scenario(
             deps=deps,
@@ -81,6 +108,9 @@ async def run_planning(
             simulation_mode=body.simulation_mode,
             force_critic_decision=body.force_critic_decision,
             debug=body.debug,
+            org_capacity=org_capacity,
+            org_peak_hours=org_peak_hours,
+            restaurant_profile=restaurant_profile,
         )
     except AppError:
         raise
@@ -98,7 +128,10 @@ async def run_planning(
 
     meta = _decorate_meta(result, body, body.scenario)
     try:
-        run = RunService(deps["db"]).create_from_response({**result, "meta": meta})
+        run = RunService(deps["db"]).create_from_response(
+            {**result, "meta": meta},
+            org_id=current_user.get("org_id"),
+        )
         meta.setdefault("planning_run_id", run.id)
     except Exception as exc:
         meta.setdefault("run_persistence_error", str(exc))
@@ -118,6 +151,7 @@ async def run_planning(
 async def friday_rush(
     body: FridayRushRequest,
     deps: dict = Depends(get_orchestration_deps),
+    current_user: dict = Depends(get_current_user),
 ) -> FridayRushResponse:
     try:
         result = await run_friday_rush(

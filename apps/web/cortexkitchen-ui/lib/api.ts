@@ -9,8 +9,62 @@ import {
   PlanningRunDetail,
   PlanningRunSummary,
 } from "@/types/planning";
+import { getAuthToken } from "@/lib/auth-cookies";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  const token = getAuthToken();
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extra,
+  };
+}
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+
+export interface LoginRequest { email: string; password: string }
+export interface RegisterRequest { email: string; password: string; full_name?: string; org_name: string }
+export interface TokenResponse { access_token: string; token_type: string }
+export interface UserMe { id: number; email: string; full_name: string | null; org_id: number; org_name: string; org_slug: string; role: string }
+
+export async function apiLogin(body: LoginRequest): Promise<TokenResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({ detail: "Login failed." }));
+    throw new Error(detail.detail ?? "Login failed.");
+  }
+  return res.json() as Promise<TokenResponse>;
+}
+
+export async function apiRegister(body: RegisterRequest): Promise<TokenResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({ detail: "Registration failed." }));
+    throw new Error(detail.detail ?? "Registration failed.");
+  }
+  return res.json() as Promise<TokenResponse>;
+}
+
+export async function apiGetMe(): Promise<UserMe> {
+  const res = await fetch(`${BASE_URL}/api/v1/auth/me`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to fetch user.");
+  return res.json() as Promise<UserMe>;
+}
+
+// ── Planning ─────────────────────────────────────────────────────────────────
 
 export async function runFridayRush(
   request: FridayRushRequest = {}
@@ -21,7 +75,7 @@ export async function runFridayRush(
 
   const res = await fetch(`${BASE_URL}/api/v1/planning/friday-rush`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(),
     body: JSON.stringify(request),
   });
 
@@ -38,7 +92,7 @@ export async function runPlanningScenario(
 ): Promise<FridayRushResponse> {
   const res = await fetch(`${BASE_URL}/api/v1/planning/run`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(),
     body: JSON.stringify(request),
   });
 
@@ -52,6 +106,7 @@ export async function runPlanningScenario(
 
 export async function getPlanningScenarios(): Promise<PlanningScenarioOption[]> {
   const res = await fetch(`${BASE_URL}/api/v1/planning/scenarios`, {
+    headers: authHeaders(),
     cache: "no-store",
   });
 
@@ -64,8 +119,28 @@ export async function getPlanningScenarios(): Promise<PlanningScenarioOption[]> 
   return payload.scenarios;
 }
 
-export async function listPlanningRuns(limit = 25): Promise<PlanningRunSummary[]> {
-  const res = await fetch(`${BASE_URL}/api/v1/runs?limit=${limit}`, {
+export interface RunsFilter {
+  limit?: number;
+  scenario?: string;
+  verdict?: string;
+  date_from?: string;
+  date_to?: string;
+}
+
+export async function listPlanningRuns(limitOrFilter: number | RunsFilter = 50): Promise<PlanningRunSummary[]> {
+  const params = new URLSearchParams();
+  if (typeof limitOrFilter === "number") {
+    params.set("limit", String(limitOrFilter));
+  } else {
+    if (limitOrFilter.limit)     params.set("limit",     String(limitOrFilter.limit));
+    if (limitOrFilter.scenario)  params.set("scenario",  limitOrFilter.scenario);
+    if (limitOrFilter.verdict)   params.set("verdict",   limitOrFilter.verdict);
+    if (limitOrFilter.date_from) params.set("date_from", limitOrFilter.date_from);
+    if (limitOrFilter.date_to)   params.set("date_to",   limitOrFilter.date_to);
+  }
+
+  const res = await fetch(`${BASE_URL}/api/v1/runs?${params.toString()}`, {
+    headers: authHeaders(),
     cache: "no-store",
   });
 
@@ -80,6 +155,7 @@ export async function listPlanningRuns(limit = 25): Promise<PlanningRunSummary[]
 
 export async function getPlanningRun(runId: number): Promise<PlanningRunDetail> {
   const res = await fetch(`${BASE_URL}/api/v1/runs/${runId}`, {
+    headers: authHeaders(),
     cache: "no-store",
   });
 
@@ -91,8 +167,115 @@ export async function getPlanningRun(runId: number): Promise<PlanningRunDetail> 
   return res.json() as Promise<PlanningRunDetail>;
 }
 
+// ── Settings ──────────────────────────────────────────────────────────────────
+
+export interface OrgSettings {
+  capacity: number;
+  timezone: string;
+  cuisine_type: string;
+  peak_hours: string;
+  critic_threshold: number;
+  low_stock_threshold_pct: number;
+  overstock_threshold_pct: number;
+}
+
+export interface OrgSettingsResponse {
+  org_id: number;
+  org_name: string;
+  settings: OrgSettings;
+}
+
+export async function getOrgSettings(): Promise<OrgSettingsResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/settings`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Settings API error ${res.status}`);
+  return res.json() as Promise<OrgSettingsResponse>;
+}
+
+export async function updateOrgSettings(body: OrgSettings): Promise<OrgSettingsResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/settings`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({ detail: "Update failed." }));
+    throw new Error(detail.detail ?? "Update failed.");
+  }
+  return res.json() as Promise<OrgSettingsResponse>;
+}
+
+// ── Restaurant Profiles ───────────────────────────────────────────────────────
+
+export interface RestaurantProfile {
+  id: number;
+  org_id: number;
+  name: string;
+  cuisine: string;
+  capacity: number;
+  peak_hours: string;
+  timezone: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RestaurantProfileCreate {
+  name: string;
+  cuisine: string;
+  capacity: number;
+  peak_hours: string;
+  timezone: string;
+}
+
+export async function listRestaurantProfiles(): Promise<RestaurantProfile[]> {
+  const res = await fetch(`${BASE_URL}/api/v1/restaurant-profiles`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Restaurant profiles API error ${res.status}`);
+  const payload = await res.json() as { profiles: RestaurantProfile[] };
+  return payload.profiles;
+}
+
+export async function createRestaurantProfile(body: RestaurantProfileCreate): Promise<RestaurantProfile> {
+  const res = await fetch(`${BASE_URL}/api/v1/restaurant-profiles`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({ detail: "Create failed." }));
+    throw new Error(detail.detail ?? "Create failed.");
+  }
+  return res.json() as Promise<RestaurantProfile>;
+}
+
+export async function updateRestaurantProfile(id: number, body: Partial<RestaurantProfileCreate>): Promise<RestaurantProfile> {
+  const res = await fetch(`${BASE_URL}/api/v1/restaurant-profiles/${id}`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({ detail: "Update failed." }));
+    throw new Error(detail.detail ?? "Update failed.");
+  }
+  return res.json() as Promise<RestaurantProfile>;
+}
+
+export async function deleteRestaurantProfile(id: number): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/v1/restaurant-profiles/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
+}
+
 export async function getDataHealth(): Promise<DataHealth> {
   const res = await fetch(`${BASE_URL}/api/v1/data-health`, {
+    headers: authHeaders(),
     cache: "no-store",
   });
 

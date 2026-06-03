@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, Integer, String, Float, Boolean,
-    DateTime, Text, ForeignKey, Enum
+    DateTime, Text, ForeignKey, Enum, UniqueConstraint
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
@@ -33,6 +33,64 @@ class CriticVerdict(str, enum.Enum):
     approved = "approved"
     rejected = "rejected"
     revision = "revision"
+
+class UserRole(str, enum.Enum):
+    owner  = "owner"
+    member = "member"
+
+
+# ── Auth models ────────────────────────────────────────
+
+_DEFAULT_SETTINGS = {
+    "capacity": 70,
+    "timezone": "Asia/Kolkata",
+    "cuisine_type": "pizza",
+    "peak_hours": "18:00-22:00",
+    "critic_threshold": 0.7,
+    "low_stock_threshold_pct": 20.0,
+    "overstock_threshold_pct": 150.0,
+}
+
+
+class Organization(Base):
+    __tablename__ = "organizations"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    name       = Column(String(100), nullable=False)
+    slug       = Column(String(100), nullable=False, unique=True)
+    settings   = Column(JSONB, nullable=True, default=_DEFAULT_SETTINGS)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    members             = relationship("UserOrganization", back_populates="organization")
+    planning_runs       = relationship("PlanningRun", back_populates="organization")
+    restaurant_profiles = relationship("RestaurantProfile", back_populates="organization")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    email           = Column(String(255), nullable=False, unique=True)
+    hashed_password = Column(String(255), nullable=False)
+    full_name       = Column(String(100), nullable=True)
+    is_active       = Column(Boolean, default=True)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+    orgs = relationship("UserOrganization", back_populates="user")
+
+
+class UserOrganization(Base):
+    __tablename__ = "user_organizations"
+    __table_args__ = (UniqueConstraint("user_id", "org_id", name="uq_user_org"),)
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    user_id    = Column(Integer, ForeignKey("users.id"), nullable=False)
+    org_id     = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    role       = Column(Enum(UserRole), default=UserRole.member, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user         = relationship("User", back_populates="orgs")
+    organization = relationship("Organization", back_populates="members")
 
 
 # ── 1. menu_items ──────────────────────────────────────
@@ -132,6 +190,7 @@ class PlanningRun(Base):
     __tablename__ = "planning_runs"
 
     id                 = Column(Integer, primary_key=True, autoincrement=True)
+    org_id             = Column(Integer, ForeignKey("organizations.id"), nullable=True)
     scenario           = Column(String(80), nullable=False)
     target_date        = Column(String(20), nullable=True)
     status             = Column(String(40), nullable=False)
@@ -145,6 +204,26 @@ class PlanningRun(Base):
     metadata_          = Column("metadata", JSONB, nullable=True)
     generated_at       = Column(DateTime, default=datetime.utcnow)
     created_at         = Column(DateTime, default=datetime.utcnow)
+
+    organization = relationship("Organization", back_populates="planning_runs")
+
+
+# ── 7. restaurant_profiles ─────────────────────────────
+
+class RestaurantProfile(Base):
+    __tablename__ = "restaurant_profiles"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    org_id     = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    name       = Column(String(100), nullable=False)
+    cuisine    = Column(String(100), nullable=False, default="pizza")
+    capacity   = Column(Integer, nullable=False, default=70)
+    peak_hours = Column(String(50), nullable=False, default="18:00-22:00")
+    timezone   = Column(String(50), nullable=False, default="Asia/Kolkata")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    organization = relationship("Organization", back_populates="restaurant_profiles")
 
 
 """

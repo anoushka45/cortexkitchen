@@ -2,13 +2,16 @@ from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
-from app.api.dependencies import get_db
+from app.api.dependencies import get_db, get_current_user
 from app.main import app
+
+MOCK_USER = {"id": 1, "org_id": 1, "email": "test@test.com", "role": "owner"}
 
 
 def test_list_runs_endpoint_returns_summaries():
     mock_db = MagicMock()
     app.dependency_overrides[get_db] = lambda: mock_db
+    app.dependency_overrides[get_current_user] = lambda: MOCK_USER
 
     mock_run = MagicMock()
     with patch("app.api.routes.runs.RunService") as MockService:
@@ -38,6 +41,7 @@ def test_list_runs_endpoint_returns_summaries():
 def test_get_run_endpoint_returns_detail():
     mock_db = MagicMock()
     app.dependency_overrides[get_db] = lambda: mock_db
+    app.dependency_overrides[get_current_user] = lambda: MOCK_USER
 
     mock_run = MagicMock()
     with patch("app.api.routes.runs.RunService") as MockService:

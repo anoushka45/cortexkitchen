@@ -8,6 +8,7 @@ interface Props {
   avgCovers: number;
   scenario: string;
   serviceWindow: string;
+  defaultOpen?: boolean;
 }
 
 function ScoreBar({ label, value, color }: { label: string; value: number; color: string }) {
@@ -32,8 +33,8 @@ function ScoreBar({ label, value, color }: { label: string; value: number; color
   );
 }
 
-export default function WhatIfPanel({ baseCovers, avgCovers, scenario, serviceWindow }: Props) {
-  const [open,    setOpen]    = useState(false);
+export default function WhatIfPanel({ baseCovers, avgCovers, scenario, serviceWindow, defaultOpen = false }: Props) {
+  const [open,    setOpen]    = useState(defaultOpen);
   const [covers,  setCovers]  = useState(baseCovers);
   const [result,  setResult]  = useState<WhatIfResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -66,29 +67,31 @@ export default function WhatIfPanel({ baseCovers, avgCovers, scenario, serviceWi
   const diffColor = diffPct > 0 ? "text-ember-300" : diffPct < 0 ? "text-cyan-300" : "text-white/35";
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.02]">
-      {/* Header toggle */}
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-5 py-4 group"
-      >
-        <div className="flex items-center gap-3">
-          <svg className="h-4 w-4 text-ember-400/70 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-          <div>
-            <p className="text-sm font-semibold text-white text-left">What-if simulator</p>
-            <p className="text-xs text-slate-500 text-left">Adjust cover count — instant cost &amp; demand re-score, no new run needed</p>
+    <div className={defaultOpen ? "" : "rounded-2xl border border-white/10 bg-white/[0.02]"}>
+      {/* Header toggle — hidden when used inside modal (defaultOpen) */}
+      {!defaultOpen && (
+        <button
+          onClick={() => setOpen(v => !v)}
+          className="w-full flex items-center justify-between px-5 py-4 group"
+        >
+          <div className="flex items-center gap-3">
+            <svg className="h-4 w-4 text-ember-400/70 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <div>
+              <p className="text-sm font-semibold text-white text-left">What-if simulator</p>
+              <p className="text-xs text-slate-500 text-left">Adjust cover count — instant cost &amp; demand re-score, no new run needed</p>
+            </div>
           </div>
-        </div>
-        <svg className={`h-4 w-4 text-slate-500 transition-transform duration-200 shrink-0 group-hover:text-slate-300 ${open ? "rotate-0" : "-rotate-90"}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
+          <svg className={`h-4 w-4 text-slate-500 transition-transform duration-200 shrink-0 group-hover:text-slate-300 ${open ? "rotate-0" : "-rotate-90"}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      )}
 
       {open && (
-        <div className="px-5 pb-5 space-y-5 border-t border-white/[0.06]">
+        <div className={`space-y-5 ${defaultOpen ? "" : "px-5 pb-5 border-t border-white/[0.06]"}`}>
           {/* Slider */}
           <div className="pt-4">
             <div className="flex items-baseline justify-between mb-3">

@@ -195,11 +195,11 @@ function IdleState({
 }) {
   const scenario = SCENARIO_OPTIONS.find((item) => item.id === selectedScenario) ?? SCENARIO_OPTIONS[0];
   return (
-    <div className="py-10">
-      <div className="stagger-1 relative overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(139,92,246,0.10),transparent_52%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.08),transparent_55%),rgba(255,255,255,0.03)] px-6 py-10 shadow-[0_28px_110px_rgba(2,8,23,0.45)] md:px-10 md:py-12">
-        {/* Subtle grid texture */}
+    <div className="py-8">
+      <div className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(139,92,246,0.10),transparent_52%),rgba(255,255,255,0.02)] px-6 py-10 shadow-[0_28px_110px_rgba(2,8,23,0.45)] md:px-10 md:py-12">
+        {/* Grid texture */}
         <div
-          className="pointer-events-none absolute inset-0 opacity-[0.14]"
+          className="pointer-events-none absolute inset-0 opacity-[0.10]"
           style={{
             backgroundImage:
               "linear-gradient(rgba(148,163,184,0.35) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.35) 1px, transparent 1px)",
@@ -210,29 +210,34 @@ function IdleState({
         />
 
         <div className="relative grid grid-cols-1 gap-10 xl:grid-cols-12 xl:items-start">
-          <div className="xl:col-span-7">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/40 px-3 py-1.5">
-              <span className="h-2 w-2 rounded-full bg-violet-400" />
-              <span className="text-[11px] font-mono uppercase tracking-[0.22em] text-slate-400">
-                planning console
-              </span>
+          {/* ── Left: action column ── */}
+          <div className="xl:col-span-7 space-y-6">
+
+            {/* Badge + Title */}
+            <div className="stagger-1">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/40 px-3 py-1.5">
+                <span className="h-2 w-2 rounded-full bg-violet-400" />
+                <span className="text-[11px] font-mono uppercase tracking-[0.22em] text-slate-400">
+                  planning console
+                </span>
+              </div>
+              <h1 className="mt-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
+                Plan your next<br />
+                <span className="bg-gradient-to-r from-violet-400 via-violet-300 to-slate-200 bg-clip-text text-transparent">
+                  service run.
+                </span>
+              </h1>
+              <p className="mt-3 max-w-lg text-[15px] leading-7 text-slate-400">
+                Parallel analysis across demand, reservations, complaints, menu, and inventory — synthesized and critic-scored in one run.
+              </p>
             </div>
 
-            <h1 className="mt-5 text-3xl font-semibold tracking-tight text-slate-100 md:text-4xl">
-              Plan your next service run with <span className="bg-gradient-to-r from-orange-400 via-orange-300 to-gray-100 bg-clip-text text-transparent">
-                CortexKitchen
-              </span>
-            </h1>
-            <p className="mt-4 max-w-xl text-base leading-7 text-slate-400">
-              Generate a coordinated view across demand, reservations, complaints, menu direction,
-              and inventory pressure in a single run, then drill down by agent when needed.
-            </p>
-
-            <div className="mt-7">
-              <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-slate-500">
-                Scenario preset
+            {/* Scenario chips */}
+            <div className="stagger-2">
+              <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-slate-600 mb-2">
+                Scenario
               </p>
-              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="grid grid-cols-2 gap-2">
                 {SCENARIO_OPTIONS.map((option) => {
                   const active = option.id === selectedScenario;
                   return (
@@ -240,104 +245,75 @@ function IdleState({
                       key={option.id}
                       type="button"
                       onClick={() => onScenarioChange(option.id)}
-                      className={`rounded-2xl border px-4 py-4 text-left transition-all ${
+                      className={`flex items-center justify-between rounded-xl border px-4 py-2.5 text-left transition-all ${
                         active
-                          ? "border-violet-400/30 bg-violet-500/10"
-                          : "border-white/10 bg-slate-950/30 hover:bg-white/[0.04]"
+                          ? "border-violet-400/40 bg-violet-500/10 shadow-[0_0_0_1px_rgba(139,92,246,0.15)]"
+                          : "border-white/10 bg-slate-950/30 hover:bg-white/[0.04] hover:border-white/20"
                       }`}
                     >
-                      <p className="text-sm font-semibold text-slate-100">{option.label}</p>
-                      <p className="mt-1 text-sm text-slate-400">{option.description}</p>
-                      <p className="mt-3 text-[11px] font-mono uppercase tracking-[0.16em] text-slate-500">
+                      <span className={`text-sm font-semibold ${active ? "text-violet-100" : "text-slate-200"}`}>
+                        {option.label}
+                      </span>
+                      <span className="font-mono text-[10px] text-slate-500 ml-2 shrink-0">
                         {option.service_window}
-                      </p>
+                      </span>
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            <div className="mt-7 rounded-2xl border border-white/10 bg-white/5 p-4">
-              <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-slate-500">
-                How it works
-              </p>
-              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-                {[
-                  ["1. Choose scenario", "Pick the service pattern you want to frame"],
-                  ["2. Run agents", "Parallel analysis across operations signals"],
-                  ["3. Review plan", "Critic verdict plus per-card details"],
-                ].map(([title, desc]) => (
-                  <div
-                    key={title}
-                    className="rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-4"
-                  >
-                    <p className="text-sm font-semibold text-slate-200">{title}</p>
-                    <p className="mt-1 text-sm text-slate-500">{desc}</p>
-                  </div>
-                ))}
-              </div>
+            {/* DatePicker — primary CTA, right here */}
+            <div className="stagger-3">
+              <DatePicker onRun={onRun} loading={false} scenario={scenario} />
             </div>
 
-            <div className="mt-8 flex flex-col items-start gap-3">
-              <DatePicker onRun={onRun} loading={false} scenario={scenario} />
-              <p className="text-xs text-slate-500">
-                Tip: leave the date empty to use the default planning date for {scenario.label}.
-              </p>
+            {/* How it works — compact chips, not a full section */}
+            <div className="stagger-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+              {[
+                ["1", "Choose scenario"],
+                ["2", "Run agents in parallel"],
+                ["3", "Get critic-scored plan"],
+              ].map(([num, label]) => (
+                <div key={num} className="flex items-center gap-2 text-xs text-slate-600">
+                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/5 border border-white/10 text-[10px] font-mono text-slate-500">{num}</span>
+                  {label}
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="xl:col-span-5">
-            <div className="rounded-3xl border border-white/10 bg-[#0b1220]/80 p-5 shadow-[0_28px_90px_rgba(2,8,23,0.35)]">
-              <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-slate-500">
+          {/* ── Right: what you get ── */}
+          <div className="xl:col-span-5 stagger-2">
+            <div className="rounded-3xl border border-white/10 bg-[#0d1320]/90 p-5 shadow-[0_28px_90px_rgba(2,8,23,0.35)]">
+              <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-slate-600">
                 What you get
               </p>
-              <p className="mt-2 text-sm text-slate-400">
-                A decision-ready bundle, organized into scannable cards with a &quot;view details&quot;
-                drilldown.
+              <p className="mt-2 text-sm text-slate-400 leading-relaxed">
+                A decision-ready bundle with a critic verdict and drilldown into each agent.
               </p>
 
-              <div className="mt-5 grid grid-cols-1 gap-3">
+              <div className="mt-4 space-y-2">
                 {[
-                  [
-                    "Demand forecast",
-                  "Predicted orders, peak pressure, and confidence band",
-                    "border-violet-500/20 bg-violet-500/5",
-                  ],
-                  [
-                    "Reservations",
-                  "Occupancy load, waitlist pressure, and busiest-hour risk",
-                    "border-cyan-500/20 bg-cyan-500/5",
-                  ],
-                  [
-                    "Complaints",
-                    "Recurring issues, action items, and guest-experience watchouts",
-                    "border-rose-500/20 bg-rose-500/5",
-                  ],
-                  [
-                    "Menu insights",
-                  "What to push/avoid, promos, and operational notes for the selected service frame",
-                    "border-amber-500/20 bg-amber-500/5",
-                  ],
-                  [
-                    "Inventory status",
-                    "Shortages, overstock flags, restock actions, and risks",
-                    "border-emerald-500/20 bg-emerald-500/5",
-                  ],
-                ].map(([title, desc, style]) => (
-                  <div key={title} className={`rounded-2xl border px-4 py-3 ${style}`}>
-                    <p className="text-sm font-semibold text-slate-100">{title}</p>
-                    <p className="mt-1 text-sm text-slate-300/80">{desc}</p>
+                  ["Demand forecast",   "Orders, peak pressure, confidence band",          "border-violet-500/20 bg-violet-500/5",  "bg-violet-400"  ],
+                  ["Reservations",      "Occupancy, waitlist risk, busiest-hour signal",    "border-blue-500/20   bg-blue-500/5",    "bg-blue-400"    ],
+                  ["Complaints",        "Recurring issues, actions, experience watchouts",  "border-rose-500/20   bg-rose-500/5",    "bg-rose-400"    ],
+                  ["Menu insights",     "Push/avoid, promos, operational notes",            "border-amber-500/20  bg-amber-500/5",   "bg-amber-400"   ],
+                  ["Inventory status",  "Shortages, overstock flags, restock actions",      "border-emerald-500/20 bg-emerald-500/5","bg-emerald-400" ],
+                ].map(([title, desc, style, dot]) => (
+                  <div key={title} className={`flex items-start gap-3 rounded-2xl border px-4 py-3 ${style}`}>
+                    <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-100">{title}</p>
+                      <p className="mt-0.5 text-xs text-slate-400 leading-relaxed">{desc}</p>
+                    </div>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                <p className="text-xs font-mono uppercase tracking-[0.22em] text-slate-500">
-                  Output quality
-                </p>
-                <p className="mt-1 text-sm text-slate-400">
-                  Every run includes a critic verdict and score so recommendations are reviewable,
-                  not just generated.
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <p className="text-xs text-slate-500">
+                  Every run includes a <span className="text-slate-300">critic verdict and score</span> — recommendations are reviewable, not just generated.
                 </p>
               </div>
             </div>
@@ -590,14 +566,6 @@ export default function DashboardPage() {
 
       <main className="mx-auto w-full max-w-[1520px] px-6 py-8 xl:px-14">
         <div className="space-y-6">
-          {status !== "idle" && (
-            <DatePicker
-              onRun={handleRun}
-              loading={status === "loading"}
-              scenario={SCENARIO_OPTIONS.find((item) => item.id === selectedScenario)}
-            />
-          )}
-
           {status === "idle" && (
             <IdleState
               onRun={handleRun}
@@ -719,10 +687,17 @@ export default function DashboardPage() {
 
               <RagContextDrawer ragContext={data.rag_context} />
 
-              <p className="pb-2 text-center text-xs font-mono text-slate-600">
-                scenario: {data.scenario} | status:{" "}
-                <span className="text-violet-400">{data.status}</span>
-              </p>
+              {/* Re-run bar */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-mono uppercase tracking-[0.18em] text-slate-600">Run complete</p>
+                  <p className="mt-0.5 text-sm text-slate-400">
+                    Scenario: <span className="text-slate-200">{data.scenario?.replace(/_/g, " ")}</span>
+                    {data.target_date && <> · Target: <span className="text-slate-200">{data.target_date}</span></>}
+                  </p>
+                </div>
+                <DatePicker onRun={handleRun} loading={false} scenario={SCENARIO_OPTIONS.find((item) => item.id === selectedScenario)} compact />
+              </div>
 
               <DashboardDetailModal
                 open={showManagerBrief}

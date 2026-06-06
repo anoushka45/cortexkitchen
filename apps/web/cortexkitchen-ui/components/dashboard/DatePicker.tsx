@@ -4,9 +4,10 @@ import { useState } from "react";
 import { PlanningScenarioOption } from "@/types/planning";
 
 interface Props {
-  onRun: (date?: string) => void;
-  loading: boolean;
+  onRun:    (date?: string) => void;
+  loading:  boolean;
   scenario?: PlanningScenarioOption;
+  compact?: boolean;
 }
 
 function getUpcomingDates(
@@ -30,9 +31,9 @@ function getUpcomingDates(
     const value = `${year}-${month}-${dayOfMonth}`;
     const label =
       index === 0
-        ? `Next ${scenarioLabel} (${value})`
+        ? `Next ${scenarioLabel} · ${value}`
         : index === 1
-        ? `${scenarioLabel} +1 week (${value})`
+        ? `${scenarioLabel} +1 week · ${value}`
         : value;
 
     dates.push({ label, value });
@@ -42,12 +43,12 @@ function getUpcomingDates(
   return dates;
 }
 
-export default function DatePicker({ onRun, loading, scenario }: Props) {
+export default function DatePicker({ onRun, loading, scenario, compact = false }: Props) {
   const scenarioLabel = scenario?.label ?? "Friday Rush";
-  const weekday = scenario?.default_weekday ?? 4;
-  const dates = getUpcomingDates(weekday, scenarioLabel, 6);
-  const [selected, setSelected] = useState<string>("");
-  const [custom, setCustom] = useState(false);
+  const weekday       = scenario?.default_weekday ?? 4;
+  const dates         = getUpcomingDates(weekday, scenarioLabel, 6);
+  const [selected, setSelected]   = useState<string>("");
+  const [custom, setCustom]       = useState(false);
   const [customDate, setCustomDate] = useState("");
 
   const handleRun = () => {
@@ -55,68 +56,76 @@ export default function DatePicker({ onRun, loading, scenario }: Props) {
     onRun(date || undefined);
   };
 
+  const selectCls = "flex-1 min-w-0 text-xs font-mono border border-white/10 text-slate-300 rounded-xl px-3 py-2.5 focus:outline-none focus:border-violet-500/50 disabled:opacity-50 transition-colors hover:border-white/20";
+
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 w-full">
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-[11px] font-mono uppercase tracking-[0.18em] text-slate-500">
-          Planning Window
-        </p>
-        <div className="inline-flex items-center rounded-full border border-white/10 bg-slate-950/70 p-0.5">
-          <button
-            onClick={() => { setCustom(false); setCustomDate(""); }}
-            disabled={loading}
-            className={`px-2.5 py-1 rounded-full text-[11px] font-mono transition-colors ${
-              !custom ? "bg-violet-500/20 text-violet-200" : "text-slate-500 hover:text-slate-300"
-            }`}
-          >
-            presets
-          </button>
-          <button
-            onClick={() => { setCustom(true); setSelected(""); }}
-            disabled={loading}
-            className={`px-2.5 py-1 rounded-full text-[11px] font-mono transition-colors ${
-              custom ? "bg-violet-500/20 text-violet-200" : "text-slate-500 hover:text-slate-300"
-            }`}
-          >
-            custom
-          </button>
-        </div>
+    <div className={compact ? "flex items-center gap-2 flex-wrap" : "space-y-3"}>
+      {/* Preset / custom toggle */}
+      <div className="inline-flex items-center rounded-full border border-white/10 bg-slate-950/70 p-0.5 shrink-0">
+        <button
+          onClick={() => { setCustom(false); setCustomDate(""); }}
+          disabled={loading}
+          className={`px-3 py-1 rounded-full text-[11px] font-mono transition-colors ${
+            !custom ? "bg-violet-500/20 text-violet-200" : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          presets
+        </button>
+        <button
+          onClick={() => { setCustom(true); setSelected(""); }}
+          disabled={loading}
+          className={`px-3 py-1 rounded-full text-[11px] font-mono transition-colors ${
+            custom ? "bg-violet-500/20 text-violet-200" : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          custom
+        </button>
       </div>
 
-      <div className="flex gap-2">
+      {/* Date input + run button */}
+      <div className="flex gap-2 flex-1 min-w-0">
         {!custom ? (
           <select
             value={selected}
-            onChange={(event) => setSelected(event.target.value)}
+            onChange={(e) => setSelected(e.target.value)}
             disabled={loading}
-            className="flex-1 text-xs font-mono border border-white/10 text-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-500/50 disabled:opacity-50"
-            style={{ background: "#121a2e" }}
+            className={selectCls}
+            style={{ background: "#0d1320" }}
           >
-            <option value="">{scenarioLabel} default date</option>
-            {dates.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
+            <option value="">{scenarioLabel} — default date</option>
+            {dates.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
         ) : (
           <input
             type="date"
             value={customDate}
-            onChange={(event) => setCustomDate(event.target.value)}
+            onChange={(e) => setCustomDate(e.target.value)}
             disabled={loading}
-            className="flex-1 text-xs font-mono border border-white/10 text-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-500/50 disabled:opacity-50"
-            style={{ background: "#121a2e", colorScheme: "dark" }}
+            className={selectCls}
+            style={{ background: "#0d1320", colorScheme: "dark" }}
           />
         )}
+
         <button
           onClick={handleRun}
           disabled={loading || (custom && !customDate)}
-          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-violet-400/30 bg-gradient-to-b from-violet-500 to-violet-700 px-5 py-2 text-xs font-semibold tracking-wide text-white shadow-[0_4px_16px_rgba(139,92,246,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:from-violet-400 hover:to-violet-600 hover:shadow-[0_6px_22px_rgba(139,92,246,0.45)] active:translate-y-0 active:shadow-[0_2px_8px_rgba(139,92,246,0.25)] disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-40 disabled:shadow-none"
+          className={`
+            inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl
+            border border-violet-400/30 bg-gradient-to-b from-violet-500 to-violet-700
+            font-semibold tracking-wide text-white
+            shadow-[0_4px_16px_rgba(139,92,246,0.35)]
+            transition-all duration-200
+            hover:-translate-y-0.5 hover:from-violet-400 hover:to-violet-600 hover:shadow-[0_6px_22px_rgba(139,92,246,0.45)]
+            active:translate-y-0 active:shadow-[0_2px_8px_rgba(139,92,246,0.25)]
+            disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-40 disabled:shadow-none
+            ${compact ? "px-4 py-2.5 text-xs" : "px-6 py-2.5 text-sm"}
+          `}
         >
           {loading ? (
             <>
-              <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <svg className="h-3.5 w-3.5 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
@@ -124,10 +133,10 @@ export default function DatePicker({ onRun, loading, scenario }: Props) {
             </>
           ) : (
             <>
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+              <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
-              Generate Plan
+              {compact ? "Re-run" : "Generate Plan"}
             </>
           )}
         </button>

@@ -4,9 +4,17 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { useDashboardCtx } from "@/context/DashboardContext";
+
+const SCENARIO_OPTIONS = [
+  { id: "friday_rush",        label: "Friday Rush"        },
+  { id: "weekday_lunch",      label: "Weekday Lunch"      },
+  { id: "holiday_spike",      label: "Holiday Spike"      },
+  { id: "low_stock_weekend",  label: "Low-Stock Weekend"  },
+] as const;
 
 const ICONS: Record<string, React.ReactNode> = {
-  "/": (
+  "/dashboard": (
     <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
     </svg>
@@ -34,14 +42,15 @@ const ICONS: Record<string, React.ReactNode> = {
 };
 
 const BASE_NAV = [
-  { href: "/",            label: "Dashboard"   },
+  { href: "/dashboard",   label: "Dashboard"   },
   { href: "/runs",        label: "Runs"        },
   { href: "/data-health", label: "Data Health" },
 ];
 
 export default function NavBar() {
   const { user, logout } = useAuth();
-  const pathname = usePathname();
+  const pathname         = usePathname();
+  const dashCtx          = useDashboardCtx();
 
   if (!user) return null;
 
@@ -49,16 +58,21 @@ export default function NavBar() {
     ? [...BASE_NAV, { href: "/restaurant-profiles", label: "Profiles" }, { href: "/settings", label: "Settings" }]
     : BASE_NAV;
 
+  const onDashboard = pathname === "/dashboard";
+
   return (
     <header className="sticky top-0 z-40 border-b border-white/[0.07] bg-[#09111f]/90 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4 sm:px-6">
-        <div className="flex shrink-0 items-center gap-2.5">
+      <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4 sm:px-6">
+
+        {/* Brand */}
+        <Link href="/dashboard" className="flex shrink-0 items-center gap-2.5">
           <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-slate-950/40">
             <Image src="/ck-logo.png" alt="CortexKitchen" width={28} height={28} className="h-7 w-7 object-contain" priority />
           </div>
           <span className="text-sm font-bold tracking-tight text-white">CortexKitchen</span>
-        </div>
+        </Link>
 
+        {/* Nav links */}
         <nav className="flex flex-1 items-center gap-0.5">
           {navLinks.map(({ href, label }) => {
             const active = pathname === href;
@@ -72,18 +86,50 @@ export default function NavBar() {
                     : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.05]"
                 }`}
               >
-                <span className={active ? "text-violet-400" : "text-slate-500"}>
-                  {ICONS[href]}
-                </span>
+                <span className={active ? "text-violet-400" : "text-slate-500"}>{ICONS[href]}</span>
                 {label}
-                {active && (
-                  <span className="absolute inset-x-2 -bottom-[1px] h-px bg-violet-500/60" />
-                )}
+                {active && <span className="absolute inset-x-2 -bottom-[1px] h-px bg-violet-500/60" />}
               </Link>
             );
           })}
         </nav>
 
+        {/* Dashboard-specific controls */}
+        {onDashboard && dashCtx && (
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Scenario selector */}
+            <div className="relative">
+              <select
+                value={dashCtx.selectedScenario}
+                onChange={(e) => dashCtx.setSelectedScenario(e.target.value as typeof dashCtx.selectedScenario)}
+                className="appearance-none cursor-pointer rounded-lg border border-white/10 bg-slate-950/60 pl-3 pr-7 py-1.5 text-xs font-mono text-slate-300 focus:outline-none focus:ring-1 focus:ring-violet-500/50 transition-colors hover:border-white/20"
+              >
+                {SCENARIO_OPTIONS.map((s) => (
+                  <option key={s.id} value={s.id} className="bg-slate-900">{s.label}</option>
+                ))}
+              </select>
+              <svg className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+
+            {/* New Run — only when not in idle state */}
+            {dashCtx.dashStatus !== "idle" && (
+              <button
+                onClick={dashCtx.doReset}
+                className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-white/20 hover:bg-white/[0.06] hover:text-slate-200"
+              >
+                <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6.364 1.636l-.707.707M20 12h-1M17.657 17.657l-.707-.707M12 20v-1m-5.657-1.636l.707-.707M4 12h1m1.636-6.364l.707.707" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                New Run
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* User + sign out */}
         <div className="flex shrink-0 items-center gap-3">
           <div className="hidden text-right sm:block">
             <p className="text-xs font-medium leading-none text-white">{user.full_name ?? user.email}</p>

@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import { DashboardProvider } from "@/context/DashboardContext";
 import NavBar from "@/components/layout/NavBar";
 
 export const metadata: Metadata = {
   title: "CortexKitchen · Ops Intelligence",
-  description: "Friday Night Rush multi-agent planning dashboard",
+  description: "Multi-agent restaurant operations planning platform",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -13,8 +14,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className="dark">
       <body>
         <AuthProvider>
-          <NavBar />
-          {children}
+          <DashboardProvider>
+            <NavBar />
+            {children}
+          </DashboardProvider>
         </AuthProvider>
       </body>
     </html>

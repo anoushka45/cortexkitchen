@@ -2,20 +2,21 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { getPlanningRun, listPlanningRuns, runPlanningScenario } from "@/lib/api";
+import { getPlanningRun, listPlanningRuns, streamPlanningScenario } from "@/lib/api";
 import { FridayRushRequest, FridayRushResponse, PlanningRunSummary, RunHistoryEntry } from "@/types/planning";
 
 type Status = "idle" | "loading" | "success" | "error";
 
 interface UseFridayRushReturn {
-  data:       FridayRushResponse | null;
-  status:     Status;
-  error:      string | null;
-  history:    RunHistoryEntry[];
-  trigger:    (targetDate?: string, scenario?: FridayRushRequest["scenario"]) => Promise<void>;
-  reset:      () => void;
+  data:           FridayRushResponse | null;
+  status:         Status;
+  error:          string | null;
+  history:        RunHistoryEntry[];
+  completedNodes: Set<string>;
+  trigger:        (targetDate?: string, scenario?: FridayRushRequest["scenario"]) => Promise<void>;
+  reset:          () => void;
   loadFromHistory: (entry: RunHistoryEntry) => Promise<void>;
-  refreshHistory: () => Promise<void>;
+  refreshHistory:  () => Promise<void>;
 }
 
 function toHistoryEntry(run: PlanningRunSummary): RunHistoryEntry {
@@ -30,10 +31,11 @@ function toHistoryEntry(run: PlanningRunSummary): RunHistoryEntry {
 }
 
 export function useFridayRush(): UseFridayRushReturn {
-  const [data,    setData]    = useState<FridayRushResponse | null>(null);
-  const [status,  setStatus]  = useState<Status>("idle");
-  const [error,   setError]   = useState<string | null>(null);
-  const [history, setHistory] = useState<RunHistoryEntry[]>([]);
+  const [data,           setData]           = useState<FridayRushResponse | null>(null);
+  const [status,         setStatus]         = useState<Status>("idle");
+  const [error,          setError]          = useState<string | null>(null);
+  const [history,        setHistory]        = useState<RunHistoryEntry[]>([]);
+  const [completedNodes, setCompletedNodes] = useState<Set<string>>(new Set());
 
   const refreshHistory = useCallback(async () => {
     const runs = await listPlanningRuns(10);
@@ -52,18 +54,33 @@ export function useFridayRush(): UseFridayRushReturn {
   const trigger = useCallback(async (targetDate?: string, scenario: FridayRushRequest["scenario"] = "friday_rush") => {
     setStatus("loading");
     setError(null);
+    setData(null);
+    setCompletedNodes(new Set());
 
     try {
-      const result = await runPlanningScenario({
+      const stream = streamPlanningScenario({
         target_date: targetDate ?? null,
         simulation_mode: false,
         scenario,
       });
-      setData(result);
-      setStatus("success");
-      await refreshHistory();
+
+      for await (const evt of stream) {
+        if (evt.event === "node_complete") {
+          const { node } = evt as { event: string; node: string };
+          setCompletedNodes(prev => new Set([...prev, node]));
+        } else if (evt.event === "complete") {
+          const { event: _e, ...response } = evt as { event: string } & FridayRushResponse;
+          setData(response as FridayRushResponse);
+          setStatus("success");
+          await refreshHistory();
+        } else if (evt.event === "error") {
+          const { message } = evt as { event: string; message: string };
+          setError(message ?? "Unknown stream error");
+          setStatus("error");
+        }
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : "Stream connection error");
       setStatus("error");
     }
   }, [refreshHistory]);
@@ -91,5 +108,5 @@ export function useFridayRush(): UseFridayRushReturn {
     }
   }, []);
 
-  return { data, status, error, history, trigger, reset, loadFromHistory, refreshHistory };
+  return { data, status, error, history, completedNodes, trigger, reset, loadFromHistory, refreshHistory };
 }

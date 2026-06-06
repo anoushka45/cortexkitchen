@@ -52,12 +52,7 @@ const SCENARIO_OPTIONS: PlanningScenarioOption[] = [
   },
 ];
 
-const LOADING_AGENTS = [
-  { key: "reservation", label: "Reservations", tone: "cyan", desc: "Occupancy load & waitlist pressure" },
-  { key: "complaint", label: "Complaints", tone: "rose", desc: "Guest issues & experience risk" },
-  { key: "menu", label: "Menu insights", tone: "amber", desc: "Push/avoid signals & promo notes" },
-  { key: "inventory", label: "Inventory", tone: "emerald", desc: "Shortages, overstock & restock alerts" },
-] as const;
+
 
 type NodeState = "idle" | "running" | "done";
 
@@ -404,49 +399,35 @@ function GraphNode({
   );
 }
 
-function LoadingState() {
-  const [opsDone,       setOpsDone]       = useState(false);
-  const [forecastDone,  setForecastDone]  = useState(false);
-  const [doneAgents,    setDoneAgents]    = useState<Set<number>>(new Set());
-  const [aggregateDone, setAggregateDone] = useState(false);
-  const [criticDone,    setCriticDone]    = useState(false);
+function LoadingState({ completedNodes }: { completedNodes: Set<string> }) {
+  // Derive node states from real SSE data — no fake timers
+  const forecastDone  = completedNodes.has("forecast");
+  const aggDone       = completedNodes.has("aggregator");
+  const criticDone    = completedNodes.has("critic");
+  const parallelKeys  = ["reservation", "complaint", "menu", "inventory"] as const;
+  const allAgentsDone = parallelKeys.every(k => completedNodes.has(k));
 
-  useEffect(() => {
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    timers.push(setTimeout(() => setOpsDone(true), 500));
-    timers.push(
-      setTimeout(() => {
-        setForecastDone(true);
-        LOADING_AGENTS.forEach((_, i) => {
-          const delay = 400 + Math.random() * 1200;
-          timers.push(setTimeout(() => setDoneAgents((prev) => new Set([...prev, i])), delay));
-        });
-        timers.push(setTimeout(() => setAggregateDone(true), 2200));
-        timers.push(setTimeout(() => setCriticDone(true), 3000));
-      }, 1200)
-    );
-    return () => timers.forEach(clearTimeout);
-  }, []);
+  // Ops manager is implied — mark done as soon as anything else starts
+  const anyStarted    = completedNodes.size > 0 || forecastDone;
+  const opsState:      NodeState = anyStarted   ? "done" : "running";
+  const forecastState: NodeState = forecastDone ? "done" : anyStarted ? "running" : "idle";
+  const aggState:      NodeState = aggDone       ? "done" : allAgentsDone ? "running" : "idle";
+  const criticState:   NodeState = criticDone    ? "done" : aggDone ? "running" : "idle";
 
-  const allAgentsDone  = doneAgents.size === LOADING_AGENTS.length;
-  const opsState:      NodeState = opsDone       ? "done" : "running";
-  const forecastState: NodeState = forecastDone  ? "done" : opsDone ? "running" : "idle";
-  const aggState:      NodeState = aggregateDone ? "done" : allAgentsDone ? "running" : "idle";
-  const criticState:   NodeState = criticDone    ? "done" : aggregateDone ? "running" : "idle";
-
-  const parallelAgents = [
-    { key: "reservation", label: "Reservations",   subLabel: "Bookings & occupancy", dot: "bg-cyan-400"    },
-    { key: "complaint",   label: "Complaints",      subLabel: "Guest feedback & RAG",  dot: "bg-rose-400"    },
-    { key: "menu",        label: "Menu",             subLabel: "Demand & stock signals", dot: "bg-amber-400"   },
-    { key: "inventory",   label: "Inventory",        subLabel: "Shortage detection",    dot: "bg-emerald-400" },
+  const parallelAgents: { key: typeof parallelKeys[number]; label: string; subLabel: string; dot: string }[] = [
+    { key: "reservation", label: "Reservations", subLabel: "Bookings & occupancy",  dot: "bg-cyan-400"    },
+    { key: "complaint",   label: "Complaints",   subLabel: "Guest feedback & RAG",  dot: "bg-rose-400"    },
+    { key: "menu",        label: "Menu",          subLabel: "Demand & stock signals", dot: "bg-amber-400"   },
+    { key: "inventory",   label: "Inventory",     subLabel: "Shortage detection",    dot: "bg-emerald-400" },
   ];
 
-  const currentAction = criticDone        ? "Critic has reviewed the plan"
-    : aggregateDone                        ? "Critic is scoring the plan…"
-    : allAgentsDone                        ? "Aggregating all results…"
-    : forecastDone                         ? `${LOADING_AGENTS.length - doneAgents.size} agent${LOADING_AGENTS.length - doneAgents.size !== 1 ? "s" : ""} still running…`
-    : opsDone                              ? "Running demand forecast…"
-    :                                        "Sequencing the pipeline…";
+  const runningCount  = parallelKeys.filter(k => !completedNodes.has(k)).length;
+  const currentAction = criticDone    ? "Critic has reviewed the plan"
+    : aggDone                          ? "Critic is scoring the plan…"
+    : allAgentsDone                    ? "Aggregating all results…"
+    : forecastDone                     ? `${runningCount} agent${runningCount !== 1 ? "s" : ""} still running…`
+    : anyStarted                       ? "Running demand forecast…"
+    :                                    "Sequencing the pipeline…";
 
   // SVG height matches the parallel agent stack:  4 × 68px nodes + 3 × 8px gaps = 296px
   const SVG_H = 296;
@@ -483,7 +464,7 @@ function LoadingState() {
 
           {/* → */}
           <svg className="shrink-0 w-8 h-4" viewBox="0 0 32 16" fill="none" stroke="currentColor" strokeWidth="1">
-            <path d={`M0,8 H26 M20,3 L26,8 L20,13`} className={`transition-colors duration-500 ${opsDone ? "text-emerald-400/50" : "text-white/15"}`} />
+            <path d={`M0,8 H26 M20,3 L26,8 L20,13`} className={`transition-colors duration-500 ${anyStarted ? "text-emerald-400/50" : "text-white/15"}`} />
           </svg>
 
           {/* Demand Forecast */}
@@ -507,8 +488,8 @@ function LoadingState() {
 
           {/* 4 parallel agents */}
           <div className="flex flex-col gap-2 shrink-0">
-            {parallelAgents.map((agent, i) => {
-              const state: NodeState = doneAgents.has(i) ? "done" : forecastDone ? "running" : "idle";
+            {parallelAgents.map((agent) => {
+              const state: NodeState = completedNodes.has(agent.key) ? "done" : forecastDone ? "running" : "idle";
               return (
                 <GraphNode key={agent.key} label={agent.label} subLabel={agent.subLabel} state={state} dot={agent.dot} />
               );
@@ -536,7 +517,7 @@ function LoadingState() {
 
           {/* → */}
           <svg className="shrink-0 w-8 h-4" viewBox="0 0 32 16" fill="none" stroke="currentColor" strokeWidth="1">
-            <path d={`M0,8 H26 M20,3 L26,8 L20,13`} className={`transition-colors duration-500 ${aggregateDone ? "text-emerald-400/50" : "text-white/15"}`} />
+            <path d={`M0,8 H26 M20,3 L26,8 L20,13`} className={`transition-colors duration-500 ${aggDone ? "text-emerald-400/50" : "text-white/15"}`} />
           </svg>
 
           {/* Critic */}
@@ -564,7 +545,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const dashCtx = useDashboardCtx();
 
-  const { data, status, error, history, trigger, reset, loadFromHistory } = useFridayRush();
+  const { data, status, error, history, completedNodes, trigger, reset, loadFromHistory } = useFridayRush();
   const [activeHistoryId, setActiveHistoryId] = useState<string | number | undefined>();
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
   const [showManagerBrief, setShowManagerBrief] = useState(false);
@@ -620,7 +601,7 @@ export default function DashboardPage() {
             />
           )}
 
-          {status === "loading" && <LoadingState />}
+          {status === "loading" && <LoadingState completedNodes={completedNodes} />}
 
           {status === "error" && error && (
             <div

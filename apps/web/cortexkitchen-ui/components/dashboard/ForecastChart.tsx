@@ -235,137 +235,101 @@ export default function ForecastChart({ forecast, scenario }: Props) {
     : null;
 
   return (
-    <div className="card p-6 h-full flex flex-col">
-      <div className="mb-6 flex flex-col gap-5">
-        <div className="flex items-start justify-between gap-6">
-          <div className="min-w-0 flex-1">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span className="text-xs font-mono uppercase tracking-widest text-slate-500">
-                Demand Forecast
-              </span>
-              <span
-                className={`rounded-full bg-white/5 px-2 py-0.5 text-xs font-mono ${CONFIDENCE_COLORS[confidence]}`}
-              >
-                {confidence} confidence
-              </span>
-            </div>
-            <h3 className="truncate text-base font-semibold text-slate-200">
-              {target_date
-                ? `${service_day_label ?? "Service"} ${new Date(target_date).toLocaleDateString()}`
-                : "Next planning window"}
-            </h3>
-            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-              <span className={`font-mono ${METHOD_COLORS[method]}`}>
-                {method === "prophet" ? "Prophet AI" : "Baseline"}
-              </span>
-              {(avg_same_day_orders ?? avg_friday_orders) !== undefined && (
-                <span>
-                  Avg last 4 matching days: {avg_same_day_orders ?? avg_friday_orders}
-                </span>
-              )}
-              {avg_peak_orders !== undefined && <span>Avg peak: {avg_peak_orders}</span>}
-            </div>
+    <div className="rounded-2xl bg-ink-900 p-6 ring-1 ring-white/[0.07] h-full flex flex-col">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 mb-5">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ember-300/80">Demand forecast</span>
+            <span className={`rounded-full bg-white/[0.04] px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider ${CONFIDENCE_COLORS[confidence]}`}>
+              {confidence} confidence
+            </span>
           </div>
-          <div className="text-right">
-            <p className="text-4xl font-semibold tracking-tight text-violet-400">
-              {roundedOrders}
-            </p>
-            <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">
-              predicted orders
-            </p>
-            {rangeText && <p className="mt-1 text-xs text-slate-500">range: {rangeText}</p>}
+          <h3 className="mt-1.5 text-xl font-semibold text-white">
+            {target_date
+              ? `${service_day_label ?? "Service"} · ${target_date}`
+              : "Next planning window"}
+          </h3>
+          <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-white/45">
+            <span className={`font-mono ${METHOD_COLORS[method]}`}>{method === "prophet" ? "Prophet · AI" : "Baseline"}</span>
+            {(avg_same_day_orders ?? avg_friday_orders) !== undefined && (
+              <span>Avg last 4 {service_day_label ?? "days"} <b className="text-white/75">{avg_same_day_orders ?? avg_friday_orders}</b></span>
+            )}
+            {avg_peak_orders !== undefined && (
+              <span>Avg peak <b className="text-white/75">{avg_peak_orders}</b></span>
+            )}
           </div>
         </div>
-
-        {top_items && top_items.length > 0 && (
-          <div className="grid grid-cols-2 gap-3 text-xs text-slate-400">
-            {top_items.slice(0, 2).map((item, index) => (
-              <div
-                key={`${item.item}-${index}`}
-                className="rounded-2xl border border-white/10 bg-white/5 p-3"
-              >
-                <p className="truncate font-semibold text-slate-200">{item.item}</p>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  {item.category} · {item.total_ordered} orders
-                </p>
-              </div>
-            ))}
+        <div className="text-right shrink-0">
+          <div className="num-display text-5xl leading-none text-white">{roundedOrders}</div>
+          <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.18em] text-white/45">
+            predicted orders{rangeText ? ` · ${rangeText}` : ""}
           </div>
-        )}
+        </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={250}>
-          <BarChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="rgba(255,255,255,0.05)"
-              vertical={false}
-            />
-            <XAxis
-              dataKey="hour"
-              tick={{ fontSize: 10, fill: "#94a3b8", fontFamily: "Space Mono" }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              tick={{ fontSize: 10, fill: "#94a3b8", fontFamily: "Space Mono" }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <ReferenceLine
-              y={avg}
-              stroke="rgba(139,92,246,0.3)"
-              strokeDasharray="4 4"
-              label={{ value: "avg", position: "right", fontSize: 9, fill: "#94a3b8" }}
-            />
+      {/* Top items */}
+      {top_items && top_items.length > 0 && (
+        <div className="mb-5 grid grid-cols-2 gap-2.5">
+          {top_items.slice(0, 2).map((item, index) => (
+            <div key={`${item.item}-${index}`}
+              className="rounded-lg bg-white/[0.025] px-4 py-3 ring-1 ring-white/[0.07] flex items-center justify-between">
+              <div>
+                <div className="text-[13px] font-semibold text-white truncate">{item.item}</div>
+                <div className="font-mono text-[10px] uppercase tracking-wider text-white/45">
+                  {item.category} · {item.total_ordered} orders
+                </div>
+              </div>
+              <span className={`rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ring-1 ${
+                index === 0
+                  ? "bg-ember-500/[0.06] text-ember-300 ring-ember-400/25"
+                  : "bg-emerald-500/[0.06] text-emerald-300 ring-emerald-400/25"
+              }`}>{index === 0 ? "ease" : "push"}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Bar chart */}
+      <div className="flex-1 min-h-[180px]">
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={data} margin={{ top: 16, right: 4, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+            <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#6b7280", fontFamily: "Space Mono" }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 9, fill: "#6b7280", fontFamily: "Space Mono" }} axisLine={false} tickLine={false} />
+            <ReferenceLine y={avg} stroke="rgba(230,137,42,0.25)" strokeDasharray="4 4"
+              label={{ value: "avg", position: "right", fontSize: 9, fill: "#6b7280" }} />
             <Tooltip
-              contentStyle={{
-                background: "#0d1320",
-                border: "1px solid rgba(139,92,246,0.2)",
-                borderRadius: "10px",
-                fontSize: "12px",
-                fontFamily: "Space Mono",
-                color: "#f8fafc",
-              }}
+              contentStyle={{ background: "#0b1020", border: "1px solid rgba(230,137,42,0.2)", borderRadius: 10, fontSize: 12, fontFamily: "Space Mono", color: "#f8fafc" }}
               itemStyle={{ color: "#e2e8f0" }}
-              labelStyle={{ color: "#94a3b8" }}
+              labelStyle={{ color: "#9ca3af" }}
               formatter={(value: unknown) => [`${value} covers`, "Expected"]}
-              cursor={{ fill: "rgba(139,92,246,0.08)" }}
+              cursor={{ fill: "rgba(230,137,42,0.06)" }}
             />
-            <Bar dataKey="covers" radius={[4, 4, 0, 0]}>
+            <Bar dataKey="covers" radius={[3, 3, 0, 0]}>
               {data.map((entry) => (
                 <Cell
                   key={entry.hour}
                   fill={
                     entry.covers === peak
-                      ? "#8b5cf6"
+                      ? "#efa345"
                       : entry.inWindow
-                        ? "rgba(139,92,246,0.45)"
-                        : "rgba(139,92,246,0.18)"
+                        ? "rgba(230,137,42,0.45)"
+                        : "rgba(230,137,42,0.20)"
                   }
+                  style={entry.covers === peak ? { filter: "drop-shadow(0 0 12px rgba(230,137,42,0.5))" } : undefined}
                 />
               ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
-
-      <div className="mt-4 border-t border-white/5 pt-3 grid grid-cols-3 gap-2">
-        <div>
-          <p className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Peak / hr</p>
-          <p className="mt-0.5 text-sm font-semibold text-slate-200">{peak} covers</p>
-        </div>
-        <div>
-          <p className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Avg / hr</p>
-          <p className="mt-0.5 text-sm font-semibold text-slate-200">{avg} covers</p>
-        </div>
-        <div>
-          <p className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Window</p>
-          <p className="mt-0.5 text-sm font-semibold text-slate-200">{service_window ?? "18:00-22:00"}</p>
-        </div>
       </div>
-      {rangeText && (
-        <p className="mt-2 text-[10px] font-mono text-slate-500">range: {rangeText} covers</p>
-      )}
+
+      {/* Footer */}
+      <div className="mt-3 flex items-center justify-between border-t border-white/[0.05] pt-3 text-[11px] text-white/45">
+        <span>Rush window: <span className="font-mono text-ember-300/80">{service_window ?? "18:00-22:00"}</span></span>
+        <span>Peak: <span className="font-mono text-white/80">{peak} covers</span></span>
+      </div>
     </div>
   );
 }

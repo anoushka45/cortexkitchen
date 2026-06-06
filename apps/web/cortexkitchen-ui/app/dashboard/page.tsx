@@ -133,7 +133,7 @@ function SectionHeader({
 }: {
   label: string;
   description: string;
-  tone?: "violet" | "cyan" | "rose" | "emerald" | "amber" | "default";
+  tone?: "violet" | "ember" | "cyan" | "rose" | "emerald" | "amber" | "default";
   isOpen?: boolean;
   onToggle?: () => void;
   cards?: string[];
@@ -142,7 +142,8 @@ function SectionHeader({
     NonNullable<Parameters<typeof SectionHeader>[0]["tone"]>,
     { bar: string; label: string }
   > = {
-    violet: { bar: "bg-violet-400/70", label: "text-violet-200/80" },
+    violet:  { bar: "bg-violet-400/70",  label: "text-violet-200/80"  },
+    ember:   { bar: "bg-ember-400/70",   label: "text-ember-300/80"   },
     cyan: { bar: "bg-cyan-300/70", label: "text-cyan-200/80" },
     rose: { bar: "bg-rose-400/70", label: "text-rose-200/80" },
     emerald: { bar: "bg-emerald-300/70", label: "text-emerald-200/80" },
@@ -621,7 +622,7 @@ export default function DashboardPage() {
   if (authLoading || !user) return null;
 
   return (
-    <div className="min-h-screen bg-[#09111f] text-slate-100">
+    <div className="min-h-screen bg-ink-950 text-slate-100">
       <main className="mx-auto w-full max-w-[1520px] px-6 py-8 xl:px-14">
         <div className="space-y-6">
           {status === "idle" && (
@@ -654,27 +655,61 @@ export default function DashboardPage() {
 
           {status === "success" && data && (
             <>
+              {/* ── Breadcrumb + action bar ── */}
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3 text-[13px]">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-white/40">workspace</span>
+                  <span className="text-white/30">/</span>
+                  <span className="text-white capitalize">{data.scenario?.replace(/_/g, " ") ?? "Run"}</span>
+                  {data.target_date && (
+                    <><span className="text-white/30">/</span><span className="font-mono text-white/65">{data.target_date}</span></>
+                  )}
+                  <span className="rounded-full bg-emerald-500/[0.08] px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-400/30">
+                    Run complete
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => handleRun()}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-white/70 ring-1 ring-white/10 transition-colors hover:text-white"
+                  >
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    New run
+                  </button>
+                  <a href={`/api/v1/runs/${(data as unknown as Record<string,unknown>).id}/export`}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-white/70 ring-1 ring-white/10 transition-colors hover:text-white">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+                    </svg>
+                    Export PDF
+                  </a>
+                  <button
+                    onClick={() => setShowManagerBrief(true)}
+                    className="btn-primary inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold"
+                  >
+                    Open manager brief
+                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
               <CriticBanner
                 critic={data.critic}
                 generatedAt={data.generated_at}
                 targetDate={data.target_date}
-                actions={
-                  <button
-                    onClick={() => setShowManagerBrief(true)}
-                    className="rounded-xl border border-violet-400/20 bg-violet-500/10 px-4 py-2 text-xs font-mono uppercase tracking-[0.16em] text-violet-200 transition-all hover:bg-violet-500/15 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
-                  >
-                    open manager brief
-                  </button>
-                }
               />
 
               <DashboardSummary data={data} />
 
-              <div className="space-y-3">
+              <div className="mt-10 space-y-4">
                 <SectionHeader
                   label="Service Planning"
                   description="Demand pacing and reservation pressure for the current run."
-                  tone="violet"
+                  tone="ember"
                   isOpen={servicePlanningOpen}
                   onToggle={() => setServicePlanningOpen((v) => !v)}
                   cards={["Demand Forecast", "Reservation Pressure"]}
@@ -698,7 +733,7 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              <div className="space-y-3">
+              <div className="mt-10 space-y-4">
                 <SectionHeader
                   label="Operational Risk"
                   description="Customer sentiment and stock pressure shaping service execution."
@@ -727,10 +762,10 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              <div className="space-y-3">
+              <div className="mt-10 space-y-4">
                 <SectionHeader
                   label="Menu Direction"
-                  description="Commercial and operational guidance synthesized for this planning window."
+                  description="Commercial and operational guidance synthesised for this planning window."
                   tone="amber"
                   isOpen={menuDirectionOpen}
                   onToggle={() => setMenuDirectionOpen((v) => !v)}

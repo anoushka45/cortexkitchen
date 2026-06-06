@@ -42,9 +42,9 @@ const ICONS: Record<string, React.ReactNode> = {
 };
 
 const BASE_NAV = [
-  { href: "/dashboard",   label: "Dashboard"   },
+  { href: "/dashboard",   label: "Plan"        },
   { href: "/runs",        label: "Runs"        },
-  { href: "/data-health", label: "Data Health" },
+  { href: "/data-health", label: "Data health" },
 ];
 
 export default function NavBar() {
@@ -66,10 +66,15 @@ export default function NavBar() {
 
         {/* Brand */}
         <Link href="/dashboard" className="flex shrink-0 items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-slate-950/40">
+          <div className="grid h-8 w-8 place-items-center overflow-hidden rounded-lg bg-black ring-1 ring-white/10">
             <Image src="/ck-logo.png" alt="CortexKitchen" width={28} height={28} className="h-7 w-7 object-contain" priority />
           </div>
-          <span className="text-sm font-bold tracking-tight text-white">CortexKitchen</span>
+          <div className="leading-tight">
+            <div className="text-[14px] font-bold tracking-tight text-white">CortexKitchen</div>
+            {user.org_name && (
+              <div className="font-mono text-[9px] uppercase tracking-[0.24em] text-ember-300/70">{user.org_name}</div>
+            )}
+          </div>
         </Link>
 
         {/* Nav links */}
@@ -80,15 +85,15 @@ export default function NavBar() {
               <Link
                 key={href}
                 href={href}
-                className={`relative flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
+                className={`relative flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] transition-colors ${
                   active
-                    ? "text-violet-300 bg-violet-500/10"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.05]"
+                    ? "bg-white/[0.05] text-white"
+                    : "text-white/55 hover:bg-white/[0.04] hover:text-white"
                 }`}
               >
-                <span className={active ? "text-violet-400" : "text-slate-500"}>{ICONS[href]}</span>
+                {active && <span className="h-1.5 w-1.5 rounded-full bg-ember-400 shrink-0" />}
+                {!active && <span className={active ? "text-ember-400" : "text-slate-600"}>{ICONS[href]}</span>}
                 {label}
-                {active && <span className="absolute inset-x-2 -bottom-[1px] h-px bg-violet-500/60" />}
               </Link>
             );
           })}

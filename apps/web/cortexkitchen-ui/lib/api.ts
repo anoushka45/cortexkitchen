@@ -104,6 +104,53 @@ export async function runPlanningScenario(
   return res.json() as Promise<FridayRushResponse>;
 }
 
+export type SSENodeEvent   = { event: "node_complete"; node: string; cached?: boolean };
+export type SSECompleteEvent = { event: "complete" } & FridayRushResponse;
+export type SSEErrorEvent  = { event: "error"; message: string };
+export type SSEEvent = SSENodeEvent | SSECompleteEvent | SSEErrorEvent;
+
+export async function* streamPlanningScenario(
+  request: FridayRushRequest = {}
+): AsyncGenerator<SSEEvent> {
+  const res = await fetch(`${BASE_URL}/api/v1/planning/stream`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(request),
+  });
+
+  if (!res.ok || !res.body) {
+    throw new Error(`Stream failed: ${res.status}`);
+  }
+
+  const reader  = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer    = "";
+  let eventType = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (line.startsWith("event:")) {
+        eventType = line.slice(6).trim();
+      } else if (line.startsWith("data:")) {
+        const raw = line.slice(5).trim();
+        if (!raw) continue;
+        try {
+          const parsed = JSON.parse(raw);
+          yield { event: eventType, ...parsed } as SSEEvent;
+        } catch { /* skip malformed line */ }
+        eventType = "";
+      }
+    }
+  }
+}
+
 export async function getPlanningScenarios(): Promise<PlanningScenarioOption[]> {
   const res = await fetch(`${BASE_URL}/api/v1/planning/scenarios`, {
     headers: authHeaders(),

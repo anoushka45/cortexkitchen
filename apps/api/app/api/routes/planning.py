@@ -94,10 +94,18 @@ async def run_planning(
         cached = await get_cached_plan(cache_key)
         if cached:
             cached["cache_hit"] = True
-            # Zero out cost fields — no LLM calls were made for this request
             if "meta" in cached:
                 cached["meta"]["total_cost_usd"] = 0.0
                 cached["meta"]["cache_hit"] = True
+            # Persist cache hits so every run appears in history
+            try:
+                run = RunService(deps["db"]).create_from_response(
+                    cached,
+                    org_id=current_user.get("org_id"),
+                )
+                cached["meta"]["planning_run_id"] = run.id
+            except Exception:
+                pass
             return FridayRushResponse(**cached)
 
     # Pull org settings so agents use tenant-configured capacity and hours

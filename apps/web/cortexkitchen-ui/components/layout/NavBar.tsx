@@ -134,6 +134,21 @@ export default function NavBar() {
           </div>
         )}
 
+        {/* History quick link */}
+        <Link
+          href="/runs"
+          className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-mono uppercase tracking-wider transition-colors ${
+            pathname === "/runs"
+              ? "border-ember-500/30 bg-ember-500/[0.08] text-ember-300"
+              : "border-white/10 bg-white/[0.03] text-white/55 hover:border-white/20 hover:text-white"
+          }`}
+        >
+          <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          History
+        </Link>
+
         {/* User + sign out */}
         <div className="flex shrink-0 items-center gap-3">
           <div className="hidden text-right sm:block">

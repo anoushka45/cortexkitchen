@@ -20,7 +20,7 @@ export default function DataHealthPage() {
       <div className="mx-auto max-w-[1520px] space-y-6">
         <header className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-mono uppercase tracking-[0.22em] text-cyan-300">
+            <p className="text-xs font-mono uppercase tracking-[0.22em] text-violet-300">
               source data
             </p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight">Data Health</h1>

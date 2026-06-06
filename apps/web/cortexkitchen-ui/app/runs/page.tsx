@@ -9,6 +9,77 @@ import { getPlanningRun, listPlanningRuns } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth-cookies";
 import { PlanningRunDetail, PlanningRunSummary } from "@/types/planning";
 
+// ── Agent output display ──────────────────────────────────────────────────────
+
+const AGENT_LABELS: Record<string, string> = {
+  forecast:    "Demand Forecast",
+  reservation: "Reservation Pressure",
+  complaint:   "Complaint Intelligence",
+  menu:        "Menu Intelligence",
+  inventory:   "Inventory Status",
+};
+
+const AGENT_ACCENT: Record<string, { dot: string; border: string; bg: string }> = {
+  forecast:    { dot: "bg-violet-400",  border: "border-violet-500/20",  bg: "bg-violet-500/[0.04]"  },
+  reservation: { dot: "bg-cyan-400",    border: "border-cyan-500/20",    bg: "bg-cyan-500/[0.04]"    },
+  complaint:   { dot: "bg-rose-400",    border: "border-rose-500/20",    bg: "bg-rose-500/[0.04]"    },
+  menu:        { dot: "bg-amber-400",   border: "border-amber-500/20",   bg: "bg-amber-500/[0.04]"   },
+  inventory:   { dot: "bg-emerald-400", border: "border-emerald-500/20", bg: "bg-emerald-500/[0.04]" },
+};
+
+const PRIORITY_CLS: Record<string, string> = {
+  high:   "text-rose-400   border-rose-500/20   bg-rose-500/10",
+  medium: "text-amber-400  border-amber-500/20  bg-amber-500/10",
+  low:    "text-emerald-400 border-emerald-500/20 bg-emerald-500/10",
+};
+
+function AgentOutputCard({ agentKey, data }: { agentKey: string; data: unknown }) {
+  const accent = AGENT_ACCENT[agentKey] ?? { dot: "bg-slate-400", border: "border-white/10", bg: "bg-white/[0.02]" };
+  const label  = AGENT_LABELS[agentKey] ?? agentKey.replace(/_/g, " ");
+
+  if (!data || typeof data !== "object") return null;
+  const obj = data as Record<string, unknown>;
+
+  const TEXT_KEYS  = ["recommendation", "reasoning", "overall_summary"];
+  const LIST_KEYS  = ["restock_actions", "action_items", "highlight_items", "risks"];
+  const mainText   = TEXT_KEYS.map(k => obj[k]).find((v): v is string => typeof v === "string");
+  const priority   = typeof obj.priority === "string" ? obj.priority.toLowerCase() : null;
+  const listEntry  = LIST_KEYS.map(k => ({ key: k, items: Array.isArray(obj[k]) ? obj[k] as string[] : [] })).find(e => e.items.length > 0);
+
+  return (
+    <div className={`rounded-lg border ${accent.border} ${accent.bg} p-4`}>
+      <div className="flex items-center gap-2 mb-3">
+        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${accent.dot}`} />
+        <p className="text-xs font-mono uppercase tracking-[0.14em] text-slate-400">{label}</p>
+        {priority && (
+          <span className={`ml-auto rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase ${PRIORITY_CLS[priority] ?? "text-slate-500 border-white/10 bg-white/5"}`}>
+            {priority}
+          </span>
+        )}
+      </div>
+      {mainText && (
+        <p className="text-sm text-slate-300 leading-relaxed">{mainText}</p>
+      )}
+      {listEntry && (
+        <ul className="mt-2.5 space-y-1">
+          {listEntry.items.slice(0, 3).map((item, i) => (
+            <li key={i} className="flex gap-2 text-xs text-slate-400">
+              <span className="text-slate-600 shrink-0 mt-0.5">·</span>
+              <span className="leading-relaxed">{item}</span>
+            </li>
+          ))}
+          {listEntry.items.length > 3 && (
+            <li className="text-[10px] text-slate-600 pl-3">+{listEntry.items.length - 3} more</li>
+          )}
+        </ul>
+      )}
+      {!mainText && !listEntry && (
+        <p className="text-xs text-slate-600 italic">No summary available.</p>
+      )}
+    </div>
+  );
+}
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const SCENARIOS = [
@@ -478,8 +549,12 @@ export default function RunsPage() {
           {/* Run detail */}
           <section className="space-y-5 xl:col-span-8">
             {!selected ? (
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] px-5 py-8 text-sm text-slate-500">
-                Select a run to inspect its audit detail.
+              <div className="rounded-lg border border-white/10 bg-white/[0.03] px-5 py-12 flex flex-col items-center gap-3 text-center">
+                <svg className="h-8 w-8 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <p className="text-sm text-slate-500">Select a run to inspect its audit detail.</p>
+                <p className="text-xs text-slate-700">Critic verdict, dimension scores, agent outputs, and export options.</p>
               </div>
             ) : (
               <>
@@ -499,16 +574,22 @@ export default function RunsPage() {
                       <button
                         onClick={() => downloadPdf(selected.id, selected.scenario)}
                         disabled={exportingPdf}
-                        className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+                        className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
                       >
-                        {exportingPdf ? "Exporting…" : "↓ PDF"}
+                        <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        {exportingPdf ? "Exporting…" : "PDF"}
                       </button>
                       <button
                         onClick={() => downloadExcel(selected.id, selected.scenario)}
                         disabled={exportingExcel}
-                        className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+                        className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
                       >
-                        {exportingExcel ? "Exporting…" : "↓ Excel"}
+                        <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        {exportingExcel ? "Exporting…" : "Excel"}
                       </button>
                     </div>
                   </div>
@@ -569,15 +650,15 @@ export default function RunsPage() {
                       <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500">Actionable Feedback</p>
                       <ul className="mt-2 space-y-2 text-sm text-slate-300">
                         {selected.critic.actionable_feedback.map((item, i) => (
-                          <li key={i} className="rounded-lg border border-cyan-400/10 bg-cyan-500/5 px-3 py-2">{item}</li>
+                          <li key={i} className="rounded-lg border border-violet-400/10 bg-violet-500/5 px-3 py-2">{item}</li>
                         ))}
                       </ul>
                     </div>
                   ) : null}
 
                   {selected.critic?.cost_analysis && (
-                    <div className="mt-5 rounded-lg border border-cyan-400/10 bg-cyan-500/5 p-4">
-                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-cyan-200">Cost-Aware Scoring</p>
+                    <div className="mt-5 rounded-lg border border-violet-400/10 bg-violet-500/5 p-4">
+                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-violet-300">Cost-Aware Scoring</p>
                       <div className="mt-3 grid grid-cols-3 gap-3">
                         <Metric label="cost pressure" value={`${Math.round(selected.critic.cost_analysis.cost_pressure_score * 100)}/100`} />
                         <Metric label="benefit"       value={`${Math.round(selected.critic.cost_analysis.benefit_score * 100)}/100`} />
@@ -587,18 +668,16 @@ export default function RunsPage() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  {selectedAgents.map(([name, value]) => (
-                    <div key={name} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                      <p className="font-mono text-xs uppercase tracking-[0.16em] text-slate-500">{name}</p>
-                      <div className="mt-3 rounded-lg border border-white/5 bg-slate-950/60 overflow-hidden">
-                        <pre className="max-h-48 overflow-y-auto p-3 whitespace-pre-wrap text-xs leading-5 text-slate-300">
-                          {JSON.stringify(value, null, 2)}
-                        </pre>
-                      </div>
+                {selectedAgents.length > 0 && (
+                  <div>
+                    <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500 mb-3">Agent Outputs</p>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      {selectedAgents.map(([name, value]) => (
+                        <AgentOutputCard key={name} agentKey={name} data={value} />
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
               </>
             )}
           </section>
@@ -617,7 +696,7 @@ function Metric({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-lg border border-white/10 bg-slate-950/40 p-3">
       <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-slate-100">{value}</p>
+      <p className="mt-1.5 text-xl font-bold tabular-nums text-slate-100 leading-none">{value}</p>
     </div>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Image from "next/image";
 import AgentCard from "@/components/dashboard/AgentCard";
 import CriticBanner from "@/components/dashboard/CriticBanner";
 import DashboardDetailModal from "@/components/dashboard/DashboardDetailModal";
@@ -545,8 +544,8 @@ export default function DashboardPage() {
   const [showManagerBrief, setShowManagerBrief] = useState(false);
   const [selectedScenario, setSelectedScenario] = useState<PlanningScenarioOption["id"]>("friday_rush");
   const [servicePlanningOpen, setServicePlanningOpen] = useState(true);
-  const [operationalRiskOpen, setOperationalRiskOpen] = useState(false);
-  const [menuDirectionOpen, setMenuDirectionOpen] = useState(false);
+  const [operationalRiskOpen, setOperationalRiskOpen] = useState(true);
+  const [menuDirectionOpen, setMenuDirectionOpen] = useState(true);
 
   const handleHistorySelect = async (entry: RunHistoryEntry) => {
     setActiveHistoryId(entry.id);
@@ -561,63 +560,33 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#09111f] text-slate-100">
-      <header
-        className="sticky top-0 z-10 border-b backdrop-blur-md shadow-[0_14px_55px_rgba(2,8,23,0.45)]"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(9,17,31,0.92), rgba(9,17,31,0.84))",
-          borderColor: "rgba(139,92,246,0.25)",
-        }}
-      >
-        <div className="mx-auto flex max-w-[1520px] items-center justify-between gap-4 px-6 py-4 xl:px-14">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/30 overflow-hidden">
-              <Image
-                src="/ck-logo.png"
-                alt="CortexKitchen"
-                width={48}
-                height={48}
-                className="h-12 w-12 object-contain"
-                priority
-              />
-            </div>
-            <div>
-              <h1 className="text-base font-semibold tracking-tight text-slate-100 md:text-lg">
-                CortexKitchen
-              </h1>
-              <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-slate-500">
-                ops intelligence
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
+      <div className="sticky top-14 z-10 border-b border-white/[0.07] bg-[#09111f]/95 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-[1520px] items-center justify-between gap-4 px-6 py-2.5 xl:px-14">
+          <p className="text-xs font-mono uppercase tracking-[0.20em] text-slate-600">planning console</p>
+          <div className="flex items-center gap-2">
             <ScenarioSelector
               selectedScenario={selectedScenario}
               onScenarioChange={setSelectedScenario}
             />
-
-            <div className="flex gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
-              {history.length > 0 && (
-                <button
-                  onClick={() => setShowHistoryDrawer(true)}
-                  className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-xs font-mono text-slate-300 transition-all hover:bg-slate-900 hover:text-white hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
-                >
-                  history ({history.length})
-                </button>
-              )}
-              {data && status === "success" && (
-                <button
-                  onClick={reset}
-                  className="rounded-xl border border-white/10 bg-transparent px-3 py-2 text-xs font-mono text-slate-400 transition-all hover:bg-white/5 hover:text-slate-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
-                >
-                  reset view
-                </button>
-              )}
-            </div>
+            {history.length > 0 && (
+              <button
+                onClick={() => setShowHistoryDrawer(true)}
+                className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-mono text-slate-400 transition-colors hover:bg-white/[0.06] hover:text-slate-200"
+              >
+                history ({history.length})
+              </button>
+            )}
+            {data && status === "success" && (
+              <button
+                onClick={reset}
+                className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-mono text-slate-500 transition-colors hover:text-slate-300"
+              >
+                reset
+              </button>
+            )}
           </div>
         </div>
-      </header>
+      </div>
 
       <main className="mx-auto w-full max-w-[1520px] px-6 py-8 xl:px-14">
         <div className="space-y-6">

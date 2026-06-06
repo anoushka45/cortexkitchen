@@ -606,11 +606,11 @@ export default function RunsPage() {
                     {selected.metadata?.total_duration_ms != null && (
                       <span>Duration: <span className="text-slate-300">{Math.round(selected.metadata.total_duration_ms as number)}ms</span></span>
                     )}
-                    {selected.metadata?.llm_model && (
+                    {!!selected.metadata?.llm_model && (
                       <span className="inline-flex items-center gap-1">
                         <span className="h-1.5 w-1.5 rounded-full bg-ember-400/70" />
                         <span className="font-mono text-ember-300/80">{selected.metadata.llm_model as string}</span>
-                        {selected.metadata?.llm_provider && (
+                        {!!selected.metadata?.llm_provider && (
                           <span className="text-slate-600">· {selected.metadata.llm_provider as string}</span>
                         )}
                       </span>

@@ -38,6 +38,7 @@ class RunService:
 
     def list_runs(
         self,
+        org_id: int,
         limit: int = 25,
         scenario: str | None = None,
         status: str | None = None,
@@ -45,7 +46,7 @@ class RunService:
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> list[PlanningRun]:
-        query = self.db.query(PlanningRun)
+        query = self.db.query(PlanningRun).filter(PlanningRun.org_id == org_id)
         if scenario:
             query = query.filter(PlanningRun.scenario == scenario)
         if status:
@@ -62,8 +63,12 @@ class RunService:
             .all()
         )
 
-    def get_run(self, run_id: int) -> PlanningRun | None:
-        return self.db.query(PlanningRun).filter(PlanningRun.id == run_id).first()
+    def get_run(self, run_id: int, org_id: int) -> PlanningRun | None:
+        return (
+            self.db.query(PlanningRun)
+            .filter(PlanningRun.id == run_id, PlanningRun.org_id == org_id)
+            .first()
+        )
 
     def to_summary(self, run: PlanningRun) -> dict[str, Any]:
         return {

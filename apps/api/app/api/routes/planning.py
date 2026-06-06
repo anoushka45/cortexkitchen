@@ -149,6 +149,7 @@ async def run_planning(
             org_peak_hours=org_peak_hours,
             restaurant_profile=restaurant_profile,
             critic_threshold=org_critic_threshold,
+            org_id=current_user["org_id"],
         )
     except AppError:
         raise
@@ -262,6 +263,7 @@ async def stream_planning(
                 org_peak_hours=org_peak_hours,
                 restaurant_profile=restaurant_profile,
                 critic_threshold=org_critic_threshold,
+                org_id=current_user["org_id"],
             ):
                 if evt["event"] == "node_complete":
                     yield _sse("node_complete", {"node": evt["node"]})
@@ -382,7 +384,9 @@ async def friday_rush(
 
     meta = _decorate_meta(result, body, "friday_rush")
     try:
-        run = RunService(deps["db"]).create_from_response({**result, "meta": meta})
+        run = RunService(deps["db"]).create_from_response(
+            {**result, "meta": meta}, org_id=current_user.get("org_id")
+        )
         meta.setdefault("planning_run_id", run.id)
     except Exception as exc:
         meta.setdefault("run_persistence_error", str(exc))

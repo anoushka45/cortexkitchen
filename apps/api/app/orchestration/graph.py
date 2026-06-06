@@ -255,6 +255,7 @@ async def run_planning_scenario(
     org_peak_hours: str = "18:00-22:00",
     restaurant_profile: dict | None = None,
     critic_threshold: float = 0.7,
+    org_id: int | None = None,
 ) -> dict:
     """
     Top-level convenience function for a named planning scenario.
@@ -298,6 +299,7 @@ async def run_planning_scenario(
     initial_state["simulation_mode"] = simulation_mode
     initial_state["force_critic_decision"] = force_critic_decision
     initial_state["debug"] = debug
+    initial_state["org_id"] = org_id
     initial_state["org_capacity"] = effective_capacity
     initial_state["org_peak_hours"] = effective_peak_hours
     initial_state["critic_threshold"] = critic_threshold
@@ -392,6 +394,7 @@ async def stream_planning_scenario(
     org_peak_hours: str = "18:00-22:00",
     restaurant_profile: dict | None = None,
     critic_threshold: float = 0.7,
+    org_id: int | None = None,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """
     Streams planning results node-by-node for SSE delivery.
@@ -421,6 +424,7 @@ async def stream_planning_scenario(
         "simulation_mode":        simulation_mode,
         "force_critic_decision":  force_critic_decision,
         "debug":                  debug,
+        "org_id":                 org_id,
         "org_capacity":           effective_capacity,
         "org_peak_hours":         effective_peak_hours,
         "critic_threshold":       critic_threshold,

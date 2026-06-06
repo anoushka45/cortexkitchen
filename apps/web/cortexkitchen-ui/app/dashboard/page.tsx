@@ -161,7 +161,7 @@ function IdleState({
   historyCount,
   onShowHistory,
 }: {
-  onRun: (date?: string) => void;
+  onRun: (date?: string, restaurantName?: string) => void;
   selectedScenario: PlanningScenarioOption["id"];
   onScenarioChange: (scenario: PlanningScenarioOption["id"]) => void;
   historyCount: number;
@@ -287,7 +287,7 @@ function IdleState({
 
             {/* CTA */}
             <div className="stagger-3">
-              <DatePicker onRun={onRun} loading={false} scenario={scenario} />
+              <DatePicker onRun={(date) => onRun(date, activeProfile?.name ?? undefined)} loading={false} scenario={scenario} />
             </div>
 
             {/* Footer row: step chips + history */}
@@ -400,7 +400,7 @@ function GraphNode({
   );
 }
 
-function LoadingState({ completedNodes }: { completedNodes: Set<string> }) {
+function LoadingState({ completedNodes, scenarioLabel, restaurantName }: { completedNodes: Set<string>; scenarioLabel?: string; restaurantName?: string | null }) {
   // Derive node states from real SSE data — no fake timers
   const forecastDone  = completedNodes.has("forecast");
   const aggDone       = completedNodes.has("aggregator");
@@ -448,11 +448,23 @@ function LoadingState({ completedNodes }: { completedNodes: Set<string> }) {
             {criticDone ? "Complete" : "Pipeline live"}
           </span>
         </div>
-        <h1 className="text-[32px] font-semibold tracking-[-0.015em] text-white leading-[1.05]">
-          {criticDone ? "Your brief is ready." : "Preparing your brief…"}
+        <h1 className="text-[30px] font-semibold tracking-[-0.015em] text-white leading-[1.1]">
+          {criticDone ? "Your brief is ready." : (
+            <>
+              Preparing your brief,{" "}
+              <span className="display-it text-ember-300">
+                {restaurantName ?? "Chef"}!
+              </span>
+            </>
+          )}
         </h1>
+        {!criticDone && scenarioLabel && (
+          <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.24em] text-white/35">
+            for the {scenarioLabel} scenario
+          </p>
+        )}
         <p className="mt-3 text-[13px] leading-[1.7] text-white/45 max-w-xs mx-auto">
-          Five agents read your kitchen data in parallel before a critic verifies the plan.
+          Five agents are reading your kitchen data — a critic verifies before anything reaches you.
         </p>
       </div>
 
@@ -551,6 +563,7 @@ export default function DashboardPage() {
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
   const [showManagerBrief, setShowManagerBrief] = useState(false);
   const [showWhatIf,       setShowWhatIf]       = useState(false);
+  const [runMeta, setRunMeta] = useState<{ scenarioLabel: string; restaurantName: string | null }>({ scenarioLabel: "", restaurantName: null });
   const [servicePlanningOpen, setServicePlanningOpen] = useState(true);
   const [operationalRiskOpen, setOperationalRiskOpen] = useState(true);
   const [menuDirectionOpen, setMenuDirectionOpen] = useState(true);
@@ -582,8 +595,12 @@ export default function DashboardPage() {
     setShowHistoryDrawer(false);
   };
 
-  const handleRun = (date?: string) => {
+  const handleRun = (date?: string, restaurantName?: string) => {
     setActiveHistoryId(undefined);
+    setRunMeta({
+      scenarioLabel: SCENARIO_OPTIONS.find(s => s.id === selectedScenario)?.label ?? selectedScenario,
+      restaurantName: restaurantName ?? user?.org_name ?? null,
+    });
     trigger(date, selectedScenario);
   };
 
@@ -603,7 +620,7 @@ export default function DashboardPage() {
             />
           )}
 
-          {status === "loading" && <LoadingState completedNodes={completedNodes} />}
+          {status === "loading" && <LoadingState completedNodes={completedNodes} scenarioLabel={runMeta.scenarioLabel} restaurantName={runMeta.restaurantName} />}
 
           {status === "error" && error && (
             <div

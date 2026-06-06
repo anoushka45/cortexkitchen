@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
     jwt_access_token_expire_minutes: int = Field(default=60 * 24 * 7, alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
 
+    # Sentry error tracking (leave blank to disable)
+    sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
+
     # LangSmith tracing
     langsmith_tracing: str = Field(default="false", alias="LANGSMITH_TRACING")
     langsmith_api_key: str = Field(default="", alias="LANGSMITH_API_KEY")

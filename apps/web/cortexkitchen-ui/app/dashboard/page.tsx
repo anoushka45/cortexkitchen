@@ -10,6 +10,7 @@ import DatePicker from "@/components/dashboard/DatePicker";
 import ForecastChart from "@/components/dashboard/ForecastChart";
 import ManagerActionPanel from "@/components/dashboard/ManagerActionPanel";
 import RagContextDrawer from "@/components/dashboard/RagContextDrawer";
+import WhatIfPanel from "@/components/dashboard/WhatIfPanel";
 import RunHistory from "@/components/dashboard/RunHistory";
 import { useAuth } from "@/context/AuthContext";
 import { DashStatus, useDashboardCtx } from "@/context/DashboardContext";
@@ -747,6 +748,23 @@ export default function DashboardPage() {
               </div>
 
               <RagContextDrawer ragContext={data.rag_context} />
+
+              {/* What-if simulator */}
+              {(() => {
+                const fc = data.recommendations?.forecast as Record<string, unknown> | null;
+                const fcData = fc?.data as Record<string, unknown> | null ?? fc;
+                const baseCovers = Number(fcData?.predicted_orders ?? 0);
+                const avgCovers  = Number(fcData?.avg_same_day_orders ?? fcData?.avg_friday_orders ?? baseCovers);
+                const svcWindow  = (fcData?.service_window as string) ?? "18:00-22:00";
+                return baseCovers > 0 ? (
+                  <WhatIfPanel
+                    baseCovers={baseCovers}
+                    avgCovers={avgCovers}
+                    scenario={data.scenario ?? "friday_rush"}
+                    serviceWindow={svcWindow}
+                  />
+                ) : null;
+              })()}
 
               {/* Re-run bar */}
               <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

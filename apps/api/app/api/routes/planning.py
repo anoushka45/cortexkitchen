@@ -14,9 +14,12 @@ from app.api.schemas.planning import (
     FridayRushResponse,
     PlanningRunRequest,
     PlanningScenarioListResponse,
+    WhatIfRequest,
+    WhatIfResponse,
 )
 from app.core.exceptions import AppError
 from app.domain.scenarios import list_scenarios
+from app.domain.services.cost_aware_scoring import CostAwareScoringService
 from app.domain.services.run_service import RunService
 from app.infrastructure.cache.plan_cache import build_cache_key, cache_plan, get_cached_plan
 from app.orchestration import run_friday_rush, run_planning_scenario, stream_planning_scenario
@@ -292,6 +295,52 @@ async def stream_planning(
         event_generator(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.post(
+    "/whatif",
+    response_model=WhatIfResponse,
+    summary="What-if demand simulator",
+    description=(
+        "Recalculates demand ratios and cost/benefit tradeoffs for a user-supplied cover count. "
+        "No LLM calls — purely deterministic. Use to explore 'what if I expect X covers?' without a full run."
+    ),
+)
+def whatif_planning(
+    body: WhatIfRequest,
+    current_user: dict = Depends(get_current_user),
+) -> WhatIfResponse:
+    bundle = {
+        "agents": {
+            "forecast": {
+                "data": {
+                    "predicted_orders":    body.predicted_covers,
+                    "avg_friday_orders":   body.avg_covers,
+                    "avg_same_day_orders": body.avg_covers,
+                },
+                "recommendation": {},
+            },
+            "reservation": {"data": {"occupancy_pct": 0, "waitlist_count": 0}, "recommendation": {}},
+            "inventory":   {"data": {"shortage_alerts": [], "overstock_alerts": []}, "recommendation": {}},
+            "menu":        {"recommendation": {}},
+        }
+    }
+
+    result = CostAwareScoringService().evaluate_bundle(bundle)
+
+    return WhatIfResponse(
+        scenario=body.scenario,
+        service_window=body.service_window,
+        predicted_covers=body.predicted_covers,
+        avg_covers=body.avg_covers,
+        demand_ratio=result["signals"]["demand_ratio"],
+        cost_pressure_score=result["cost_pressure_score"],
+        benefit_score=result["benefit_score"],
+        tradeoff_score=result["tradeoff_score"],
+        pressure_components=result["pressure_components"],
+        tradeoff_notes=result["tradeoff_notes"],
+        recommended_focus=result["recommended_focus"],
     )
 
 

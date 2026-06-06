@@ -5,11 +5,34 @@
 @import "@fontsource/space-mono/400.css";
 @import "@fontsource/space-mono/700.css";
 
+/* Instrument Serif — display / editorial italic headings */
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
+
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Plus Jakarta Sans", sans-serif;
-  --font-mono: "Space Mono", monospace;
+  /* ── Fonts ─────────────────────────────────────────────────────── */
+  --font-sans:    "Plus Jakarta Sans", sans-serif;
+  --font-mono:    "Space Mono", monospace;
+  --font-display: "Instrument Serif", Georgia, serif;
+
+  /* ── Ink palette (warm dark backgrounds) ───────────────────────── */
+  --color-ink-950: #070a12;
+  --color-ink-900: #0b1020;
+  --color-ink-850: #0e1426;
+  --color-ink-800: #131a2e;
+  --color-ink-700: #1b243d;
+  --color-ink-600: #283353;
+
+  /* ── Ember palette (amber/gold accent) ─────────────────────────── */
+  --color-ember-50:  #fff7ec;
+  --color-ember-200: #fad9a3;
+  --color-ember-300: #f5be73;
+  --color-ember-400: #efa345;
+  --color-ember-500: #e6892a;
+  --color-ember-600: #c46e1b;
+
+  /* ── Legacy violet tokens — kept so existing components don't break */
   --color-navy-950: #080c14;
   --color-navy-900: #0d1320;
   --color-navy-800: #121a2e;
@@ -20,17 +43,15 @@
   --color-gold-600: #d97706;
 }
 
-/* ── Reset & base ─────────────────────────────────────── */
+/* ── Reset & base ────────────────────────────────────────────── */
 
-*, *::before, *::after {
-  box-sizing: border-box;
-}
+*, *::before, *::after { box-sizing: border-box; }
 
 html, body {
   margin: 0;
   padding: 0;
-  background-color: #080c14;
-  color: #f1f5f9;
+  background-color: #070a12;
+  color: #e7eaf2;
   font-family: "Plus Jakarta Sans", sans-serif;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
@@ -38,40 +59,152 @@ html, body {
 
 body {
   background-image:
-    linear-gradient(rgba(139,92,246,0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(139,92,246,0.04) 1px, transparent 1px);
-  background-size: 32px 32px;
+    linear-gradient(rgba(180,160,120,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(180,160,120,0.04) 1px, transparent 1px);
+  background-size: 56px 56px;
 }
 
-/* ── Scrollbar ────────────────────────────────────────── */
+/* ── Scrollbar ───────────────────────────────────────────────── */
 
 ::-webkit-scrollbar       { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #080c14; }
-::-webkit-scrollbar-thumb { background: rgba(139,92,246,0.3); border-radius: 3px; }
+::-webkit-scrollbar-track { background: #070a12; }
+::-webkit-scrollbar-thumb { background: rgba(230,137,42,0.25); border-radius: 3px; }
 
-/* ── Card ─────────────────────────────────────────────── */
+/* ── Display font helpers ────────────────────────────────────── */
+
+.display    { font-family: "Instrument Serif", Georgia, serif; letter-spacing: -0.01em; }
+.display-it { font-family: "Instrument Serif", Georgia, serif; font-style: italic; letter-spacing: -0.015em; }
+
+/* ── Background textures ─────────────────────────────────────── */
+
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(180,160,120,0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(180,160,120,0.045) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+.dot-bg {
+  background-image: radial-gradient(rgba(230,137,42,0.10) 1px, transparent 1.5px);
+  background-size: 22px 22px;
+}
+
+/* ── Surface effects ─────────────────────────────────────────── */
+
+.glass {
+  background: rgba(8,12,22,0.66);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.hairline      { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06); }
+.hairline-warm { box-shadow: inset 0 0 0 1px rgba(230,137,42,0.18); }
+.ring-warm     { box-shadow: 0 0 0 1px rgba(230,137,42,0.22), 0 24px 60px -20px rgba(230,137,42,0.18); }
+
+/* ── Primary button ──────────────────────────────────────────── */
+
+.btn-primary {
+  background: linear-gradient(180deg, #f0a648 0%, #de7e1d 100%);
+  color: #1a0f02;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    0 1px 0 rgba(0,0,0,0.4),
+    0 14px 28px -12px rgba(230,137,42,0.55);
+}
+.btn-primary:hover { filter: brightness(1.05); }
+
+/* ── Chip dot prefix ─────────────────────────────────────────── */
+
+.chip-dot::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 99px;
+  background: currentColor;
+  margin-right: 8px;
+}
+
+/* ── Progress meter ──────────────────────────────────────────── */
+
+.meter { height: 4px; border-radius: 4px; background: rgba(255,255,255,0.04); overflow: hidden; }
+.meter > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #efa345, #e6892a);
+}
+
+/* ── Scenario card ───────────────────────────────────────────── */
+
+.scen { transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
+.scen:hover { transform: translateY(-2px); border-color: rgba(230,137,42,0.35); }
+.scen.active {
+  border-color: rgba(230,137,42,0.55);
+  background: linear-gradient(180deg, rgba(230,137,42,0.10), rgba(230,137,42,0.02));
+}
+
+/* ── Status pulse ring ───────────────────────────────────────── */
+
+.pulse { position: relative; }
+.pulse::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 99px;
+  border: 1px solid currentColor;
+  opacity: .5;
+  animation: pulse 1.6s ease-out infinite;
+}
+@keyframes pulse {
+  0%   { transform: scale(.6); opacity: .6; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+/* ── Num display (Instrument Serif figures) ──────────────────── */
+
+.num-display {
+  font-family: "Instrument Serif", Georgia, serif;
+  font-feature-settings: "lnum","tnum";
+}
+
+/* ── Animated sparkline ──────────────────────────────────────── */
+
+.sparkline { stroke-dasharray: 240; stroke-dashoffset: 240; animation: draw 1.8s ease forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+/* ── Logo marquee ────────────────────────────────────────────── */
+
+.marquee-track { animation: marquee 38s linear infinite; }
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+/* ── Animated bar chart ──────────────────────────────────────── */
+
+.bar { animation: bar 1s ease forwards; transform-origin: bottom; transform: scaleY(0); }
+@keyframes bar { to { transform: scaleY(1); } }
+
+/* ── Card (legacy — keeps existing components working) ───────── */
 
 .card {
-  background: #0d1320;
-  border: 1px solid rgba(139,92,246,0.12);
+  background: #0b1020;
+  border: 1px solid rgba(230,137,42,0.10);
   border-radius: 12px;
-  box-shadow: 0 0 0 1px rgba(139,92,246,0.05), 0 4px 24px rgba(0,0,0,0.4);
+  box-shadow: 0 0 0 1px rgba(230,137,42,0.04), 0 4px 24px rgba(0,0,0,0.4);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
   will-change: transform;
 }
 
 .card:hover {
-  border-color: rgba(139,92,246,0.3);
-  box-shadow: 0 0 0 1px rgba(139,92,246,0.15), 0 8px 32px rgba(0,0,0,0.5);
+  border-color: rgba(230,137,42,0.22);
+  box-shadow: 0 0 0 1px rgba(230,137,42,0.10), 0 8px 32px rgba(0,0,0,0.5);
   transform: translateY(-3px);
 }
 
 .card:focus-within {
-  border-color: rgba(139,92,246,0.35);
-  box-shadow: 0 0 0 1px rgba(139,92,246,0.20), 0 10px 36px rgba(0,0,0,0.55);
+  border-color: rgba(230,137,42,0.28);
+  box-shadow: 0 0 0 1px rgba(230,137,42,0.14), 0 10px 36px rgba(0,0,0,0.55);
 }
 
-/* ── Pills ────────────────────────────────────────────── */
+/* ── Pills (legacy) ──────────────────────────────────────────── */
 
 .pill {
   display: inline-flex;
@@ -91,7 +224,7 @@ body {
 .pill-blocked { color: #fb7185; background: rgba(251,113,133,0.1); border-color: rgba(251,113,133,0.2); }
 .pill-unknown { color: #94a3b8; background: rgba(148,163,184,0.1); border-color: rgba(148,163,184,0.2); }
 
-/* ── Modal / overlay animations ──────────────────────── */
+/* ── Modal animations ────────────────────────────────────────── */
 
 @keyframes modalIn {
   from { opacity: 0; transform: scale(0.96) translateY(8px); }
@@ -103,7 +236,7 @@ body {
   to   { opacity: 1; }
 }
 
-/* ── Stagger animations ───────────────────────────────── */
+/* ── Stagger entrance animations ─────────────────────────────── */
 
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(12px); }
@@ -118,32 +251,24 @@ body {
 .stagger-6 { animation: fadeUp 0.4s ease 0.30s both; }
 .stagger-7 { animation: fadeUp 0.4s ease 0.35s both; }
 
-/* ── Shadows ──────────────────────────────────────────── */
+/* ── Glow shadows ────────────────────────────────────────────── */
 
-/* Reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  .stagger-1,
-  .stagger-2,
-  .stagger-3,
-  .stagger-4,
-  .stagger-5,
-  .stagger-6,
-  .stagger-7 {
-    animation: none !important;
-  }
-
-  .card {
-    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
-    transform: none !important;
-  }
-}
-
-.shadow-glow-violet  { box-shadow: 0 0 20px rgba(139,92,246,0.3);  }
+.shadow-glow-ember   { box-shadow: 0 0 20px rgba(230,137,42,0.35); }
 .shadow-glow-emerald { box-shadow: 0 0 20px rgba(16,185,129,0.3);  }
-.shadow-glow-amber   { box-shadow: 0 0 20px rgba(245,158,11,0.3);  }
 .shadow-glow-rose    { box-shadow: 0 0 20px rgba(244,63,94,0.3);   }
 
-/* ── Font mono utility ────────────────────────────────── */
+/* ── Reduce motion ───────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .stagger-1,.stagger-2,.stagger-3,.stagger-4,
+  .stagger-5,.stagger-6,.stagger-7 { animation: none !important; }
+  .card { transition: border-color 0.2s ease, box-shadow 0.2s ease !important; transform: none !important; }
+  .bar  { animation: none !important; transform: scaleY(1) !important; }
+  .sparkline { animation: none !important; stroke-dashoffset: 0 !important; }
+  .marquee-track { animation: none !important; }
+}
+
+/* ── Font mono utility ───────────────────────────────────────── */
 
 .font-mono {
   font-family: "Space Mono", monospace;

@@ -20,7 +20,7 @@ const EMPTY_FORM: RestaurantProfileCreate = {
   timezone: "Asia/Kolkata",
 };
 
-const INPUT_CLS = "w-full bg-slate-950/60 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/60 transition-colors";
+const INPUT_CLS = "w-full bg-slate-950/60 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-ember-500/50 focus:border-ember-500/60 transition-colors";
 
 export default function RestaurantProfilesPage() {
   const { user } = useAuth();
@@ -92,7 +92,7 @@ export default function RestaurantProfilesPage() {
 
   if (loading) return (
     <div className="min-h-screen bg-[#09111f] flex items-center justify-center">
-      <p className="text-slate-500 text-sm">Loading profiles…</p>
+      <p className="text-slate-500 text-sm">Loading profiles...</p>
     </div>
   );
 
@@ -101,7 +101,7 @@ export default function RestaurantProfilesPage() {
       <div className="max-w-3xl mx-auto">
         <div className="mb-8 flex items-center justify-between stagger-1">
           <div>
-            <p className="text-xs font-mono uppercase tracking-[0.22em] text-violet-300">configuration</p>
+            <p className="text-xs font-mono uppercase tracking-[0.22em] text-ember-300">configuration</p>
             <h1 className="mt-2 text-xl font-bold text-white">Restaurant Profiles</h1>
             <p className="text-slate-500 text-sm mt-1">
               Named profiles override org-level capacity and peak hours for a planning run.
@@ -109,7 +109,7 @@ export default function RestaurantProfilesPage() {
           </div>
           <button
             onClick={openCreate}
-            className="bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shrink-0"
+            className="bg-ember-600 hover:bg-ember-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shrink-0"
           >
             + New Profile
           </button>
@@ -128,11 +128,11 @@ export default function RestaurantProfilesPage() {
             </div>
             <p className="text-slate-300 text-sm font-medium">No profiles yet</p>
             <p className="text-slate-500 text-xs mt-1">
-              Create a profile to override org defaults — capacity, peak hours, cuisine — per planning run.
+              Create a profile to override org defaults -- capacity, peak hours, cuisine -- per planning run.
             </p>
             <button
               onClick={openCreate}
-              className="mt-4 text-xs text-violet-400 hover:text-violet-300 underline underline-offset-4 transition-colors"
+              className="mt-4 text-xs text-ember-400 hover:text-ember-300 underline underline-offset-4 transition-colors"
             >
               Create your first profile
             </button>
@@ -205,9 +205,9 @@ export default function RestaurantProfilesPage() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-semibold rounded-lg py-2 text-sm transition-colors"
+                    className="flex-1 bg-ember-600 hover:bg-ember-500 disabled:opacity-50 text-white font-semibold rounded-lg py-2 text-sm transition-colors"
                   >
-                    {saving ? "Saving…" : "Save"}
+                    {saving ? "Saving..." : "Save"}
                   </button>
                   <button
                     type="button"

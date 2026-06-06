@@ -92,12 +92,12 @@ export default function CriticBanner({ critic, generatedAt, targetDate, actions 
             {DIMENSIONS.map((dim) => {
               const raw = typeof dims[dim] === "number" ? dims[dim] : 0;
               const pct = Math.round(raw * 100);
-              const barColor = pct >= 75 ? "" : pct >= 50 ? "style='background:linear-gradient(90deg,#f5be73,#efa345)'" : "style='background:linear-gradient(90deg,#fb7185,#f43f5e)'";
+              const scoreColor = pct >= 75 ? "text-emerald-300" : pct >= 50 ? "text-ember-300" : "text-rose-300";
               return (
                 <div key={dim}>
                   <div className="flex justify-between text-[11px] text-white/60">
                     <span className="capitalize">{dim}</span>
-                    <span className="font-mono text-white/85">{pct}</span>
+                    <span className={`font-mono font-semibold ${scoreColor}`}>{pct}</span>
                   </div>
                   <div className="meter mt-1">
                     <span
@@ -107,11 +107,10 @@ export default function CriticBanner({ critic, generatedAt, targetDate, actions 
                           ? "linear-gradient(90deg,#fb7185,#f43f5e)"
                           : pct < 75
                           ? "linear-gradient(90deg,#f5be73,#efa345)"
-                          : undefined,
+                          : "linear-gradient(90deg,#6ee7b7,#34d399)",
                       }}
                     />
                   </div>
-                  {/* suppress unused var warning */ void barColor}
                 </div>
               );
             })}
@@ -148,7 +147,7 @@ export default function CriticBanner({ critic, generatedAt, targetDate, actions 
             </div>
           </div>
           <a href="#" className="mt-3 font-mono text-[10px] uppercase tracking-[0.18em] text-emerald-300/80 transition-colors hover:text-emerald-200">
-            View reasoning →
+            View reasoning -&gt;
           </a>
         </div>
 

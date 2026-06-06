@@ -58,7 +58,7 @@ export default function DashboardDetailModal({
                       className="rounded-full border border-white/10 bg-slate-900/70 px-3 py-1 text-[11px] font-mono text-slate-300"
                     >
                       <span className="text-slate-500">{item.label}</span>
-                      <span className="mx-1 text-slate-600">·</span>
+                      <span className="mx-1 text-slate-600"> - </span>
                       <span>{item.value}</span>
                     </div>
                   ))}

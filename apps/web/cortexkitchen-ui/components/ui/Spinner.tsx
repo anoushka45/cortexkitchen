@@ -12,7 +12,7 @@ export default function Spinner({ size = 24 }: { size?: number }) {
     >
       <circle
         cx="12" cy="12" r="10"
-        stroke="rgba(139,92,246,0.2)"
+        stroke="rgba(230,137,42,0.2)"
         strokeWidth="2.5"
       />
       <path

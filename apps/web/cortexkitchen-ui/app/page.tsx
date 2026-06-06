@@ -67,7 +67,7 @@ export default function HomePage() {
             </h1>
 
             <p className="mt-7 max-w-xl text-[17px] leading-[1.6] text-white/65">
-              Five specialist agents read your demand, reservations, complaints, menu and inventory — together — and hand your floor manager a critic-verified plan, 30 minutes before service.
+              Five specialist agents read your demand, reservations, complaints, menu and inventory -- together -- and hand your floor manager a critic-verified plan, 30 minutes before service.
             </p>
 
             <div className="mt-9 flex flex-wrap items-center gap-4">
@@ -75,7 +75,7 @@ export default function HomePage() {
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                Start free — no card
+                Start free -- no card
               </Link>
               <Link href="#pipeline" className="inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-[15px] font-medium text-white/85 ring-1 ring-white/15 transition-colors hover:ring-white/30">
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -116,7 +116,7 @@ export default function HomePage() {
                     <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/70" />
                     <span className="ml-3 font-mono text-[10px] uppercase tracking-[0.2em] text-white/35">cortexkitchen.app/dashboard</span>
                   </div>
-                  <span className="font-mono text-[10px] text-white/35">friday · 4:42 pm</span>
+                  <span className="font-mono text-[10px] text-white/35">friday  -  4:42 pm</span>
                 </div>
 
                 {/* Verdict */}
@@ -124,7 +124,7 @@ export default function HomePage() {
                   <div>
                     <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300">Critic verdict</div>
                     <div className="mt-1.5 text-2xl font-semibold text-white">Plan approved</div>
-                    <div className="mt-1 text-xs text-white/55">Friday rush · 18:00–22:00 · 8 staff on floor</div>
+                    <div className="mt-1 text-xs text-white/55">Friday rush  -  18:00-22:00  -  8 staff on floor</div>
                   </div>
                   <div className="text-right">
                     <div className="num-display text-5xl leading-none text-emerald-300">0.91</div>
@@ -150,7 +150,7 @@ export default function HomePage() {
                 {/* Sparkline */}
                 <div className="mt-4 rounded-xl bg-white/[0.02] px-3 py-3 ring-1 ring-white/[0.05]">
                   <div className="flex items-baseline justify-between">
-                    <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/45">Demand forecast · 12–23h</div>
+                    <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/45">Demand forecast  -  12-23h</div>
                     <div className="text-[10px] text-white/40">peak <span className="font-mono text-white/80">19:00</span></div>
                   </div>
                   <svg viewBox="0 0 320 70" className="mt-2 h-[70px] w-full">
@@ -170,10 +170,10 @@ export default function HomePage() {
                 {/* Agent strip */}
                 <div className="mt-4 grid grid-cols-5 gap-1.5">
                   {[
-                    { label: "forecast ✓", color: "text-emerald-300/90" },
-                    { label: "reserv ✓",   color: "text-emerald-300/90" },
-                    { label: "menu ✓",     color: "text-emerald-300/90" },
-                    { label: "comp ⚠",    color: "text-ember-300" },
+                    { label: "forecast done", color: "text-emerald-300/90" },
+                    { label: "reserv done",   color: "text-emerald-300/90" },
+                    { label: "menu done",     color: "text-emerald-300/90" },
+                    { label: "comp !",    color: "text-ember-300" },
                     { label: "inv !",      color: "text-rose-300" },
                   ].map(({ label, color }) => (
                     <div key={label} className={`rounded-md bg-white/[0.04] px-2 py-1.5 text-center font-mono text-[9px] uppercase tracking-wider ${color}`}>
@@ -195,8 +195,8 @@ export default function HomePage() {
           </div>
           <div className="relative flex-1 overflow-hidden">
             <div className="marquee-track flex shrink-0 items-center gap-14 whitespace-nowrap text-white/40">
-              {["Foursquare Hospitality", "Maison Auber", "North & Co.", "SAVOR /// group", "Petite Marché", "KETTLE&FORK",
-                "Foursquare Hospitality", "Maison Auber", "North & Co.", "SAVOR /// group", "Petite Marché", "KETTLE&FORK"].map((name, i) => (
+              {["Foursquare Hospitality", "Maison Auber", "North & Co.", "SAVOR /// group", "Petite Marche", "KETTLE&FORK",
+                "Foursquare Hospitality", "Maison Auber", "North & Co.", "SAVOR /// group", "Petite Marche", "KETTLE&FORK"].map((name, i) => (
                 <span key={i} className={i % 2 === 0 ? "display text-3xl" : "display-it text-2xl"}>{name}</span>
               ))}
             </div>
@@ -218,7 +218,7 @@ export default function HomePage() {
               By 4pm Friday your floor manager has a reservation list, a hunch about the weather, and an inventory sheet from this morning. The forecast lives in someone&apos;s head. Last week&apos;s complaint about cold pizza? Not on the briefing. Two cooks down? You&apos;ll find out at 7:12pm.
             </p>
             <p>
-              CortexKitchen reads the same data sources you already have — POS, reservation system, complaint inbox, inventory file — and pulls them through five specialist agents into <em className="display-it text-ember-200 not-italic">one</em> briefing your manager actually reads. With evidence. With a verdict.
+              CortexKitchen reads the same data sources you already have -- POS, reservation system, complaint inbox, inventory file -- and pulls them through five specialist agents into <em className="display-it text-ember-200 not-italic">one</em> briefing your manager actually reads. With evidence. With a verdict.
             </p>
             <div className="grid grid-cols-2 gap-x-8 gap-y-5 pt-2">
               <div className="border-t border-white/10 pt-4">
@@ -245,7 +245,7 @@ export default function HomePage() {
               </h2>
             </div>
             <Link href="#" className="hidden font-mono text-[11px] uppercase tracking-[0.22em] text-white/50 transition-colors hover:text-white md:block">
-              See architecture →
+              See architecture -&gt;
             </Link>
           </div>
 
@@ -253,7 +253,7 @@ export default function HomePage() {
             {[
               {
                 num: "01", label: "Frame the service", title: "Pick the shift you're planning.",
-                body: "Four presets — Friday rush, weekday lunch, holiday spike, low-stock weekend — or set a custom date. Each frames the agents around the right operational pressure.",
+                body: "Four presets -- Friday rush, weekday lunch, holiday spike, low-stock weekend -- or set a custom date. Each frames the agents around the right operational pressure.",
                 extra: (
                   <div className="mt-6 grid grid-cols-2 gap-2 font-mono text-[10px] uppercase tracking-wider">
                     {["Friday rush", "Weekday lunch", "Holiday spike", "Low-stock"].map(s => (
@@ -268,9 +268,9 @@ export default function HomePage() {
                 extra: (
                   <div className="mt-6 space-y-1.5">
                     {[
-                      { dot: "bg-ember-300",   text: "forecast → gate" },
+                      { dot: "bg-ember-300",   text: "forecast -> gate" },
                       { dot: "bg-emerald-400", text: "4 agents parallel" },
-                      { dot: "bg-violet-400",  text: "aggregate → critic" },
+                      { dot: "bg-ember-400",  text: "aggregate -> critic" },
                     ].map(({ dot, text }) => (
                       <div key={text} className="flex items-center gap-2">
                         <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
@@ -287,7 +287,7 @@ export default function HomePage() {
                   <div className="mt-6 flex flex-wrap items-center gap-4 font-mono text-[11px] uppercase tracking-wider text-white/55">
                     {["PDF", "Excel", "Side-by-side"].map((s, i, arr) => (
                       <span key={s} className="flex items-center gap-4">
-                        {s}{i < arr.length - 1 && <span className="text-white/20">·</span>}
+                        {s}{i < arr.length - 1 && <span className="text-white/20"> - </span>}
                       </span>
                     ))}
                   </div>
@@ -349,7 +349,7 @@ export default function HomePage() {
                 <div className="flex flex-1 flex-col justify-between rounded-2xl bg-ember-500/[0.06] p-4 ring-1 ring-ember-400/30">
                   <div>
                     <div className="text-sm font-semibold text-white">Demand Forecast</div>
-                    <div className="mt-1 text-[11px] leading-relaxed text-white/55">Prophet time-series → covers, peak hour, confidence.</div>
+                    <div className="mt-1 text-[11px] leading-relaxed text-white/55">Prophet time-series -&gt; covers, peak hour, confidence.</div>
                   </div>
                   <div className="mt-3 font-mono text-[9px] uppercase tracking-wider text-white/40">Prophet</div>
                 </div>
@@ -417,7 +417,7 @@ export default function HomePage() {
       {/* ── Pull quote ── */}
       <section className="bg-gradient-to-b from-transparent via-ember-500/[0.04] to-transparent px-8 py-28">
         <div className="mx-auto max-w-[1100px] text-center">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ember-300/80">Case · 3-venue group, Brooklyn</div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ember-300/80">Case  -  3-venue group, Brooklyn</div>
           <blockquote className="mt-6 text-[36px] leading-[1.15] tracking-[-0.015em] text-white md:text-[44px]">
             &ldquo;The brief used to take my GM forty minutes to assemble from four tabs.<br />
             <span className="display-it text-ember-200">Now it&apos;s on her phone</span> with the verdict already on it.&rdquo;
@@ -445,9 +445,9 @@ export default function HomePage() {
             </p>
             <div className="mt-8 space-y-5">
               {[
-                { tag: "A", title: "Chef sheet · PDF",      desc: "Pace, prep priorities, complaints to address, items to push tonight." },
-                { tag: "B", title: "Owner workbook · Excel", desc: "Cost forecast, LLM spend, scenario diff vs last week." },
-                { tag: "C", title: "Run history · Audit",   desc: "Every plan, every score, every RAG citation. Permanent record." },
+                { tag: "A", title: "Chef sheet  -  PDF",      desc: "Pace, prep priorities, complaints to address, items to push tonight." },
+                { tag: "B", title: "Owner workbook  -  Excel", desc: "Cost forecast, LLM spend, scenario diff vs last week." },
+                { tag: "C", title: "Run history  -  Audit",   desc: "Every plan, every score, every RAG citation. Permanent record." },
               ].map(({ tag, title, desc }) => (
                 <div key={tag} className="flex items-start gap-4">
                   <div className="mt-1 grid h-6 w-6 place-items-center rounded-md bg-ember-500/10 font-mono text-xs text-ember-300 ring-1 ring-ember-400/40">{tag}</div>
@@ -464,40 +464,40 @@ export default function HomePage() {
           <div className="xl:col-span-7">
             <div className="relative">
               <div className="absolute -inset-3 rounded-3xl bg-gradient-to-br from-ember-400/15 to-transparent blur-xl" />
-              <div className="relative rounded-2xl bg-[#f7efe2] p-8 text-ink-900 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.6)] ring-1 ring-ember-300/40">
-                <div className="flex items-center justify-between border-b border-ink-900/15 pb-4">
+              <div className="relative rounded-2xl bg-[#f7efe2] p-8 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.6)] ring-1 ring-ember-300/40">
+                <div className="flex items-center justify-between border-b border-[#0b1020]/15 pb-4">
                   <div className="flex items-center gap-2.5">
-                    <span className="grid h-7 w-7 place-items-center overflow-hidden rounded-md bg-ink-950">
+                    <span className="grid h-7 w-7 place-items-center overflow-hidden rounded-md bg-[#070a12]">
                       <Image src="/ck-logo.png" alt="CK" width={24} height={24} className="h-6 w-6 object-contain" />
                     </span>
                     <div className="leading-tight">
-                      <div className="text-[13px] font-bold tracking-tight text-ink-950">CHEF BRIEF</div>
-                      <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-950/60">Fri 1 may · 18:00–22:00</div>
+                      <div className="text-[13px] font-bold tracking-tight text-[#070a12]">CHEF BRIEF</div>
+                      <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#070a12]/60">Fri 1 may  -  18:00-22:00</div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-ink-950/55">Critic</div>
-                    <div className="text-[15px] font-bold text-emerald-700">Approved · 0.91</div>
+                    <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#070a12]/55">Critic</div>
+                    <div className="text-[15px] font-bold text-emerald-700">Approved  -  0.91</div>
                   </div>
                 </div>
 
                 <div className="mt-5 grid grid-cols-3 gap-3">
                   {[
-                    { label: "Covers",    value: "142", sub: "peak 19:00 (38)" },
-                    { label: "Occupancy", value: "87%", sub: "3 waitlist" },
-                    { label: "Stock risk", value: "2",  sub: "critical", valueClass: "text-rose-700" },
-                  ].map(({ label, value, sub, valueClass }) => (
-                    <div key={label} className="rounded-lg bg-ink-900/[0.05] p-3">
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-ink-950/55">{label}</div>
-                      <div className={`num-display text-3xl text-ink-950 ${valueClass ?? ""}`}>{value}</div>
-                      <div className="text-[10px] text-ink-950/55">{sub}</div>
+                    { label: "Covers",    value: "142", sub: "peak 19:00 (38)",   vc: "" },
+                    { label: "Occupancy", value: "87%", sub: "3 waitlist",         vc: "" },
+                    { label: "Stock risk",value: "2",   sub: "critical",           vc: "text-rose-700" },
+                  ].map(({ label, value, sub, vc }) => (
+                    <div key={label} className="rounded-lg bg-[#0b1020]/[0.06] p-3">
+                      <div className="font-mono text-[9px] uppercase tracking-wider text-[#070a12]/55">{label}</div>
+                      <div className={`num-display text-3xl text-[#070a12] ${vc}`}>{value}</div>
+                      <div className="text-[10px] text-[#070a12]/55">{sub}</div>
                     </div>
                   ))}
                 </div>
 
                 <div className="mt-5">
-                  <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-950/55">Tonight, in priority</div>
-                  <ol className="mt-2.5 space-y-2.5 text-[13px] text-ink-950/85">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#070a12]/55">Tonight, in priority</div>
+                  <ol className="mt-2.5 space-y-2.5 text-[13px] text-[#070a12]/85">
                     {[
                       { n: "1.", text: <><b className="font-semibold">Push the Margherita.</b> Tikka pizza outsells but we have 4 doughs left vs forecast 7. Last week&apos;s complaint: &ldquo;too long for pizza.&rdquo;</> },
                       { n: "2.", text: <><b className="font-semibold">Pre-portion mushroom by 17:30.</b> Forecast +18% on rigatoni; mushroom on the critical list.</> },
@@ -511,9 +511,9 @@ export default function HomePage() {
                   </ol>
                 </div>
 
-                <div className="mt-5 flex items-center justify-between border-t border-ink-900/15 pt-3 font-mono text-[10px] uppercase tracking-[0.18em] text-ink-950/55">
-                  <span>Generated 16:42 · 1.4s · $0.03</span>
-                  <span>v158 · plan-019965ce</span>
+                <div className="mt-5 flex items-center justify-between border-t border-[#0b1020]/15 pt-3 font-mono text-[10px] uppercase tracking-[0.18em] text-[#070a12]/55">
+                  <span>Generated 16:42  -  1.4s  -  $0.03</span>
+                  <span>v158  -  plan-019965ce</span>
                 </div>
               </div>
             </div>
@@ -530,7 +530,7 @@ export default function HomePage() {
               <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">Production-grade from day one.</h2>
             </div>
             <Link href="#" className="hidden font-mono text-[11px] uppercase tracking-[0.22em] text-white/50 transition-colors hover:text-white md:block">
-              Read the architecture →
+              Read the architecture -&gt;
             </Link>
           </div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -542,7 +542,7 @@ export default function HomePage() {
               { name: "LangSmith",        desc: "Per-node tracing for every planning run." },
               { name: "RAGAS + DeepEval", desc: "Automated faithfulness, hallucination, relevancy." },
               { name: "Multi-tenant",     desc: "JWT auth, org isolation, role-based access." },
-              { name: "MCP Server",       desc: "Anthropic MCP SDK — fire runs from Claude Desktop." },
+              { name: "MCP Server",       desc: "Anthropic MCP SDK -- fire runs from Claude Desktop." },
             ].map(({ name, desc }) => (
               <div key={name} className="rounded-xl bg-white/[0.02] p-5 ring-1 ring-white/[0.07] transition-colors hover:bg-white/[0.04]">
                 <div className="text-[13px] font-bold text-ember-300">{name}</div>
@@ -562,7 +562,7 @@ export default function HomePage() {
         <div className="relative mx-auto max-w-[920px] text-center">
           <div className="inline-flex items-center gap-2 rounded-full bg-ember-500/[0.08] px-3 py-1.5 ring-1 ring-ember-500/25">
             <span className="pulse flex h-1.5 w-1.5 rounded-full bg-ember-400 text-ember-400" />
-            <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-ember-200">14-day trial · no card</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-ember-200">14-day trial  -  no card</span>
           </div>
           <h2 className="mt-7 text-[48px] leading-[1.02] tracking-[-0.02em] text-white md:text-[64px]">
             Brief your next shift<br /><span className="display-it text-ember-300">before</span> it starts.
@@ -572,7 +572,7 @@ export default function HomePage() {
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <Link href="/register" className="btn-primary inline-flex items-center gap-2 rounded-xl px-7 py-4 text-[15px] font-semibold">
-              Start free — no card
+              Start free -- no card
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
               </svg>
@@ -619,8 +619,8 @@ export default function HomePage() {
         </div>
         <div className="border-t border-white/[0.06]">
           <div className="mx-auto flex max-w-[1280px] items-center justify-between px-8 py-5 font-mono text-[10px] uppercase tracking-[0.22em] text-white/40">
-            <span>© 2026 CortexKitchen, Inc.</span>
-            <span>Made for kitchens · Not for engineers</span>
+            <span>(c) 2026 CortexKitchen, Inc.</span>
+            <span>Made for kitchens  -  Not for engineers</span>
           </div>
         </div>
       </footer>

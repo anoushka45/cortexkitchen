@@ -31,9 +31,9 @@ function getUpcomingDates(
     const value = `${year}-${month}-${dayOfMonth}`;
     const label =
       index === 0
-        ? `Next ${scenarioLabel} · ${value}`
+        ? `Next ${scenarioLabel}  -  ${value}`
         : index === 1
-        ? `${scenarioLabel} +1 week · ${value}`
+        ? `${scenarioLabel} +1 week  -  ${value}`
         : value;
 
     dates.push({ label, value });
@@ -56,7 +56,7 @@ export default function DatePicker({ onRun, loading, scenario, compact = false }
     onRun(date || undefined);
   };
 
-  const selectCls = "flex-1 min-w-0 text-xs font-mono border border-white/10 text-slate-300 rounded-xl px-3 py-2.5 focus:outline-none focus:border-violet-500/50 disabled:opacity-50 transition-colors hover:border-white/20";
+  const selectCls = "flex-1 min-w-0 text-xs font-mono border border-white/10 text-slate-300 rounded-xl px-3 py-2.5 focus:outline-none focus:border-ember-500/50 disabled:opacity-50 transition-colors hover:border-white/20";
 
   return (
     <div className={compact ? "flex items-center gap-2 flex-wrap" : "space-y-3"}>
@@ -66,7 +66,7 @@ export default function DatePicker({ onRun, loading, scenario, compact = false }
           onClick={() => { setCustom(false); setCustomDate(""); }}
           disabled={loading}
           className={`px-3 py-1 rounded-full text-[11px] font-mono transition-colors ${
-            !custom ? "bg-violet-500/20 text-violet-200" : "text-slate-500 hover:text-slate-300"
+            !custom ? "bg-ember-500/20 text-ember-200" : "text-slate-500 hover:text-slate-300"
           }`}
         >
           presets
@@ -75,7 +75,7 @@ export default function DatePicker({ onRun, loading, scenario, compact = false }
           onClick={() => { setCustom(true); setSelected(""); }}
           disabled={loading}
           className={`px-3 py-1 rounded-full text-[11px] font-mono transition-colors ${
-            custom ? "bg-violet-500/20 text-violet-200" : "text-slate-500 hover:text-slate-300"
+            custom ? "bg-ember-500/20 text-ember-200" : "text-slate-500 hover:text-slate-300"
           }`}
         >
           custom
@@ -92,7 +92,7 @@ export default function DatePicker({ onRun, loading, scenario, compact = false }
             className={selectCls}
             style={{ background: "#0d1320" }}
           >
-            <option value="">{scenarioLabel} — default date</option>
+            <option value="">{scenarioLabel} -- default date</option>
             {dates.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
@@ -113,12 +113,12 @@ export default function DatePicker({ onRun, loading, scenario, compact = false }
           disabled={loading || (custom && !customDate)}
           className={`
             inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl
-            border border-violet-400/30 bg-gradient-to-b from-violet-500 to-violet-700
+            border border-ember-400/30 bg-gradient-to-b from-ember-500 to-ember-600
             font-semibold tracking-wide text-white
-            shadow-[0_4px_16px_rgba(139,92,246,0.35)]
+            shadow-[0_4px_16px_rgba(230,137,42,0.35)]
             transition-all duration-200
-            hover:-translate-y-0.5 hover:from-violet-400 hover:to-violet-600 hover:shadow-[0_6px_22px_rgba(139,92,246,0.45)]
-            active:translate-y-0 active:shadow-[0_2px_8px_rgba(139,92,246,0.25)]
+            hover:-translate-y-0.5 hover:from-ember-400 hover:to-ember-600 hover:shadow-[0_6px_22px_rgba(230,137,42,0.45)]
+            active:translate-y-0 active:shadow-[0_2px_8px_rgba(230,137,42,0.25)]
             disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-40 disabled:shadow-none
             ${compact ? "px-4 py-2.5 text-xs" : "px-6 py-2.5 text-sm"}
           `}
@@ -129,7 +129,7 @@ export default function DatePicker({ onRun, loading, scenario, compact = false }
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
-              Running…
+              Running...
             </>
           ) : (
             <>

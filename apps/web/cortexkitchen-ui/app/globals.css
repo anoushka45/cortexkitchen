@@ -5,9 +5,6 @@
 @import "@fontsource/space-mono/400.css";
 @import "@fontsource/space-mono/700.css";
 
-/* Instrument Serif — display / editorial italic headings */
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
-
 @import "tailwindcss";
 
 @theme {
@@ -32,7 +29,7 @@
   --color-ember-500: #e6892a;
   --color-ember-600: #c46e1b;
 
-  /* ── Legacy violet tokens — kept so existing components don't break */
+  /* ── Legacy violet tokens -- kept so existing components don't break */
   --color-navy-950: #080c14;
   --color-navy-900: #0d1320;
   --color-navy-800: #121a2e;
@@ -182,7 +179,18 @@ body {
 .bar { animation: bar 1s ease forwards; transform-origin: bottom; transform: scaleY(0); }
 @keyframes bar { to { transform: scaleY(1); } }
 
-/* ── Card (legacy — keeps existing components working) ───────── */
+.bar-shimmer {
+  background: linear-gradient(90deg, rgba(239,163,69,0.25), rgba(239,163,69,0.95), rgba(239,163,69,0.25));
+  background-size: 220% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+/* ── Card (legacy -- keeps existing components working) ───────── */
 
 .card {
   background: #0b1020;

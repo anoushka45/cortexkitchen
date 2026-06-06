@@ -247,11 +247,11 @@ export default function ForecastChart({ forecast, scenario }: Props) {
           </div>
           <h3 className="mt-1.5 text-xl font-semibold text-white">
             {target_date
-              ? `${service_day_label ?? "Service"} · ${target_date}`
+              ? `${service_day_label ?? "Service"}  -  ${target_date}`
               : "Next planning window"}
           </h3>
           <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-white/45">
-            <span className={`font-mono ${METHOD_COLORS[method]}`}>{method === "prophet" ? "Prophet · AI" : "Baseline"}</span>
+            <span className={`font-mono ${METHOD_COLORS[method]}`}>{method === "prophet" ? "Prophet  -  AI" : "Baseline"}</span>
             {(avg_same_day_orders ?? avg_friday_orders) !== undefined && (
               <span>Avg last 4 {service_day_label ?? "days"} <b className="text-white/75">{avg_same_day_orders ?? avg_friday_orders}</b></span>
             )}
@@ -263,7 +263,7 @@ export default function ForecastChart({ forecast, scenario }: Props) {
         <div className="text-right shrink-0">
           <div className="num-display text-5xl leading-none text-white">{roundedOrders}</div>
           <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.18em] text-white/45">
-            predicted orders{rangeText ? ` · ${rangeText}` : ""}
+            predicted orders{rangeText ? `  -  ${rangeText}` : ""}
           </div>
         </div>
       </div>
@@ -277,7 +277,7 @@ export default function ForecastChart({ forecast, scenario }: Props) {
               <div>
                 <div className="text-[13px] font-semibold text-white truncate">{item.item}</div>
                 <div className="font-mono text-[10px] uppercase tracking-wider text-white/45">
-                  {item.category} · {item.total_ordered} orders
+                  {item.category}  -  {item.total_ordered} orders
                 </div>
               </div>
               <span className={`rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ring-1 ${

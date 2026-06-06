@@ -79,7 +79,7 @@ export default function DashboardSummary({ data }: Props) {
   const { push, ease }  = extractMenuPush(data);
 
   const rangeText = lower !== null && upper !== null
-    ? `range ${Math.round(lower)}–${Math.round(upper)}`
+    ? `range ${Math.round(lower)}-${Math.round(upper)}`
     : null;
 
   return (
@@ -98,7 +98,7 @@ export default function DashboardSummary({ data }: Props) {
           {data.target_date
             ? <>target <span className="font-mono text-white/65">{data.target_date}</span></>
             : "next service window"}
-          {rangeText && <> · {rangeText}</>}
+          {rangeText && <>  -  {rangeText}</>}
         </div>
         <div className="mt-3 h-1.5 rounded bg-white/[0.04] overflow-hidden">
           <div className="h-full bg-gradient-to-r from-ember-400 to-ember-600 transition-all duration-700"
@@ -116,7 +116,7 @@ export default function DashboardSummary({ data }: Props) {
         </div>
         <div className="mt-3 text-[11px] text-white/45">
           reservation pressure
-          {bookings !== null && guests !== null && <> · {bookings} bookings · {guests} guests</>}
+          {bookings !== null && guests !== null && <>  -  {bookings} bookings  -  {guests} guests</>}
         </div>
         <div className="mt-3 h-1.5 rounded bg-white/[0.04] overflow-hidden">
           <div className="h-full bg-gradient-to-r from-cyan-400 to-cyan-600 transition-all duration-700"

@@ -107,7 +107,7 @@ export default function NavBar() {
               <select
                 value={dashCtx.selectedScenario}
                 onChange={(e) => dashCtx.setSelectedScenario(e.target.value as typeof dashCtx.selectedScenario)}
-                className="appearance-none cursor-pointer rounded-lg border border-white/10 bg-slate-950/60 pl-3 pr-7 py-1.5 text-xs font-mono text-slate-300 focus:outline-none focus:ring-1 focus:ring-violet-500/50 transition-colors hover:border-white/20"
+                className="appearance-none cursor-pointer rounded-lg border border-white/10 bg-slate-950/60 pl-3 pr-7 py-1.5 text-xs font-mono text-slate-300 focus:outline-none focus:ring-1 focus:ring-ember-500/50 transition-colors hover:border-white/20"
               >
                 {SCENARIO_OPTIONS.map((s) => (
                   <option key={s.id} value={s.id} className="bg-slate-900">{s.label}</option>
@@ -118,7 +118,7 @@ export default function NavBar() {
               </svg>
             </div>
 
-            {/* New Run — only when not in idle state */}
+            {/* New Run -- only when not in idle state */}
             {dashCtx.dashStatus !== "idle" && (
               <button
                 onClick={dashCtx.doReset}
@@ -138,7 +138,7 @@ export default function NavBar() {
         <div className="flex shrink-0 items-center gap-3">
           <div className="hidden text-right sm:block">
             <p className="text-xs font-medium leading-none text-white">{user.full_name ?? user.email}</p>
-            <p className="mt-0.5 text-xs text-slate-500">{user.org_name} · {user.role}</p>
+            <p className="mt-0.5 text-xs text-slate-500">{user.org_name}  -  {user.role}</p>
           </div>
           <button
             onClick={logout}

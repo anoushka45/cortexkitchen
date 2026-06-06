@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import AgentCard from "@/components/dashboard/AgentCard";
 import CriticBanner from "@/components/dashboard/CriticBanner";
@@ -14,6 +14,7 @@ import RunHistory from "@/components/dashboard/RunHistory";
 import { useAuth } from "@/context/AuthContext";
 import { DashStatus, useDashboardCtx } from "@/context/DashboardContext";
 import { useFridayRush } from "@/hooks/useFridayRush";
+import { listRestaurantProfiles, RestaurantProfile } from "@/lib/api";
 import { PlanningScenarioOption, RunHistoryEntry } from "@/types/planning";
 
 const SCENARIO_OPTIONS: PlanningScenarioOption[] = [
@@ -60,69 +61,6 @@ const LOADING_AGENTS = [
 
 type NodeState = "idle" | "running" | "done";
 
-function nodeStyle(state: NodeState) {
-  return {
-    border:
-      state === "done" ? "border-emerald-400/20 bg-emerald-400/[0.04]" :
-      state === "running" ? "border-violet-400/25 bg-violet-500/[0.07]" :
-      "border-white/10 bg-white/[0.03]",
-    tag:
-      state === "done" ? "text-emerald-300/70" :
-      state === "running" ? "text-violet-300/70" :
-      "text-slate-500",
-  };
-}
-
-function ProgressBar({ state }: { state: NodeState }) {
-  return (
-    <div className="h-1 overflow-hidden rounded-full bg-white/5">
-      <div className={`h-full transition-all duration-700 ${
-        state === "done" ? "w-full bg-emerald-400/50" :
-        state === "running" ? "w-[50%] bar-shimmer" :
-        "w-0"
-      }`} />
-    </div>
-  );
-}
-
-function VCard({ state, tag, title, desc }: { state: NodeState; tag: string; title: string; desc: string }) {
-  const s = nodeStyle(state);
-  return (
-    <div className={`rounded-2xl border px-4 py-3 transition-all duration-500 ${s.border}`}>
-      <div className={`text-[9px] font-mono uppercase ${s.tag}`}>{tag}</div>
-      <div className="mt-1 text-sm font-semibold text-white">{title}</div>
-      <div className="mt-0.5 text-[10px] leading-snug text-slate-500">{desc}</div>
-      <div className="mt-2"><ProgressBar state={state} /></div>
-    </div>
-  );
-}
-
-function HCard({ state, tag, title, desc, width = "w-[152px]" }: { state: NodeState; tag: string; title: string; desc: string; width?: string }) {
-  const s = nodeStyle(state);
-  return (
-    <div className={`flex h-[116px] flex-shrink-0 flex-col justify-between rounded-2xl border p-4 transition-all duration-500 ${width} ${s.border}`}>
-      <div className={`text-[9px] font-mono uppercase ${s.tag}`}>{tag}</div>
-      <div>
-        <div className="text-sm font-semibold text-white">{title}</div>
-        <div className="mt-1 text-[10px] leading-snug text-slate-500">{desc}</div>
-      </div>
-      <ProgressBar state={state} />
-    </div>
-  );
-}
-
-function HArrow({ active }: { active: boolean }) {
-  return <div className={`mx-3 h-px w-10 flex-shrink-0 transition-colors duration-700 ${active ? "bg-slate-500" : "bg-slate-700/70"}`} />;
-}
-
-function VConnector({ active }: { active: boolean }) {
-  return (
-    <div className="flex justify-center py-1">
-      <div className={`h-5 w-px transition-colors duration-500 ${active ? "bg-slate-500" : "bg-slate-700/40"}`} />
-    </div>
-  );
-}
-
 function SectionHeader({
   label,
   description,
@@ -133,7 +71,7 @@ function SectionHeader({
 }: {
   label: string;
   description: string;
-  tone?: "violet" | "ember" | "cyan" | "rose" | "emerald" | "amber" | "default";
+  tone?: "ember" | "cyan" | "rose" | "emerald" | "amber" | "default";
   isOpen?: boolean;
   onToggle?: () => void;
   cards?: string[];
@@ -142,8 +80,7 @@ function SectionHeader({
     NonNullable<Parameters<typeof SectionHeader>[0]["tone"]>,
     { bar: string; label: string }
   > = {
-    violet:  { bar: "bg-violet-400/70",  label: "text-violet-200/80"  },
-    ember:   { bar: "bg-ember-400/70",   label: "text-ember-300/80"   },
+    ember: { bar: "bg-ember-400/70", label: "text-ember-300/80" },
     cyan: { bar: "bg-cyan-300/70", label: "text-cyan-200/80" },
     rose: { bar: "bg-rose-400/70", label: "text-rose-200/80" },
     emerald: { bar: "bg-emerald-300/70", label: "text-emerald-200/80" },
@@ -191,25 +128,25 @@ function SectionHeader({
 const AGENT_PIPELINE = [
   {
     label: "Demand Forecast",
-    capability: "Prophet time-series — predicts covers, order volume, and peak-hour pressure",
+    capability: "Prophet time-series -- predicts covers, order volume, and peak-hour pressure",
     iconPath: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-    border: "border-violet-500/20", bg: "bg-violet-500/[0.06]", dot: "bg-violet-400", icon: "text-violet-400",
+    border: "border-ember-500/20", bg: "bg-ember-500/[0.06]", dot: "bg-ember-400", icon: "text-ember-400",
   },
   {
     label: "Reservation Pressure",
-    capability: "Live bookings → occupancy %, waitlist risk, busiest-hour signal",
+    capability: "Live bookings -> occupancy %, waitlist risk, busiest-hour signal",
     iconPath: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z",
     border: "border-cyan-500/20", bg: "bg-cyan-500/[0.06]", dot: "bg-cyan-400", icon: "text-cyan-400",
   },
   {
     label: "Complaint Intelligence",
-    capability: "RAG over historical feedback — recurring issues, action items, experience risk",
+    capability: "RAG over historical feedback -- recurring issues, action items, experience risk",
     iconPath: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
     border: "border-rose-500/20", bg: "bg-rose-500/[0.06]", dot: "bg-rose-400", icon: "text-rose-400",
   },
   {
     label: "Menu Intelligence",
-    capability: "Cross-signals from demand, inventory, and complaints — what to push, avoid, promote",
+    capability: "Cross-signals from demand, inventory, and complaints -- what to push, avoid, promote",
     iconPath: "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4",
     border: "border-amber-500/20", bg: "bg-amber-500/[0.06]", dot: "bg-amber-400", icon: "text-amber-400",
   },
@@ -236,9 +173,23 @@ function IdleState({
 }) {
   const scenario = SCENARIO_OPTIONS.find((item) => item.id === selectedScenario) ?? SCENARIO_OPTIONS[0];
 
+  const [profiles,          setProfiles]          = useState<RestaurantProfile[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
+
+  useEffect(() => {
+    listRestaurantProfiles()
+      .then((list) => {
+        setProfiles(list);
+        if (list.length > 0) setSelectedProfileId(list[0].id);
+      })
+      .catch(() => { /* profiles are optional context — don't block the form */ });
+  }, []);
+
+  const activeProfile = profiles.find((p) => p.id === selectedProfileId) ?? profiles[0] ?? null;
+
   return (
     <div className="py-6">
-      <div className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(ellipse_at_top_left,rgba(139,92,246,0.12),transparent_55%),rgba(255,255,255,0.015)] px-6 py-10 shadow-[0_32px_120px_rgba(2,8,23,0.5)] md:px-10 md:py-12">
+      <div className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(ellipse_at_top_left,rgba(230,137,42,0.12),transparent_55%),rgba(255,255,255,0.015)] px-6 py-10 shadow-[0_32px_120px_rgba(2,8,23,0.5)] md:px-10 md:py-12">
 
         {/* Subtle grid */}
         <div className="pointer-events-none absolute inset-0 opacity-[0.08]" style={{
@@ -255,26 +206,56 @@ function IdleState({
 
             {/* Badge + headline */}
             <div className="stagger-1">
-              <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/8 px-3 py-1.5">
+              <div className="inline-flex items-center gap-2 rounded-full border border-ember-500/20 bg-ember-500/8 px-3 py-1.5">
                 <span className="relative flex h-2 w-2">
-                  <span className="absolute inset-0 animate-ping rounded-full bg-violet-400 opacity-50" />
-                  <span className="relative rounded-full bg-violet-400" />
+                  <span className="absolute inset-0 animate-ping rounded-full bg-ember-400 opacity-50" />
+                  <span className="relative rounded-full bg-ember-400" />
                 </span>
-                <span className="text-[10px] font-mono uppercase tracking-[0.24em] text-violet-300">
+                <span className="text-[10px] font-mono uppercase tracking-[0.24em] text-ember-300">
                   planning console
                 </span>
               </div>
 
               <h1 className="mt-5 text-4xl font-bold tracking-tight text-white md:text-5xl">
                 Multi-agent intelligence.<br />
-                <span className="bg-gradient-to-r from-violet-400 via-violet-300 to-slate-300 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-ember-400 via-ember-300 to-slate-300 bg-clip-text text-transparent">
                   One coordinated plan.
                 </span>
               </h1>
               <p className="mt-4 max-w-lg text-[15px] leading-7 text-slate-400">
-                5 parallel agents analyse demand, reservations, complaints, menu direction, and inventory — then a critic verifies the plan before you see it.
+                5 parallel agents analyse demand, reservations, complaints, menu direction, and inventory -- then a critic verifies the plan before you see it.
               </p>
             </div>
+
+            {/* Restaurant profile selector */}
+            {profiles.length > 0 && (
+              <div className="stagger-2">
+                <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-slate-600 mb-2">Restaurant profile</p>
+                {profiles.length === 1 ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.025] px-3 py-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-ember-400 shrink-0" />
+                    <span className="text-sm text-white">{activeProfile?.name}</span>
+                    {activeProfile && (
+                      <span className="ml-auto font-mono text-[10px] text-slate-500">
+                        {activeProfile.capacity} covers · {activeProfile.peak_hours}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <select
+                    value={selectedProfileId ?? ""}
+                    onChange={(e) => setSelectedProfileId(Number(e.target.value))}
+                    className="w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-ember-500/50 focus:border-ember-500/60"
+                  >
+                    {profiles.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} — {p.capacity} covers · {p.peak_hours}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
 
             {/* Scenario selection */}
             <div className="stagger-2 space-y-2.5">
@@ -289,12 +270,12 @@ function IdleState({
                       onClick={() => onScenarioChange(option.id)}
                       className={`rounded-xl border px-4 py-3 text-left transition-all ${
                         active
-                          ? "border-violet-400/40 bg-violet-500/10 shadow-[0_0_0_1px_rgba(139,92,246,0.15)]"
+                          ? "border-ember-400/40 bg-ember-500/10 shadow-[0_0_0_1px_rgba(230,137,42,0.15)]"
                           : "border-white/10 bg-slate-950/30 hover:border-white/20 hover:bg-white/[0.04]"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <p className={`text-sm font-semibold ${active ? "text-violet-100" : "text-slate-200"}`}>
+                        <p className={`text-sm font-semibold ${active ? "text-ember-100" : "text-slate-200"}`}>
                           {option.label}
                         </p>
                         <span className="shrink-0 font-mono text-[10px] text-slate-600">{option.service_window}</span>
@@ -345,10 +326,10 @@ function IdleState({
                 <div>
                   <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-slate-600">Agent pipeline</p>
                   <p className="mt-1 text-base font-semibold text-white">9-node orchestration</p>
-                  <p className="mt-0.5 text-xs text-slate-500">Parallel execution · aggregation · critic verification</p>
+                  <p className="mt-0.5 text-xs text-slate-500">Parallel execution  -  aggregation  -  critic verification</p>
                 </div>
-                <div className="shrink-0 rounded-xl border border-violet-500/20 bg-violet-500/10 px-2.5 py-1">
-                  <p className="font-mono text-xs font-bold text-violet-300">LangGraph</p>
+                <div className="shrink-0 rounded-xl border border-ember-500/20 bg-ember-500/10 px-2.5 py-1">
+                  <p className="font-mono text-xs font-bold text-ember-300">LangGraph</p>
                 </div>
               </div>
 
@@ -389,42 +370,6 @@ function IdleState({
   );
 }
 
-function ScenarioSelector({
-  selectedScenario,
-  onScenarioChange,
-}: {
-  selectedScenario: PlanningScenarioOption["id"];
-  onScenarioChange: (scenario: PlanningScenarioOption["id"]) => void;
-}) {
-  return (
-    <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
-      <p className="whitespace-nowrap text-[11px] font-mono uppercase tracking-[0.18em] text-slate-500">
-        scenario
-      </p>
-      <div className="relative">
-        <select
-          value={selectedScenario}
-          onChange={(e) => onScenarioChange(e.target.value as PlanningScenarioOption["id"])}
-          className="appearance-none cursor-pointer rounded-xl border border-white/10 bg-slate-950/60 px-3 py-1.5 pr-7 text-xs font-mono uppercase tracking-[0.14em] text-slate-200 focus:outline-none focus:ring-1 focus:ring-violet-500/50"
-        >
-          {SCENARIO_OPTIONS.map((option) => (
-            <option key={option.id} value={option.id} className="bg-slate-900 text-slate-200">
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <svg
-          className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500"
-          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </div>
-    </div>
-  );
-}
-
-
 function PipelineCard({
   state, title, detail, meterPct,
 }: { state: NodeState; title: string; detail: string; meterPct: number }) {
@@ -433,7 +378,7 @@ function PipelineCard({
              :                       "ring-white/10 bg-white/[0.025]";
   const statusColor = state === "done" ? "text-emerald-300/80" : state === "running" ? "text-ember-300/80" : "text-white/40";
   const dotCls      = state === "done" ? "bg-emerald-300" : state === "running" ? "bg-ember-300 animate-pulse" : "hidden";
-  const statusLabel = state === "done" ? "✓ done" : state === "running" ? "running" : "waiting";
+  const statusLabel = state === "done" ? "done" : state === "running" ? "running" : "waiting";
   return (
     <div className={`rounded-xl p-3 h-[120px] flex flex-col justify-between ring-1 transition-all duration-500 ${ring}`}>
       <div className="flex items-center gap-2">
@@ -460,7 +405,6 @@ function LoadingState() {
   const [doneAgents,    setDoneAgents]    = useState<Set<number>>(new Set());
   const [aggregateDone, setAggregateDone] = useState(false);
   const [criticDone,    setCriticDone]    = useState(false);
-  const [logs, setLogs] = useState<Array<{ time: string; text: string; color: string }>>([]);
 
   // ── State machine (unchanged) ──────────────────────────────────
   useEffect(() => {
@@ -480,28 +424,25 @@ function LoadingState() {
     return () => timers.forEach(clearTimeout);
   }, []);
 
-  // ── Live log — rebuilds whenever state changes ─────────────────
-  useEffect(() => {
+  const logs = useMemo<Array<{ time: string; text: string; color: string }>>(() => {
     const t = ["12:42:01","12:42:02","12:42:03","12:42:04","12:42:05","12:42:06","12:42:07","12:42:08"];
-    const next: typeof logs = [];
-    if (opsDone)       next.push({ time: t[0], color: "text-emerald-300", text: "ops_manager → sequenced 9 nodes, fan-out=4" });
-    if (forecastDone)  next.push({ time: t[1], color: "text-emerald-300", text: "forecast.prophet → 99 predicted_orders, peak=19h, σ=4.2" });
-    if (doneAgents.has(0)) next.push({ time: t[2], color: "text-emerald-300", text: "reservation → 15 bookings, 61 guests, occupancy=87.1%" });
-    if (doneAgents.has(2)) next.push({ time: t[3], color: "text-emerald-300", text: "menu → push=margherita, ease=tikka_pizza" });
-    if (forecastDone && !doneAgents.has(1)) next.push({ time: t[4], color: "text-ember-300",   text: "complaint.rag → retrieving... (7 docs, k=5)" });
-    if (doneAgents.has(1)) next.push({ time: t[4], color: "text-emerald-300", text: "complaint.rag → 3 issues retrieved, sentiment=0.78" });
-    if (forecastDone && !doneAgents.has(3)) next.push({ time: t[5], color: "text-ember-300",   text: "inventory → scoring 24 SKUs against demand ratio..." });
-    if (doneAgents.has(3)) next.push({ time: t[5], color: "text-emerald-300", text: "inventory → 6 critical shortages, restock urgency HIGH" });
-    if (aggregateDone) next.push({ time: t[6], color: "text-emerald-300", text: "aggregator → synthesising 5 agent outputs into plan" });
-    if (criticDone)    next.push({ time: t[7], color: "text-emerald-300", text: "critic → score=0.91 · verdict=APPROVED · plan ready" });
-    setLogs(next);
+    const next: Array<{ time: string; text: string; color: string }> = [];
+    if (opsDone)       next.push({ time: t[0], color: "text-emerald-300", text: "ops_manager -> sequenced 9 nodes, fan-out=4" });
+    if (forecastDone)  next.push({ time: t[1], color: "text-emerald-300", text: "forecast.prophet -> 99 predicted_orders, peak=19h, sigma=4.2" });
+    if (doneAgents.has(0)) next.push({ time: t[2], color: "text-emerald-300", text: "reservation -> 15 bookings, 61 guests, occupancy=87.1%" });
+    if (doneAgents.has(2)) next.push({ time: t[3], color: "text-emerald-300", text: "menu -> push=margherita, ease=tikka_pizza" });
+    if (forecastDone && !doneAgents.has(1)) next.push({ time: t[4], color: "text-ember-300",   text: "complaint.rag -> retrieving... (7 docs, k=5)" });
+    if (doneAgents.has(1)) next.push({ time: t[4], color: "text-emerald-300", text: "complaint.rag -> 3 issues retrieved, sentiment=0.78" });
+    if (forecastDone && !doneAgents.has(3)) next.push({ time: t[5], color: "text-ember-300",   text: "inventory -> scoring 24 SKUs against demand ratio..." });
+    if (doneAgents.has(3)) next.push({ time: t[5], color: "text-emerald-300", text: "inventory -> 6 critical shortages, restock urgency HIGH" });
+    if (aggregateDone) next.push({ time: t[6], color: "text-emerald-300", text: "aggregator -> synthesising 5 agent outputs into plan" });
+    if (criticDone)    next.push({ time: t[7], color: "text-emerald-300", text: "critic -> score=0.91  -  verdict=APPROVED  -  plan ready" });
+    return next;
   }, [opsDone, forecastDone, doneAgents, aggregateDone, criticDone]);
 
   const opsState:      NodeState = opsDone       ? "done" : "running";
   const forecastState: NodeState = forecastDone  ? "done" : opsDone ? "running" : "idle";
   const aggState:      NodeState = aggregateDone ? "done" : doneAgents.size === LOADING_AGENTS.length ? "running" : "idle";
-  const criticState:   NodeState = criticDone    ? "done" : aggregateDone ? "running" : "idle";
-
   const agentDetails = [
     { running: "Occupancy load...",  done: `87% occupancy`      },
     { running: "RAG retrieval...",   done: "3 issues found"      },
@@ -519,7 +460,7 @@ function LoadingState() {
           <span className="display-it text-ember-300">your kitchen.</span>
         </h1>
         <p className="mx-auto mt-4 max-w-lg text-[15px] leading-[1.7] text-white/60">
-          Ops manager sequences the run — forecast gates first, then agents analyse in parallel before synthesis and critique.
+          Ops manager sequences the run -- forecast gates first, then agents analyse in parallel before synthesis and critique.
         </p>
       </div>
 
@@ -531,15 +472,15 @@ function LoadingState() {
           <div className="col-span-2">
             <PipelineCard state={opsState} title="Ops Manager" detail="Sequenced 9 nodes" meterPct={opsState === "done" ? 100 : 60} />
           </div>
-          <div className="col-span-1 flex items-center justify-center font-mono text-xs text-white/30">→</div>
+          <div className="col-span-1 flex items-center justify-center font-mono text-xs text-white/30">-&gt;</div>
 
           {/* Demand Forecast */}
           <div className="col-span-2">
             <PipelineCard state={forecastState} title="Demand Forecast"
-              detail={forecastState === "done" ? "99 covers · peak 19h" : "Prophet running..."}
+              detail={forecastState === "done" ? "99 covers  -  peak 19h" : "Prophet running..."}
               meterPct={forecastState === "done" ? 100 : forecastState === "running" ? 65 : 0} />
           </div>
-          <div className="col-span-1 flex items-center justify-center font-mono text-xs text-white/30">→</div>
+          <div className="col-span-1 flex items-center justify-center font-mono text-xs text-white/30">-&gt;</div>
 
           {/* Parallel agents */}
           <div className="col-span-4 grid grid-cols-2 gap-2">
@@ -554,7 +495,7 @@ function LoadingState() {
               );
             })}
           </div>
-          <div className="col-span-1 flex items-center justify-center font-mono text-xs text-white/30">→</div>
+          <div className="col-span-1 flex items-center justify-center font-mono text-xs text-white/30">-&gt;</div>
 
           {/* Aggregator */}
           <div className="col-span-1">
@@ -594,7 +535,7 @@ function LoadingState() {
               background: "repeating-linear-gradient(135deg, rgba(230,137,42,0.04) 0 10px, rgba(230,137,42,0.015) 10px 20px)",
             } : undefined}
           >
-            {done ? `✓ ${label}` : `${label} — pending`}
+            {done ? `done ${label}` : `${label} -- pending`}
           </div>
         ))}
       </div>
@@ -812,7 +753,7 @@ export default function DashboardPage() {
                   <p className="text-xs font-mono uppercase tracking-[0.18em] text-slate-600">Run complete</p>
                   <p className="mt-0.5 text-sm text-slate-400">
                     Scenario: <span className="text-slate-200">{data.scenario?.replace(/_/g, " ")}</span>
-                    {data.target_date && <> · Target: <span className="text-slate-200">{data.target_date}</span></>}
+                    {data.target_date && <>  -  Target: <span className="text-slate-200">{data.target_date}</span></>}
                   </p>
                 </div>
                 <DatePicker onRun={handleRun} loading={false} scenario={SCENARIO_OPTIONS.find((item) => item.id === selectedScenario)} compact />

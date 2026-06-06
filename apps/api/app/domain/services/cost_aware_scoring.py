@@ -18,8 +18,16 @@ class CostAwareScoringService:
         inventory_rec = (agents.get("inventory") or {}).get("recommendation") or {}
 
         predicted_orders = float(forecast_data.get("predicted_orders") or 0)
-        avg_orders = float(forecast_data.get("avg_friday_orders") or 0)
-        demand_ratio = round((predicted_orders / avg_orders), 2) if avg_orders > 0 else 1.0
+        # Use the same-day average if available; fall back to avg_friday_orders.
+        # If demand_ratio < 1.0 it means a lower-volume service (e.g. weekday lunch)
+        # which is normal — floor at 1.0 so off-peak scenarios aren't penalised.
+        avg_orders = float(
+            forecast_data.get("avg_same_day_orders")
+            or forecast_data.get("avg_friday_orders")
+            or 0
+        )
+        raw_demand_ratio = round((predicted_orders / avg_orders), 2) if avg_orders > 0 else 1.0
+        demand_ratio = max(raw_demand_ratio, 1.0)
 
         occupancy_pct = float(reservation_data.get("occupancy_pct") or 0)
         waitlist_count = int(reservation_data.get("waitlist_count") or 0)
@@ -76,7 +84,7 @@ class CostAwareScoringService:
         if staffing_units >= 10:
             tradeoff_notes.append("Large staffing changes may be difficult to execute on short notice.")
         if not tradeoff_notes:
-            tradeoff_notes.append("Operational tradeoffs look manageable for the current Friday plan.")
+            tradeoff_notes.append("Operational tradeoffs look manageable for this service window.")
 
         recommended_focus: list[str] = []
         if critical_shortages:
@@ -97,7 +105,7 @@ class CostAwareScoringService:
             "tradeoff_notes": tradeoff_notes,
             "recommended_focus": recommended_focus,
             "signals": {
-                "demand_ratio": demand_ratio,
+                "demand_ratio": raw_demand_ratio,
                 "occupancy_pct": occupancy_pct,
                 "waitlist_count": waitlist_count,
                 "critical_shortages": critical_shortages,

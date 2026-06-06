@@ -247,6 +247,7 @@ async def run_planning_scenario(
     org_capacity: int = 70,
     org_peak_hours: str = "18:00-22:00",
     restaurant_profile: dict | None = None,
+    critic_threshold: float = 0.7,
 ) -> dict:
     """
     Top-level convenience function for a named planning scenario.
@@ -292,6 +293,7 @@ async def run_planning_scenario(
     initial_state["debug"] = debug
     initial_state["org_capacity"] = effective_capacity
     initial_state["org_peak_hours"] = effective_peak_hours
+    initial_state["critic_threshold"] = critic_threshold
 
     # Initialize debug trace container
     if debug:

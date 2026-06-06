@@ -42,6 +42,8 @@ def final_assembler_node(state: OrchestratorState) -> OrchestratorState:
 
         return recommendation
 
+    critic_threshold = float(state.get("critic_threshold") or 0.7)
+
     final_response = {
         "scenario": state.get("scenario"),
         "target_date": state.get("target_date"),
@@ -77,7 +79,7 @@ def final_assembler_node(state: OrchestratorState) -> OrchestratorState:
         },
 
         # Frontend status
-        "status": _derive_status(critic),
+        "status": _derive_status(critic, critic_threshold),
 
         # Metadata for observability
         "meta": {
@@ -92,17 +94,17 @@ def final_assembler_node(state: OrchestratorState) -> OrchestratorState:
     return {**state, "final_response": final_response}
 
 
-def _derive_status(critic: dict) -> str:
+def _derive_status(critic: dict, threshold: float = 0.7) -> str:
     """Map critic verdict + score to a simple frontend status string."""
     verdict = critic.get("verdict", "unknown")
     score = float(critic.get("score", 0.0))
 
     if verdict == "unknown":
         return "unknown"
-    if verdict == "approved" and score >= 0.7:
+    if verdict == "approved" and score >= threshold:
         return "ready"
     if verdict == "rejected":
         return "blocked"
-    if verdict == "revision" or score < 0.7:
+    if verdict == "revision" or score < threshold:
         return "needs_review"
     return "unknown"

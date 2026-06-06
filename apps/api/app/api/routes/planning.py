@@ -111,8 +111,9 @@ async def run_planning(
     # Pull org settings so agents use tenant-configured capacity and hours
     org = db.query(Organization).filter(Organization.id == current_user["org_id"]).first()
     org_settings = org.settings or {} if org else {}
-    org_capacity   = int(org_settings.get("capacity",   70))
-    org_peak_hours = str(org_settings.get("peak_hours", "18:00-22:00"))
+    org_capacity        = int(org_settings.get("capacity",         70))
+    org_peak_hours      = str(org_settings.get("peak_hours",       "18:00-22:00"))
+    org_critic_threshold = float(org_settings.get("critic_threshold", 0.7))
 
     # Resolve restaurant profile if provided — scoped to the caller's org
     restaurant_profile = None
@@ -142,6 +143,7 @@ async def run_planning(
             org_capacity=org_capacity,
             org_peak_hours=org_peak_hours,
             restaurant_profile=restaurant_profile,
+            critic_threshold=org_critic_threshold,
         )
     except AppError:
         raise

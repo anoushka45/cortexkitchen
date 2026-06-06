@@ -143,6 +143,13 @@ class MenuService:
         watchout_lines = "\n".join(f"  - {item}" for item in scenario_watchouts[:3]) or "  None"
 
         service_day_label = (forecast_data or {}).get("service_day_label", "service")
+        critical_blocked = [
+            alert.get("ingredient")
+            for alert in shortage_alerts
+            if isinstance(alert, dict) and alert.get("severity") == "critical" and alert.get("ingredient")
+        ]
+        blocked_lines = "\n".join(f"  - {ing}" for ing in critical_blocked) or "  None"
+
         prompt = f"""
 ## Context
 Menu planning context for {scenario_label} ({service_day_label} service):
@@ -161,15 +168,25 @@ Complaint themes to watch:
 Scenario watchouts:
 {watchout_lines}
 
-Inventory shortages:
+Inventory shortages (all severities):
 {shortage_lines}
 
 Inventory overstock:
 {overstock_lines}
 
+## Hard constraints — follow strictly before producing output
+CRITICALLY SHORT ingredients (BLOCKED — cannot be safely used for increased prep):
+{blocked_lines}
+
+Rules:
+1. Do NOT put any dish in highlight_items if it primarily depends on a BLOCKED ingredient above.
+2. If a historically top-selling item uses a BLOCKED ingredient, move it to deprioritize_items, not highlight_items.
+3. highlight_items must only contain dishes whose core ingredients are adequately stocked.
+4. These constraints override popularity — a dish that outsells everything but needs a BLOCKED ingredient must still be deprioritized.
+
 ## Task
-Recommend how the restaurant should shape the menu focus for the target service window. Prioritise items that are popular and operationally safe,
-avoid pushing items likely to suffer from ingredient shortages or complaint patterns, and suggest practical promo or menu
+Recommend how the restaurant should shape the menu focus for the target service window. Prioritise items that are popular AND operationally safe (ingredients available),
+avoid pushing items that depend on shortage ingredients or have complaint patterns, and suggest practical promo or menu
 positioning actions that can be executed within the next 24 hours.
 
 ## Response format

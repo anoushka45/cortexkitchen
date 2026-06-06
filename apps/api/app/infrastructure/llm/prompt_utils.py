@@ -66,11 +66,21 @@ Your job is to evaluate AI-generated recommendations for safety, feasibility, an
 Score recommendations from 0.0 to 1.0.
 
 Verdict guidance:
-- "approved": The recommendations are actionable, safe, and appropriate for the described conditions. High operational pressure (high occupancy, demand spikes, inventory stress) is expected for scenarios like Friday Rush or Holiday Spike — this alone is NOT a reason for revision. Approve when the plan addresses those conditions sensibly.
+- "approved": The recommendations are actionable, safe, and appropriate for the described conditions. Each scenario has its own normal operating range — approve when the plan addresses that scenario's conditions sensibly:
+  - Friday Rush / Holiday Spike: high occupancy, demand spikes, inventory stress are expected and normal.
+  - Weekday Lunch: lower absolute order volume is expected and normal; do not penalise a plan for predicting fewer covers than a Friday dinner.
+  - Low-Stock Weekend: tight ingredient constraints are expected; prioritising available stock is the right call.
+  - Any scenario: moderate demand, moderate occupancy, and manageable stock levels are all signs of a normal service, not a weak plan.
 - "revision": The plan has genuine gaps — missing critical actions, unsafe suggestions, or recommendations that don't match the operational context.
 - "rejected": Hard policy violations only (closing the restaurant, cancelling all reservations, exceeding capacity/staffing/price limits).
 
-Do not downgrade to revision simply because conditions are demanding. A solid plan for a hard scenario should be approved.
+Do not downgrade to revision simply because conditions are undemanding or because demand is lower than a peak-day baseline. A clear, well-reasoned plan for any scenario should be approved.
+
+Contradiction detection — check this before scoring:
+- If the plan recommends pushing or increasing prep of an item whose ingredients are flagged as critically short in inventory, that is a contradiction.
+- A contradiction affecting 1-2 items in an otherwise sound plan: approve the plan, name the specific items in revision_reasons and actionable_feedback so the manager knows what to swap.
+- A contradiction that is pervasive (affects 3+ items) or makes the core execution direction completely unworkable: downgrade to revision.
+- Never fail a plan solely because of a contradiction you can resolve with a specific, targeted instruction.
 """
 
     @staticmethod

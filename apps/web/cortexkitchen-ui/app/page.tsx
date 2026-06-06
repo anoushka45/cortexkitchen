@@ -184,60 +184,98 @@ function SectionHeader({
   );
 }
 
+const AGENT_PIPELINE = [
+  {
+    label: "Demand Forecast",
+    capability: "Prophet time-series — predicts covers, order volume, and peak-hour pressure",
+    iconPath: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
+    border: "border-violet-500/20", bg: "bg-violet-500/[0.06]", dot: "bg-violet-400", icon: "text-violet-400",
+  },
+  {
+    label: "Reservation Pressure",
+    capability: "Live bookings → occupancy %, waitlist risk, busiest-hour signal",
+    iconPath: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z",
+    border: "border-cyan-500/20", bg: "bg-cyan-500/[0.06]", dot: "bg-cyan-400", icon: "text-cyan-400",
+  },
+  {
+    label: "Complaint Intelligence",
+    capability: "RAG over historical feedback — recurring issues, action items, experience risk",
+    iconPath: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
+    border: "border-rose-500/20", bg: "bg-rose-500/[0.06]", dot: "bg-rose-400", icon: "text-rose-400",
+  },
+  {
+    label: "Menu Intelligence",
+    capability: "Cross-signals from demand, inventory, and complaints — what to push, avoid, promote",
+    iconPath: "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4",
+    border: "border-amber-500/20", bg: "bg-amber-500/[0.06]", dot: "bg-amber-400", icon: "text-amber-400",
+  },
+  {
+    label: "Inventory Status",
+    capability: "Shortage and overstock detection with spoilage-aware restock prioritisation",
+    iconPath: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
+    border: "border-emerald-500/20", bg: "bg-emerald-500/[0.06]", dot: "bg-emerald-400", icon: "text-emerald-400",
+  },
+] as const;
+
 function IdleState({
   onRun,
   selectedScenario,
   onScenarioChange,
+  historyCount,
+  onShowHistory,
 }: {
   onRun: (date?: string) => void;
   selectedScenario: PlanningScenarioOption["id"];
   onScenarioChange: (scenario: PlanningScenarioOption["id"]) => void;
+  historyCount: number;
+  onShowHistory: () => void;
 }) {
   const scenario = SCENARIO_OPTIONS.find((item) => item.id === selectedScenario) ?? SCENARIO_OPTIONS[0];
+
   return (
-    <div className="py-8">
-      <div className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(139,92,246,0.10),transparent_52%),rgba(255,255,255,0.02)] px-6 py-10 shadow-[0_28px_110px_rgba(2,8,23,0.45)] md:px-10 md:py-12">
-        {/* Grid texture */}
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.10]"
-          style={{
-            backgroundImage:
-              "linear-gradient(rgba(148,163,184,0.35) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.35) 1px, transparent 1px)",
-            backgroundSize: "46px 46px",
-            maskImage: "radial-gradient(circle at 28% 18%, black 0%, transparent 70%)",
-            WebkitMaskImage: "radial-gradient(circle at 28% 18%, black 0%, transparent 70%)",
-          }}
-        />
+    <div className="py-6">
+      <div className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(ellipse_at_top_left,rgba(139,92,246,0.12),transparent_55%),rgba(255,255,255,0.015)] px-6 py-10 shadow-[0_32px_120px_rgba(2,8,23,0.5)] md:px-10 md:py-12">
 
-        <div className="relative grid grid-cols-1 gap-10 xl:grid-cols-12 xl:items-start">
+        {/* Subtle grid */}
+        <div className="pointer-events-none absolute inset-0 opacity-[0.08]" style={{
+          backgroundImage: "linear-gradient(rgba(148,163,184,0.4) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,0.4) 1px,transparent 1px)",
+          backgroundSize: "44px 44px",
+          maskImage: "radial-gradient(ellipse at 20% 20%,black 0%,transparent 65%)",
+          WebkitMaskImage: "radial-gradient(ellipse at 20% 20%,black 0%,transparent 65%)",
+        }} />
+
+        <div className="relative grid grid-cols-1 gap-10 xl:grid-cols-2 xl:items-start">
+
           {/* ── Left: action column ── */}
-          <div className="xl:col-span-7 space-y-6">
+          <div className="space-y-7">
 
-            {/* Badge + Title */}
+            {/* Badge + headline */}
             <div className="stagger-1">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/40 px-3 py-1.5">
-                <span className="h-2 w-2 rounded-full bg-violet-400" />
-                <span className="text-[11px] font-mono uppercase tracking-[0.22em] text-slate-400">
+              <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/8 px-3 py-1.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inset-0 animate-ping rounded-full bg-violet-400 opacity-50" />
+                  <span className="relative rounded-full bg-violet-400" />
+                </span>
+                <span className="text-[10px] font-mono uppercase tracking-[0.24em] text-violet-300">
                   planning console
                 </span>
               </div>
-              <h1 className="mt-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
-                Plan your next<br />
-                <span className="bg-gradient-to-r from-violet-400 via-violet-300 to-slate-200 bg-clip-text text-transparent">
-                  service run.
+
+              <h1 className="mt-5 text-4xl font-bold tracking-tight text-white md:text-5xl">
+                Multi-agent intelligence.<br />
+                <span className="bg-gradient-to-r from-violet-400 via-violet-300 to-slate-300 bg-clip-text text-transparent">
+                  One coordinated plan.
                 </span>
               </h1>
-              <p className="mt-3 max-w-lg text-[15px] leading-7 text-slate-400">
-                Parallel analysis across demand, reservations, complaints, menu, and inventory — synthesized and critic-scored in one run.
+              <p className="mt-4 max-w-lg text-[15px] leading-7 text-slate-400">
+                5 parallel agents analyse demand, reservations, complaints, menu direction, and inventory — then a critic verifies the plan before you see it.
               </p>
             </div>
 
-            {/* Scenario chips */}
-            <div className="stagger-2">
-              <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-slate-600 mb-2">
-                Scenario
-              </p>
-              <div className="grid grid-cols-2 gap-2">
+            {/* Scenario selection */}
+            <div className="stagger-2 space-y-2.5">
+              <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-slate-600">Choose a scenario</p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {SCENARIO_OPTIONS.map((option) => {
                   const active = option.id === selectedScenario;
                   return (
@@ -245,79 +283,102 @@ function IdleState({
                       key={option.id}
                       type="button"
                       onClick={() => onScenarioChange(option.id)}
-                      className={`flex items-center justify-between rounded-xl border px-4 py-2.5 text-left transition-all ${
+                      className={`rounded-xl border px-4 py-3 text-left transition-all ${
                         active
                           ? "border-violet-400/40 bg-violet-500/10 shadow-[0_0_0_1px_rgba(139,92,246,0.15)]"
-                          : "border-white/10 bg-slate-950/30 hover:bg-white/[0.04] hover:border-white/20"
+                          : "border-white/10 bg-slate-950/30 hover:border-white/20 hover:bg-white/[0.04]"
                       }`}
                     >
-                      <span className={`text-sm font-semibold ${active ? "text-violet-100" : "text-slate-200"}`}>
-                        {option.label}
-                      </span>
-                      <span className="font-mono text-[10px] text-slate-500 ml-2 shrink-0">
-                        {option.service_window}
-                      </span>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className={`text-sm font-semibold ${active ? "text-violet-100" : "text-slate-200"}`}>
+                          {option.label}
+                        </p>
+                        <span className="shrink-0 font-mono text-[10px] text-slate-600">{option.service_window}</span>
+                      </div>
+                      <p className={`mt-1 text-xs leading-relaxed ${active ? "text-slate-300" : "text-slate-500"}`}>
+                        {option.description}
+                      </p>
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* DatePicker — primary CTA, right here */}
+            {/* CTA */}
             <div className="stagger-3">
               <DatePicker onRun={onRun} loading={false} scenario={scenario} />
             </div>
 
-            {/* How it works — compact chips, not a full section */}
-            <div className="stagger-4 flex flex-wrap items-center gap-x-5 gap-y-2">
-              {[
-                ["1", "Choose scenario"],
-                ["2", "Run agents in parallel"],
-                ["3", "Get critic-scored plan"],
-              ].map(([num, label]) => (
-                <div key={num} className="flex items-center gap-2 text-xs text-slate-600">
-                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/5 border border-white/10 text-[10px] font-mono text-slate-500">{num}</span>
-                  {label}
-                </div>
-              ))}
+            {/* Footer row: step chips + history */}
+            <div className="stagger-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                {(["Choose scenario", "Run 5 agents", "Review critic-scored plan"] as const).map((label, i) => (
+                  <div key={label} className="flex items-center gap-1.5 text-xs text-slate-600">
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] font-mono text-[10px] text-slate-600">{i + 1}</span>
+                    {label}
+                  </div>
+                ))}
+              </div>
+              {historyCount > 0 && (
+                <button
+                  onClick={onShowHistory}
+                  className="flex items-center gap-1.5 text-xs text-slate-500 transition-colors hover:text-slate-300"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {historyCount} previous run{historyCount !== 1 ? "s" : ""}
+                </button>
+              )}
             </div>
           </div>
 
-          {/* ── Right: what you get ── */}
-          <div className="xl:col-span-5 stagger-2">
-            <div className="rounded-3xl border border-white/10 bg-[#0d1320]/90 p-5 shadow-[0_28px_90px_rgba(2,8,23,0.35)]">
-              <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-slate-600">
-                What you get
-              </p>
-              <p className="mt-2 text-sm text-slate-400 leading-relaxed">
-                A decision-ready bundle with a critic verdict and drilldown into each agent.
-              </p>
+          {/* ── Right: agent pipeline showcase ── */}
+          <div className="stagger-2">
+            <div className="rounded-3xl border border-white/10 bg-[#0d1320]/95 p-6 shadow-[0_24px_80px_rgba(2,8,23,0.4)]">
 
-              <div className="mt-4 space-y-2">
-                {[
-                  ["Demand forecast",   "Orders, peak pressure, confidence band",          "border-violet-500/20 bg-violet-500/5",  "bg-violet-400"  ],
-                  ["Reservations",      "Occupancy, waitlist risk, busiest-hour signal",    "border-blue-500/20   bg-blue-500/5",    "bg-blue-400"    ],
-                  ["Complaints",        "Recurring issues, actions, experience watchouts",  "border-rose-500/20   bg-rose-500/5",    "bg-rose-400"    ],
-                  ["Menu insights",     "Push/avoid, promos, operational notes",            "border-amber-500/20  bg-amber-500/5",   "bg-amber-400"   ],
-                  ["Inventory status",  "Shortages, overstock flags, restock actions",      "border-emerald-500/20 bg-emerald-500/5","bg-emerald-400" ],
-                ].map(([title, desc, style, dot]) => (
-                  <div key={title} className={`flex items-start gap-3 rounded-2xl border px-4 py-3 ${style}`}>
-                    <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-100">{title}</p>
-                      <p className="mt-0.5 text-xs text-slate-400 leading-relaxed">{desc}</p>
+              <div className="flex items-start justify-between gap-4 mb-5">
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-slate-600">Agent pipeline</p>
+                  <p className="mt-1 text-base font-semibold text-white">9-node orchestration</p>
+                  <p className="mt-0.5 text-xs text-slate-500">Parallel execution · aggregation · critic verification</p>
+                </div>
+                <div className="shrink-0 rounded-xl border border-violet-500/20 bg-violet-500/10 px-2.5 py-1">
+                  <p className="font-mono text-xs font-bold text-violet-300">LangGraph</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {AGENT_PIPELINE.map((agent) => (
+                  <div key={agent.label} className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${agent.border} ${agent.bg}`}>
+                    <span className={`mt-0.5 shrink-0 ${agent.icon}`}>
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d={agent.iconPath} />
+                      </svg>
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-100">{agent.label}</p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-slate-400">{agent.capability}</p>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                <p className="text-xs text-slate-500">
-                  Every run includes a <span className="text-slate-300">critic verdict and score</span> — recommendations are reviewable, not just generated.
+              {/* Critic callout */}
+              <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <svg className="h-3.5 w-3.5 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-xs font-semibold text-slate-300">Critic-verified output</p>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Every plan is scored across <span className="text-slate-400">safety, feasibility, evidence, actionability, and clarity</span> before reaching you.
                 </p>
               </div>
             </div>
           </div>
+
         </div>
       </div>
     </div>
@@ -536,34 +597,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#09111f] text-slate-100">
-      <div className="sticky top-14 z-10 border-b border-white/[0.07] bg-[#09111f]/95 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-[1520px] items-center justify-between gap-4 px-6 py-2.5 xl:px-14">
-          <p className="text-xs font-mono uppercase tracking-[0.20em] text-slate-600">planning console</p>
-          <div className="flex items-center gap-2">
-            <ScenarioSelector
-              selectedScenario={selectedScenario}
-              onScenarioChange={setSelectedScenario}
-            />
-            {history.length > 0 && (
-              <button
-                onClick={() => setShowHistoryDrawer(true)}
-                className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-mono text-slate-400 transition-colors hover:bg-white/[0.06] hover:text-slate-200"
-              >
-                history ({history.length})
-              </button>
-            )}
-            {data && status === "success" && (
-              <button
-                onClick={reset}
-                className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-mono text-slate-500 transition-colors hover:text-slate-300"
-              >
-                reset
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
       <main className="mx-auto w-full max-w-[1520px] px-6 py-8 xl:px-14">
         <div className="space-y-6">
           {status === "idle" && (
@@ -571,6 +604,8 @@ export default function DashboardPage() {
               onRun={handleRun}
               selectedScenario={selectedScenario}
               onScenarioChange={setSelectedScenario}
+              historyCount={history.length}
+              onShowHistory={() => setShowHistoryDrawer(true)}
             />
           )}
 
@@ -601,7 +636,7 @@ export default function DashboardPage() {
                 actions={
                   <button
                     onClick={() => setShowManagerBrief(true)}
-                    className="rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-2 text-xs font-mono uppercase tracking-[0.16em] text-cyan-200 transition-all hover:bg-cyan-500/15 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
+                    className="rounded-xl border border-violet-400/20 bg-violet-500/10 px-4 py-2 text-xs font-mono uppercase tracking-[0.16em] text-violet-200 transition-all hover:bg-violet-500/15 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
                   >
                     open manager brief
                   </button>

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -51,7 +52,12 @@ export default function NavBar() {
   return (
     <header className="sticky top-0 z-40 border-b border-white/[0.07] bg-[#09111f]/90 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4 sm:px-6">
-        <span className="shrink-0 text-sm font-bold tracking-tight text-white">CortexKitchen</span>
+        <div className="flex shrink-0 items-center gap-2.5">
+          <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-slate-950/40">
+            <Image src="/ck-logo.png" alt="CortexKitchen" width={28} height={28} className="h-7 w-7 object-contain" priority />
+          </div>
+          <span className="text-sm font-bold tracking-tight text-white">CortexKitchen</span>
+        </div>
 
         <nav className="flex flex-1 items-center gap-0.5">
           {navLinks.map(({ href, label }) => {

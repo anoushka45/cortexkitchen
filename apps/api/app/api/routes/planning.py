@@ -16,6 +16,7 @@ from app.api.schemas.planning import (
 from app.core.exceptions import AppError
 from app.domain.scenarios import list_scenarios
 from app.domain.services.run_service import RunService
+from app.infrastructure.cache.plan_cache import build_cache_key, cache_plan, get_cached_plan
 from app.orchestration import run_friday_rush, run_planning_scenario
 
 router = APIRouter(prefix="/planning", tags=["planning"])
@@ -77,11 +78,42 @@ async def run_planning(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> FridayRushResponse:
+    # Cache is bypassed for simulation runs, forced critic decisions, and debug mode
+    cacheable = (
+        not body.simulation_mode
+        and not body.force_critic_decision
+        and not body.debug
+    )
+
+    if cacheable:
+        cache_key = build_cache_key(
+            org_id=current_user["org_id"],
+            scenario=body.scenario,
+            target_date=body.target_date,
+        )
+        cached = await get_cached_plan(cache_key)
+        if cached:
+            cached["cache_hit"] = True
+            if "meta" in cached:
+                cached["meta"]["total_cost_usd"] = 0.0
+                cached["meta"]["cache_hit"] = True
+            # Persist cache hits so every run appears in history
+            try:
+                run = RunService(deps["db"]).create_from_response(
+                    cached,
+                    org_id=current_user.get("org_id"),
+                )
+                cached["meta"]["planning_run_id"] = run.id
+            except Exception:
+                pass
+            return FridayRushResponse(**cached)
+
     # Pull org settings so agents use tenant-configured capacity and hours
     org = db.query(Organization).filter(Organization.id == current_user["org_id"]).first()
     org_settings = org.settings or {} if org else {}
-    org_capacity   = int(org_settings.get("capacity",   70))
-    org_peak_hours = str(org_settings.get("peak_hours", "18:00-22:00"))
+    org_capacity        = int(org_settings.get("capacity",         70))
+    org_peak_hours      = str(org_settings.get("peak_hours",       "18:00-22:00"))
+    org_critic_threshold = float(org_settings.get("critic_threshold", 0.7))
 
     # Resolve restaurant profile if provided — scoped to the caller's org
     restaurant_profile = None
@@ -111,6 +143,7 @@ async def run_planning(
             org_capacity=org_capacity,
             org_peak_hours=org_peak_hours,
             restaurant_profile=restaurant_profile,
+            critic_threshold=org_critic_threshold,
         )
     except AppError:
         raise
@@ -136,7 +169,13 @@ async def run_planning(
     except Exception as exc:
         meta.setdefault("run_persistence_error", str(exc))
 
-    return _build_response(result, meta, body.scenario)
+    response = _build_response(result, meta, body.scenario)
+    response.cache_hit = False
+
+    if cacheable and response.critic.verdict == "approved":
+        await cache_plan(cache_key, response.model_dump())
+
+    return response
 
 
 @router.post(

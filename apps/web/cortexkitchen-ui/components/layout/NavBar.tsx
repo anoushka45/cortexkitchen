@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useDashboardCtx } from "@/context/DashboardContext";
 
@@ -50,7 +50,16 @@ const BASE_NAV = [
 export default function NavBar() {
   const { user, logout } = useAuth();
   const pathname         = usePathname();
+  const router           = useRouter();
   const dashCtx          = useDashboardCtx();
+
+  function handleHistory() {
+    if (pathname === "/dashboard") {
+      dashCtx?.openHistory();
+    } else {
+      router.push("/dashboard");
+    }
+  }
 
   if (!user) return null;
 
@@ -133,6 +142,17 @@ export default function NavBar() {
             )}
           </div>
         )}
+
+        {/* History — opens the run history drawer on dashboard, navigates there from other pages */}
+        <button
+          onClick={handleHistory}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-mono uppercase tracking-wider text-white/55 transition-colors hover:border-white/20 hover:text-white"
+        >
+          <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          History
+        </button>
 
         {/* User + sign out */}
         <div className="flex shrink-0 items-center gap-3">

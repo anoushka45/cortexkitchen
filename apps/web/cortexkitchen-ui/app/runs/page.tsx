@@ -599,14 +599,28 @@ export default function RunsPage() {
                     <Metric label="run id" value={selected.metadata?.run_id as string ?? "--"} />
                     <Metric label="tokens" value={selected.metadata?.total_tokens as number ?? "--"} />
                   </div>
-                  {selected.metadata?.total_cost_usd != null && (
-                    <p className="mt-2 text-xs text-slate-500">
-                      Cost: <span className="text-slate-300">${(selected.metadata.total_cost_usd as number).toFixed(5)}</span>
-                      {selected.metadata?.total_duration_ms != null && (
-                        <span className="ml-3">Duration: <span className="text-slate-300">{Math.round(selected.metadata.total_duration_ms as number)}ms</span></span>
-                      )}
-                    </p>
-                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                    {selected.metadata?.total_cost_usd != null && (
+                      <span>Cost: <span className="text-slate-300">${(selected.metadata.total_cost_usd as number).toFixed(5)}</span></span>
+                    )}
+                    {selected.metadata?.total_duration_ms != null && (
+                      <span>Duration: <span className="text-slate-300">{Math.round(selected.metadata.total_duration_ms as number)}ms</span></span>
+                    )}
+                    {selected.metadata?.llm_model && (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-ember-400/70" />
+                        <span className="font-mono text-ember-300/80">{selected.metadata.llm_model as string}</span>
+                        {selected.metadata?.llm_provider && (
+                          <span className="text-slate-600">· {selected.metadata.llm_provider as string}</span>
+                        )}
+                      </span>
+                    )}
+                    {selected.metadata?.cache_hit === true && (
+                      <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-cyan-300/80 ring-1 ring-cyan-400/20">
+                        cached
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="rounded-lg border border-white/10 bg-white/[0.03] p-5">

@@ -192,3 +192,7 @@ class FridayRushResponse(BaseModel):
     rag_context: Optional[Dict[str, Any]] = None
     critic: CriticResult
     meta: Dict[str, Any] = Field(default_factory=dict)
+    cache_hit: Optional[bool] = Field(
+        default=None,
+        description="True if this response was served from cache; False if freshly computed; None for legacy/compat responses",
+    )

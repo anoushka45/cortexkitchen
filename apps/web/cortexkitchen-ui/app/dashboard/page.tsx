@@ -370,6 +370,40 @@ function IdleState({
   );
 }
 
+function GraphNode({
+  label, subLabel, state, dot,
+}: { label: string; subLabel: string; state: NodeState; dot: string }) {
+  const isDone    = state === "done";
+  const isRunning = state === "running";
+  const ring = isDone    ? "ring-emerald-400/35 bg-emerald-500/[0.05]"
+             : isRunning ? "ring-ember-400/35 bg-ember-500/[0.06]"
+             :              "ring-white/[0.08] bg-white/[0.02]";
+  return (
+    <div className={`rounded-xl ring-1 px-3 py-2.5 min-w-[110px] transition-all duration-500 ${ring}`}>
+      <div className="flex items-center gap-1.5 mb-1">
+        {isDone ? (
+          <svg className="h-3 w-3 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        ) : (
+          <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isRunning ? `${dot} animate-pulse` : "bg-white/15"}`} />
+        )}
+        <span className={`font-mono text-[9px] uppercase tracking-wider transition-colors duration-300 ${
+          isDone ? "text-emerald-300/70" : isRunning ? "text-ember-300/70" : "text-white/25"
+        }`}>
+          {isDone ? "done" : isRunning ? "running" : "waiting"}
+        </span>
+      </div>
+      <p className={`text-[12px] font-semibold leading-tight transition-colors duration-300 ${
+        isDone ? "text-white" : isRunning ? "text-white/80" : "text-white/25"
+      }`}>{label}</p>
+      <p className={`text-[10px] mt-0.5 leading-snug transition-colors duration-300 ${
+        isDone ? "text-white/45" : isRunning ? "text-white/35" : "text-white/15"
+      }`}>{subLabel}</p>
+    </div>
+  );
+}
+
 function LoadingState() {
   const [opsDone,       setOpsDone]       = useState(false);
   const [forecastDone,  setForecastDone]  = useState(false);
@@ -394,195 +428,132 @@ function LoadingState() {
     return () => timers.forEach(clearTimeout);
   }, []);
 
-  const allAgentsDone = doneAgents.size === LOADING_AGENTS.length;
-  const aggState: NodeState = aggregateDone ? "done" : allAgentsDone ? "running" : "idle";
+  const allAgentsDone  = doneAgents.size === LOADING_AGENTS.length;
+  const opsState:      NodeState = opsDone       ? "done" : "running";
+  const forecastState: NodeState = forecastDone  ? "done" : opsDone ? "running" : "idle";
+  const aggState:      NodeState = aggregateDone ? "done" : allAgentsDone ? "running" : "idle";
+  const criticState:   NodeState = criticDone    ? "done" : aggregateDone ? "running" : "idle";
 
-  // Pipeline nodes — each has a state, a "running" hint, and a "done" result
-  const pipelineNodes = [
-    {
-      key: "forecast",
-      label: "Demand Forecast",
-      dot: "bg-ember-400",   valueColor: "text-ember-300",
-      state: (forecastDone ? "done" : opsDone ? "running" : "idle") as NodeState,
-      runningText: "Running time-series forecast…",
-      doneText:    "99 predicted orders · peak 19:00",
-    },
-    {
-      key: "reservation",
-      label: "Reservation Pressure",
-      dot: "bg-cyan-400",    valueColor: "text-cyan-300",
-      state: (doneAgents.has(0) ? "done" : forecastDone ? "running" : "idle") as NodeState,
-      runningText: "Checking bookings & occupancy…",
-      doneText:    "87% occupancy · 3 on waitlist",
-    },
-    {
-      key: "complaint",
-      label: "Complaint Intelligence",
-      dot: "bg-rose-400",    valueColor: "text-rose-300",
-      state: (doneAgents.has(1) ? "done" : forecastDone ? "running" : "idle") as NodeState,
-      runningText: "Retrieving from complaint history…",
-      doneText:    "3 issues retrieved · sentiment 0.78",
-    },
-    {
-      key: "menu",
-      label: "Menu Intelligence",
-      dot: "bg-amber-400",   valueColor: "text-amber-300",
-      state: (doneAgents.has(2) ? "done" : forecastDone ? "running" : "idle") as NodeState,
-      runningText: "Cross-referencing demand & stock…",
-      doneText:    "2 items flagged · push margherita",
-    },
-    {
-      key: "inventory",
-      label: "Inventory Status",
-      dot: "bg-emerald-400", valueColor: "text-emerald-300",
-      state: (doneAgents.has(3) ? "done" : forecastDone ? "running" : "idle") as NodeState,
-      runningText: "Scoring 24 SKUs against demand…",
-      doneText:    "6 critical shortages · restock HIGH",
-    },
-    {
-      key: "aggregator",
-      label: "Aggregator",
-      dot: "bg-violet-400",  valueColor: "text-violet-300",
-      state: aggState,
-      runningText: "Synthesising 5 agent outputs…",
-      doneText:    "Plan synthesised",
-    },
-    {
-      key: "critic",
-      label: "Critic",
-      dot: "bg-emerald-300", valueColor: "text-emerald-200",
-      state: (criticDone ? "done" : aggregateDone ? "running" : "idle") as NodeState,
-      runningText: "Scoring across 5 dimensions…",
-      doneText:    "Plan approved · score 0.91",
-    },
+  const parallelAgents = [
+    { key: "reservation", label: "Reservations",   subLabel: "Bookings & occupancy", dot: "bg-cyan-400"    },
+    { key: "complaint",   label: "Complaints",      subLabel: "Guest feedback & RAG",  dot: "bg-rose-400"    },
+    { key: "menu",        label: "Menu",             subLabel: "Demand & stock signals", dot: "bg-amber-400"   },
+    { key: "inventory",   label: "Inventory",        subLabel: "Shortage detection",    dot: "bg-emerald-400" },
   ];
 
-  // 3-phase strip — user-facing language
-  const phases = [
-    { label: "Setting up",    done: opsDone,       active: !opsDone },
-    { label: "Reading data",  done: allAgentsDone, active: opsDone && !allAgentsDone },
-    { label: "Writing brief", done: criticDone,    active: allAgentsDone && !criticDone },
-  ];
+  const currentAction = criticDone        ? "Critic has reviewed the plan"
+    : aggregateDone                        ? "Critic is scoring the plan…"
+    : allAgentsDone                        ? "Aggregating all results…"
+    : forecastDone                         ? `${LOADING_AGENTS.length - doneAgents.size} agent${LOADING_AGENTS.length - doneAgents.size !== 1 ? "s" : ""} still running…`
+    : opsDone                              ? "Running demand forecast…"
+    :                                        "Sequencing the pipeline…";
 
-  const currentAction = criticDone
-    ? "Critic has reviewed the plan"
-    : aggregateDone
-    ? "Critic is scoring the plan…"
-    : allAgentsDone
-    ? "Aggregating all results…"
-    : forecastDone
-    ? `${LOADING_AGENTS.length - doneAgents.size} agent${LOADING_AGENTS.length - doneAgents.size !== 1 ? "s" : ""} still running…`
-    : opsDone
-    ? "Running demand forecast…"
-    : "Sequencing the pipeline…";
+  // SVG height matches the parallel agent stack:  4 × 68px nodes + 3 × 8px gaps = 296px
+  const SVG_H = 296;
+  const MID   = SVG_H / 2;                         // 148 — center of stack
+  const POSITIONS = [34, 102, 170, 238] as const;   // center-y of each agent node
 
   return (
-    <div className="py-12">
-      <div className="mx-auto max-w-[620px]">
-
-        {/* Header */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 rounded-full border border-ember-500/20 bg-ember-500/[0.08] px-3 py-1.5 mb-5">
-            <span className="relative flex h-2 w-2">
-              {!criticDone && <span className="absolute inset-0 animate-ping rounded-full bg-ember-400 opacity-50" />}
-              <span className={`relative rounded-full ${criticDone ? "bg-emerald-400" : "bg-ember-400"}`} />
-            </span>
-            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-ember-300">
-              {criticDone ? "Complete" : "Pipeline live"}
-            </span>
-          </div>
-          <h1 className="text-[36px] font-semibold tracking-[-0.015em] text-white leading-[1.05]">
-            {criticDone ? "Your brief is ready." : "Preparing your brief…"}
-          </h1>
-          <p className="mt-3 text-[14px] leading-[1.7] text-white/50 max-w-sm mx-auto">
-            Five specialist agents read your kitchen data in parallel. A critic verifies the plan before you see it.
-          </p>
+    <div className="py-10">
+      {/* Header */}
+      <div className="mx-auto max-w-[560px] text-center mb-10">
+        <div className="inline-flex items-center gap-2 rounded-full border border-ember-500/20 bg-ember-500/[0.08] px-3 py-1.5 mb-4">
+          <span className="relative flex h-2 w-2">
+            {!criticDone && <span className="absolute inset-0 animate-ping rounded-full bg-ember-400 opacity-50" />}
+            <span className={`relative rounded-full ${criticDone ? "bg-emerald-400" : "bg-ember-400"}`} />
+          </span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-ember-300">
+            {criticDone ? "Complete" : "Pipeline live"}
+          </span>
         </div>
+        <h1 className="text-[32px] font-semibold tracking-[-0.015em] text-white leading-[1.05]">
+          {criticDone ? "Your brief is ready." : "Preparing your brief…"}
+        </h1>
+        <p className="mt-3 text-[13px] leading-[1.7] text-white/45 max-w-xs mx-auto">
+          Five agents read your kitchen data in parallel before a critic verifies the plan.
+        </p>
+      </div>
 
-        {/* 3-phase strip */}
-        <div className="flex items-center justify-center mb-10">
-          {phases.map((phase, i) => (
-            <div key={phase.label} className="flex items-center">
-              <div className="flex items-center gap-2">
-                <div className={`h-2 w-2 rounded-full transition-colors duration-500 ${
-                  phase.done   ? "bg-emerald-400"
-                  : phase.active ? "bg-ember-400 animate-pulse"
-                  :                "bg-white/15"
-                }`} />
-                <span className={`font-mono text-[10px] uppercase tracking-[0.18em] transition-colors duration-500 ${
-                  phase.done   ? "text-emerald-300/80"
-                  : phase.active ? "text-ember-300/80"
-                  :                "text-white/25"
-                }`}>
-                  {phase.label}
-                </span>
-              </div>
-              {i < phases.length - 1 && (
-                <div className={`mx-5 h-px w-10 transition-colors duration-500 ${phases[i].done ? "bg-emerald-400/40" : "bg-white/10"}`} />
-              )}
-            </div>
-          ))}
-        </div>
+      {/* Graph topology — horizontal pipeline */}
+      <div className="rounded-2xl bg-ink-900 ring-1 ring-white/[0.07] px-6 py-6">
+        <div className="flex items-center justify-center gap-0">
 
-        {/* Agent status list */}
-        <div className="rounded-2xl bg-ink-900 ring-1 ring-white/[0.07] overflow-hidden">
-          <div className="px-5 pt-4 pb-3 border-b border-white/[0.06]">
-            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-white/35">What&apos;s happening</p>
-          </div>
-          <div className="divide-y divide-white/[0.05]">
-            {pipelineNodes.map((node) => {
-              const isDone    = node.state === "done";
-              const isRunning = node.state === "running";
+          {/* Ops Manager */}
+          <GraphNode label="Ops Manager" subLabel="Sequences pipeline" state={opsState} dot="bg-slate-400" />
+
+          {/* → */}
+          <svg className="shrink-0 w-8 h-4" viewBox="0 0 32 16" fill="none" stroke="currentColor" strokeWidth="1">
+            <path d={`M0,8 H26 M20,3 L26,8 L20,13`} className={`transition-colors duration-500 ${opsDone ? "text-emerald-400/50" : "text-white/15"}`} />
+          </svg>
+
+          {/* Demand Forecast */}
+          <GraphNode label="Demand Forecast" subLabel="Prophet time-series" state={forecastState} dot="bg-ember-400" />
+
+          {/* Fan-out SVG */}
+          <svg
+            className="shrink-0 w-10"
+            style={{ height: SVG_H }}
+            viewBox={`0 0 40 ${SVG_H}`}
+            fill="none" stroke="currentColor" strokeWidth="1"
+          >
+            {POSITIONS.map((y) => (
+              <path
+                key={y}
+                d={`M0,${MID} H20 V${y} H36 M30,${y - 5} L36,${y} L30,${y + 5}`}
+                className={`transition-colors duration-500 ${forecastDone ? "text-ember-400/40" : "text-white/10"}`}
+              />
+            ))}
+          </svg>
+
+          {/* 4 parallel agents */}
+          <div className="flex flex-col gap-2 shrink-0">
+            {parallelAgents.map((agent, i) => {
+              const state: NodeState = doneAgents.has(i) ? "done" : forecastDone ? "running" : "idle";
               return (
-                <div
-                  key={node.key}
-                  className={`flex items-center gap-4 px-5 py-3 transition-colors duration-300 ${isRunning ? "bg-white/[0.025]" : ""}`}
-                >
-                  {/* Status indicator */}
-                  <div className="w-4 shrink-0 flex justify-center">
-                    {isDone ? (
-                      <svg className="h-3.5 w-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : isRunning ? (
-                      <span className={`h-2 w-2 rounded-full animate-pulse ${node.dot}`} />
-                    ) : (
-                      <span className="h-2 w-2 rounded-full bg-white/12" />
-                    )}
-                  </div>
-
-                  {/* Agent name */}
-                  <span className={`text-[13px] font-medium flex-1 min-w-0 transition-colors duration-300 ${
-                    isDone ? "text-white" : isRunning ? "text-white/75" : "text-white/25"
-                  }`}>
-                    {node.label}
-                  </span>
-
-                  {/* Status / result */}
-                  <span className={`text-[11px] font-mono text-right shrink-0 transition-colors duration-300 ${
-                    isDone    ? node.valueColor
-                    : isRunning ? "text-white/40"
-                    :             "text-white/18"
-                  }`}>
-                    {isDone ? node.doneText : isRunning ? node.runningText : "waiting"}
-                  </span>
-                </div>
+                <GraphNode key={agent.key} label={agent.label} subLabel={agent.subLabel} state={state} dot={agent.dot} />
               );
             })}
           </div>
-        </div>
 
-        {/* Footer */}
-        <div className="mt-5 text-center">
-          {criticDone ? (
-            <div className="rounded-xl bg-emerald-500/[0.06] ring-1 ring-emerald-400/25 px-5 py-4">
-              <p className="text-sm font-semibold text-emerald-300">Plan approved — loading your dashboard</p>
-            </div>
-          ) : (
-            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-white/30">{currentAction}</p>
-          )}
-        </div>
+          {/* Fan-in SVG */}
+          <svg
+            className="shrink-0 w-10"
+            style={{ height: SVG_H }}
+            viewBox={`0 0 40 ${SVG_H}`}
+            fill="none" stroke="currentColor" strokeWidth="1"
+          >
+            {POSITIONS.map((y) => (
+              <path
+                key={y}
+                d={`M4,${y} H20 V${MID} H36 M30,${MID - 5} L36,${MID} L30,${MID + 5}`}
+                className={`transition-colors duration-500 ${allAgentsDone ? "text-emerald-400/40" : "text-white/10"}`}
+              />
+            ))}
+          </svg>
 
+          {/* Aggregator */}
+          <GraphNode label="Aggregator" subLabel="Synthesises outputs" state={aggState} dot="bg-violet-400" />
+
+          {/* → */}
+          <svg className="shrink-0 w-8 h-4" viewBox="0 0 32 16" fill="none" stroke="currentColor" strokeWidth="1">
+            <path d={`M0,8 H26 M20,3 L26,8 L20,13`} className={`transition-colors duration-500 ${aggregateDone ? "text-emerald-400/50" : "text-white/15"}`} />
+          </svg>
+
+          {/* Critic */}
+          <GraphNode label="Critic" subLabel="Scores 5 dimensions" state={criticState} dot="bg-emerald-300" />
+
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="mt-5 text-center">
+        {criticDone ? (
+          <div className="rounded-xl bg-emerald-500/[0.06] ring-1 ring-emerald-400/25 px-5 py-3.5">
+            <p className="text-sm font-semibold text-emerald-300">Plan approved — loading your dashboard</p>
+          </div>
+        ) : (
+          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-white/30">{currentAction}</p>
+        )}
       </div>
     </div>
   );
@@ -614,6 +585,10 @@ export default function DashboardPage() {
   useEffect(() => {
     dashCtx?.registerReset(reset);
   }, [reset, dashCtx]);
+
+  useEffect(() => {
+    dashCtx?.registerOpenHistory(() => setShowHistoryDrawer(true));
+  }, [dashCtx]);
 
   const selectedScenario    = (dashCtx?.selectedScenario ?? "friday_rush") as PlanningScenarioOption["id"];
   const setSelectedScenario = (s: PlanningScenarioOption["id"]) => dashCtx?.setSelectedScenario(s as typeof dashCtx.selectedScenario);

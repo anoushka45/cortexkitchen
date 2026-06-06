@@ -10,6 +10,7 @@ import DatePicker from "@/components/dashboard/DatePicker";
 import ForecastChart from "@/components/dashboard/ForecastChart";
 import ManagerActionPanel from "@/components/dashboard/ManagerActionPanel";
 import RagContextDrawer from "@/components/dashboard/RagContextDrawer";
+import WhatIfPanel from "@/components/dashboard/WhatIfPanel";
 import RunHistory from "@/components/dashboard/RunHistory";
 import { useAuth } from "@/context/AuthContext";
 import { DashStatus, useDashboardCtx } from "@/context/DashboardContext";
@@ -549,6 +550,7 @@ export default function DashboardPage() {
   const [activeHistoryId, setActiveHistoryId] = useState<string | number | undefined>();
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
   const [showManagerBrief, setShowManagerBrief] = useState(false);
+  const [showWhatIf,       setShowWhatIf]       = useState(false);
   const [servicePlanningOpen, setServicePlanningOpen] = useState(true);
   const [operationalRiskOpen, setOperationalRiskOpen] = useState(true);
   const [menuDirectionOpen, setMenuDirectionOpen] = useState(true);
@@ -651,6 +653,15 @@ export default function DashboardPage() {
                     </svg>
                     Export PDF
                   </a>
+                  <button
+                    onClick={() => setShowWhatIf(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-white/70 ring-1 ring-white/10 transition-colors hover:text-white"
+                  >
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    What-if
+                  </button>
                   <button
                     onClick={() => setShowManagerBrief(true)}
                     className="btn-primary inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold"
@@ -759,6 +770,54 @@ export default function DashboardPage() {
                 </div>
                 <DatePicker onRun={handleRun} loading={false} scenario={SCENARIO_OPTIONS.find((item) => item.id === selectedScenario)} compact />
               </div>
+
+              {/* ── What-if modal ── */}
+              {showWhatIf && (() => {
+                const fc      = data.recommendations?.forecast as Record<string, unknown> | null;
+                const fcData  = (fc?.data as Record<string, unknown> | null) ?? fc;
+                const baseCovers = Number(fcData?.predicted_orders ?? 0);
+                const avgCovers  = Number(fcData?.avg_same_day_orders ?? fcData?.avg_friday_orders ?? baseCovers);
+                const svcWindow  = (fcData?.service_window as string) ?? "18:00-22:00";
+                return baseCovers > 0 ? (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm"
+                      onClick={() => setShowWhatIf(false)}
+                    />
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+                      <div
+                        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-ink-900 ring-1 ring-white/[0.08] shadow-[0_40px_80px_rgba(0,0,0,0.6)] pointer-events-auto"
+                        style={{ animation: "fadeUp 0.2s ease-out" }}
+                      >
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.07]">
+                          <div>
+                            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ember-300/80">Simulator</p>
+                            <h2 className="mt-0.5 text-base font-semibold text-white">What-if — cover count</h2>
+                          </div>
+                          <button
+                            onClick={() => setShowWhatIf(false)}
+                            className="text-slate-500 hover:text-slate-300 transition-colors"
+                          >
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                        <div className="px-6 py-5">
+                          <WhatIfPanel
+                            baseCovers={baseCovers}
+                            avgCovers={avgCovers}
+                            scenario={data.scenario ?? "friday_rush"}
+                            serviceWindow={svcWindow}
+                            defaultOpen
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <style>{`@keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }`}</style>
+                  </>
+                ) : null;
+              })()}
 
               <DashboardDetailModal
                 open={showManagerBrief}

@@ -104,6 +104,25 @@ export async function runPlanningScenario(
   return res.json() as Promise<FridayRushResponse>;
 }
 
+export interface WhatIfRequest  { predicted_covers: number; avg_covers: number; scenario: string; service_window: string }
+export interface WhatIfResponse {
+  scenario: string; service_window: string;
+  predicted_covers: number; avg_covers: number; demand_ratio: number;
+  cost_pressure_score: number; benefit_score: number; tradeoff_score: number;
+  pressure_components: Record<string, number>;
+  tradeoff_notes: string[]; recommended_focus: string[];
+}
+
+export async function runWhatIf(body: WhatIfRequest): Promise<WhatIfResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/planning/whatif`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`What-if error ${res.status}`);
+  return res.json() as Promise<WhatIfResponse>;
+}
+
 export type SSENodeEvent   = { event: "node_complete"; node: string; cached?: boolean };
 export type SSECompleteEvent = { event: "complete" } & FridayRushResponse;
 export type SSEErrorEvent  = { event: "error"; message: string };

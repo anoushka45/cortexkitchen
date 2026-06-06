@@ -425,13 +425,44 @@ function ScenarioSelector({
 }
 
 
+function PipelineCard({
+  state, title, detail, meterPct,
+}: { state: NodeState; title: string; detail: string; meterPct: number }) {
+  const ring = state === "done"    ? "ring-emerald-400/30 bg-emerald-500/[0.05]"
+             : state === "running" ? "ring-ember-400/30 bg-ember-500/[0.06]"
+             :                       "ring-white/10 bg-white/[0.025]";
+  const statusColor = state === "done" ? "text-emerald-300/80" : state === "running" ? "text-ember-300/80" : "text-white/40";
+  const dotCls      = state === "done" ? "bg-emerald-300" : state === "running" ? "bg-ember-300 animate-pulse" : "hidden";
+  const statusLabel = state === "done" ? "✓ done" : state === "running" ? "running" : "waiting";
+  return (
+    <div className={`rounded-xl p-3 h-[120px] flex flex-col justify-between ring-1 transition-all duration-500 ${ring}`}>
+      <div className="flex items-center gap-2">
+        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${dotCls}`} />
+        <span className={`font-mono text-[9px] uppercase tracking-wider ${statusColor}`}>{statusLabel}</span>
+      </div>
+      <div>
+        <div className="text-[13px] font-semibold text-white">{title}</div>
+        <div className="text-[10px] text-white/55 mt-0.5">{detail}</div>
+      </div>
+      <div className="meter">
+        <span style={{
+          width: `${meterPct}%`,
+          background: state === "done" ? "#34d399" : undefined,
+        }} />
+      </div>
+    </div>
+  );
+}
+
 function LoadingState() {
   const [opsDone,       setOpsDone]       = useState(false);
   const [forecastDone,  setForecastDone]  = useState(false);
   const [doneAgents,    setDoneAgents]    = useState<Set<number>>(new Set());
   const [aggregateDone, setAggregateDone] = useState(false);
   const [criticDone,    setCriticDone]    = useState(false);
+  const [logs, setLogs] = useState<Array<{ time: string; text: string; color: string }>>([]);
 
+  // ── State machine (unchanged) ──────────────────────────────────
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
     timers.push(setTimeout(() => setOpsDone(true), 500));
@@ -449,131 +480,124 @@ function LoadingState() {
     return () => timers.forEach(clearTimeout);
   }, []);
 
-  const dotColor: Record<(typeof LOADING_AGENTS)[number]["tone"], string> = {
-    cyan:    "bg-cyan-300",
-    rose:    "bg-rose-400",
-    amber:   "bg-amber-300",
-    emerald: "bg-emerald-300",
-  };
+  // ── Live log — rebuilds whenever state changes ─────────────────
+  useEffect(() => {
+    const t = ["12:42:01","12:42:02","12:42:03","12:42:04","12:42:05","12:42:06","12:42:07","12:42:08"];
+    const next: typeof logs = [];
+    if (opsDone)       next.push({ time: t[0], color: "text-emerald-300", text: "ops_manager → sequenced 9 nodes, fan-out=4" });
+    if (forecastDone)  next.push({ time: t[1], color: "text-emerald-300", text: "forecast.prophet → 99 predicted_orders, peak=19h, σ=4.2" });
+    if (doneAgents.has(0)) next.push({ time: t[2], color: "text-emerald-300", text: "reservation → 15 bookings, 61 guests, occupancy=87.1%" });
+    if (doneAgents.has(2)) next.push({ time: t[3], color: "text-emerald-300", text: "menu → push=margherita, ease=tikka_pizza" });
+    if (forecastDone && !doneAgents.has(1)) next.push({ time: t[4], color: "text-ember-300",   text: "complaint.rag → retrieving... (7 docs, k=5)" });
+    if (doneAgents.has(1)) next.push({ time: t[4], color: "text-emerald-300", text: "complaint.rag → 3 issues retrieved, sentiment=0.78" });
+    if (forecastDone && !doneAgents.has(3)) next.push({ time: t[5], color: "text-ember-300",   text: "inventory → scoring 24 SKUs against demand ratio..." });
+    if (doneAgents.has(3)) next.push({ time: t[5], color: "text-emerald-300", text: "inventory → 6 critical shortages, restock urgency HIGH" });
+    if (aggregateDone) next.push({ time: t[6], color: "text-emerald-300", text: "aggregator → synthesising 5 agent outputs into plan" });
+    if (criticDone)    next.push({ time: t[7], color: "text-emerald-300", text: "critic → score=0.91 · verdict=APPROVED · plan ready" });
+    setLogs(next);
+  }, [opsDone, forecastDone, doneAgents, aggregateDone, criticDone]);
 
   const opsState:      NodeState = opsDone       ? "done" : "running";
   const forecastState: NodeState = forecastDone  ? "done" : opsDone ? "running" : "idle";
   const aggState:      NodeState = aggregateDone ? "done" : doneAgents.size === LOADING_AGENTS.length ? "running" : "idle";
   const criticState:   NodeState = criticDone    ? "done" : aggregateDone ? "running" : "idle";
 
+  const agentDetails = [
+    { running: "Occupancy load...",  done: `87% occupancy`      },
+    { running: "RAG retrieval...",   done: "3 issues found"      },
+    { running: "Push/avoid...",      done: "2 items flagged"     },
+    { running: "Scoring spoilage...",done: "6 critical"          },
+  ];
+
   return (
-    <div className="py-10">
-      <div className="relative w-full overflow-hidden rounded-[28px] border border-white/10 bg-[#050816] px-6 py-10 shadow-[0_35px_120px_rgba(0,0,0,0.55)] xl:px-10 xl:py-12">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(139,92,246,0.12),transparent_45%)]" />
+    <div className="py-8">
+      {/* Header */}
+      <div className="text-center mb-14">
+        <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-ember-300/80">Pipeline live</div>
+        <h1 className="mt-4 text-[40px] leading-[1.05] tracking-[-0.015em] text-white md:text-[44px]">
+          Five agents are reading<br />
+          <span className="display-it text-ember-300">your kitchen.</span>
+        </h1>
+        <p className="mx-auto mt-4 max-w-lg text-[15px] leading-[1.7] text-white/60">
+          Ops manager sequences the run — forecast gates first, then agents analyse in parallel before synthesis and critique.
+        </p>
+      </div>
 
-        {/* Header */}
-        <div className="relative z-10 flex flex-col items-center text-center">
-          <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="absolute inset-0 rounded-full bg-violet-400 animate-ping opacity-60" />
-              <span className="relative rounded-full bg-violet-400" />
-            </span>
-            <span className="text-[11px] font-mono uppercase tracking-[0.24em] text-slate-400">orchestration live</span>
+      {/* Pipeline */}
+      <div className="rounded-3xl bg-ink-900 p-8 ring-1 ring-white/[0.07]">
+        <div className="grid grid-cols-12 items-stretch gap-3">
+
+          {/* Ops Manager */}
+          <div className="col-span-2">
+            <PipelineCard state={opsState} title="Ops Manager" detail="Sequenced 9 nodes" meterPct={opsState === "done" ? 100 : 60} />
           </div>
-          <h2 className="mt-4 text-xl font-semibold text-white">Multi-agent execution pipeline</h2>
-          <p className="mt-2 max-w-xl text-sm text-slate-400">
-            Ops manager sequences the run — forecast gates first, then agents analyze in parallel before synthesis and critique.
-          </p>
+          <div className="col-span-1 flex items-center justify-center font-mono text-xs text-white/30">→</div>
+
+          {/* Demand Forecast */}
+          <div className="col-span-2">
+            <PipelineCard state={forecastState} title="Demand Forecast"
+              detail={forecastState === "done" ? "99 covers · peak 19h" : "Prophet running..."}
+              meterPct={forecastState === "done" ? 100 : forecastState === "running" ? 65 : 0} />
+          </div>
+          <div className="col-span-1 flex items-center justify-center font-mono text-xs text-white/30">→</div>
+
+          {/* Parallel agents */}
+          <div className="col-span-4 grid grid-cols-2 gap-2">
+            {LOADING_AGENTS.map((agent, i) => {
+              const isDone  = doneAgents.has(i);
+              const state: NodeState = isDone ? "done" : forecastDone ? "running" : "idle";
+              const det = agentDetails[i];
+              return (
+                <PipelineCard key={agent.key} state={state} title={agent.label}
+                  detail={isDone ? det.done : forecastDone ? det.running : "waiting"}
+                  meterPct={isDone ? 100 : forecastDone ? 45 + i * 8 : 0} />
+              );
+            })}
+          </div>
+          <div className="col-span-1 flex items-center justify-center font-mono text-xs text-white/30">→</div>
+
+          {/* Aggregator */}
+          <div className="col-span-1">
+            <PipelineCard state={aggState} title="Aggreg."
+              detail={aggState === "done" ? "Plan ready" : "Awaits agents"}
+              meterPct={aggState === "done" ? 100 : aggState === "running" ? 50 : 0} />
+          </div>
+
         </div>
 
-        {/* ── VERTICAL (below xl) ── */}
-        <div className="relative z-10 mt-10 xl:hidden">
-          <VCard state={opsState}      tag="orchestrator" title="Ops Manager"     desc="Routes and sequences agents" />
-          <VConnector active={opsDone} />
-          <VCard state={forecastState} tag="prerequisite" title="Demand Forecast" desc="Gates all downstream agents" />
-          <VConnector active={forecastDone} />
-
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3">
-            <p className="mb-2 text-[9px] font-mono uppercase tracking-[0.18em] text-slate-600">parallel agents</p>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {LOADING_AGENTS.map((agent, i) => {
-                const isDone = doneAgents.has(i);
-                const state: NodeState = isDone ? "done" : forecastDone ? "running" : "idle";
-                const s = nodeStyle(state);
-                return (
-                  <div key={agent.key} className={`rounded-xl border px-3 py-2.5 transition-all duration-500 ${s.border}`}>
-                    <div className="flex items-center gap-2">
-                      <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${dotColor[agent.tone]} ${isDone ? "" : forecastDone ? "animate-pulse" : "opacity-30"}`} />
-                      <span className={`text-[9px] font-mono uppercase ${s.tag}`}>
-                        {isDone ? "done" : forecastDone ? "running" : "waiting"}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-sm font-semibold text-white">{agent.label}</div>
-                    <div className="mt-0.5 text-[10px] text-slate-500">{agent.desc}</div>
-                    <div className="mt-2"><ProgressBar state={state} /></div>
-                  </div>
-                );
-              })}
+        {/* Live log */}
+        <div className="mt-6 rounded-xl bg-black/40 p-4 font-mono text-[11px] leading-[1.7] text-white/65 ring-1 ring-white/[0.06]">
+          {logs.map((log, i) => (
+            <div key={i}>
+              <span className={log.color}>{log.time}</span>
+              {" "}{log.text}
             </div>
-          </div>
-
-          <VConnector active={doneAgents.size === LOADING_AGENTS.length} />
-          <VCard state={aggState}    tag="synthesis"  title="Aggregator" desc="Merges all agent outputs" />
-          <VConnector active={aggregateDone} />
-          <VCard state={criticState} tag="validation" title="Critic"     desc="Scores and verifies plan" />
-        </div>
-
-        {/* ── HORIZONTAL (xl+) ── */}
-        <div className="relative z-10 mt-14 hidden xl:block">
-          <div className="flex items-center justify-center">
-            <div className="flex flex-shrink-0 items-center">
-              <HCard state={opsState}      tag="orchestrator" title="Ops Manager"     desc="Routes and sequences agents" />
-              <HArrow active={opsDone} />
-            </div>
-            <div className="flex flex-shrink-0 items-center">
-              <HCard state={forecastState} tag="prerequisite" title="Demand Forecast" desc="Gates all downstream agents" width="w-[175px]" />
-              <HArrow active={forecastDone} />
-            </div>
-            <div className="flex flex-shrink-0 items-center">
-              <div className="grid grid-cols-2 gap-3">
-                {LOADING_AGENTS.map((agent, i) => {
-                  const isDone = doneAgents.has(i);
-                  const state: NodeState = isDone ? "done" : forecastDone ? "running" : "idle";
-                  const s = nodeStyle(state);
-                  return (
-                    <div key={agent.key} className={`flex h-[116px] w-[155px] flex-col justify-between rounded-2xl border p-4 transition-all duration-500 ${s.border}`}>
-                      <div className="flex items-center gap-2">
-                        <span className={`h-2 w-2 flex-shrink-0 rounded-full ${dotColor[agent.tone]} ${isDone ? "" : forecastDone ? "animate-pulse" : "opacity-30"}`} />
-                        <span className={`text-[9px] font-mono uppercase ${s.tag}`}>
-                          {isDone ? "done" : forecastDone ? "running" : "waiting"}
-                        </span>
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold text-white">{agent.label}</div>
-                        <div className="mt-1 text-[10px] leading-snug text-slate-500">{agent.desc}</div>
-                      </div>
-                      <ProgressBar state={state} />
-                    </div>
-                  );
-                })}
-              </div>
-              <HArrow active={doneAgents.size === LOADING_AGENTS.length} />
-            </div>
-            <div className="flex flex-shrink-0 items-center gap-3">
-              <HCard state={aggState}    tag="synthesis"  title="Aggregator" desc="Merges all agent outputs"  width="w-[145px]" />
-              <HArrow active={aggregateDone} />
-              <HCard state={criticState} tag="validation" title="Critic"     desc="Scores and verifies plan"  width="w-[135px]" />
-            </div>
-          </div>
+          ))}
+          <div className="text-white/30">_</div>
         </div>
       </div>
 
-      <style>{`
-        .bar-shimmer {
-          background: linear-gradient(90deg, rgba(139,92,246,0.1), rgba(139,92,246,0.9), rgba(139,92,246,0.1));
-          background-size: 200% 100%;
-          animation: shimmer 1.2s linear infinite;
-        }
-        @keyframes shimmer {
-          0%   { background-position: 0% 50%; }
-          100% { background-position: 100% 50%; }
-        }
-      `}</style>
+      {/* Pending cards */}
+      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {[
+          { label: "critic verdict", done: criticDone },
+          { label: "manager brief",  done: criticDone },
+          { label: "export package", done: criticDone },
+        ].map(({ label, done }) => (
+          <div key={label}
+            className={`h-24 rounded-xl grid place-items-center font-mono text-[10px] uppercase tracking-[0.14em] transition-colors ${
+              done
+                ? "bg-emerald-500/[0.06] text-emerald-300/80 ring-1 ring-emerald-400/25"
+                : "text-ember-400/70 ring-1 ring-dashed ring-ember-400/22"
+            }`}
+            style={!done ? {
+              background: "repeating-linear-gradient(135deg, rgba(230,137,42,0.04) 0 10px, rgba(230,137,42,0.015) 10px 20px)",
+            } : undefined}
+          >
+            {done ? `✓ ${label}` : `${label} — pending`}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

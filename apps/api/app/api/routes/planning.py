@@ -16,6 +16,7 @@ from app.api.schemas.planning import (
 from app.core.exceptions import AppError
 from app.domain.scenarios import list_scenarios
 from app.domain.services.run_service import RunService
+from app.infrastructure.cache.plan_cache import build_cache_key, cache_plan, get_cached_plan
 from app.orchestration import run_friday_rush, run_planning_scenario
 
 router = APIRouter(prefix="/planning", tags=["planning"])
@@ -77,6 +78,24 @@ async def run_planning(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> FridayRushResponse:
+    # Cache is bypassed for simulation runs, forced critic decisions, and debug mode
+    cacheable = (
+        not body.simulation_mode
+        and not body.force_critic_decision
+        and not body.debug
+    )
+
+    if cacheable:
+        cache_key = build_cache_key(
+            org_id=current_user["org_id"],
+            scenario=body.scenario,
+            target_date=body.target_date,
+        )
+        cached = await get_cached_plan(cache_key)
+        if cached:
+            cached["cache_hit"] = True
+            return FridayRushResponse(**cached)
+
     # Pull org settings so agents use tenant-configured capacity and hours
     org = db.query(Organization).filter(Organization.id == current_user["org_id"]).first()
     org_settings = org.settings or {} if org else {}
@@ -136,7 +155,13 @@ async def run_planning(
     except Exception as exc:
         meta.setdefault("run_persistence_error", str(exc))
 
-    return _build_response(result, meta, body.scenario)
+    response = _build_response(result, meta, body.scenario)
+    response.cache_hit = False
+
+    if cacheable:
+        await cache_plan(cache_key, response.model_dump())
+
+    return response
 
 
 @router.post(

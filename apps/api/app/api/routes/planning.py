@@ -170,7 +170,7 @@ async def run_planning(
     response = _build_response(result, meta, body.scenario)
     response.cache_hit = False
 
-    if cacheable:
+    if cacheable and response.critic.verdict == "approved":
         await cache_plan(cache_key, response.model_dump())
 
     return response

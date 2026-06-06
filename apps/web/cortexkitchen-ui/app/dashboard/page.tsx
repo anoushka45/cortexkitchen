@@ -615,6 +615,10 @@ export default function DashboardPage() {
     dashCtx?.registerReset(reset);
   }, [reset, dashCtx]);
 
+  useEffect(() => {
+    dashCtx?.registerOpenHistory(() => setShowHistoryDrawer(true));
+  }, [dashCtx]);
+
   const selectedScenario    = (dashCtx?.selectedScenario ?? "friday_rush") as PlanningScenarioOption["id"];
   const setSelectedScenario = (s: PlanningScenarioOption["id"]) => dashCtx?.setSelectedScenario(s as typeof dashCtx.selectedScenario);
 

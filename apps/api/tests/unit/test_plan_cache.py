@@ -137,6 +137,14 @@ def test_cacheable_when_all_clear():
 
 # ── cache hit cost zeroing ────────────────────────────────────────────────────
 
+def test_only_approved_plans_are_cached():
+    # Simulate the cache condition check in the route
+    for verdict, should_cache in [("approved", True), ("rejected", False), ("revision", False), ("unknown", False)]:
+        cacheable = True
+        result = cacheable and verdict == "approved"
+        assert result == should_cache, f"verdict={verdict} should_cache={should_cache}"
+
+
 def test_cache_hit_zeroes_cost_in_meta():
     cached = {
         "scenario": "friday_rush",

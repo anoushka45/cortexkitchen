@@ -46,6 +46,7 @@ def list_runs(
 ) -> PlanningRunListResponse:
     service = RunService(db)
     runs = service.list_runs(
+        org_id=current_user["org_id"],
         limit=limit,
         scenario=scenario,
         status=status,
@@ -59,7 +60,7 @@ def list_runs(
 @router.get("/runs/{run_id}", response_model=PlanningRunDetail)
 def get_run(run_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)) -> PlanningRunDetail:
     service = RunService(db)
-    run = service.get_run(run_id)
+    run = service.get_run(run_id, org_id=current_user["org_id"])
     if run is None:
         raise HTTPException(status_code=404, detail="Planning run not found.")
     return PlanningRunDetail(**service.to_detail(run))
@@ -74,7 +75,7 @@ def export_run_pdf(
     from app.infrastructure.pdf.report_generator import generate_run_pdf
 
     service = RunService(db)
-    run = service.get_run(run_id)
+    run = service.get_run(run_id, org_id=current_user["org_id"])
     if run is None:
         raise HTTPException(status_code=404, detail="Planning run not found.")
 
@@ -100,7 +101,7 @@ def export_run_excel(
     from app.infrastructure.excel.report_generator import generate_run_excel
 
     service = RunService(db)
-    run = service.get_run(run_id)
+    run = service.get_run(run_id, org_id=current_user["org_id"])
     if run is None:
         raise HTTPException(status_code=404, detail="Planning run not found.")
 

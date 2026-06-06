@@ -33,6 +33,9 @@ class OrchestratorState(TypedDict):
     target_date:  Annotated[Optional[str], keep_last]
     requested_at: Annotated[Optional[str], keep_last]
 
+    # Tenant identity — scopes Qdrant queries to the requesting org
+    org_id: Annotated[Optional[int], keep_last]
+
     # Tenant settings — passed in from org config, used by agents
     org_capacity:  Annotated[Optional[int], keep_last]
     org_peak_hours: Annotated[Optional[str], keep_last]
@@ -115,7 +118,8 @@ def make_initial_state(
         critic_output=None,
         final_response=None,
 
-        # Tenant settings
+        # Tenant identity + settings
+        org_id=None,
         org_capacity=None,
         org_peak_hours=None,
         restaurant_profile=restaurant_profile,

@@ -5,6 +5,10 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 
 from app.api.routes import get_api_router
 from app.api.schemas.common import ErrorResponse
@@ -36,7 +40,12 @@ app = FastAPI(
 )
 
 
-# 3. CORS Middleware
+# 3. OpenTelemetry — HTTP-layer tracing (console exporter for dev; swap for OTLP in prod)
+_tracer_provider = TracerProvider()
+_tracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+FastAPIInstrumentor.instrument_app(app, tracer_provider=_tracer_provider)
+
+# 3b. CORS Middleware
 # Allows the Next.js frontend (port 3000) to call the API (port 8000).
 app.add_middleware(
     CORSMiddleware,
@@ -86,5 +95,8 @@ def root() -> dict[str, str]:
     }
 
 
-# 6. Include Modular Routes
+# 6. Prometheus metrics — exposes /metrics in Prometheus text format
+Instrumentator().instrument(app).expose(app)
+
+# 7. Include Modular Routes
 app.include_router(get_api_router())

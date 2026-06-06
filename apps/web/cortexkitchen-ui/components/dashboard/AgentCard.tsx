@@ -8,13 +8,13 @@ import MenuInsights, { MenuInsightsBody } from "./MenuInsights";
 import ReservationSummary from "./ReservationSummary";
 
 const AGENT_META: Record<string, {
-  label: string; icon: string; accent: string; glow: string;
+  label: string; icon: string; headerBg: string; dotColor: string; glow: string;
 }> = {
-  forecast:    { label: "Demand Forecast",        icon: "📈", accent: "border-t-violet-500",  glow: "group-hover:shadow-glow-violet"  },
-  reservation: { label: "Reservation Pressure",   icon: "🪑", accent: "border-t-blue-500",    glow: "group-hover:shadow-glow-violet"  },
-  complaint:   { label: "Complaint Intelligence", icon: "💬", accent: "border-t-rose-500",    glow: "group-hover:shadow-glow-rose"    },
-  menu:        { label: "Menu Intelligence",      icon: "🍕", accent: "border-t-amber-500",   glow: "group-hover:shadow-glow-amber"   },
-  inventory:   { label: "Inventory Status",       icon: "📦", accent: "border-t-emerald-500", glow: "group-hover:shadow-glow-emerald" },
+  forecast:    { label: "Demand Forecast",        icon: "📈", headerBg: "bg-violet-500/[0.07]  border-b border-violet-500/15",  dotColor: "bg-violet-400",  glow: "group-hover:shadow-glow-violet"  },
+  reservation: { label: "Reservation Pressure",   icon: "🪑", headerBg: "bg-cyan-500/[0.06]    border-b border-cyan-500/15",    dotColor: "bg-cyan-400",    glow: "group-hover:shadow-glow-violet"  },
+  complaint:   { label: "Complaint Intelligence", icon: "💬", headerBg: "bg-rose-500/[0.06]    border-b border-rose-500/15",    dotColor: "bg-rose-400",    glow: "group-hover:shadow-glow-rose"    },
+  menu:        { label: "Menu Intelligence",      icon: "🍕", headerBg: "bg-amber-500/[0.06]   border-b border-amber-500/15",   dotColor: "bg-amber-400",   glow: "group-hover:shadow-glow-amber"   },
+  inventory:   { label: "Inventory Status",       icon: "📦", headerBg: "bg-emerald-500/[0.06] border-b border-emerald-500/15", dotColor: "bg-emerald-400", glow: "group-hover:shadow-glow-emerald" },
 };
 
 interface Props {
@@ -296,18 +296,21 @@ function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
 
 export default function AgentCard({ agentKey, data, index = 0 }: Props) {
   const [detailOpen, setDetailOpen] = useState(false);
-  const meta = AGENT_META[agentKey] ?? { label: agentKey, icon: "🤖", accent: "border-t-slate-500", glow: "" };
+  const meta = AGENT_META[agentKey] ?? { label: agentKey, icon: "🤖", headerBg: "bg-slate-500/[0.06] border-b border-slate-500/15", dotColor: "bg-slate-400", glow: "" };
 
   const canShowDetails = Boolean(data && !data.error);
 
   return (
     <>
-      <div className={`group card h-full flex flex-col border-t-2 ${meta.accent} ${meta.glow} transition-all duration-300 stagger-${index + 3}`}>
+      <div className={`group card h-full flex flex-col ${meta.glow} transition-all duration-300 stagger-${index + 3}`}>
         {/* Header */}
-        <div className="w-full flex items-center justify-between px-5 py-4">
+        <div className={`w-full flex items-center justify-between px-5 py-4 rounded-t-[11px] ${meta.headerBg}`}>
           <div className="flex items-center gap-3">
             <span className="text-lg">{meta.icon}</span>
-            <span className="text-sm font-semibold text-slate-200">{meta.label}</span>
+            <div className="flex items-center gap-2">
+              <span className={`h-1.5 w-1.5 rounded-full ${meta.dotColor}`} />
+              <span className="text-sm font-semibold text-slate-200">{meta.label}</span>
+            </div>
             {!data && (
               <span className="text-xs font-mono text-slate-600 bg-slate-800 px-2 py-0.5 rounded">
                 no data

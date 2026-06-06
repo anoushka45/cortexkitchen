@@ -12,6 +12,8 @@ import functools
 import os
 import time
 import uuid
+
+import sentry_sdk
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Any
@@ -95,6 +97,10 @@ def _inject(node_fn, traces: list, **deps):
             traces.append({"node": node, "started_at": started_at,
                            "ended_at": datetime.now(timezone.utc).isoformat(),
                            "duration_ms": duration_ms, "error": str(exc)})
+            with sentry_sdk.new_scope() as scope:
+                scope.set_tag("langgraph.node", node)
+                scope.set_extra("duration_ms", duration_ms)
+                sentry_sdk.capture_exception(exc)
             raise
     return _wrapped
 

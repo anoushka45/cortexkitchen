@@ -5,7 +5,7 @@ import { DashboardProvider } from "@/context/DashboardContext";
 import NavBar from "@/components/layout/NavBar";
 
 export const metadata: Metadata = {
-  title: "CortexKitchen · Ops Intelligence",
+  title: "CortexKitchen  -  Ops Intelligence",
   description: "Multi-agent restaurant operations planning platform",
 };
 

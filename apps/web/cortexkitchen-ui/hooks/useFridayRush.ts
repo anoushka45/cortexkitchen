@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { getPlanningRun, listPlanningRuns, runPlanningScenario } from "@/lib/api";
-import { FridayRushResponse, PlanningRunSummary, RunHistoryEntry } from "@/types/planning";
+import { FridayRushRequest, FridayRushResponse, PlanningRunSummary, RunHistoryEntry } from "@/types/planning";
 
 type Status = "idle" | "loading" | "success" | "error";
 
@@ -12,7 +12,7 @@ interface UseFridayRushReturn {
   status:     Status;
   error:      string | null;
   history:    RunHistoryEntry[];
-  trigger:    (targetDate?: string, scenario?: FridayRushResponse["scenario"]) => Promise<void>;
+  trigger:    (targetDate?: string, scenario?: FridayRushRequest["scenario"]) => Promise<void>;
   reset:      () => void;
   loadFromHistory: (entry: RunHistoryEntry) => Promise<void>;
   refreshHistory: () => Promise<void>;
@@ -49,7 +49,7 @@ export function useFridayRush(): UseFridayRushReturn {
     return () => window.clearTimeout(timer);
   }, [refreshHistory]);
 
-  const trigger = useCallback(async (targetDate?: string, scenario: FridayRushResponse["scenario"] = "friday_rush") => {
+  const trigger = useCallback(async (targetDate?: string, scenario: FridayRushRequest["scenario"] = "friday_rush") => {
     setStatus("loading");
     setError(null);
 

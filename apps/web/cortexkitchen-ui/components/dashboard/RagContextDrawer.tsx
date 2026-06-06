@@ -29,7 +29,7 @@ export default function RagContextDrawer({ ragContext }: Props) {
             <p className="text-sm font-semibold text-slate-200">Evidence Drawer</p>
             <p className="text-xs text-slate-500">
               {complaints.length} complaint{complaints.length !== 1 ? "s" : ""} retrieved
-              {sops.length > 0 && ` · ${sops.length} SOP${sops.length !== 1 ? "s" : ""}`}
+              {sops.length > 0 && `  -  ${sops.length} SOP${sops.length !== 1 ? "s" : ""}`}
             </p>
           </div>
         </div>

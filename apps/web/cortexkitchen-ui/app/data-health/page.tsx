@@ -20,7 +20,7 @@ export default function DataHealthPage() {
       <div className="mx-auto max-w-[1520px] space-y-6">
         <header className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-mono uppercase tracking-[0.22em] text-violet-300">
+            <p className="text-xs font-mono uppercase tracking-[0.22em] text-ember-300">
               source data
             </p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight">Data Health</h1>
@@ -32,7 +32,7 @@ export default function DataHealthPage() {
             <Link className="rounded-lg border border-white/10 px-3 py-2 text-xs font-mono text-slate-300 hover:bg-white/5" href="/">
               dashboard
             </Link>
-            <Link className="rounded-lg border border-violet-400/20 bg-violet-500/10 px-3 py-2 text-xs font-mono text-violet-200" href="/runs">
+            <Link className="rounded-lg border border-ember-400/20 bg-ember-500/10 px-3 py-2 text-xs font-mono text-ember-200" href="/runs">
               runs
             </Link>
           </nav>

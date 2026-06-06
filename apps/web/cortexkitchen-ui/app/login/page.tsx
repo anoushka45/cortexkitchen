@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 
@@ -22,14 +23,22 @@ export default function LoginPage() {
   const [state, action, pending] = useActionState(handleLogin, undefined);
 
   return (
-    <div className="min-h-screen bg-[#09111f] flex items-center justify-center p-4">
+    <div className="grid-bg relative flex min-h-screen items-center justify-center overflow-hidden bg-ink-950 p-4">
+      <div
+        className="pointer-events-none absolute -top-48 left-1/2 h-[620px] w-[920px] -translate-x-1/2 rounded-full"
+        style={{ background: "radial-gradient(closest-side, rgba(230,137,42,0.20), transparent 72%)" }}
+      />
       <div className="w-full max-w-sm stagger-1">
         <div className="mb-8 text-center stagger-2">
-          <h1 className="text-2xl font-bold text-white tracking-tight">CortexKitchen</h1>
-          <p className="text-slate-500 text-sm mt-1">Sign in to your workspace</p>
+          <div className="mx-auto mb-4 grid h-12 w-12 place-items-center overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
+            <Image src="/ck-logo.png" alt="CortexKitchen" width={40} height={40} className="h-10 w-10 object-contain" priority />
+          </div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-ember-300/70">ops intelligence</p>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-white">CortexKitchen</h1>
+          <p className="mt-1 text-sm text-white/50">Sign in to your workspace</p>
         </div>
 
-        <form action={action} className="bg-[#0d1320] border border-white/10 rounded-xl p-6 space-y-4 stagger-3">
+        <form action={action} className="glass space-y-4 rounded-2xl border border-white/10 bg-ink-900/85 p-6 shadow-[0_32px_90px_rgba(0,0,0,0.45)] stagger-3">
           {state?.error && (
             <div className="text-sm text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">
               {state.error}
@@ -44,7 +53,7 @@ export default function LoginPage() {
               type="email"
               required
               autoComplete="email"
-              className="w-full bg-slate-950/60 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/60 transition-colors"
+              className="w-full bg-slate-950/60 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-ember-500/50 focus:border-ember-500/60 transition-colors"
               placeholder="you@restaurant.com"
             />
           </div>
@@ -57,23 +66,23 @@ export default function LoginPage() {
               type="password"
               required
               autoComplete="current-password"
-              className="w-full bg-slate-950/60 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/60 transition-colors"
-              placeholder="••••••••"
+              className="w-full bg-slate-950/60 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-ember-500/50 focus:border-ember-500/60 transition-colors"
+              placeholder="........"
             />
           </div>
 
           <button
             type="submit"
             disabled={pending}
-            className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2 text-sm transition-colors"
+            className="btn-primary w-full rounded-lg py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {pending ? "Signing in…" : "Sign in"}
+            {pending ? "Signing in..." : "Sign in"}
           </button>
         </form>
 
         <p className="text-center text-sm text-slate-500 mt-4">
           No account?{" "}
-          <Link href="/register" className="text-violet-400 hover:text-violet-300 transition-colors">
+          <Link href="/register" className="text-ember-300 transition-colors hover:text-ember-200">
             Create workspace
           </Link>
         </p>

@@ -18,22 +18,22 @@ export default function RunButton({ onRun, onReset, loading, hasData }: Props) {
         disabled={loading}
         className="
           inline-flex items-center gap-2 px-5 py-2.5
-          bg-violet-600 hover:bg-violet-500
+          bg-ember-600 hover:bg-ember-500
           disabled:opacity-50 disabled:cursor-not-allowed
           text-white text-sm font-semibold rounded-xl
-          shadow-glow-violet
+          shadow-glow-ember
           transition-all duration-200
-          border border-violet-500/50
+          border border-ember-500/50
         "
       >
         {loading ? (
           <>
             <Spinner size={15} />
-            <span className="font-mono text-xs tracking-wide">Running pipeline…</span>
+            <span className="font-mono text-xs tracking-wide">Running pipeline...</span>
           </>
         ) : (
           <>
-            <span>⚡</span>
+            <span></span>
             <span>Run Friday Rush</span>
           </>
         )}

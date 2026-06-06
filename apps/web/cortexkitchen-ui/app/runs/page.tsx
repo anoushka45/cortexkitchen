@@ -20,7 +20,7 @@ const AGENT_LABELS: Record<string, string> = {
 };
 
 const AGENT_ACCENT: Record<string, { dot: string; border: string; bg: string }> = {
-  forecast:    { dot: "bg-violet-400",  border: "border-violet-500/20",  bg: "bg-violet-500/[0.04]"  },
+  forecast:    { dot: "bg-ember-400",  border: "border-ember-500/20",  bg: "bg-ember-500/[0.04]"  },
   reservation: { dot: "bg-cyan-400",    border: "border-cyan-500/20",    bg: "bg-cyan-500/[0.04]"    },
   complaint:   { dot: "bg-rose-400",    border: "border-rose-500/20",    bg: "bg-rose-500/[0.04]"    },
   menu:        { dot: "bg-amber-400",   border: "border-amber-500/20",   bg: "bg-amber-500/[0.04]"   },
@@ -64,7 +64,7 @@ function AgentOutputCard({ agentKey, data }: { agentKey: string; data: unknown }
         <ul className="mt-2.5 space-y-1">
           {listEntry.items.slice(0, 3).map((item, i) => (
             <li key={i} className="flex gap-2 text-xs text-slate-400">
-              <span className="text-slate-600 shrink-0 mt-0.5">·</span>
+              <span className="text-slate-600 shrink-0 mt-0.5"> - </span>
               <span className="leading-relaxed">{item}</span>
             </li>
           ))}
@@ -147,7 +147,7 @@ function TrendChart({ runs }: { runs: PlanningRunSummary[] }) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           formatter={(v: any, _: any, props: any) => [
             `${v}/100`,
-            `${props.payload?.scenario ?? ""} · ${props.payload?.verdict ?? ""}`,
+            `${props.payload?.scenario ?? ""}  -  ${props.payload?.verdict ?? ""}`,
           ]}
           labelStyle={{ color: "#94a3b8" }}
         />
@@ -229,7 +229,7 @@ function DiffModal({
                 <div className="flex gap-2 items-center">
                   {/* Run A bar */}
                   <div className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div className="h-full rounded-full bg-violet-500" style={{ width: `${a}%` }} />
+                    <div className="h-full rounded-full bg-ember-500" style={{ width: `${a}%` }} />
                   </div>
                   <div className="w-16 text-center">
                     <span className="text-xs text-slate-400 font-mono">
@@ -246,7 +246,7 @@ function DiffModal({
           })}
 
           <div className="flex items-center gap-4 pt-2 text-xs text-slate-500">
-            <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded-full bg-violet-500 inline-block" /> Run #{runA.id}</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded-full bg-ember-500 inline-block" /> Run #{runA.id}</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded-full bg-cyan-500 inline-block" /> Run #{runB.id}</span>
           </div>
         </div>
@@ -393,7 +393,7 @@ export default function RunsPage() {
     }
   }
 
-  const selectEl = "rounded-lg border border-white/10 bg-slate-950/60 px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-violet-500/50";
+  const selectEl = "rounded-lg border border-white/10 bg-slate-950/60 px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-ember-500/50";
 
   return (
     <main className="min-h-screen bg-[#09111f] px-5 py-6 text-slate-100 xl:px-8">
@@ -402,7 +402,7 @@ export default function RunsPage() {
         {/* Header */}
         <header className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-mono uppercase tracking-[0.22em] text-violet-300">audit trail</p>
+            <p className="text-xs font-mono uppercase tracking-[0.22em] text-ember-300">audit trail</p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight">Runs</h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-400">
               Persisted planning runs with critic verdicts, agent outputs, RAG context, and trace metadata.
@@ -446,8 +446,8 @@ export default function RunsPage() {
             </button>
             {compareIds.length === 2 && (
               <button onClick={openDiff} disabled={diffLoading}
-                className="text-xs bg-violet-600 hover:bg-violet-500 disabled:opacity-50 rounded-lg px-3 py-1.5 text-white font-medium transition-colors">
-                {diffLoading ? "Loading…" : "Compare (2)"}
+                className="text-xs bg-ember-600 hover:bg-ember-500 disabled:opacity-50 rounded-lg px-3 py-1.5 text-white font-medium transition-colors">
+                {diffLoading ? "Loading..." : "Compare (2)"}
               </button>
             )}
             {compareIds.length > 0 && (
@@ -465,7 +465,7 @@ export default function RunsPage() {
             <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500 mb-3">
               Critic Score Trend
               <span className="ml-3 normal-case text-slate-600">
-                · <span className="text-emerald-400">●</span> approved
+                 -  <span className="text-emerald-400">●</span> approved
                 <span className="text-amber-400"> ●</span> revision
                 <span className="text-rose-400"> ●</span> rejected
               </span>
@@ -506,18 +506,18 @@ export default function RunsPage() {
                     const verdict    = run.critic_verdict ?? "unknown";
                     return (
                       <div key={run.id}
-                        className={`flex items-start gap-2 px-3 py-3 transition-colors hover:bg-white/[0.04] ${isActive ? "bg-violet-500/10" : ""}`}>
+                        className={`flex items-start gap-2 px-3 py-3 transition-colors hover:bg-white/[0.04] ${isActive ? "bg-ember-500/10" : ""}`}>
                         {/* Compare checkbox */}
                         <button
                           onClick={() => toggleCompare(run.id)}
                           className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
                             isCompared
-                              ? "bg-violet-500 border-violet-500 text-white"
-                              : "border-slate-700 hover:border-violet-500"
+                              ? "bg-ember-500 border-ember-500 text-white"
+                              : "border-slate-700 hover:border-ember-500"
                           }`}
                           title="Select to compare"
                         >
-                          {isCompared && <span className="text-[10px] leading-none">✓</span>}
+                          {isCompared && <span className="text-[10px] leading-none">done</span>}
                         </button>
 
                         {/* Run info */}
@@ -564,7 +564,7 @@ export default function RunsPage() {
                       <p className="font-mono text-xs uppercase tracking-[0.18em] text-slate-500">run #{selected.id}</p>
                       <h2 className="mt-2 text-xl font-semibold">{selected.scenario.replace(/_/g, " ")}</h2>
                       <p className="mt-1 text-sm text-slate-400">
-                        target {selected.target_date ?? "-"} · generated {selected.generated_at?.slice(0, 10) ?? "-"}
+                        target {selected.target_date ?? "-"}  -  generated {selected.generated_at?.slice(0, 10) ?? "-"}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -579,7 +579,7 @@ export default function RunsPage() {
                         <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                         </svg>
-                        {exportingPdf ? "Exporting…" : "PDF"}
+                        {exportingPdf ? "Exporting..." : "PDF"}
                       </button>
                       <button
                         onClick={() => downloadExcel(selected.id, selected.scenario)}
@@ -589,7 +589,7 @@ export default function RunsPage() {
                         <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                         </svg>
-                        {exportingExcel ? "Exporting…" : "Excel"}
+                        {exportingExcel ? "Exporting..." : "Excel"}
                       </button>
                     </div>
                   </div>
@@ -650,15 +650,15 @@ export default function RunsPage() {
                       <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500">Actionable Feedback</p>
                       <ul className="mt-2 space-y-2 text-sm text-slate-300">
                         {selected.critic.actionable_feedback.map((item, i) => (
-                          <li key={i} className="rounded-lg border border-violet-400/10 bg-violet-500/5 px-3 py-2">{item}</li>
+                          <li key={i} className="rounded-lg border border-ember-400/10 bg-ember-500/5 px-3 py-2">{item}</li>
                         ))}
                       </ul>
                     </div>
                   ) : null}
 
                   {selected.critic?.cost_analysis && (
-                    <div className="mt-5 rounded-lg border border-violet-400/10 bg-violet-500/5 p-4">
-                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-violet-300">Cost-Aware Scoring</p>
+                    <div className="mt-5 rounded-lg border border-ember-400/10 bg-ember-500/5 p-4">
+                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-ember-300">Cost-Aware Scoring</p>
                       <div className="mt-3 grid grid-cols-3 gap-3">
                         <Metric label="cost pressure" value={`${Math.round(selected.critic.cost_analysis.cost_pressure_score * 100)}/100`} />
                         <Metric label="benefit"       value={`${Math.round(selected.critic.cost_analysis.benefit_score * 100)}/100`} />

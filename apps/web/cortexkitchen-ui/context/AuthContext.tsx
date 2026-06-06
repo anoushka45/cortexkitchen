@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthCookie(access_token);
     const me = await apiGetMe();
     setUser(me);
-    router.push("/");
+    router.push("/dashboard");
   }, [router]);
 
   const register = useCallback(async (body: RegisterRequest) => {
@@ -48,7 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthCookie(access_token);
     const me = await apiGetMe();
     setUser(me);
-    router.push("/");
+    router.push("/dashboard");
   }, [router]);
 
   const logout = useCallback(() => {

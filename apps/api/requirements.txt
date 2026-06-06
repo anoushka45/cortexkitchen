@@ -24,6 +24,7 @@ python-multipart
 redis
 structlog
 reportlab
+openpyxl
 pypdf
 ragas==0.3.9
 langchain-groq

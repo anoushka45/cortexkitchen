@@ -224,28 +224,51 @@ export default function RunsPage() {
   const [diffRuns,   setDiffRuns]               = useState<[PlanningRunDetail, PlanningRunDetail] | null>(null);
   const [diffLoading, setDiffLoading]           = useState(false);
 
-  // PDF export
-  const [exporting, setExporting] = useState(false);
+  // Export helpers
+  const [exportingPdf,   setExportingPdf]   = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
+
+  async function downloadFile(url: string, filename: string) {
+    const token = getAuthToken();
+    const base  = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+    const res   = await fetch(`${base}${url}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+    const blob = await res.blob();
+    const href = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = href;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(href);
+  }
+
   async function downloadPdf(runId: number, scenario: string) {
-    setExporting(true);
+    setExportingPdf(true);
     try {
-      const token = getAuthToken();
-      const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-      const res = await fetch(`${base}/api/v1/runs/${runId}/export`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error(`Export failed: ${res.status}`);
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
-      a.download = `cortexkitchen-${scenario.replace(/_/g, "-")}-${runId}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await downloadFile(
+        `/api/v1/runs/${runId}/export`,
+        `cortexkitchen-${scenario.replace(/_/g, "-")}-${runId}.pdf`,
+      );
     } catch (err) {
       console.error("PDF export error:", err);
     } finally {
-      setExporting(false);
+      setExportingPdf(false);
+    }
+  }
+
+  async function downloadExcel(runId: number, scenario: string) {
+    setExportingExcel(true);
+    try {
+      await downloadFile(
+        `/api/v1/runs/${runId}/export/excel`,
+        `cortexkitchen-${scenario.replace(/_/g, "-")}-${runId}.xlsx`,
+      );
+    } catch (err) {
+      console.error("Excel export error:", err);
+    } finally {
+      setExportingExcel(false);
     }
   }
 
@@ -475,10 +498,17 @@ export default function RunsPage() {
                       </span>
                       <button
                         onClick={() => downloadPdf(selected.id, selected.scenario)}
-                        disabled={exporting}
+                        disabled={exportingPdf}
                         className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
                       >
-                        {exporting ? "Exporting…" : "↓ PDF"}
+                        {exportingPdf ? "Exporting…" : "↓ PDF"}
+                      </button>
+                      <button
+                        onClick={() => downloadExcel(selected.id, selected.scenario)}
+                        disabled={exportingExcel}
+                        className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+                      >
+                        {exportingExcel ? "Exporting…" : "↓ Excel"}
                       </button>
                     </div>
                   </div>

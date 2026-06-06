@@ -90,6 +90,32 @@ def export_run_pdf(
     )
 
 
+@router.get("/runs/{run_id}/export/excel", summary="Export planning run as Excel workbook")
+def export_run_excel(
+    run_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+) -> Response:
+    from app.infrastructure.excel.report_generator import generate_run_excel
+
+    service = RunService(db)
+    run = service.get_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Planning run not found.")
+
+    detail = service.to_detail(run)
+    xlsx_bytes = generate_run_excel(detail)
+
+    scenario = (detail.get("scenario") or "run").replace("_", "-")
+    filename = f"cortexkitchen-{scenario}-{run_id}.xlsx"
+
+    return Response(
+        content=xlsx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/data-health", response_model=DataHealthResponse)
 def data_health(
     db: Session = Depends(get_db),

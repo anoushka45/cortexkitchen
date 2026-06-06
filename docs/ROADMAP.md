@@ -45,20 +45,26 @@ Status snapshot: June 2026. Phase 4 complete.
 - **P4-11** DeepEval quality tests — HallucinationMetric on critic output (≤ 0.5), AnswerRelevancyMetric on agent outputs (≥ 0.7); custom Groq wrapper for structured output compatibility
 - **P4-12** MCP server — `run_planning_scenario` + `get_run_history` tools via Anthropic MCP SDK; `.mcp.json` for Claude Code auto-discovery; verified live in Claude Code CLI
 
+### Phase 5 — Export & Reporting
+- **P5-01** PDF export — `/planning/runs/{id}/export/pdf` endpoint; download button in runs detail panel; ReportLab-generated report with run summary, agent outputs, and critic verdict
+
 ---
 
-## Next — Phase 5 (Production layer)
+## Next — Phase 5 (continued)
 
-Phase 5 requires real restaurant data connections. All items below assume a live data source.
-
-- **P5-01** CSV / POS data connectors — ingest real order and reservation exports
-- **P5-02** Async planning runs — Redis job queue so long-running plans don't block HTTP
-- **P5-03** SSE streaming — stream node outputs to the dashboard as they complete
-- **P5-04** Observability trace viewer — per-run node waterfall with LLM cost breakdown
-- **P5-05** OpenTelemetry — structured trace export to a backend (Grafana, Datadog, etc.)
-- **P5-06** LangSmith regression evals — automated eval runs on every deploy against a pinned dataset
-- **P5-07** Multi-tenant workspace isolation — Qdrant migration to shared collection with `restaurant_id` + `doc_type` payload filters (see D-009)
-- **P5-08** Sentry error tracking — exception capture with org context
+- **P5-02** Excel export — role-aware `.xlsx` download; inventory + staffing sheet for chef, cost breakdown for owner; formatted with openpyxl
+- **P5-03** Design polish + brand cohesion — unified dark background, consistent accent color, NavBar icons, card hover elevation, entrance transitions
+- **P5-04** Frontend UX fixes — fix `/data-health` 404, restaurant profile selector on dashboard, input validation on settings, cost/token aggregate on runs list
+- **P5-05** Redis caching — cache planning run results by scenario+date key (TTL 1hr); `cache_hit` flag in response
+- **P5-06** SSE streaming — stream node outputs to frontend as each node completes; progressive agent card rendering
+- **P5-07** What-if simulator — sliders for covers/date/scenario; partial LangGraph execution for instant output
+- **P5-08** OpenTelemetry + Prometheus — `/metrics` endpoint; HTTP latency, throughput, error rate; Grafana dashboard
+- **P5-09** Sentry error tracking — exception capture with org context on unhandled errors and LangGraph node failures
+- **P5-10** LangSmith regression evals — golden dataset from historical runs; automated evaluators gate CI
+- **P5-11** Multi-tenant workspace isolation — Postgres row-level security per org; Qdrant shared collection with `restaurant_id` + `doc_type` payload filters (see D-009)
+- **P5-12** Weekly digest email — Sunday summary + Monday recommendations via APScheduler; SendGrid/Resend; PDF attached
+- **P5-13** RAG chatbot over run history — conversational interface over Postgres + Qdrant; multi-turn memory; SSE streaming
+- **P5-14** Sync Phase 5 to main — milestone verification; README and docs updated
 
 ---
 

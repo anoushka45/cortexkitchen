@@ -22,6 +22,9 @@ passlib[bcrypt]
 bcrypt==4.0.1
 python-multipart
 redis[asyncio]
+prometheus-fastapi-instrumentator==7.1.0
+opentelemetry-instrumentation-fastapi
+opentelemetry-sdk
 structlog
 reportlab
 openpyxl

@@ -104,6 +104,27 @@ export async function runPlanningScenario(
   return res.json() as Promise<FridayRushResponse>;
 }
 
+export interface ObservabilitySummary {
+  period_days: number;
+  total_runs: number;
+  by_verdict: Record<string, number>;
+  by_scenario: Record<string, number>;
+  success_rate: number | null;
+  avg_critic_score: number | null;
+  avg_duration_ms: number | null;
+  top_scenario: string | null;
+  latest_run_at: string | null;
+}
+
+export async function getObservabilitySummary(days = 7): Promise<ObservabilitySummary> {
+  const res = await fetch(`${BASE_URL}/api/v1/observability/summary?days=${days}`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Observability API error ${res.status}`);
+  return res.json() as Promise<ObservabilitySummary>;
+}
+
 export interface WhatIfRequest  { predicted_covers: number; avg_covers: number; scenario: string; service_window: string }
 export interface WhatIfResponse {
   scenario: string; service_window: string;

@@ -24,6 +24,7 @@ from app.infrastructure.db.models import (
     Inventory,
     MenuItem,
     Order,
+    PlanningRun,
     Reservation,
     ReservationStatus,
     SentimentType,
@@ -214,3 +215,62 @@ def _next_matching_service_date(today: datetime, weekday: int) -> datetime:
 
 def _date(value) -> str | None:
     return value.date().isoformat() if value else None
+
+
+@router.get("/observability/summary", summary="Observability metrics summary")
+def observability_summary(
+    days: int = Query(default=7, ge=1, le=90, description="Lookback window in days"),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """Returns key planning run metrics for the last N days — powers the frontend observability panel."""
+    since = datetime.utcnow() - timedelta(days=days)
+    runs: list[PlanningRun] = (
+        db.query(PlanningRun)
+        .filter(PlanningRun.org_id == current_user["org_id"], PlanningRun.created_at >= since)
+        .order_by(PlanningRun.created_at.desc())
+        .all()
+    )
+
+    total = len(runs)
+    by_verdict: dict[str, int] = {}
+    by_scenario: dict[str, int] = {}
+    durations: list[float] = []
+    scores: list[float] = []
+
+    for r in runs:
+        v = r.critic_verdict or "unknown"
+        by_verdict[v] = by_verdict.get(v, 0) + 1
+
+        s = r.scenario or "unknown"
+        by_scenario[s] = by_scenario.get(s, 0) + 1
+
+        if r.critic_score is not None:
+            scores.append(float(r.critic_score))
+
+        meta = r.metadata_ or {}
+        if "total_duration_ms" in meta:
+            try:
+                durations.append(float(meta["total_duration_ms"]))
+            except (TypeError, ValueError):
+                pass
+
+    approved     = by_verdict.get("approved", 0)
+    success_rate = round(approved / total, 3) if total > 0 else None
+    avg_score    = round(sum(scores) / len(scores), 3) if scores else None
+    avg_duration = round(sum(durations) / len(durations)) if durations else None
+    top_scenario = max(by_scenario, key=by_scenario.get) if by_scenario else None
+
+    latest_run = runs[0].created_at.isoformat() if runs else None
+
+    return {
+        "period_days":    days,
+        "total_runs":     total,
+        "by_verdict":     by_verdict,
+        "by_scenario":    by_scenario,
+        "success_rate":   success_rate,
+        "avg_critic_score": avg_score,
+        "avg_duration_ms":  avg_duration,
+        "top_scenario":   top_scenario,
+        "latest_run_at":  latest_run,
+    }

@@ -94,6 +94,10 @@ async def run_planning(
         cached = await get_cached_plan(cache_key)
         if cached:
             cached["cache_hit"] = True
+            # Zero out cost fields — no LLM calls were made for this request
+            if "meta" in cached:
+                cached["meta"]["total_cost_usd"] = 0.0
+                cached["meta"]["cache_hit"] = True
             return FridayRushResponse(**cached)
 
     # Pull org settings so agents use tenant-configured capacity and hours

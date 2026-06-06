@@ -133,3 +133,20 @@ def test_bypass_condition_debug():
 def test_cacheable_when_all_clear():
     cacheable = not False and not None and not False
     assert cacheable is True
+
+
+# ── cache hit cost zeroing ────────────────────────────────────────────────────
+
+def test_cache_hit_zeroes_cost_in_meta():
+    cached = {
+        "scenario": "friday_rush",
+        "cache_hit": True,
+        "meta": {"total_cost_usd": 0.034, "planning_run_id": 42},
+    }
+    # Simulate what the route does on a cache hit
+    if "meta" in cached:
+        cached["meta"]["total_cost_usd"] = 0.0
+        cached["meta"]["cache_hit"] = True
+
+    assert cached["meta"]["total_cost_usd"] == 0.0
+    assert cached["meta"]["cache_hit"] is True

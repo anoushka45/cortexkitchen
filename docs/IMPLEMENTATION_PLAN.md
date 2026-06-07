@@ -1,53 +1,78 @@
 # CortexKitchen Implementation Plan
 
-This document is the current delivery plan after the initial architecture and Phase 1/2 build-out.
+Last updated: June 2026. Phase 5 complete.
 
-## Already delivered
+---
 
-- Backend scaffold, infra setup, schema work, and seed path
-- Shared scenario orchestration route
-- Four scenario presets
-- Planning run persistence and inspection routes
-- Dashboard, run audit view, and data-health view
-- Critic scoring, sanity-check support, and richer evaluation notes
+## Delivered — Phases 0–5
 
-## Current priorities
+### Phase 0 — Design
+- Architecture, PRD, system design, data model, API contracts, evaluation rubric
 
-### 1. Keep docs aligned with the actual app
+### Phase 1 — Core system
+- Docker Compose stack (PostgreSQL, Qdrant, Redis)
+- FastAPI backend with health, planning, runs, and data-health endpoints
+- SQLAlchemy ORM models and Alembic migrations
+- Seed scripts for demo data and Qdrant memory
+- LangGraph nine-node orchestration graph with parallel fan-out
+- All domain services (Forecast, Reservation, Complaint, Menu, Inventory, Critic)
+- Frontend dashboard, runs page, and data-health page
 
-The repo grew beyond the original "Friday-only MVP" docs. Keeping architecture, API, and status docs current is now a real maintenance task.
+### Phase 2 — Intelligence
+- Prophet time-series demand forecasting with peak detection
+- Inventory shortage/overstock alerts
+- Menu intelligence with promotion strategy
+- Dashboard with scenario framing, agent output cards, critic verdict banner
 
-### 2. Strengthen the operator workflow
+### Phase 3 — Multi-scenario
+- Shared scenario runner (four presets)
+- Persisted planning runs with full audit inspection
+- CriticService with cost-aware scoring and revision feedback
+- Runs page with full audit trail
 
-Focus areas:
+### Phase 4 — Productisation
+- Multi-tenant JWT auth (users, orgs, org-scoped sessions)
+- LangSmith per-node tracing
+- Real health checks for all dependencies
+- structlog JSON logging across all nodes
+- LLM cost tracking per call and per run
+- Settings and restaurant profiles UI + API
+- LLM provider abstraction with Groq↔Gemini auto-fallback
+- RAGAS + DeepEval quality evals
+- MCP server for Claude Code / Claude Desktop
 
-- clearer scenario framing
-- better run audit filtering
-- stronger manager-facing summaries
+### Phase 5 — Export, UX, Observability & Intelligence
+- PDF export (ReportLab chef brief)
+- Excel export (openpyxl multi-sheet owner workbook)
+- Design polish — ember accent palette, Instrument Serif display font
+- Frontend UX fixes — profile selector, validation, cost aggregates
+- Redis plan caching — 1hr TTL, `cache_hit` flag
+- SSE streaming — node-by-node results, live pipeline diagram
+- What-if simulator — cover count slider, instant score update
+- OpenTelemetry + Prometheus — `/metrics` scrape endpoint
+- Sentry error capture with LangGraph node tags
+- LangSmith regression evals — `cortexkitchen-golden-v1` (50 runs), 90% CI gate
+- Multi-tenant workspace isolation — Postgres `org_id` scoping + Qdrant payload filter
+- RAG chatbot — `POST /api/v1/chat` SSE, AsyncGroq, ReactMarkdown
+- Prelaunch polish — homepage redesign, professional footer, prompt_utils centralisation
 
-### 3. Consolidate shared contracts
+---
 
-`packages/core` is still empty, so shared models and contracts are a likely next cleanup area.
+## Current state
 
-### 4. Prepare for non-demo use
+All five phases are complete. The system is production-ready for demo and portfolio use.
 
-Future work includes:
+Outstanding known gaps:
+- All data is synthetic — no live POS, reservation system, or supplier integrations
+- `packages/core` is empty — shared types between frontend and backend are not yet extracted
+- RAGAS/DeepEval datasets are hand-crafted — should be rebuilt from live runs periodically
 
-- auth
-- deployment strategy
-- environment hardening
-- live integrations
+---
 
-## Suggested next sequence
+## Phase 6 — Planned
 
-1. Stabilize documentation and current workflow language
-2. Improve run audit filtering and scenario-specific visibility
-3. Move shared contracts into `packages/core`
-4. Add deployment/auth groundwork
-5. Expand scenarios and integration realism
-
-## Scope guardrails
-
-- Keep the local-first demo experience working
-- Do not overbuild cloud or auth flows before core planning quality is solid
-- Prefer shared abstractions only where duplication is already painful
+- Real data connectors — CSV/POS import (Square/Toast); map to existing orders schema
+- Live reservation sync — OpenTable/Resy webhook
+- Scheduled weekly digest email — PDF attached, APScheduler + SendGrid
+- Mobile-responsive dashboard
+- Role-based access control — differentiated views for owner vs floor manager

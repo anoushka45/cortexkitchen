@@ -402,10 +402,10 @@ export default function RunsPage() {
         {/* Header */}
         <header className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-mono uppercase tracking-[0.22em] text-ember-300">audit trail</p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight">Runs</h1>
+            <p className="text-xs font-mono uppercase tracking-[0.22em] text-ember-300">history</p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight">Plan History</h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-400">
-              Persisted planning runs with critic verdicts, agent outputs, RAG context, and trace metadata.
+              Every plan your kitchen has run — verdict, scores, agent findings, and exports. Select any run to inspect or compare.
             </p>
           </div>
           <div className="text-sm text-slate-500">
@@ -553,8 +553,8 @@ export default function RunsPage() {
                 <svg className="h-8 w-8 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
-                <p className="text-sm text-slate-500">Select a run to inspect its audit detail.</p>
-                <p className="text-xs text-slate-700">Critic verdict, dimension scores, agent outputs, and export options.</p>
+                <p className="text-sm text-slate-500">Select a run from the list to see the full breakdown.</p>
+                <p className="text-xs text-slate-700">Critic verdict, quality scores, what each specialist found, and export buttons.</p>
               </div>
             ) : (
               <>

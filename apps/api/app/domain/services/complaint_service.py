@@ -100,39 +100,14 @@ class ComplaintService:
                              "\n".join(f"- {t}" for t in texts))
             rag_section = "\n\n## Retrieved context (ground your recommendations in this)\n" + "\n\n".join(parts)
 
-        prompt = f"""
-## Context
-Customer feedback analysis for {scenario_label} planning:
-- Target service window: {service_window}
-- Operational focus: {operational_focus}
-- Total feedback received: {summary['total_feedback']}
-- Negative: {summary['sentiment_breakdown']['negative']} ({summary['sentiment_breakdown']['negative_pct']}%)
-- Positive: {summary['sentiment_breakdown']['positive']}
-- Neutral:  {summary['sentiment_breakdown']['neutral']}
-
-Operational watchouts for this scenario:
-{chr(10).join(f'- {item}' for item in scenario_watchouts)}
-
-Complaint texts:
-{chr(10).join(f'- {c}' for c in summary['unique_complaints'])}
-
-Positive feedback:
-{chr(10).join(f'- {p}' for p in summary['unique_positives'][:5])}
-{rag_section}
-
-## Task
-Identify the top 3 recurring issues from these complaints and recommend specific operational fixes for this service scenario. Weight the issues that most threaten the target service window first. Where relevant SOPs or similar past complaints are provided above, ground your recommendations in them.
-
-## Response format
-Respond with a JSON object containing:
-- "issues": array of objects, each with:
-  - "issue": string — the recurring complaint
-  - "frequency": string — how often it occurs
-  - "recommendation": string — specific operational fix
-  - "priority": string — "high", "medium", or "low"
-- "overall_summary": string — brief summary of complaint trends
-- "action_items": array of strings — high-level action items for management
-"""
+        prompt = PromptUtils.format_complaint_prompt(
+            scenario_label=scenario_label,
+            service_window=service_window,
+            operational_focus=operational_focus,
+            summary=summary,
+            scenario_watchouts=scenario_watchouts,
+            rag_section=rag_section,
+        )
 
         recommendation = await self.llm.complete_json(
             prompt=prompt,

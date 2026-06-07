@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.settings import get_settings
 from app.infrastructure.db.models import Feedback, PlanningRun, SentimentType
+from app.infrastructure.llm.prompt_utils import PromptUtils
 
 _MODEL = "llama-3.3-70b-versatile"
 _MAX_TOKENS = 1024
@@ -127,25 +128,12 @@ def build_context(
         .all()
     )
 
-    return f"""You are CortexKitchen's operations intelligence assistant for {org_name}.
-You answer questions about the restaurant's planning runs, critic decisions, inventory, menu performance, demand forecasts, and complaint history.
-Be concise, specific, and data-driven. Always reference actual figures from the data below.
-If a question cannot be answered from the data, say exactly what is missing.
-
-RECENT PLANNING RUNS (last {len(runs)} — most recent first):
-{_format_runs(runs)}
-
-CUSTOMER FEEDBACK & COMPLAINTS:
-{_format_feedback(feedback_rows)}
-
-INSTRUCTIONS:
-- Use the menu_highlights field to answer questions about top/popular items.
-- Use shortages and restock_actions to answer inventory questions.
-- Use demand fields to answer volume/forecast questions.
-- Use critic_notes and score to explain plan quality.
-- Never say "the data does not provide" if the field exists above — read it carefully.
-- Keep answers under 150 words unless detail is explicitly requested.
-- Always format your response using markdown: use **bold** for key figures, bullet points for lists, numbered lists for steps, and ### headings for multi-section answers."""
+    return PromptUtils.format_chat_system_prompt(
+        org_name=org_name,
+        runs_text=_format_runs(runs),
+        feedback_text=_format_feedback(feedback_rows),
+        run_count=len(runs),
+    )
 
 
 async def stream_reply(

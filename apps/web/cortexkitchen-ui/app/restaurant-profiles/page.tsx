@@ -128,7 +128,7 @@ export default function RestaurantProfilesPage() {
             </div>
             <p className="text-slate-300 text-sm font-medium">No profiles yet</p>
             <p className="text-slate-500 text-xs mt-1">
-              Create a profile to override org defaults -- capacity, peak hours, cuisine -- per planning run.
+              Create a profile for each venue or shift setup. The plan will use that profile's capacity and hours instead of your workspace defaults.
             </p>
             <button
               onClick={openCreate}

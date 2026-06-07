@@ -150,57 +150,18 @@ class MenuService:
         ]
         blocked_lines = "\n".join(f"  - {ing}" for ing in critical_blocked) or "  None"
 
-        prompt = f"""
-## Context
-Menu planning context for {scenario_label} ({service_day_label} service):
-- Service window: {service_window}
-- Predicted service orders: {(forecast_data or {}).get('predicted_orders', 'N/A')}
-- Predicted peak orders: {(forecast_data or {}).get('predicted_peak_orders', 'N/A')}
-- Average matching-day orders: {(forecast_data or {}).get('avg_friday_orders', 'N/A')}
-- Target date: {(forecast_data or {}).get('target_date', 'N/A')}
-
-Top items on matching service days:
-{top_item_lines}
-
-Complaint themes to watch:
-{complaint_lines}
-
-Scenario watchouts:
-{watchout_lines}
-
-Inventory shortages (all severities):
-{shortage_lines}
-
-Inventory overstock:
-{overstock_lines}
-
-## Hard constraints — follow strictly before producing output
-CRITICALLY SHORT ingredients (BLOCKED — cannot be safely used for increased prep):
-{blocked_lines}
-
-Rules:
-1. Do NOT put any dish in highlight_items if it primarily depends on a BLOCKED ingredient above.
-2. If a historically top-selling item uses a BLOCKED ingredient, move it to deprioritize_items, not highlight_items.
-3. highlight_items must only contain dishes whose core ingredients are adequately stocked.
-4. These constraints override popularity — a dish that outsells everything but needs a BLOCKED ingredient must still be deprioritized.
-
-## Task
-Recommend how the restaurant should shape the menu focus for the target service window. Prioritise items that are popular AND operationally safe (ingredients available),
-avoid pushing items that depend on shortage ingredients or have complaint patterns, and suggest practical promo or menu
-positioning actions that can be executed within the next 24 hours.
-
-## Response format
-Respond with a JSON object containing:
-- "highlight_items": array of strings - items to feature prominently for the target service window
-- "deprioritize_items": array of strings - items to avoid pushing due to risk, complaints, or weak operational fit
-- "promo_candidates": array of strings - items suitable for promotion in this service window
-- "inventory_blockers": array of strings - ingredient or stock constraints affecting menu choices
-- "complaint_watchouts": array of strings - quality or service issues menu execution should watch closely
-- "operational_notes": array of strings - practical kitchen/front-of-house actions tied to the menu plan
-- "reasoning": string - one concise summary of the menu strategy
-- "priority": string - "high", "medium", or "low"
-- "risks": array of strings - what could go wrong if the menu plan is ignored
-"""
+        prompt = PromptUtils.format_menu_prompt(
+            scenario_label=scenario_label,
+            service_day_label=service_day_label,
+            service_window=service_window,
+            forecast_data=forecast_data or {},
+            top_item_lines=top_item_lines,
+            complaint_lines=complaint_lines,
+            watchout_lines=watchout_lines,
+            shortage_lines=shortage_lines,
+            overstock_lines=overstock_lines,
+            blocked_lines=blocked_lines,
+        )
 
         recommendation = await self.llm.complete_json(
             prompt=prompt,

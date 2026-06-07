@@ -132,7 +132,7 @@ export default function DataHealthPage() {
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <p className="text-xs font-mono uppercase tracking-[0.22em] text-ember-300">Observability</p>
-                    <h2 className="mt-1 text-base font-semibold text-white">Planning runs — last {obs.period_days} days</h2>
+                    <h2 className="mt-1 text-base font-semibold text-white">Your last {obs.period_days} days of planning</h2>
                   </div>
                   {obs.latest_run_at && (
                     <span className="font-mono text-[10px] text-white/30">

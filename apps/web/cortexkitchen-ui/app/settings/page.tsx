@@ -18,18 +18,18 @@ const FIELD_CONFIG: { section: string; fields: FieldDef[] }[] = [
   {
     section: "Restaurant",
     fields: [
-      { key: "capacity",     label: "Seating Capacity",  type: "number", min: 1,             hint: "Total covers" },
-      { key: "cuisine_type", label: "Cuisine Type",       type: "text",                       hint: "e.g. pizza, italian" },
-      { key: "peak_hours",   label: "Peak Service Hours", type: "text",                       hint: "e.g. 18:00-22:00" },
-      { key: "timezone",     label: "Timezone",           type: "text",                       hint: "e.g. Asia/Kolkata" },
+      { key: "capacity",     label: "Seating Capacity",  type: "number", min: 1,             hint: "How many covers your restaurant can seat at once" },
+      { key: "cuisine_type", label: "Cuisine Type",       type: "text",                       hint: "e.g. Italian, Pizza, Indian" },
+      { key: "peak_hours",   label: "Peak Service Hours", type: "text",                       hint: "When your busiest service runs, e.g. 18:00-22:00" },
+      { key: "timezone",     label: "Timezone",           type: "text",                       hint: "Your restaurant's local timezone, e.g. Asia/Kolkata" },
     ],
   },
   {
     section: "Planning Thresholds",
     fields: [
-      { key: "critic_threshold",        label: "Critic Approval Threshold", type: "number", min: 0, max: 1,   hint: "0.0 – 1.0 (default 0.7)" },
-      { key: "low_stock_threshold_pct", label: "Low Stock Alert %",         type: "number", min: 0, max: 100, hint: "Flag items below this % of capacity" },
-      { key: "overstock_threshold_pct", label: "Overstock Alert %",         type: "number", min: 0, max: 100, hint: "Flag items above this % of capacity" },
+      { key: "critic_threshold",        label: "Plan Approval Score",  type: "number", min: 0, max: 1,   hint: "Minimum quality score to approve a plan (0 to 1, default 0.7)" },
+      { key: "low_stock_threshold_pct", label: "Low Stock Warning at", type: "number", min: 0, max: 100, hint: "Alert when an ingredient drops below this % of normal stock" },
+      { key: "overstock_threshold_pct", label: "Overstock Warning at", type: "number", min: 0, max: 100, hint: "Alert when an ingredient exceeds this % of normal stock" },
     ],
   },
 ];

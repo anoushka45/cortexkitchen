@@ -129,3 +129,139 @@ Respond with a JSON object containing:
 - "revision_reasons": list of strings - concise reasons for revision, caution, or lower confidence
 - "actionable_feedback": list of strings - concrete next changes to improve the plan
 """
+
+    @staticmethod
+    def format_complaint_prompt(
+        scenario_label: str,
+        service_window: str,
+        operational_focus: str,
+        summary: dict,
+        scenario_watchouts: list,
+        rag_section: str,
+    ) -> str:
+        """Prompt for the Complaint Intelligence Agent."""
+        return f"""
+## Context
+Customer feedback analysis for {scenario_label} planning:
+- Target service window: {service_window}
+- Operational focus: {operational_focus}
+- Total feedback received: {summary['total_feedback']}
+- Negative: {summary['sentiment_breakdown']['negative']} ({summary['sentiment_breakdown']['negative_pct']}%)
+- Positive: {summary['sentiment_breakdown']['positive']}
+- Neutral:  {summary['sentiment_breakdown']['neutral']}
+
+Operational watchouts for this scenario:
+{chr(10).join(f'- {item}' for item in scenario_watchouts)}
+
+Complaint texts:
+{chr(10).join(f'- {c}' for c in summary['unique_complaints'])}
+
+Positive feedback:
+{chr(10).join(f'- {p}' for p in summary['unique_positives'][:5])}
+{rag_section}
+
+## Task
+Identify the top 3 recurring issues from these complaints and recommend specific operational fixes for this service scenario. Weight the issues that most threaten the target service window first. Where relevant SOPs or similar past complaints are provided above, ground your recommendations in them.
+
+## Response format
+Respond with a JSON object containing:
+- "issues": array of objects, each with:
+  - "issue": string — the recurring complaint
+  - "frequency": string — how often it occurs
+  - "recommendation": string — specific operational fix
+  - "priority": string — "high", "medium", or "low"
+- "overall_summary": string — brief summary of complaint trends
+- "action_items": array of strings — high-level action items for management
+"""
+
+    @staticmethod
+    def format_menu_prompt(
+        scenario_label: str,
+        service_day_label: str,
+        service_window: str,
+        forecast_data: dict,
+        top_item_lines: str,
+        complaint_lines: str,
+        watchout_lines: str,
+        shortage_lines: str,
+        overstock_lines: str,
+        blocked_lines: str,
+    ) -> str:
+        """Prompt for the Menu Intelligence Agent."""
+        return f"""
+## Context
+Menu planning context for {scenario_label} ({service_day_label} service):
+- Service window: {service_window}
+- Predicted service orders: {forecast_data.get('predicted_orders', 'N/A')}
+- Predicted peak orders: {forecast_data.get('predicted_peak_orders', 'N/A')}
+- Average matching-day orders: {forecast_data.get('avg_friday_orders', 'N/A')}
+- Target date: {forecast_data.get('target_date', 'N/A')}
+
+Top items on matching service days:
+{top_item_lines}
+
+Complaint themes to watch:
+{complaint_lines}
+
+Scenario watchouts:
+{watchout_lines}
+
+Inventory shortages (all severities):
+{shortage_lines}
+
+Inventory overstock:
+{overstock_lines}
+
+## Hard constraints — follow strictly before producing output
+CRITICALLY SHORT ingredients (BLOCKED — cannot be safely used for increased prep):
+{blocked_lines}
+
+Rules:
+1. Do NOT put any dish in highlight_items if it primarily depends on a BLOCKED ingredient above.
+2. If a historically top-selling item uses a BLOCKED ingredient, move it to deprioritize_items, not highlight_items.
+3. highlight_items must only contain dishes whose core ingredients are adequately stocked.
+4. These constraints override popularity — a dish that outsells everything but needs a BLOCKED ingredient must still be deprioritized.
+
+## Task
+Recommend how the restaurant should shape the menu focus for the target service window. Prioritise items that are popular AND operationally safe (ingredients available), avoid pushing items that depend on shortage ingredients or have complaint patterns, and suggest practical promo or menu positioning actions that can be executed within the next 24 hours.
+
+## Response format
+Respond with a JSON object containing:
+- "highlight_items": array of strings - items to feature prominently for the target service window
+- "deprioritize_items": array of strings - items to avoid pushing due to risk, complaints, or weak operational fit
+- "promo_candidates": array of strings - items suitable for promotion in this service window
+- "inventory_blockers": array of strings - ingredient or stock constraints affecting menu choices
+- "complaint_watchouts": array of strings - quality or service issues menu execution should watch closely
+- "operational_notes": array of strings - practical kitchen/front-of-house actions tied to the menu plan
+- "reasoning": string - one concise summary of the menu strategy
+- "priority": string - "high", "medium", or "low"
+- "risks": array of strings - what could go wrong if the menu plan is ignored
+"""
+
+    @staticmethod
+    def format_chat_system_prompt(
+        org_name: str,
+        runs_text: str,
+        feedback_text: str,
+        run_count: int,
+    ) -> str:
+        """System prompt for the RAG chatbot grounded in planning run + feedback data."""
+        return f"""You are CortexKitchen's operations intelligence assistant for {org_name}.
+You answer questions about the restaurant's planning runs, critic decisions, inventory, menu performance, demand forecasts, and complaint history.
+Be concise, specific, and data-driven. Always reference actual figures from the data below.
+If a question cannot be answered from the data, say exactly what is missing.
+
+RECENT PLANNING RUNS (last {run_count} — most recent first):
+{runs_text}
+
+CUSTOMER FEEDBACK & COMPLAINTS:
+{feedback_text}
+
+INSTRUCTIONS:
+- Use the menu_highlights field to answer questions about top/popular items.
+- Use shortages and restock_actions to answer inventory questions.
+- Use demand fields to answer volume/forecast questions.
+- Use critic_notes and score to explain plan quality.
+- Never say "the data does not provide" if the field exists above — read it carefully.
+- Keep answers under 150 words unless detail is explicitly requested.
+- Always format your response using markdown: use **bold** for key figures, bullet points for lists, numbered lists for steps, and ### headings for multi-section answers."""

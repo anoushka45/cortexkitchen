@@ -13,7 +13,7 @@ interface UseFridayRushReturn {
   error:          string | null;
   history:        RunHistoryEntry[];
   completedNodes: Set<string>;
-  trigger:        (targetDate?: string, scenario?: FridayRushRequest["scenario"]) => Promise<void>;
+  trigger:        (targetDate?: string, scenario?: FridayRushRequest["scenario"], restaurantId?: number) => Promise<void>;
   reset:          () => void;
   loadFromHistory: (entry: RunHistoryEntry) => Promise<void>;
   refreshHistory:  () => Promise<void>;
@@ -51,7 +51,7 @@ export function useFridayRush(): UseFridayRushReturn {
     return () => window.clearTimeout(timer);
   }, [refreshHistory]);
 
-  const trigger = useCallback(async (targetDate?: string, scenario: FridayRushRequest["scenario"] = "friday_rush") => {
+  const trigger = useCallback(async (targetDate?: string, scenario: FridayRushRequest["scenario"] = "friday_rush", restaurantId?: number) => {
     setStatus("loading");
     setError(null);
     setData(null);
@@ -62,6 +62,7 @@ export function useFridayRush(): UseFridayRushReturn {
         target_date: targetDate ?? null,
         simulation_mode: false,
         scenario,
+        ...(restaurantId ? { restaurant_id: restaurantId } : {}),
       });
 
       for await (const evt of stream) {

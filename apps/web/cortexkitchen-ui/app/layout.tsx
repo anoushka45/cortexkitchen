@@ -5,18 +5,18 @@ import { DashboardProvider } from "@/context/DashboardContext";
 import NavBar from "@/components/layout/NavBar";
 
 export const metadata: Metadata = {
-  title: "CortexKitchen  -  Ops Intelligence",
+  title: "CortexKitchen — Ops Intelligence",
   description: "Multi-agent restaurant operations planning platform",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark">
-      <body>
+      <body className="flex min-h-screen flex-col">
         <AuthProvider>
           <DashboardProvider>
             <NavBar />
-            {children}
+            <main className="flex-1">{children}</main>
           </DashboardProvider>
         </AuthProvider>
       </body>

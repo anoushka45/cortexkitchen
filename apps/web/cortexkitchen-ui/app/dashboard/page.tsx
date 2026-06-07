@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import AgentCard from "@/components/dashboard/AgentCard";
 import CriticBanner from "@/components/dashboard/CriticBanner";
 import DashboardDetailModal from "@/components/dashboard/DashboardDetailModal";
@@ -124,31 +124,31 @@ function SectionHeader({
 const AGENT_PIPELINE = [
   {
     label: "Demand Forecast",
-    capability: "Prophet time-series -- predicts covers, order volume, and peak-hour pressure",
+    capability: "Predicts how many covers to expect, when your peak hour hits, and how tonight compares to the same day last week",
     iconPath: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
     border: "border-ember-500/20", bg: "bg-ember-500/[0.06]", dot: "bg-ember-400", icon: "text-ember-400",
   },
   {
     label: "Reservation Pressure",
-    capability: "Live bookings -> occupancy %, waitlist risk, busiest-hour signal",
+    capability: "Reads your live booking list, shows how full you'll be, who's on the waitlist, and when you're likely to hit capacity",
     iconPath: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z",
     border: "border-cyan-500/20", bg: "bg-cyan-500/[0.06]", dot: "bg-cyan-400", icon: "text-cyan-400",
   },
   {
     label: "Complaint Intelligence",
-    capability: "RAG over historical feedback -- recurring issues, action items, experience risk",
+    capability: "Scans your customer feedback for recurring complaints and patterns, then surfaces specific fixes for tonight's service",
     iconPath: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
     border: "border-rose-500/20", bg: "bg-rose-500/[0.06]", dot: "bg-rose-400", icon: "text-rose-400",
   },
   {
     label: "Menu Intelligence",
-    capability: "Cross-signals from demand, inventory, and complaints -- what to push, avoid, promote",
+    capability: "Tells you which dishes to push tonight and which to hold back, based on what's actually in stock and what's been getting complaints",
     iconPath: "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4",
     border: "border-amber-500/20", bg: "bg-amber-500/[0.06]", dot: "bg-amber-400", icon: "text-amber-400",
   },
   {
     label: "Inventory Status",
-    capability: "Shortage and overstock detection with spoilage-aware restock prioritisation",
+    capability: "Flags what's running low or overstocked, and tells you exactly what to reorder with specific quantities before the shift starts",
     iconPath: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
     border: "border-emerald-500/20", bg: "bg-emerald-500/[0.06]", dot: "bg-emerald-400", icon: "text-emerald-400",
   },
@@ -161,7 +161,7 @@ function IdleState({
   historyCount,
   onShowHistory,
 }: {
-  onRun: (date?: string, restaurantName?: string) => void;
+  onRun: (date?: string, restaurantName?: string, restaurantId?: number) => void;
   selectedScenario: PlanningScenarioOption["id"];
   onScenarioChange: (scenario: PlanningScenarioOption["id"]) => void;
   historyCount: number;
@@ -219,7 +219,7 @@ function IdleState({
                 </span>
               </h1>
               <p className="mt-4 max-w-lg text-[15px] leading-7 text-slate-400">
-                5 parallel agents analyse demand, reservations, complaints, menu direction, and inventory -- then a critic verifies the plan before you see it.
+                Pick a shift. Hit run. Five specialists get to work on your kitchen data, a critic checks the plan, and your brief is ready. Export it, tweak the cover count, or ask the AI a question about last week.
               </p>
             </div>
 
@@ -287,7 +287,7 @@ function IdleState({
 
             {/* CTA */}
             <div className="stagger-3">
-              <DatePicker onRun={(date) => onRun(date, activeProfile?.name ?? undefined)} loading={false} scenario={scenario} />
+              <DatePicker onRun={(date) => onRun(date, activeProfile?.name ?? undefined, activeProfile?.id ?? undefined)} loading={false} scenario={scenario} />
             </div>
 
             {/* Footer row: step chips + history */}
@@ -464,7 +464,7 @@ function LoadingState({ completedNodes, scenarioLabel, restaurantName }: { compl
           </p>
         )}
         <p className="mt-3 text-[13px] leading-[1.7] text-white/45 max-w-xs mx-auto">
-          Five agents are reading your kitchen data — a critic verifies before anything reaches you.
+          Five specialists are working through your kitchen data. A critic reviews the plan before you see a word of it.
         </p>
       </div>
 
@@ -543,7 +543,7 @@ function LoadingState({ completedNodes, scenarioLabel, restaurantName }: { compl
       <div className="mt-5 text-center">
         {criticDone ? (
           <div className="rounded-xl bg-emerald-500/[0.06] ring-1 ring-emerald-400/25 px-5 py-3.5">
-            <p className="text-sm font-semibold text-emerald-300">Plan approved — loading your dashboard</p>
+            <p className="text-sm font-semibold text-emerald-300">Plan approved. Loading your brief...</p>
           </div>
         ) : (
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-white/30">{currentAction}</p>
@@ -556,6 +556,7 @@ function LoadingState({ completedNodes, scenarioLabel, restaurantName }: { compl
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const dashCtx = useDashboardCtx();
 
   const { data, status, error, history, completedNodes, trigger, reset, loadFromHistory } = useFridayRush();
@@ -563,6 +564,60 @@ export default function DashboardPage() {
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
   const [showManagerBrief, setShowManagerBrief] = useState(false);
   const [showWhatIf,       setShowWhatIf]       = useState(false);
+  const [exportMenuOpen,   setExportMenuOpen]   = useState(false);
+  const [exportingPdf,     setExportingPdf]     = useState(false);
+  const [exportingExcel,   setExportingExcel]   = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node))
+        setExportMenuOpen(false);
+    }
+    if (exportMenuOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [exportMenuOpen]);
+
+  async function downloadFile(url: string, filename: string) {
+    const { getAuthToken } = await import("@/lib/auth-cookies");
+    const token = getAuthToken();
+    const base  = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+    const res   = await fetch(`${base}${url}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+    const blob = await res.blob();
+    const href = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = href;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(href);
+  }
+
+  async function handleExportPdf() {
+    const runId   = data?.meta?.planning_run_id as number | undefined;
+    const scenario = data?.scenario ?? "run";
+    if (!runId) return;
+    setExportingPdf(true);
+    setExportMenuOpen(false);
+    try {
+      await downloadFile(`/api/v1/runs/${runId}/export`, `cortexkitchen-${scenario.replace(/_/g, "-")}-${runId}.pdf`);
+    } catch (e) { console.error(e); }
+    finally { setExportingPdf(false); }
+  }
+
+  async function handleExportExcel() {
+    const runId   = data?.meta?.planning_run_id as number | undefined;
+    const scenario = data?.scenario ?? "run";
+    if (!runId) return;
+    setExportingExcel(true);
+    setExportMenuOpen(false);
+    try {
+      await downloadFile(`/api/v1/runs/${runId}/export/excel`, `cortexkitchen-${scenario.replace(/_/g, "-")}-${runId}.xlsx`);
+    } catch (e) { console.error(e); }
+    finally { setExportingExcel(false); }
+  }
   const [runMeta, setRunMeta] = useState<{ scenarioLabel: string; restaurantName: string | null }>({ scenarioLabel: "", restaurantName: null });
   const [servicePlanningOpen, setServicePlanningOpen] = useState(true);
   const [operationalRiskOpen, setOperationalRiskOpen] = useState(true);
@@ -586,6 +641,14 @@ export default function DashboardPage() {
     dashCtx?.registerOpenHistory(() => setShowHistoryDrawer(true));
   }, [dashCtx]);
 
+  // Open history drawer when navigated from another page via ?openHistory=1
+  useEffect(() => {
+    if (searchParams.get("openHistory") === "1") {
+      setShowHistoryDrawer(true);
+      router.replace("/dashboard");
+    }
+  }, [searchParams, router]);
+
   const selectedScenario    = (dashCtx?.selectedScenario ?? "friday_rush") as PlanningScenarioOption["id"];
   const setSelectedScenario = (s: PlanningScenarioOption["id"]) => dashCtx?.setSelectedScenario(s as typeof dashCtx.selectedScenario);
 
@@ -595,13 +658,13 @@ export default function DashboardPage() {
     setShowHistoryDrawer(false);
   };
 
-  const handleRun = (date?: string, restaurantName?: string) => {
+  const handleRun = (date?: string, restaurantName?: string, restaurantId?: number) => {
     setActiveHistoryId(undefined);
     setRunMeta({
       scenarioLabel: SCENARIO_OPTIONS.find(s => s.id === selectedScenario)?.label ?? selectedScenario,
       restaurantName: restaurantName ?? user?.org_name ?? null,
     });
-    trigger(date, selectedScenario);
+    trigger(date, selectedScenario, restaurantId);
   };
 
   if (authLoading || !user) return null;
@@ -663,13 +726,38 @@ export default function DashboardPage() {
                     </svg>
                     New run
                   </button>
-                  <a href={`/api/v1/runs/${(data as unknown as Record<string,unknown>).id}/export`}
-                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-white/70 ring-1 ring-white/10 transition-colors hover:text-white">
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
-                    </svg>
-                    Export PDF
-                  </a>
+                  {/* Export dropdown */}
+                  <div className="relative" ref={exportMenuRef}>
+                    <button
+                      onClick={() => setExportMenuOpen(v => !v)}
+                      disabled={exportingPdf || exportingExcel}
+                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-white/70 ring-1 ring-white/10 transition-colors hover:text-white disabled:opacity-40"
+                    >
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+                      </svg>
+                      {exportingPdf ? "Exporting PDF…" : exportingExcel ? "Exporting Excel…" : "Export"}
+                      <svg className="h-3 w-3 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {exportMenuOpen && (
+                      <div className="absolute left-0 top-full mt-1.5 w-44 rounded-xl border border-white/10 bg-[#0d1724] py-1.5 shadow-xl z-50">
+                        <button onClick={handleExportPdf} className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-slate-300 hover:bg-white/[0.05] hover:text-white transition-colors">
+                          <svg className="h-3.5 w-3.5 text-rose-300/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          </svg>
+                          Chef brief — PDF
+                        </button>
+                        <button onClick={handleExportExcel} className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-slate-300 hover:bg-white/[0.05] hover:text-white transition-colors">
+                          <svg className="h-3.5 w-3.5 text-emerald-300/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Owner workbook — Excel
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <button
                     onClick={() => setShowWhatIf(true)}
                     className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-white/70 ring-1 ring-white/10 transition-colors hover:text-white"
@@ -696,6 +784,23 @@ export default function DashboardPage() {
                 generatedAt={data.generated_at}
                 targetDate={data.target_date}
               />
+
+              {/* Next step prompt */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {[
+                  { label: "Export for your chef", desc: "Download a PDF brief or Excel workbook", icon: <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" /></svg>, action: handleExportPdf },
+                  { label: "Try a different cover count", desc: "Instant what-if, no rerun needed", icon: <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>, action: () => setShowWhatIf(true) },
+                  { label: "Ask the AI a question", desc: "Dig into why the plan said what it said", icon: <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>, action: () => window.location.href = "/chat" },
+                ].map(({ label, desc, icon, action }) => (
+                  <button key={label} onClick={action} className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3.5 text-left transition-colors hover:border-ember-500/30 hover:bg-ember-500/[0.04] group">
+                    <span className="mt-0.5 text-white/30 group-hover:text-ember-400 transition-colors">{icon}</span>
+                    <div>
+                      <p className="text-[13px] font-medium text-white/80 group-hover:text-white transition-colors">{label}</p>
+                      <p className="text-[11px] text-white/35 mt-0.5">{desc}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
 
               <DashboardSummary data={data} />
 
@@ -809,7 +914,7 @@ export default function DashboardPage() {
                         <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.07]">
                           <div>
                             <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ember-300/80">Simulator</p>
-                            <h2 className="mt-0.5 text-base font-semibold text-white">What-if — cover count</h2>
+                            <h2 className="mt-0.5 text-base font-semibold text-white">What-if Simulator</h2>
                           </div>
                           <button
                             onClick={() => setShowWhatIf(false)}

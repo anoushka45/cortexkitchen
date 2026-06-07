@@ -149,7 +149,7 @@ export default function ChatPage() {
                     <span className="relative rounded-full bg-ember-400" />
                   </span>
                   <span className="font-mono text-[10px] uppercase tracking-[0.26em] text-ember-300">
-                    Operations intelligence
+                    Your kitchen assistant
                   </span>
                 </div>
 
@@ -158,7 +158,7 @@ export default function ChatPage() {
                   <span className="display-it text-ember-300">{user.org_name}</span>
                 </h1>
                 <p className="mt-3 text-[13px] leading-[1.7] text-white/38 max-w-xs mx-auto">
-                  Grounded in your planning runs, inventory alerts, and customer feedback — not generic advice.
+                  Answers come from your actual run history, inventory data, and customer feedback. Not generic AI.
                 </p>
               </div>
 

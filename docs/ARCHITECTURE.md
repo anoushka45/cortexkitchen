@@ -1,14 +1,14 @@
 # CortexKitchen Architecture
 
-Last updated: June 2026. Reflects the implemented codebase (Phase 4 complete).
+Last updated: June 2026. Reflects the implemented codebase (Phase 5 complete).
 
 ---
 
 ## Overview
 
-CortexKitchen is a local-first restaurant operations planning system built around a multi-agent orchestration pipeline. The backend coordinates structured operational data, time-series forecasting, vector retrieval, LLM reasoning, and business-rule validation. The frontend presents the result as a planning dashboard and audit trail.
+CortexKitchen is a multi-agent restaurant operations intelligence platform. The backend coordinates structured operational data, time-series forecasting, vector retrieval, LLM reasoning, and business-rule validation through a nine-node LangGraph pipeline. The frontend presents results as a streaming planning dashboard with exports, a RAG chatbot, run history, and observability tooling.
 
-Phase 4 added multi-tenant authentication, LangSmith tracing, structured logging, LLM cost tracking, configurable restaurant profiles, an LLM provider abstraction with automatic fallback, RAGAS/DeepEval quality evals, and an MCP server for Claude integration.
+Phase 5 added: SSE streaming, Redis caching, PDF/Excel export, what-if simulator, OpenTelemetry, Prometheus, Sentry, LangSmith regression evals with a golden dataset, multi-tenant workspace isolation (Postgres + Qdrant), a RAG chatbot (`/chat`), and prelaunch UI polish.
 
 ---
 
@@ -20,15 +20,20 @@ Claude Code / Claude Desktop
   ▼
 mcp_server.py
   │
-  │  HTTP (JWT)
+  │  HTTP (JWT) + SSE
   ▼
 Next.js UI (App Router)
-  ├── /           — planning dashboard
-  ├── /runs       — audit trail with filter, trend, diff
-  ├── /settings   — tenant config
+  ├── /            — public homepage
+  ├── /login       — auth
+  ├── /register    — workspace creation
+  ├── /dashboard   — planning, streaming, what-if
+  ├── /runs        — audit trail, exports
+  ├── /chat        — RAG chatbot (Ask AI)
+  ├── /data-health — database coverage + observability
+  ├── /settings    — tenant config
   └── /restaurant-profiles
           │
-          │  HTTP (JSON) + JWT
+          │  HTTP (JSON + SSE) + JWT
           ▼
 FastAPI application
   ├── POST /api/v1/auth/register
@@ -36,22 +41,27 @@ FastAPI application
   ├── GET  /api/v1/health
   ├── GET  /api/v1/health/dependencies
   ├── GET  /api/v1/planning/scenarios
-  ├── POST /api/v1/planning/run          (JWT)
+  ├── POST /api/v1/planning/run          (JWT, SSE stream)
   ├── GET  /api/v1/runs                  (JWT)
   ├── GET  /api/v1/runs/{id}             (JWT)
+  ├── GET  /api/v1/runs/{id}/export/pdf  (JWT)
+  ├── GET  /api/v1/runs/{id}/export/excel (JWT)
+  ├── POST /api/v1/chat                  (JWT, SSE stream)
+  ├── GET  /api/v1/observability/summary (JWT)
   ├── GET/PUT /api/v1/settings           (JWT)
-  └── CRUD /api/v1/restaurant-profiles   (JWT)
+  ├── CRUD /api/v1/restaurant-profiles   (JWT)
+  ├── GET  /metrics                      (Prometheus)
+  └── GET  /api/v1/debug/sentry-test
           │
           ▼
-LangGraph orchestration graph
-  (see graph topology below)
+LangGraph orchestration graph (nine nodes)
           │
           ▼
 Service and data layer
-  ├── PostgreSQL — structured data + planning_runs audit table
-  ├── Qdrant — vector retrieval for complaints and SOPs
-  ├── Redis — present in local stack; reserved for async queue (Phase 5)
-  └── LLM provider abstraction — Groq (default) or Gemini, auto-fallback
+  ├── PostgreSQL   — structured data + planning_runs audit table (org_id scoped)
+  ├── Qdrant       — complaints + SOPs, org payload filter per tenant
+  ├── Redis        — 1hr TTL plan cache by scenario + date
+  └── LLM provider — Groq llama-3.3-70b (default) or Gemini, auto-fallback
 ```
 
 ---
@@ -60,30 +70,33 @@ Service and data layer
 
 ### API layer
 
-The FastAPI application (`apps/api`) exposes all routes under the `/api/v1` prefix. Routes are split across modules:
+The FastAPI application (`apps/api`) exposes all routes under `/api/v1`. Routes are split across modules:
 
 - `app/api/routes/auth.py` — register, login, `/auth/me`
-- `app/api/routes/planning.py` — scenario listing and planning execution
+- `app/api/routes/planning.py` — scenario listing, planning execution (SSE stream)
 - `app/api/routes/runs.py` — audit run list, run detail, data-health
+- `app/api/routes/exports.py` — PDF and Excel export endpoints
+- `app/api/routes/chat.py` — RAG chatbot SSE endpoint
+- `app/api/routes/observability.py` — 7-day planning summary stats
 - `app/api/routes/settings.py` — tenant org settings
 - `app/api/routes/restaurant_profiles.py` — restaurant profile CRUD
 
-Schemas (request/response Pydantic models) are in `app/api/schemas/`.
+Schemas (Pydantic request/response models) are in `app/api/schemas/`.
 
 ### Auth
 
-JWT (HS256) authentication is implemented in `app/core/auth.py`. All planning and data routes are protected via the `get_current_user` dependency. Tokens are org-scoped — every planning run is stamped with `org_id`.
+JWT (HS256) authentication in `app/core/auth.py`. All planning, data, chat, and export routes are protected via `get_current_user`. Every planning run and chat session is stamped with `org_id` for tenant isolation.
 
-Registration creates a user + org in one step. The `user_organizations` join table tracks membership and roles.
+Registration creates a user + org in one step. The `user_organizations` join table tracks membership and roles (owner / member).
 
 ### Orchestration layer
 
-The orchestration flow is implemented as a LangGraph `StateGraph` in `app/orchestration/graph.py`. It runs a nine-node pipeline with a parallel fan-out pattern:
+The planning pipeline is a LangGraph `StateGraph` in `app/orchestration/graph.py`:
 
 ```
 ops_manager
     │
-    ├── (error path) → final_assembler
+    ├── (error) → final_assembler → END
     │
     ▼
 demand_forecast
@@ -101,128 +114,170 @@ reservation    complaint_intel    menu_intel       inventory
                           critic
                             │
                             ▼
-                      final_assembler
-                            │
-                            ▼
-                           END
+                      final_assembler → END
 ```
 
-**Conditional routing:** after `ops_manager`, if the scenario is invalid or a fatal error is set in state, the graph skips directly to `final_assembler`. Otherwise it proceeds with `demand_forecast`.
+**Conditional routing:** after `ops_manager`, if `state["error"]` is set the graph skips to `final_assembler`. Otherwise it proceeds through `demand_forecast`.
 
-**Parallel execution:** the four domain nodes run in parallel where the runtime allows.
+**Parallel execution:** the four domain nodes (`reservation`, `complaint_intel`, `menu_intel`, `inventory`) fan out in parallel after `demand_forecast` and are gated by `aggregator`.
 
-**Per-node tracing:** every node is wrapped with structlog instrumentation that emits `node_start` / `node_end` events with `duration_ms`, `llm_provider_used`, and `llm_fallback_used`. Traces are collected into `meta.node_traces` on the planning run response.
+**SSE streaming:** `POST /api/v1/planning/run` is a streaming endpoint. Each node emits a server-sent event as it completes. The frontend renders agent cards progressively — no waiting for the full pipeline.
 
-The graph is constructed fresh per request via `build_graph(deps)`, which injects the database session, LLM provider, and memory service at wire time.
+**Per-node tracing:** every node emits `node_start` / `node_end` structlog events with `duration_ms`, `llm_provider_used`, and `llm_fallback_used`. When LangSmith tracing is enabled (`LANGCHAIN_TRACING_V2=true`), each node also sends a trace span.
 
 ### Domain services
 
-The domain layer (`app/domain/services/`) contains the business logic called by each node:
-
 | Service | Responsibility |
 |---------|----------------|
-| `ForecastService` | Queries historical orders, runs Prophet, produces demand signal |
+| `ForecastService` | Queries historical orders, runs Prophet time-series, produces demand signal |
 | `ReservationService` | Analyses booking density and occupancy risk |
-| `ComplaintService` | Retrieves complaint patterns from Qdrant before LLM call; RAG context feeds the prompt |
+| `ComplaintService` | Retrieves complaint patterns from Qdrant; RAG context feeds the LLM prompt |
 | `MenuService` | Evaluates top and weak menu items; surfaces promotion guidance |
 | `InventoryService` | Computes shortage and overstock alerts from stock vs threshold |
-| `CriticService` | Validates the aggregated plan against business rules; scores output |
+| `CriticService` | Validates the aggregated plan; scores across 5 dimensions |
+| `ChatService` | RAG chatbot — retrieves from Postgres runs + Feedback table; streams via AsyncGroq |
 | `RunService` | Persists planning runs to `planning_runs`; powers the runs API |
-| `CostAwareScoringService` | Computes cost/benefit pressure score used by the critic |
-| `EvaluationSanityChecker` | Automated sanity checks run as part of critic evaluation |
+| `CostAwareScoringService` | Cost/benefit pressure score used by the critic |
+| `EvaluationSanityChecker` | Automated sanity checks in critic evaluation |
+
+### Redis caching
+
+Planning runs are cached in Redis by `(org_id, scenario, target_date)` key with a 1-hour TTL. On a cache hit, the full plan is returned immediately — zero LLM cost, zero pipeline execution. The response includes a `cache_hit: true` flag. Cache invalidation happens automatically on TTL expiry.
+
+### Export layer
+
+- **PDF** — `apps/api/app/infrastructure/exports/pdf_exporter.py` uses ReportLab to generate a structured chef brief with plan summary, agent outputs, critic verdict, dimension scores bar chart, and action items.
+- **Excel** — `apps/api/app/infrastructure/exports/excel_exporter.py` uses openpyxl to produce a multi-sheet workbook: Summary, Inventory & Staffing (chef view), Cost Breakdown (owner view).
+
+### RAG chatbot
+
+`POST /api/v1/chat` accepts a message + conversation history and returns a streamed response via SSE.
+
+- **Retrieval:** queries Postgres `planning_runs` and `feedback` tables, org-scoped, to build a context window
+- **LLM:** AsyncGroq `llama-3.3-70b-versatile` for streaming token output
+- **Frontend:** ReactMarkdown renders structured responses; multi-turn memory via message history in request body
 
 ### Infrastructure layer
 
 | Module | Responsibility |
 |--------|----------------|
-| `db/models.py` | SQLAlchemy ORM models — includes `users`, `organizations`, `user_organizations`, `restaurant_profiles` added in Phase 4 |
-| `db/session.py` | Session factory and dependency |
+| `db/models.py` | SQLAlchemy ORM — `users`, `organizations`, `user_organizations`, `restaurant_profiles`, `planning_runs`, `decision_logs`, `feedback`, `orders`, `reservations`, `inventory`, `menu_items` |
+| `db/session.py` | Session factory and FastAPI dependency |
 | `llm/base.py` | `BaseLLMProvider` ABC — `complete()`, `complete_json()`, thread-safe usage tracking |
-| `llm/factory.py` | `FallbackLLMProvider` + `create_llm_provider()` — reads `LLM_PROVIDER`, wires fallback automatically (groq↔gemini) |
-| `llm/gemini.py` | `GeminiProvider` — google-genai SDK |
+| `llm/factory.py` | `FallbackLLMProvider` + `create_llm_provider()` — reads `LLM_PROVIDER`, wires fallback |
 | `llm/groq.py` | `GroqProvider` — groq SDK |
+| `llm/gemini.py` | `GeminiProvider` — google-genai SDK |
+| `llm/prompt_utils.py` | Centralised prompt builders for all agents — zero raw prompt strings in service files |
 | `forecasting/` | Prophet-backed time-series forecaster |
-| `vector/memory_service.py` | `MemoryService` and `EmbeddingService` for Qdrant retrieval |
-| `observability/dependency_health.py` | Real PostgreSQL, Qdrant, and Redis connectivity checks |
+| `vector/memory_service.py` | `MemoryService` and `EmbeddingService` for Qdrant retrieval with org payload filter |
+| `cache/redis_cache.py` | Redis plan cache — get/set/invalidate by composite key |
+| `observability/dependency_health.py` | PostgreSQL, Qdrant, Redis connectivity checks |
+| `observability/metrics.py` | Prometheus instrumentation — request count, latency histograms |
+| `observability/otel.py` | OpenTelemetry HTTP tracing setup |
 
 ### LLM provider abstraction
 
-All agents depend on `BaseLLMProvider`, never on a concrete class. `create_llm_provider()` reads `LLM_PROVIDER` from environment (default: `groq`) and constructs a `FallbackLLMProvider` that wraps a primary and fallback provider.
+All agents depend on `BaseLLMProvider`, never on a concrete class. On any LLM exception the `FallbackLLMProvider` logs `llm_primary_failed_retrying_fallback` and transparently retries on the secondary provider. The provider used is surfaced in structlog output and in planning run metadata.
 
-On any LLM exception the wrapper logs `llm_primary_failed_retrying_fallback` and transparently retries on the fallback. The provider used (`llm_provider_used`, `llm_fallback_used`) is surfaced in structlog output and in the planning run metadata.
+---
 
-### Observability
+## Observability stack
 
-- **LangSmith tracing** — `LANGCHAIN_TRACING_V2=true` enables per-node traces in LangSmith
-- **Structured logging** — `structlog` JSON output across all nodes; every log event includes `node`, `run_id`, `scenario`, `duration_ms`, and LLM provider fields
-- **LLM cost tracking** — `record_usage()` on every LLM call; aggregated `total_tokens`, `total_cost_usd`, and per-call `llm_usage` persisted in `planning_runs.metadata`
+| Tool | What it covers |
+|------|----------------|
+| **LangSmith** | Per-node traces for every planning run; `cortexkitchen-golden-v1` dataset (50 runs) with 90% CI quality gate |
+| **OpenTelemetry** | HTTP request tracing on every FastAPI route |
+| **Prometheus** | `/metrics` scrape endpoint — request count, latency histograms, error rate |
+| **Sentry** | Unhandled exception capture with FastAPI integration; `capture_exception` in LangGraph node wrappers; DSN-gated init |
+| **structlog** | JSON log output across all nodes — `node`, `run_id`, `scenario`, `duration_ms`, `llm_provider_used` on every event |
+| **LLM cost tracking** | `record_usage()` on every LLM call; aggregated `total_tokens`, `total_cost_usd` persisted in `planning_runs.metadata` |
+
+---
+
+## Multi-tenant isolation
+
+Tenant isolation is enforced at three levels:
+
+1. **PostgreSQL** — all run queries filter by `org_id` from the JWT; restaurant profiles and settings are org-scoped
+2. **Qdrant** — complaint and SOP vectors use a payload filter `{"org_id": current_org_id}` on every retrieval call
+3. **OrchestratorState** — `org_id` is carried in shared state so every node operates in the correct tenant context
+
+---
+
+## LangSmith regression evals
+
+`scripts/build_golden_dataset.py` builds the `cortexkitchen-golden-v1` dataset from historical planning runs across all four scenarios. The CI gate (`evals/test_langsmith_regression.py`) runs automated evaluators against this dataset and requires a 90% pass rate to succeed.
 
 ---
 
 ## MCP server
 
-`apps/api/mcp_server.py` is a stdio MCP server (Anthropic MCP SDK) that exposes two tools:
+`apps/api/mcp_server.py` is a stdio MCP server (Anthropic MCP SDK) exposing two tools:
 
 | Tool | Description |
 |------|-------------|
 | `run_planning_scenario` | Triggers the full 9-node planning pipeline |
 | `get_run_history` | Fetches recent planning runs with optional scenario/verdict filters |
 
-The server authenticates against the FastAPI backend using `CORTEX_EMAIL` + `CORTEX_PASSWORD` on first call and reuses the JWT for the session.
-
-Claude Code discovers the server automatically via `.mcp.json` in the project root. Claude Desktop uses `docs/mcp_claude_desktop_config.json`.
+Claude Code discovers the server automatically via `.mcp.json`. Claude Desktop uses `docs/mcp_claude_desktop_config.json`.
 
 ---
 
 ## LLM quality evaluations
 
-Eval scripts live in `apps/api/evals/` and are excluded from the normal `pytest` test path (must be run explicitly).
-
 | Suite | File | Metrics | Threshold |
 |-------|------|---------|-----------|
-| RAGAS | `test_ragas_complaint.py` | Faithfulness, context precision on complaint RAG pipeline | Faithfulness ≥ 0.8 |
-| DeepEval | `test_deepeval_quality.py` | HallucinationMetric on critic output; AnswerRelevancyMetric on agent outputs | Hallucination ≤ 0.5; Relevancy ≥ 0.7 |
-
-Both suites use Groq (`llama-3.3-70b-versatile`) as the evaluator LLM.
+| LangSmith regression | `evals/test_langsmith_regression.py` | Pass rate against golden dataset | ≥ 90% |
+| RAGAS | `evals/test_ragas_complaint.py` | Faithfulness, context precision on complaint RAG | Faithfulness ≥ 0.8 |
+| DeepEval | `evals/test_deepeval_quality.py` | HallucinationMetric on critic, AnswerRelevancyMetric on agents | Hallucination ≤ 0.5; Relevancy ≥ 0.7 |
 
 ---
 
 ## Frontend architecture
 
-The frontend (`apps/web/cortexkitchen-ui`) is a Next.js App Router application with JWT cookie-based auth.
+The frontend (`apps/web/cortexkitchen-ui`) is a Next.js App Router application with JWT cookie auth.
 
 ### Pages
 
 | Route | Purpose |
 |-------|---------|
+| `/` | Public marketing homepage — pipeline explainer, features, footer |
 | `/login`, `/register` | JWT auth flow |
-| `/` | Planning dashboard — scenario selection, run submission, agent output cards, critic verdict |
-| `/runs` | Audit trail — scenario filter, date range picker, critic score trend chart, side-by-side diff modal |
-| `/settings` | Tenant config — capacity, peak hours, thresholds |
-| `/restaurant-profiles` | Manage per-org restaurant profiles |
+| `/dashboard` | Scenario selection, SSE streaming run, full plan, what-if simulator |
+| `/runs` | Audit trail — scenario filter, date range, critic score trend, run detail, PDF/Excel export |
+| `/chat` | Ask AI — RAG chatbot with suggested questions and streamed responses |
+| `/data-health` | Database coverage table + observability panel (7-day stats) |
+| `/settings` | Workspace config — capacity, cuisine, peak hours, thresholds |
+| `/restaurant-profiles` | Named restaurant profiles (owner only) |
 
-### Auth
+### Key components
 
-`AuthContext` manages the JWT stored in an `cortex_token` cookie. `proxy.ts` (Next.js route guard) redirects unauthenticated users to `/login`. All API calls include the `Authorization: Bearer` header via `lib/api.ts`.
+| Component | Purpose |
+|-----------|---------|
+| `NavBar` | Sticky app nav with scenario selector, History button, Ask AI link, user dropdown |
+| `Footer` | Public marketing footer — Product / Resources / Company / Legal columns; homepage only |
+| `HomeNav` | Public nav for the marketing homepage |
+| `ForecastChart` | Demand forecast bar/line chart with Recharts |
+| `DashboardContext` | Shared state for scenario, run status, history drawer |
 
-The UI communicates with the backend through `lib/api.ts`. The API base URL is controlled by `NEXT_PUBLIC_API_BASE_URL` (defaults to `http://localhost:8000`).
+### Streaming
+
+The dashboard uses `fetch` with a `ReadableStream` reader to consume the SSE stream from `/api/v1/planning/run`. Each `data:` event carries a node name and partial output. Agent cards render progressively as events arrive.
+
+The chat page uses the same pattern against `/api/v1/chat` — tokens stream in as the LLM generates them, rendered via ReactMarkdown.
 
 ---
 
-## Data flow
+## Data flow — planning run
 
-1. User selects a scenario and submits a planning request from the dashboard.
-2. Frontend posts to `POST /api/v1/planning/run` with JWT header.
-3. FastAPI resolves `get_current_user` (org-scoped), loads org settings and optional restaurant profile, builds the LangGraph graph, and invokes it.
-4. `ops_manager` validates the scenario and initialises shared state.
-5. `demand_forecast` produces the service-pressure signal.
-6. `complaint_intelligence` retrieves similar complaints and SOPs from Qdrant **before** the LLM call, so retrieved context feeds the prompt.
-7. `reservation`, `menu_intelligence`, and `inventory` run in parallel with `complaint_intelligence`.
-8. `aggregator` combines all domain outputs into a single package.
-9. `critic` validates the plan against business rules, scores it across 5 dimensions, and adds revision feedback.
-10. `final_assembler` shapes the response; provider metadata, node traces, and LLM usage are attached to `meta`.
-11. The planning run is persisted to `planning_runs` with full metadata.
-12. The frontend renders the plan, critic verdict, and RAG context.
+1. User selects scenario and submits from the dashboard
+2. Frontend opens an SSE connection to `POST /api/v1/planning/run` with JWT
+3. FastAPI resolves `get_current_user`, checks Redis cache — returns immediately on hit
+4. On cache miss: loads org settings + restaurant profile, builds LangGraph graph, invokes it
+5. Each node emits an SSE event as it completes; frontend renders the card
+6. `ops_manager` → `demand_forecast` → [4 parallel nodes] → `aggregator` → `critic` → `final_assembler`
+7. Final response includes plan, critic verdict, RAG context, cost metadata, and node traces
+8. Run is persisted to `planning_runs`; result is stored in Redis cache
 
 ---
 
@@ -230,26 +285,25 @@ The UI communicates with the backend through `lib/api.ts`. The API base URL is c
 
 | Store | Role |
 |-------|------|
-| **PostgreSQL** | `menu_items`, `reservations`, `orders`, `inventory`, `feedback`, `decision_logs`, `planning_runs`, `organizations`, `users`, `user_organizations`, `restaurant_profiles` |
-| **Qdrant** | `complaints_memory` and `sop_memory` collections for RAG retrieval |
-| **Redis** | Present in local stack; not yet used as primary state (Phase 5: async job queue) |
+| **PostgreSQL** | All structured data: orders, reservations, feedback, inventory, menu_items, planning_runs, organizations, users, restaurant_profiles |
+| **Qdrant** | `complaints_memory` and `sop_memory` collections for RAG retrieval, org-scoped payload filters |
+| **Redis** | Plan cache — 1hr TTL by `(org_id, scenario, target_date)` |
 
 ---
 
 ## Architectural strengths
 
-- Clear separation across route, orchestration, service, and infrastructure layers
-- Parallel fan-out in the orchestration graph reduces sequential latency
-- LLM provider abstraction with automatic fallback — switching providers requires only a config change
-- RAG context feeds the LLM prompt rather than being attached post-generation
-- Auth is org-scoped — every planning run is tenant-isolated
-- Full observability: LangSmith traces, structlog JSON, per-node latency, LLM cost per run
-- MCP integration lets Claude trigger real planning runs from natural language
-- RAGAS + DeepEval evals gate LLM output quality on every eval run
+- Parallel fan-out across four domain agents reduces pipeline latency
+- SSE streaming makes every planning run feel interactive — results arrive node by node
+- Redis cache eliminates repeat LLM cost for the same scenario on the same day
+- Prompts centralized in `prompt_utils.py` — zero raw strings in service files
+- RAG grounds complaint recommendations in real past guest issues, not generic LLM output
+- Full tenant isolation at Postgres, Qdrant, and state levels
+- LangSmith golden dataset + CI gate prevents quality regressions from shipping
+- Sentry + OTel + Prometheus give three overlapping observability layers
 
 ## Current limitations
 
 - All data integrations are synthetic — no live POS or platform connections
-- Shared cross-app contract package (`packages/core`) is empty
-- Redis is not yet used beyond connectivity health checks (async queue is Phase 5)
-- RAGAS/DeepEval eval datasets are hand-crafted, not captured from live planning runs
+- `packages/core` shared contract package is empty
+- RAGAS/DeepEval datasets are hand-crafted — should be rebuilt from live planning runs periodically

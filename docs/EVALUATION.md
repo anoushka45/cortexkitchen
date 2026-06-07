@@ -1,43 +1,156 @@
 # CortexKitchen Evaluation
 
-Last updated: May 2026.
+Last updated: June 2026. Reflects Phase 5 complete — LangSmith golden dataset, regression CI gate, RAGAS, and DeepEval.
 
 ---
 
 ## Evaluation layers
 
-CortexKitchen is evaluated across four layers: software correctness, planning quality, data realism, and audit visibility.
+CortexKitchen is evaluated across five layers: software correctness, LangSmith regression, planning quality, data realism, and audit visibility.
 
-### Software correctness
+---
 
-- Unit tests cover individual service logic, graph nodes, and critic helpers (`apps/api/tests/unit/`)
-- Integration tests cover API routes and infrastructure boundaries (`apps/api/tests/integration/`)
-- Run the suite with `pytest tests/unit -q` and `pytest tests/integration -q` from `apps/api/`
+### Layer 1 — Software correctness
 
-### Planning quality
+Standard pytest suite covering service logic, graph nodes, and API routes.
 
-- Recommendations should match the selected scenario's operational framing
-- Outputs should be specific enough for an operator to act on without further clarification
-- Critic notes should clearly explain the verdict (`approved`, `revision`, or `rejected`)
-- Dimension scores (safety, feasibility, evidence, actionability, clarity) should reflect actual plan strength
-- `revision_reasons` and `actionable_feedback` should be present and non-generic when the verdict is not `approved`
+```bash
+cd apps/api
 
-### Data realism
+# Unit tests
+pytest tests/unit -q
 
-- Seeded reservation pressure for the target date should align with the scenario (e.g. Friday Rush has high guest counts and waitlist entries)
-- Inventory shortage and overstock signals should be reflected in the inventory recommendations
-- Complaint patterns retrieved from Qdrant should match the operational context (e.g. high-volume service scenarios surface delay-related complaints)
+# Integration tests (requires running PostgreSQL + Qdrant + Redis)
+pytest tests/integration -q --ignore=tests/integration/test_langgraph_flow.py
+```
 
-### Audit visibility
+- `tests/unit/` — individual service logic, critic helpers, inventory alerts, forecast signal
+- `tests/integration/` — API route responses, DB persistence, auth flow
 
-- Every planning run should be persisted to the `planning_runs` table with critic verdict, score, and recommendation detail intact
-- The `/runs` page should remain usable for reviewing and comparing prior outputs
+---
+
+### Layer 2 — LangSmith regression evals
+
+The primary quality gate. A golden dataset of 50 curated planning runs is stored in LangSmith as `cortexkitchen-golden-v1`. Automated evaluators run against this dataset and the CI gate requires a **90% pass rate**.
+
+![LangSmith Golden Dataset](../screenshots/09_observability_tools/langsmith_golden_dataset.png)
+
+![LangSmith Run Traces](../screenshots/09_observability_tools/langsmith_run_traces.png)
+
+**Building the dataset**
+
+```bash
+cd apps/api
+python scripts/build_golden_dataset.py
+```
+
+`build_golden_dataset.py` executes planning runs across all four scenarios, filters to runs with critic score ≥ 0.80, and uploads them to LangSmith as input/output pairs.
+
+**Running the CI gate**
+
+```bash
+pytest evals/test_langsmith_regression.py -v
+```
+
+The gate checks:
+- Critic verdict is `approved` or `revision` (never `rejected`) on golden inputs
+- Critic score ≥ 0.80 on all golden inputs
+- Pass rate ≥ 90% — failing this blocks the run
+
+**Requirements:** `LANGCHAIN_API_KEY`, `GROQ_API_KEY`
+
+---
+
+### Layer 3 — LLM quality evals (RAGAS + DeepEval)
+
+Fine-grained evals on complaint RAG quality and critic/agent output quality.
+
+```bash
+pytest evals/test_ragas_complaint.py -v -W ignore::DeprecationWarning
+pytest evals/test_deepeval_quality.py -v -W ignore::DeprecationWarning
+```
+
+| Suite | File | Metric | Threshold |
+|-------|------|--------|-----------|
+| RAGAS | `test_ragas_complaint.py` | Faithfulness on complaint RAG pipeline | ≥ 0.8 |
+| RAGAS | `test_ragas_complaint.py` | Context precision | ≥ 0.7 |
+| DeepEval | `test_deepeval_quality.py` | HallucinationMetric on critic output | ≤ 0.5 |
+| DeepEval | `test_deepeval_quality.py` | AnswerRelevancyMetric on agent outputs | ≥ 0.7 |
+
+Both suites use Groq `llama-3.3-70b-versatile` as the evaluator LLM.
+
+**RAGAS faithfulness** checks that every claim in the complaint recommendations is supported by retrieved Qdrant context — not hallucinated. This was the primary motivation for fixing the complaint node to pass RAG context into the LLM prompt (Phase 4).
+
+**DeepEval hallucination** checks that the critic output does not make claims contradicted by the aggregated plan. **AnswerRelevancy** checks that agent outputs address the scenario's operational question.
+
+---
+
+### Layer 4 — Planning quality
+
+Manual and automated checks on recommendation quality.
+
+- Recommendations should match the selected scenario's framing (e.g. Friday Rush surfaces high-volume, peak-pressure actions — not low-stock weekend actions)
+- Critic notes should clearly explain the verdict with scenario-specific reasoning
+- Dimension scores should reflect actual plan strength — safety and feasibility should be the highest-weighted dimensions
+- `revision_reasons` and `actionable_feedback` should be non-generic when the verdict is not `approved`
+- What-if simulator scores (cost pressure, benefit, tradeoff) should move predictably when cover count changes
+
+---
+
+### Layer 5 — Data realism
+
+Checks that seeded data flows correctly through the pipeline.
+
+- Reservation pressure for the target date should align with the scenario (Friday Rush has high guest counts and waitlist entries)
+- Inventory shortage and overstock signals should be reflected in inventory recommendations
+- Complaint patterns retrieved from Qdrant should match the operational context — high-volume scenarios surface delay and wait-time complaints
+- Prophet forecast should show peak demand in the correct service window for each scenario
+
+**Verify with:**
+
+```bash
+GET /api/v1/data-health
+```
+
+Expected counts for a fresh seed: ~6500 orders, ~1200 reservations, ~160 feedback records, 18 inventory items, 27 menu items.
+
+---
+
+### Layer 6 — Audit visibility
+
+- Every planning run should be persisted to `planning_runs` with critic verdict, score, recommendation detail, and full metadata
+- The `/runs` page should remain usable — scenario filter, date range, critic score trend, run detail side panel, PDF and Excel export all functional
 - The `/data-health` endpoint should accurately reflect current seeded data coverage
+- The observability panel (`/data-health` → Observability tab) should aggregate the last 7 days of runs correctly
+
+---
+
+## Sentry exception capture
+
+All unhandled exceptions are captured by Sentry (`sentry-sdk` with FastAPI integration). LangGraph node failures are wrapped with `capture_exception` so stack traces are tagged by node name.
+
+Smoke test:
+
+```bash
+GET /api/v1/debug/sentry-test
+```
+
+![Sentry Error Capture](../screenshots/09_observability_tools/sentry_error_capture.png)
+
+---
+
+## Observability panel
+
+The frontend `/data-health` page includes an Observability section showing 7-day aggregate stats from `GET /api/v1/observability/summary`: total runs, success rate, average critic score, average duration, and breakdown by verdict and scenario.
+
+![Observability Panel](../screenshots/06_data_health/observability_panel.png)
 
 ---
 
 ## References
 
-- `docs/PHASE2_EVALUATION_REFINEMENT.md` — scenario rubric and sanity-check detail
+- `docs/PHASE2_EVALUATION_REFINEMENT.md` — scenario rubric and sanity-check detail from Phase 2
 - `apps/api/tests/` — backend test suite
+- `apps/api/evals/` — RAGAS, DeepEval, and LangSmith regression eval scripts
+- `apps/api/scripts/build_golden_dataset.py` — golden dataset builder
 - `docs/AGENTS.md` — node-level responsibilities used for evaluating per-agent output quality

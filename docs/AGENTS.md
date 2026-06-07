@@ -176,12 +176,12 @@ The chat agent is a stateless, streaming agent outside the LangGraph graph. It p
 
 **How it works:**
 
-1. Receives the user's message and conversation history (multi-turn)
-2. Retrieves relevant context from two sources:
-   - `planning_runs` table — recent runs for the org, with critic notes and agent outputs
-   - `feedback` table — guest feedback records for the org
-3. Builds a system prompt grounding the LLM in the retrieved context
-4. Streams tokens via `AsyncGroq` (`llama-3.3-70b-versatile`) through the SSE endpoint
+1. Receives the user's message and conversation history (last 3 turns kept)
+2. Retrieves context from two Postgres sources:
+   - `planning_runs` — last 10 runs for the org (`org_id` scoped), with critic notes and agent outputs
+   - `feedback` — last 30 feedback records (no `org_id` filter in current implementation)
+3. Builds a system prompt grounding the LLM in the retrieved context via `PromptUtils.format_chat_system_prompt`
+4. Streams tokens via `AsyncGroq` (`llama-3.3-70b-versatile`, max 1024 tokens) through the SSE endpoint
 5. Frontend renders the response with ReactMarkdown
 
 **Suggested questions (shown on first load):**

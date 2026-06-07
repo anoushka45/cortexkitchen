@@ -41,23 +41,23 @@ The primary quality gate. A golden dataset of 50 curated planning runs is stored
 
 ```bash
 cd apps/api
-python scripts/build_golden_dataset.py
+python ../../scripts/build_golden_dataset.py
 ```
 
-`build_golden_dataset.py` executes planning runs across all four scenarios, filters to runs with critic score ≥ 0.80, and uploads them to LangSmith as input/output pairs.
+`build_golden_dataset.py` (in the root `scripts/` folder) pulls approved planning runs from Postgres (critic_score ≥ 0.7), uploads them to LangSmith as `cortexkitchen-golden-v1`, and saves a local `golden_runs.json` fixture for offline CI use.
 
 **Running the CI gate**
 
 ```bash
-pytest evals/test_langsmith_regression.py -v
+pytest tests/unit/test_langsmith_evals.py -v
 ```
 
-The gate checks:
-- Critic verdict is `approved` or `revision` (never `rejected`) on golden inputs
-- Critic score ≥ 0.80 on all golden inputs
+The gate runs against the local `golden_runs.json` fixture — no live LangSmith API calls required. Checks:
+- Critic score ≥ 0.70 on all golden runs
+- When shortage alerts exist, plan must contain restock actions
 - Pass rate ≥ 90% — failing this blocks the run
 
-**Requirements:** `LANGCHAIN_API_KEY`, `GROQ_API_KEY`
+**Requirements:** `LANGSMITH_API_KEY`, `GROQ_API_KEY` (for building the dataset; CI gate uses local fixture only)
 
 ---
 
@@ -72,8 +72,8 @@ pytest evals/test_deepeval_quality.py -v -W ignore::DeprecationWarning
 
 | Suite | File | Metric | Threshold |
 |-------|------|--------|-----------|
-| RAGAS | `test_ragas_complaint.py` | Faithfulness on complaint RAG pipeline | ≥ 0.8 |
-| RAGAS | `test_ragas_complaint.py` | Context precision | ≥ 0.7 |
+| RAGAS | `evals/test_ragas_complaint.py` | Faithfulness on complaint RAG pipeline | ≥ 0.8 |
+| RAGAS | `evals/test_ragas_complaint.py` | Context precision (`answer_relevancy` excluded — requires embeddings provider) | ≥ 0.7 |
 | DeepEval | `test_deepeval_quality.py` | HallucinationMetric on critic output | ≤ 0.5 |
 | DeepEval | `test_deepeval_quality.py` | AnswerRelevancyMetric on agent outputs | ≥ 0.7 |
 
@@ -150,6 +150,7 @@ The frontend `/data-health` page includes an Observability section showing 7-day
 ## References
 
 - `apps/api/tests/` — backend test suite
-- `apps/api/evals/` — RAGAS, DeepEval, and LangSmith regression eval scripts
-- `apps/api/scripts/build_golden_dataset.py` — golden dataset builder
+- `apps/api/evals/` — RAGAS and DeepEval eval scripts
+- `apps/api/tests/unit/test_langsmith_evals.py` — LangSmith regression CI gate (local fixture)
+- `scripts/build_golden_dataset.py` — golden dataset builder (root scripts folder)
 - `docs/AGENTS.md` — node-level responsibilities used for evaluating per-agent output quality

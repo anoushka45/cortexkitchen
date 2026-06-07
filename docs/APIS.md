@@ -25,7 +25,7 @@ Register a new user and organisation in one step.
 | `full_name` | string | No | Display name |
 | `org_name` | string | Yes | Restaurant / org name |
 
-**Response `200`**
+**Response `201`**
 
 ```json
 {
@@ -141,9 +141,9 @@ Returns all available scenario presets.
 
 ---
 
-### `POST /api/v1/planning/run`  *(SSE stream)*
+### `POST /api/v1/planning/run`
 
-Executes the nine-node multi-agent planning pipeline. Returns a server-sent event stream — one event per completed node, then a final `complete` event with the full response.
+Executes the nine-node multi-agent planning pipeline. Returns the **full response as a standard JSON object** once the pipeline completes. No streaming — use `/planning/stream` if you need the live pipeline diagram.
 
 **Auth:** JWT required.
 
@@ -158,19 +158,7 @@ Executes the nine-node multi-agent planning pipeline. Returns a server-sent even
 | `force_critic_decision` | string | No | `null` | Override critic verdict for testing |
 | `debug` | boolean | No | `false` | Include LangGraph execution trace in `meta` |
 
-**SSE event format**
-
-Each event is a JSON object:
-
-```
-data: {"node": "demand_forecast", "status": "complete", "output": {...}}
-
-data: {"node": "critic", "status": "complete", "output": {...}}
-
-data: {"type": "complete", "run_id": 42, "result": { ... full response ... }}
-```
-
-**Final response shape**
+**Response `200`**
 
 ```json
 {
@@ -222,11 +210,62 @@ data: {"type": "complete", "run_id": 42, "result": { ... full response ... }}
 | Field | Description |
 |-------|-------------|
 | `status` | `ready` — plan approved or passable; `needs_review` — critic flagged issues; `blocked` — critical failure |
-| `cache_hit` | `true` if the result was returned from Redis cache; `false` if the pipeline was executed |
+| `cache_hit` | `true` if the result was returned from Redis cache; `false` if the pipeline ran |
 | `critic.verdict` | `approved`, `revision`, or `rejected` |
 | `critic.score` | 0.0 – 1.0 composite quality score |
 | `meta.planning_run_id` | ID of the persisted `planning_runs` row |
 | `meta.llm_usage.total_cost_usd` | Total LLM spend for this run |
+
+---
+
+### `POST /api/v1/planning/stream`  *(SSE)*
+
+Identical request body to `/planning/run`. Returns a `text/event-stream` response so the frontend can power the live pipeline diagram during the run.
+
+**Auth:** JWT required.
+
+**How it works**
+
+As each LangGraph node completes, a `node_complete` event is emitted carrying **only the node name** — no output data. The frontend loading screen uses these events to update the pipeline diagram (waiting → running → done). When the full pipeline finishes, a single `complete` event delivers the entire plan payload. The dashboard renders all sections at once from this final event.
+
+Only plans with `critic.verdict == "approved"` are written to cache. On a cache hit: all `node_complete` events are emitted instantly with `{"node": "...", "cached": true}`, followed by the `complete` event.
+
+**SSE event format**
+
+```
+event: node_complete
+data: {"node": "forecast"}
+
+event: node_complete
+data: {"node": "reservation"}
+
+event: node_complete
+data: {"node": "complaint"}
+
+event: node_complete
+data: {"node": "menu"}
+
+event: node_complete
+data: {"node": "inventory"}
+
+event: node_complete
+data: {"node": "aggregator"}
+
+event: node_complete
+data: {"node": "critic"}
+
+event: complete
+data: { ... full response payload — same shape as /planning/run ... }
+```
+
+Note: `ops_manager` and `final_assembler` do not emit `node_complete` events — they are not in the SSE node map.
+
+**Error event**
+
+```
+event: error
+data: {"message": "Stream error: ..."}
+```
 
 ---
 
@@ -280,7 +319,7 @@ Full detail for one persisted planning run.
 
 ---
 
-### `GET /api/v1/runs/{run_id}/export/pdf`
+### `GET /api/v1/runs/{run_id}/export`
 
 Downloads a ReportLab-generated PDF chef brief for the run.
 
@@ -317,7 +356,7 @@ RAG chatbot over the org's planning history and guest feedback. Streams token-by
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `message` | string | Yes | User's question |
+| `question` | string | Yes | User's question (1–1000 chars) |
 | `history` | array | No | Prior turns: `[{"role": "user"/"assistant", "content": "..."}]` |
 
 **SSE event format**
@@ -329,6 +368,8 @@ data: {"token": " your"}
 ...
 data: {"done": true}
 ```
+
+**Data sources:** the last 10 `planning_runs` for the org (org-scoped) and the last 30 `feedback` records (not org-filtered — shared across the demo dataset).
 
 **Example questions the chatbot handles**
 
@@ -355,20 +396,21 @@ Returns a 7-day planning summary for the org.
   "period_days": 7,
   "total_runs": 59,
   "success_rate": 0.81,
-  "avg_critic_score": 81,
-  "avg_duration_seconds": 16.6,
-  "runs_by_verdict": {
+  "avg_critic_score": 0.81,
+  "avg_duration_ms": 16600,
+  "by_verdict": {
     "approved": 48,
     "revision": 10,
     "rejected": 1
   },
-  "runs_by_scenario": {
+  "by_scenario": {
     "friday_rush": 39,
     "low_stock_weekend": 7,
     "weekday_lunch": 7,
     "holiday_spike": 6
   },
-  "generated_at": "2026-06-07T10:39:57"
+  "top_scenario": "friday_rush",
+  "latest_run_at": "2026-06-07T10:39:57"
 }
 ```
 
@@ -382,9 +424,9 @@ Prometheus scrape endpoint. Returns OpenMetrics-format metrics including HTTP re
 
 ---
 
-### `GET /api/v1/debug/sentry-test`
+### `GET /debug/sentry-test`
 
-Intentionally raises a `RuntimeError` to verify Sentry exception capture is working. Only useful during setup.
+Intentionally raises a `RuntimeError` to verify Sentry exception capture is working. Only useful during setup. Note: registered directly on the main app — not under the `/api/v1` prefix.
 
 **Auth:** None.
 
@@ -444,7 +486,7 @@ Returns the authenticated org's workspace settings.
 
 ---
 
-### `PUT /api/v1/settings`
+### `PATCH /api/v1/settings`
 
 Updates org settings. All fields are optional — only supplied fields are updated.
 
@@ -487,7 +529,7 @@ Creates a new restaurant profile. Profile overrides org-level capacity and peak 
 
 ---
 
-### `PUT /api/v1/restaurant-profiles/{id}`
+### `PATCH /api/v1/restaurant-profiles/{id}`
 
 Updates an existing profile.
 

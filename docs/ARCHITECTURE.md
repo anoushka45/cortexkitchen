@@ -41,7 +41,8 @@ FastAPI application
   ├── GET  /api/v1/health
   ├── GET  /api/v1/health/dependencies
   ├── GET  /api/v1/planning/scenarios
-  ├── POST /api/v1/planning/run          (JWT, SSE stream)
+  ├── POST /api/v1/planning/run          (JWT, full JSON)
+  ├── POST /api/v1/planning/stream       (JWT, SSE — node_complete + complete events)
   ├── GET  /api/v1/runs                  (JWT)
   ├── GET  /api/v1/runs/{id}             (JWT)
   ├── GET  /api/v1/runs/{id}/export/pdf  (JWT)
@@ -121,7 +122,10 @@ reservation    complaint_intel    menu_intel       inventory
 
 **Parallel execution:** the four domain nodes (`reservation`, `complaint_intel`, `menu_intel`, `inventory`) fan out in parallel after `demand_forecast` and are gated by `aggregator`.
 
-**SSE streaming:** `POST /api/v1/planning/run` is a streaming endpoint. Each node emits a server-sent event as it completes. The frontend renders agent cards progressively — no waiting for the full pipeline.
+**SSE streaming:** There are two distinct streaming mechanisms:
+
+- `POST /api/v1/planning/stream` — the planning SSE endpoint. Emits `node_complete` events as each LangGraph node finishes; each event carries only the node name (`{"node": "forecast"}`). The frontend loading screen uses these to update the pipeline diagram in real time. A final `complete` event delivers the entire plan payload — the dashboard renders all sections at once from this single event. `POST /api/v1/planning/run` is the non-streaming equivalent, returning the full JSON response in one go.
+- `POST /api/v1/chat` — the chat SSE endpoint. Streams individual tokens word-by-word (`{"token": "..."}`), rendered progressively via ReactMarkdown. Completely separate from the planning SSE.
 
 **Per-node tracing:** every node emits `node_start` / `node_end` structlog events with `duration_ms`, `llm_provider_used`, and `llm_fallback_used`. When LangSmith tracing is enabled (`LANGCHAIN_TRACING_V2=true`), each node also sends a trace span.
 
@@ -142,7 +146,7 @@ reservation    complaint_intel    menu_intel       inventory
 
 ### Redis caching
 
-Planning runs are cached in Redis by `(org_id, scenario, target_date)` key with a 1-hour TTL. On a cache hit, the full plan is returned immediately — zero LLM cost, zero pipeline execution. The response includes a `cache_hit: true` flag. Cache invalidation happens automatically on TTL expiry.
+Planning runs are cached in Redis by `(org_id, scenario, target_date)` key with a 1-hour TTL. **Only `approved` verdict plans are written to cache** — revision and rejected plans are not stored. On a cache hit, the full plan is returned immediately — zero LLM cost, zero pipeline execution. The response includes a `cache_hit: true` flag. Cache invalidation happens automatically on TTL expiry.
 
 ### Export layer
 
@@ -153,7 +157,7 @@ Planning runs are cached in Redis by `(org_id, scenario, target_date)` key with 
 
 `POST /api/v1/chat` accepts a message + conversation history and returns a streamed response via SSE.
 
-- **Retrieval:** queries Postgres `planning_runs` and `feedback` tables, org-scoped, to build a context window
+- **Retrieval:** queries the last 10 `planning_runs` (org-scoped) and the last 30 `feedback` records (no org filter — shared demo dataset) to build a context window
 - **LLM:** AsyncGroq `llama-3.3-70b-versatile` for streaming token output
 - **Frontend:** ReactMarkdown renders structured responses; multi-turn memory via message history in request body
 
@@ -185,8 +189,8 @@ All agents depend on `BaseLLMProvider`, never on a concrete class. On any LLM ex
 
 | Tool | What it covers |
 |------|----------------|
-| **LangSmith** | Per-node traces for every planning run; `cortexkitchen-golden-v1` dataset (50 runs) with 90% CI quality gate |
-| **OpenTelemetry** | HTTP request tracing on every FastAPI route |
+| **LangSmith** | Per-node traces when `LANGSMITH_API_KEY` set; `cortexkitchen-golden-v1` dataset (50 runs); CI gate in `tests/unit/test_langsmith_evals.py` (local fixture, 90% pass rate) |
+| **OpenTelemetry** | HTTP request tracing via `ConsoleSpanExporter` (swap for OTLP exporter in production) |
 | **Prometheus** | `/metrics` scrape endpoint — request count, latency histograms, error rate |
 | **Sentry** | Unhandled exception capture with FastAPI integration; `capture_exception` in LangGraph node wrappers; DSN-gated init |
 | **structlog** | JSON log output across all nodes — `node`, `run_id`, `scenario`, `duration_ms`, `llm_provider_used` on every event |
@@ -227,8 +231,8 @@ Claude Code discovers the server automatically via `.mcp.json`. Claude Desktop u
 
 | Suite | File | Metrics | Threshold |
 |-------|------|---------|-----------|
-| LangSmith regression | `evals/test_langsmith_regression.py` | Pass rate against golden dataset | ≥ 90% |
-| RAGAS | `evals/test_ragas_complaint.py` | Faithfulness, context precision on complaint RAG | Faithfulness ≥ 0.8 |
+| LangSmith regression | `tests/unit/test_langsmith_evals.py` | Pass rate against local fixture (`golden_runs.json`) | ≥ 90% |
+| RAGAS | `evals/test_ragas_complaint.py` | Faithfulness, context precision on complaint RAG (answer_relevancy excluded — requires embeddings) | Faithfulness ≥ 0.8 |
 | DeepEval | `evals/test_deepeval_quality.py` | HallucinationMetric on critic, AnswerRelevancyMetric on agents | Hallucination ≤ 0.5; Relevancy ≥ 0.7 |
 
 ---

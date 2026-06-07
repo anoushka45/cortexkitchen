@@ -69,9 +69,10 @@ One planning run executes a nine-node LangGraph pipeline:
 *Operational Risk section — Complaint Intelligence (top issues, action items) alongside Inventory Status (shortage alerts with severity ratings and restock quantities).*
 
 ### Streaming & Real-time
-- **SSE streaming** — node-by-node results streamed to the frontend as each agent completes; no waiting for the full pipeline
-- **Live pipeline diagram** — visual node status (done / running / waiting) during every run
-- **Redis caching** — 1-hour TTL cache by scenario + date; zero LLM cost on cache hits; `cache_hit` flag in response
+- **Planning SSE** (`POST /api/v1/planning/stream`) — as each LangGraph node completes, a `node_complete` event is emitted carrying the node name; the loading screen pipeline diagram updates in real time so you see exactly which agents are done, running, or waiting. A final `complete` event delivers the full plan payload — the dashboard renders all at once from that single event.
+- **Chat token streaming** (`POST /api/v1/chat`) — the Ask AI chatbot streams individual tokens word-by-word via AsyncGroq; each `{"token": "..."}` event renders progressively via ReactMarkdown. An entirely separate mechanism from the planning SSE.
+- **Non-streaming planning** (`POST /api/v1/planning/run`) — standard JSON endpoint; returns the full response in one go. Used when the frontend doesn't need the live pipeline diagram.
+- **Redis caching** — 1-hour TTL cache by scenario + date; only `approved` plans are cached; zero LLM cost on cache hits; `cache_hit` flag in response
 
 ### Exports
 - **PDF chef brief** — ReportLab-generated report with plan summary, agent outputs, critic verdict, dimension scores, and action items
@@ -102,8 +103,8 @@ One planning run executes a nine-node LangGraph pipeline:
 *Multi-turn conversation — "How is my restaurant performing?" returns a structured breakdown of feedback counts, average demand, occupancy range, and plan quality scores.*
 
 ### What-If Simulator
-- Slide covers, date, or scenario — cost pressure, benefit score, and tradeoff indicators update instantly
-- No extra LLM call — partial LangGraph execution for instant feedback
+- Slide covers and the cost pressure, benefit, and tradeoff scores update instantly
+- No LLM calls, no LangGraph execution — purely deterministic scoring via `CostAwareScoringService`
 
 ![What-If Simulator](screenshots/03_dashboard/08_what_if_simulator.png)
 *What-If Simulator modal — cover count slider at 135, with cost pressure, benefit, and tradeoff scores updating instantly without triggering a new LLM call.*
@@ -122,9 +123,9 @@ One planning run executes a nine-node LangGraph pipeline:
 ### Data Health & Observability
 - **Data Health page** — live database coverage: orders, reservations, feedback, inventory, menu items, scenario coverage
 - **Observability panel** — 7-day planning summary: total runs, success rate, avg critic score, avg duration, breakdown by verdict and scenario
-- **OpenTelemetry** — HTTP request tracing on every endpoint
+- **OpenTelemetry** — HTTP request tracing via console exporter (swap for OTLP in production)
 - **Prometheus** — `/metrics` scrape endpoint for latency, throughput, and error rate
-- **Sentry** — unhandled exception capture with LangGraph node tags for fast debugging
+- **Sentry** — unhandled exception capture with LangGraph node tags; DSN-gated init
 
 ![Data Health](screenshots/06_data_health/data_health.png)
 *Data Health page — live database coverage showing 6,495 orders, 1,201 reservations, 160 feedback records, 18 inventory items, and 27 menu items with scenario coverage table.*
@@ -133,9 +134,9 @@ One planning run executes a nine-node LangGraph pipeline:
 *Observability panel — last 7 days: 59 total runs, 81% success rate, 81/100 avg critic score, 16.6s avg duration, breakdown by verdict (approved/revision/rejected) and scenario.*
 
 ### LangSmith Regression Evals
-- **Golden dataset** — `cortexkitchen-golden-v1` with 50 curated planning runs across all scenarios
-- **CI quality gate** — automated evaluators require 90% pass rate; failing the gate blocks deployment
-- **Per-node traces** in LangSmith for every planning run in production
+- **Golden dataset** — `cortexkitchen-golden-v1` with 50 curated planning runs; built by `scripts/build_golden_dataset.py`
+- **CI quality gate** — `tests/unit/test_langsmith_evals.py` runs evaluators against a local fixture (`golden_runs.json`); requires 90% pass rate
+- **Per-node traces** in LangSmith for every planning run when `LANGSMITH_API_KEY` is set
 
 ![LangSmith Golden Dataset](screenshots/09_observability_tools/langsmith_golden_dataset.png)
 *LangSmith — `cortexkitchen-golden-v1` dataset with 50 curated planning runs across all four scenarios, used as the CI regression quality gate.*
@@ -307,8 +308,8 @@ GEMINI_API_KEY=your_gemini_key_here
 JWT_SECRET_KEY=change-me-in-production
 
 # Optional — enables LangSmith per-node tracing
-LANGCHAIN_TRACING_V2=true
-LANGCHAIN_API_KEY=your_langsmith_key
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=your_langsmith_key
 
 # Optional — enables Sentry exception capture
 SENTRY_DSN=your_sentry_dsn
@@ -364,18 +365,21 @@ Go to `http://localhost:3000/register`, create your workspace, then log in. All 
 | `GET` | `/api/v1/health` | Public | Liveness check |
 | `GET` | `/api/v1/health/dependencies` | Public | PostgreSQL, Qdrant, Redis status |
 | `GET` | `/api/v1/planning/scenarios` | Public | List scenario presets |
-| `POST` | `/api/v1/planning/run` | JWT | Execute planning pipeline (SSE stream) |
+| `POST` | `/api/v1/planning/run` | JWT | Execute planning pipeline (full JSON response) |
+| `POST` | `/api/v1/planning/stream` | JWT | Execute planning pipeline (SSE — node_complete events + final complete) |
+| `POST` | `/api/v1/planning/whatif` | JWT | What-if demand simulator (no LLM, instant) |
 | `GET` | `/api/v1/runs` | JWT | List persisted runs |
 | `GET` | `/api/v1/runs/{id}` | JWT | Run detail |
-| `GET` | `/api/v1/runs/{id}/export/pdf` | JWT | Download PDF chef brief |
+| `GET` | `/api/v1/runs/{id}/export` | JWT | Download PDF chef brief |
 | `GET` | `/api/v1/runs/{id}/export/excel` | JWT | Download Excel workbook |
-| `POST` | `/api/v1/chat` | JWT | RAG chatbot over run history (SSE stream) |
+| `POST` | `/api/v1/chat` | JWT | RAG chatbot over run history (SSE token stream) |
 | `GET` | `/api/v1/observability/summary` | JWT | 7-day planning summary stats |
 | `GET` | `/api/v1/settings` | JWT | Get org settings |
-| `PUT` | `/api/v1/settings` | JWT | Update org settings |
-| `GET/POST/PUT/DELETE` | `/api/v1/restaurant-profiles` | JWT | Restaurant profile CRUD |
+| `PATCH` | `/api/v1/settings` | JWT | Update org settings |
+| `GET/POST` | `/api/v1/restaurant-profiles` | JWT | List / create profiles |
+| `GET/PATCH/DELETE` | `/api/v1/restaurant-profiles/{id}` | JWT | Get / update / delete profile |
 | `GET` | `/metrics` | Public | Prometheus scrape endpoint |
-| `GET` | `/api/v1/debug/sentry-test` | Public | Sentry smoke test |
+| `GET` | `/debug/sentry-test` | Public | Sentry smoke test (not under /api/v1) |
 
 See [`docs/APIS.md`](docs/APIS.md) for full request/response schemas.
 
@@ -405,8 +409,8 @@ cd apps/api
 pytest tests/ -q --ignore=tests/integration/test_langgraph_flow.py
 
 # LangSmith regression evals (requires GROQ_API_KEY)
-python scripts/build_golden_dataset.py
-pytest evals/test_langsmith_regression.py -v
+python ../../scripts/build_golden_dataset.py
+pytest tests/unit/test_langsmith_evals.py -v
 
 # RAGAS + DeepEval quality evals
 pytest evals/test_ragas_complaint.py -v -W ignore::DeprecationWarning

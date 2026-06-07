@@ -10,7 +10,7 @@ Last updated: June 2026.
 |-------|----------|-------------|
 | Unit tests | `apps/api/tests/unit/` | `pytest tests/unit -q` |
 | Integration tests | `apps/api/tests/integration/` | `pytest tests/integration -q --ignore=tests/integration/test_langgraph_flow.py` |
-| LangSmith regression | `apps/api/evals/test_langsmith_regression.py` | `pytest evals/test_langsmith_regression.py -v` |
+| LangSmith regression | `apps/api/tests/unit/test_langsmith_evals.py` | `pytest tests/unit/test_langsmith_evals.py -v` |
 | RAGAS evals | `apps/api/evals/test_ragas_complaint.py` | `pytest evals/test_ragas_complaint.py -v` |
 | DeepEval evals | `apps/api/evals/test_deepeval_quality.py` | `pytest evals/test_deepeval_quality.py -v` |
 
@@ -30,11 +30,12 @@ pytest tests/ -q --ignore=tests/integration/test_langgraph_flow.py
 These require a live `GROQ_API_KEY` and make real LLM calls. Do not include in standard CI.
 
 ```bash
-# Build golden dataset first (requires LANGCHAIN_API_KEY + GROQ_API_KEY)
-python scripts/build_golden_dataset.py
+# Build golden dataset (requires LANGSMITH_API_KEY + GROQ_API_KEY)
+# Run from apps/api/
+python ../../scripts/build_golden_dataset.py
 
-# Run regression gate — requires 90% pass rate
-pytest evals/test_langsmith_regression.py -v
+# Run regression gate against local fixture — requires 90% pass rate
+pytest tests/unit/test_langsmith_evals.py -v
 
 # RAGAS faithfulness on complaint RAG
 pytest evals/test_ragas_complaint.py -v -W ignore::DeprecationWarning

@@ -31,7 +31,9 @@ Last updated: June 2026. Phase 5 complete.
 | `GET` | `/api/v1/health` | Public | Liveness |
 | `GET` | `/api/v1/health/dependencies` | Public | PostgreSQL / Qdrant / Redis |
 | `GET` | `/api/v1/planning/scenarios` | Public | Scenario presets |
-| `POST` | `/api/v1/planning/run` | JWT | Execute pipeline (SSE stream) |
+| `POST` | `/api/v1/planning/run` | JWT | Execute pipeline (full JSON response) |
+| `POST` | `/api/v1/planning/stream` | JWT | Execute pipeline (SSE — node_complete events + complete) |
+| `POST` | `/api/v1/planning/whatif` | JWT | What-if simulator (no LLM, deterministic) |
 | `POST` | `/api/v1/planning/friday-rush` | JWT | Legacy alias |
 | `GET` | `/api/v1/runs` | JWT | List runs (org-scoped) |
 | `GET` | `/api/v1/runs/{id}` | JWT | Run detail |
@@ -40,10 +42,11 @@ Last updated: June 2026. Phase 5 complete.
 | `POST` | `/api/v1/chat` | JWT | RAG chatbot (SSE stream) |
 | `GET` | `/api/v1/observability/summary` | JWT | 7-day planning stats |
 | `GET` | `/api/v1/data-health` | JWT | Database coverage |
-| `GET/PUT` | `/api/v1/settings` | JWT | Org workspace settings |
-| `GET/POST/PUT/DELETE` | `/api/v1/restaurant-profiles` | JWT | Restaurant profiles |
+| `GET/PATCH` | `/api/v1/settings` | JWT | Org workspace settings |
+| `GET/POST` | `/api/v1/restaurant-profiles` | JWT | List / create profiles |
+| `GET/PATCH/DELETE` | `/api/v1/restaurant-profiles/{id}` | JWT | Get / update / delete profile |
 | `GET` | `/metrics` | Public | Prometheus scrape |
-| `GET` | `/api/v1/debug/sentry-test` | Public | Sentry smoke test |
+| `GET` | `/debug/sentry-test` | Public | Sentry smoke test (not under /api/v1) |
 
 ---
 
@@ -93,8 +96,8 @@ API at `http://localhost:8000` · Swagger at `http://localhost:8000/docs`
 | `GROQ_API_KEY` | — | Required for planning and chat |
 | `GEMINI_API_KEY` | — | Optional fallback |
 | `JWT_SECRET_KEY` | — | HS256 signing key |
-| `LANGCHAIN_TRACING_V2` | `false` | Enable LangSmith per-node traces |
-| `LANGCHAIN_API_KEY` | — | LangSmith API key |
+| `LANGSMITH_TRACING` | `false` | Enable LangSmith per-node traces |
+| `LANGSMITH_API_KEY` | — | LangSmith API key |
 | `SENTRY_DSN` | — | Sentry DSN — init is skipped if unset |
 
 ---
@@ -123,9 +126,9 @@ API at `http://localhost:8000` · Swagger at `http://localhost:8000/docs`
 pytest tests/unit -q
 pytest tests/integration -q --ignore=tests/integration/test_langgraph_flow.py
 
-# LangSmith regression evals (requires LANGCHAIN_API_KEY + GROQ_API_KEY)
-python scripts/build_golden_dataset.py
-pytest evals/test_langsmith_regression.py -v
+# LangSmith regression evals (requires LANGSMITH_API_KEY + GROQ_API_KEY)
+python ../../scripts/build_golden_dataset.py
+pytest tests/unit/test_langsmith_evals.py -v
 
 # RAGAS + DeepEval quality evals
 pytest evals/test_ragas_complaint.py -v -W ignore::DeprecationWarning

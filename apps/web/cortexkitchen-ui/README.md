@@ -184,9 +184,9 @@ Named profiles that override org-level capacity and peak hours for a specific pl
 
 ## Streaming
 
-The dashboard uses `fetch` with a `ReadableStream` reader to consume the SSE stream from `/api/v1/planning/run`. Each `data:` event carries a node name and partial output. Agent cards render progressively — no waiting for the full pipeline to complete.
+**Planning SSE** (`POST /api/v1/planning/stream`) — the dashboard opens a `fetch` ReadableStream against this endpoint. Each `node_complete` event carries only the node name; the loading screen uses these to update the pipeline diagram in real time. The full plan (all agent sections, critic verdict, metric cards) arrives in a single `complete` event and renders all at once.
 
-The `/chat` page uses the same pattern against `/api/v1/chat` — tokens stream in and are rendered via ReactMarkdown.
+**Chat streaming** (`POST /api/v1/chat`) — a separate mechanism. Individual tokens stream word-by-word via AsyncGroq and render progressively through ReactMarkdown.
 
 ---
 

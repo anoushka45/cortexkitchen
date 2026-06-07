@@ -25,7 +25,7 @@ All documents in this folder reflect the implemented codebase.
 ## What Phase 5 added
 
 - **PDF + Excel export** — chef brief and owner workbook per planning run
-- **SSE streaming** — node-by-node results delivered to the frontend in real time
+- **SSE streaming** — `node_complete` status events update the loading screen pipeline diagram in real time; full plan delivered in a single `complete` event
 - **Redis caching** — 1hr TTL plan cache; zero LLM cost on repeat runs same day
 - **What-if simulator** — instant cover count adjustment without a full re-run
 - **OpenTelemetry + Prometheus** — HTTP tracing and `/metrics` scrape endpoint

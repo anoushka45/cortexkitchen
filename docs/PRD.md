@@ -110,7 +110,7 @@ Restaurant manager / ops lead planning a shift for a casual dining restaurant.
 - Verdicts: approved / revision / rejected
 
 ### Streaming & UX
-- FastAPI SSE streaming — node-by-node results via `fetch` ReadableStream
+- FastAPI SSE streaming (`/planning/stream`) — `node_complete` status events update the loading screen pipeline diagram as each node finishes; full plan delivered in a single `complete` event
 - Branded loading screen with restaurant name and live pipeline diagram
 - Redis 1hr plan cache — `cache_hit` flag in response, zero LLM cost on hits
 - What-if simulator — cover count slider, instant cost/benefit/tradeoff update
@@ -167,7 +167,7 @@ The project is successful if:
 - SSE streaming works — users see results arrive node by node
 - PDF and Excel exports are usable by a real chef or owner
 - The chatbot answers questions using the org's actual data
-- LangSmith CI gate passes — 90% of golden dataset runs score ≥ 0.80
+- LangSmith CI gate passes — 90% of golden dataset runs meet the evaluator thresholds (critic score ≥ 0.70)
 - The system is presentable as a production-grade AI platform in interviews and demos
 
 ---

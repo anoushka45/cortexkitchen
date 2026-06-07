@@ -132,7 +132,7 @@ All unhandled exceptions are captured by Sentry (`sentry-sdk` with FastAPI integ
 Smoke test:
 
 ```bash
-GET /api/v1/debug/sentry-test
+GET /debug/sentry-test
 ```
 
 ![Sentry Error Capture](../screenshots/09_observability_tools/sentry_error_capture.png)

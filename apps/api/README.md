@@ -37,7 +37,7 @@ Last updated: June 2026. Phase 5 complete.
 | `POST` | `/api/v1/planning/friday-rush` | JWT | Legacy alias |
 | `GET` | `/api/v1/runs` | JWT | List runs (org-scoped) |
 | `GET` | `/api/v1/runs/{id}` | JWT | Run detail |
-| `GET` | `/api/v1/runs/{id}/export/pdf` | JWT | PDF chef brief |
+| `GET` | `/api/v1/runs/{id}/export` | JWT | PDF chef brief |
 | `GET` | `/api/v1/runs/{id}/export/excel` | JWT | Excel workbook |
 | `POST` | `/api/v1/chat` | JWT | RAG chatbot (SSE stream) |
 | `GET` | `/api/v1/observability/summary` | JWT | 7-day planning stats |
@@ -114,8 +114,8 @@ API at `http://localhost:8000` · Swagger at `http://localhost:8000/docs`
 | `CriticService` | `services/critic_service.py` | 5-dimension plan scoring and verdict |
 | `ChatService` | `services/chat_service.py` | RAG chatbot — AsyncGroq streaming |
 | `RunService` | `services/run_service.py` | Planning run persistence and retrieval |
-| `CostAwareScoringService` | `services/cost_scoring_service.py` | Cost/benefit analysis for critic |
-| `EvaluationSanityChecker` | `services/sanity_checker.py` | Automated sanity checks in critic |
+| `CostAwareScoringService` | `services/cost_aware_scoring.py` | Cost/benefit analysis for critic |
+| `EvaluationSanityChecker` | `services/evaluation_sanity.py` | Automated sanity checks in critic |
 
 ---
 

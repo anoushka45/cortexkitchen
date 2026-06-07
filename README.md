@@ -215,7 +215,7 @@ CortexKitchen never calls an LLM provider directly from a service. All agents de
 | Backend API | FastAPI 0.115, Uvicorn, Pydantic v2 |
 | Orchestration | LangGraph (StateGraph, nine nodes, parallel fan-out) |
 | LLM | Groq llama-3.3-70b (default) or Gemini — pluggable via `LLM_PROVIDER`; auto-fallback |
-| Streaming | FastAPI SSE — node-by-node results via fetch ReadableStream |
+| Streaming | FastAPI SSE (`/planning/stream`) — `node_complete` status events drive the loading screen; full plan delivered in one `complete` event |
 | Caching | Redis 7 — 1hr TTL plan cache by scenario + date |
 | Database | PostgreSQL 16 via SQLAlchemy + Alembic |
 | Vector store | Qdrant — complaints and SOPs, org-scoped payload filters |
@@ -252,9 +252,8 @@ apps/
       api/routes/               # Auth, planning, runs, settings, exports, chat, observability
       domain/services/          # ForecastService, ComplaintService, MenuService, etc.
       orchestration/            # LangGraph graph, nodes, state
-      infrastructure/           # DB, LLM providers, Qdrant, Redis, OTel, Sentry
+      infrastructure/           # DB, LLM providers, Qdrant, Redis, PDF, Excel
     evals/                      # RAGAS + DeepEval quality eval suites
-    scripts/                    # Golden dataset builder (build_golden_dataset.py)
     mcp_server.py               # MCP stdio server for Claude integration
   web/cortexkitchen-ui/         # Next.js 16 frontend
     app/                        # Pages: dashboard, runs, chat, data-health, settings, etc.
@@ -264,7 +263,7 @@ apps/
 data/                           # Raw, processed, and seeded datasets
 docs/                           # Architecture, API reference, agents, roadmap, evaluation
 infra/                          # Local infrastructure setup
-scripts/                        # seed_demo_data.py, seed_qdrant_memory.py
+scripts/                        # seed_demo_data.py, seed_qdrant_memory.py, build_golden_dataset.py
 screenshots/                    # Feature screenshots organized by section
 docker-compose.yml              # Local stack: PostgreSQL, Qdrant, Redis
 .mcp.json                       # Claude Code MCP auto-discovery config

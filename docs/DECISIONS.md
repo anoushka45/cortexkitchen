@@ -206,7 +206,7 @@ Live capture requires a full running stack during test collection and produces n
 **Status:** Accepted
 
 ### Decision
-Build `cortexkitchen-golden-v1` (50 curated planning runs) in LangSmith and use a pytest CI gate (`evals/test_langsmith_regression.py`) requiring ≥ 90% pass rate.
+Build `cortexkitchen-golden-v1` (50 curated planning runs) in LangSmith and use a pytest CI gate (`tests/unit/test_langsmith_evals.py`) running against a local JSON fixture, requiring ≥ 90% pass rate.
 
 ### Rationale
 RAGAS/DeepEval cover individual component quality. The golden dataset gate covers end-to-end plan quality — catching regressions that pass component evals but produce worse plans overall.
@@ -238,12 +238,16 @@ Scattered prompt strings in service files make prompt iteration, testing, and au
 **Status:** Accepted
 
 ### Decision
-Both `POST /api/v1/planning/run` and `POST /api/v1/chat` return `text/event-stream` responses. The frontend uses `fetch` with a `ReadableStream` reader to consume events.
+`POST /api/v1/planning/stream` and `POST /api/v1/chat` return `text/event-stream` responses. `POST /api/v1/planning/run` is a standard JSON endpoint — no streaming.
+
+- **Planning SSE (`/planning/stream`)** — emits `node_complete` events carrying only the node name as each LangGraph node finishes; the loading screen pipeline diagram updates in real time. The full plan arrives in a single final `complete` event and renders all at once.
+- **Chat SSE (`/chat`)** — streams individual tokens word-by-word via AsyncGroq. Entirely separate mechanism.
 
 ### Rationale
-The planning pipeline takes 10–30 seconds. Streaming each node's result as it completes makes the experience interactive — users see progress rather than a loading spinner.
+The planning pipeline takes 10–30 seconds. Emitting node status as each completes makes the experience feel interactive — the user sees the pipeline progress rather than a blank loading spinner.
 
 ### Consequences
-- FastAPI response is a `StreamingResponse`
-- Each SSE event is a JSON object with node name, status, and partial output
+- FastAPI returns a `StreamingResponse` for `/planning/stream` and `/chat`
+- Planning `node_complete` events carry `{"node": "nodename"}` only — no output data in the stream
+- The full plan renders all at once from the single `complete` event
 - Frontend must handle stream teardown and error events

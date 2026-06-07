@@ -20,6 +20,15 @@ interface ReservationData {
   [key: string]: unknown;
 }
 
+function asNumber(value: unknown, fallback = 0) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : fallback;
+}
+
+function asString(value: unknown, fallback = "") {
+  return typeof value === "string" ? value : fallback;
+}
+
 export default function ReservationSummary({ data, compact = false }: { data: ReservationData; compact?: boolean }) {
   // Handle both direct data object and nested structure
   const source = data as Record<string, unknown>;
@@ -51,158 +60,140 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
     return <p className="text-sm text-slate-600 italic">No reservation data available.</p>;
   }
 
-  const {
-    total_reservations = 0,
-    total_guests = 0,
-    capacity = 70,
-    occupancy_pct = 0,
-    overbooking_risk = false,
-    busiest_hour = null,
-    date = "",
-    waitlist_count = 0,
-  } = dataObj as Record<string, unknown>;
+  const total_reservations = asNumber(dataObj.total_reservations);
+  const total_guests = asNumber(dataObj.total_guests);
+  const capacity = asNumber(dataObj.capacity, 70);
+  const occupancy_pct = asNumber(dataObj.occupancy_pct);
+  const overbooking_risk = dataObj.overbooking_risk === true;
+  const busiest_hour = dataObj.busiest_hour === null || dataObj.busiest_hour === undefined ? null : asNumber(dataObj.busiest_hour);
+  const date = asString(dataObj.date);
+  const waitlist_count = asNumber(dataObj.waitlist_count);
 
   return (
     <div className="space-y-4">
-      {/* Main metrics — 2x2 grid */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-navy-900 border border-blue-500/20 rounded-lg p-3">
-          <p className="text-xs text-slate-500 uppercase tracking-widest mb-1">Reservations</p>
-          <p className="text-2xl font-bold text-blue-400">{total_reservations}</p>
-          <p className="text-xs text-slate-600 mt-1">bookings for {date}</p>
+      {/* Main metrics — 2×2 grid */}
+      <div className="grid grid-cols-2 gap-2.5">
+        <div className="rounded-lg bg-white/[0.025] ring-1 ring-white/[0.06] p-3">
+          <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45">Reservations</div>
+          <div className="mt-1 text-3xl font-semibold text-cyan-300">{total_reservations}</div>
+          <div className="text-[10px] text-white/40 mt-0.5">bookings for {date}</div>
         </div>
 
-        <div className="bg-navy-900 border border-blue-500/20 rounded-lg p-3">
-          <p className="text-xs text-slate-500 uppercase tracking-widest mb-1">Total Guests</p>
-          <p className="text-2xl font-bold text-blue-400">{total_guests}</p>
-          <p className="text-xs text-slate-600 mt-1">of {capacity} capacity</p>
+        <div className="rounded-lg bg-white/[0.025] ring-1 ring-white/[0.06] p-3">
+          <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45">Total guests</div>
+          <div className="mt-1 text-3xl font-semibold text-cyan-300">{total_guests}</div>
+          <div className="text-[10px] text-white/40 mt-0.5">of {capacity} capacity</div>
         </div>
 
-        <div className={`bg-navy-900 border rounded-lg p-3 ${
-          occupancy_pct > 85 ? "border-rose-500/30" : occupancy_pct > 70 ? "border-amber-500/30" : "border-emerald-500/30"
+        <div className={`rounded-lg ring-1 p-3 ${
+          occupancy_pct > 85 ? "ring-rose-400/25 bg-rose-500/[0.04]"
+          : occupancy_pct > 70 ? "ring-ember-400/25 bg-ember-500/[0.04]"
+          : "ring-white/[0.06] bg-white/[0.025]"
         }`}>
-          <p className="text-xs text-slate-500 uppercase tracking-widest mb-1">Occupancy</p>
-          <p className={`text-2xl font-bold ${
-            occupancy_pct > 85 ? "text-rose-400" : occupancy_pct > 70 ? "text-amber-400" : "text-emerald-400"
+          <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45">Occupancy</div>
+          <div className={`mt-1 text-3xl font-semibold ${
+            occupancy_pct > 85 ? "text-rose-300" : occupancy_pct > 70 ? "text-ember-300" : "text-emerald-300"
           }`}>
-            {occupancy_pct}%
-          </p>
-          {overbooking_risk && <p className="text-xs text-rose-400 mt-1">⚠ Overbooking risk</p>}
+            {occupancy_pct}<span className="text-xl opacity-60">%</span>
+          </div>
+          {overbooking_risk
+            ? <div className="text-[10px] text-rose-300/80 mt-0.5">above target · overbooking risk</div>
+            : occupancy_pct > 85
+            ? <div className="text-[10px] text-rose-300/80 mt-0.5">above target 80%</div>
+            : null}
         </div>
 
-        <div className="bg-navy-900 border border-blue-500/20 rounded-lg p-3">
-          <p className="text-xs text-slate-500 uppercase tracking-widest mb-1">Peak Hour</p>
-          <p className="text-2xl font-bold text-blue-400">
-            {busiest_hour !== null && busiest_hour !== undefined ? `${String(busiest_hour).padStart(2, '0')}:00` : "—"}
-          </p>
-          {waitlist_count > 0 && <p className="text-xs text-amber-400 mt-1">📋 {waitlist_count} on waitlist</p>}
+        <div className="rounded-lg bg-white/[0.025] ring-1 ring-white/[0.06] p-3">
+          <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45">Peak hour</div>
+          <div className="mt-1 text-3xl font-semibold text-ember-300">
+            {busiest_hour !== null && busiest_hour !== undefined
+              ? `${String(busiest_hour).padStart(2, "0")}:00`
+              : "--"}
+          </div>
+          {waitlist_count > 0 && <div className="text-[10px] text-ember-300/80 mt-0.5">{waitlist_count} on waitlist</div>}
         </div>
       </div>
 
       {recommendation && (
-        <div className="bg-navy-900/50 border border-blue-500/10 rounded-lg p-4 space-y-3 w-full">
-          {/* If recommendation is a string, display it directly */}
+        <div className="rounded-lg bg-white/[0.02] ring-1 ring-white/[0.05] p-3.5 space-y-3 w-full">
+          {/* String recommendation */}
           {typeof recommendation === "string" && (
             <div className="w-full">
-              <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">Recommendation</p>
-              <p className="text-sm text-slate-300 leading-relaxed break-words whitespace-normal">
-                {recommendation}
-              </p>
+              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45 mb-1.5">Recommendation</div>
+              <p className="text-[12px] leading-[1.65] text-white/65 break-words whitespace-normal">{recommendation}</p>
             </div>
           )}
 
-          {/* If recommendation is an object, render its properties */}
+          {/* Object recommendation */}
           {typeof recommendation === "object" && (
             <>
-              {/* Reasoning */}
               {recommendation?.reasoning && typeof recommendation.reasoning === "string" && (
                 <div className="w-full">
-                  <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">Reasoning</p>
-                  <p className="text-sm text-slate-300 leading-relaxed break-words whitespace-normal">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45 mb-1.5">Reasoning</div>
+                  <p className="text-[12px] leading-[1.65] text-white/65 break-words whitespace-normal">
                     {recommendation.reasoning}
                   </p>
                 </div>
               )}
 
-              {/* Priority */}
               {recommendation?.priority && typeof recommendation.priority === "string" && (
-                <div className="w-full">
-                  <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">Priority</p>
-                  <span className={`text-xs font-semibold px-3 py-1 rounded inline-block ${
-                    recommendation.priority === "high"
-                      ? "bg-rose-500/20 text-rose-400"
-                      : recommendation.priority === "medium"
-                      ? "bg-amber-500/20 text-amber-400"
-                      : "bg-emerald-500/20 text-emerald-400"
+                <div>
+                  <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45 mb-1.5">Priority</div>
+                  <span className={`text-[10px] font-mono px-2.5 py-1 rounded-full inline-block ${
+                    recommendation.priority === "high"   ? "bg-rose-500/15 text-rose-300 ring-1 ring-rose-400/25"
+                    : recommendation.priority === "medium" ? "bg-ember-500/15 text-ember-300 ring-1 ring-ember-400/25"
+                    : "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/25"
                   }`}>
-                    {recommendation.priority}
+                    {recommendation.priority} priority
                   </span>
                 </div>
               )}
 
-              {/* Other recommendation fields as grouped sections */}
               {Object.entries(recommendation)
                 .filter(([key]) => !["reasoning", "priority"].includes(key))
                 .map(([key, value]) => {
                   if (value === null || value === undefined) return null;
-
                   const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
-                  // Handle arrays of actions/items
                   if (Array.isArray(value) && value.length > 0) {
                     const allItems = value.filter(item => item !== null && item !== undefined);
                     if (allItems.length === 0) return null;
                     const items = compact ? allItems.slice(0, 2) : allItems;
-
                     return (
-                      <div key={key} className="mt-3 pt-3 border-t border-blue-500/10 w-full">
-                        <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
-                          {label}
-                        </p>
+                      <div key={key} className="pt-3 border-t border-white/[0.05] w-full">
+                        <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45 mb-1.5">{label}</div>
                         <ul className="space-y-1 w-full">
                           {items.map((item, i) => {
-                            const itemText = typeof item === "string" 
-                              ? item 
+                            const itemText = typeof item === "string" ? item
                               : typeof item === "object" && item !== null
-                              ? String(Object.values(item).join(" · "))
+                              ? String(Object.values(item).join("  —  "))
                               : String(item);
-                            
                             return (
-                              <li key={i} className="text-xs text-slate-300 flex gap-2 w-full break-words">
-                                <span className="text-blue-400 shrink-0">•</span>
+                              <li key={i} className="text-[12px] text-white/65 flex gap-2 w-full break-words">
+                                <span className="text-cyan-400/60 shrink-0">·</span>
                                 <span className="whitespace-normal">{itemText}</span>
                               </li>
                             );
                           })}
                         </ul>
                         {compact && allItems.length > items.length && (
-                          <p className="text-xs text-slate-600 mt-1.5">+{allItems.length - items.length} more in details</p>
+                          <p className="text-[11px] text-white/30 mt-1.5">+{allItems.length - items.length} more in details</p>
                         )}
                       </div>
                     );
                   }
 
-                  // Handle nested objects (not strings, not arrays)
                   if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-                    const entries = Object.entries(value as Record<string, unknown>).filter(
-                      ([, nestedValue]) => nestedValue !== null && nestedValue !== undefined
-                    );
+                    const entries = Object.entries(value as Record<string, unknown>).filter(([, v]) => v !== null && v !== undefined);
                     if (entries.length === 0) return null;
-
                     return (
-                      <div key={key} className="mt-3 pt-3 border-t border-blue-500/10 w-full">
-                        <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
-                          {label}
-                        </p>
+                      <div key={key} className="pt-3 border-t border-white/[0.05] w-full">
+                        <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45 mb-1.5">{label}</div>
                         <div className="space-y-1 w-full">
                           {entries.map(([subKey, subValue]) => (
                             <div key={subKey} className="flex gap-3 w-full">
-                              <span className="text-xs text-slate-500 w-24 shrink-0">
-                                {subKey.replace(/_/g, " ")}
-                              </span>
-                              <span className="text-xs text-slate-300 break-words whitespace-normal flex-1">
-                                {String(subValue)}
-                              </span>
+                              <span className="text-[11px] text-white/40 w-24 shrink-0">{subKey.replace(/_/g, " ")}</span>
+                              <span className="text-[11px] text-white/65 break-words whitespace-normal flex-1">{String(subValue)}</span>
                             </div>
                           ))}
                         </div>
@@ -210,21 +201,10 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
                     );
                   }
 
-                  // Handle simple string values
-                  if (typeof value === "string") {
-                    return (
-                      <div key={key} className="flex gap-3 w-full text-xs">
-                        <span className="text-slate-500 w-24 shrink-0">{label}</span>
-                        <span className="text-slate-300 break-words whitespace-normal flex-1">{value}</span>
-                      </div>
-                    );
-                  }
-
-                  // Other scalar types
                   return (
-                    <div key={key} className="flex gap-3 text-xs w-full">
-                      <span className="text-slate-500 w-24 shrink-0">{label}</span>
-                      <span className="text-slate-300 break-words whitespace-normal flex-1">{String(value)}</span>
+                    <div key={key} className="flex gap-3 w-full">
+                      <span className="text-[11px] text-white/40 w-24 shrink-0">{label}</span>
+                      <span className="text-[11px] text-white/65 break-words whitespace-normal flex-1">{String(value)}</span>
                     </div>
                   );
                 })}

@@ -90,6 +90,28 @@ function normalizeInventoryData(
   };
 }
 
+function CompactAlertRow({ alert }: { alert: Alert }) {
+  const sev = alert.severity ?? "info";
+  const sevLabel = sev === "critical" ? "crit" : sev === "warning" ? "low" : "ok";
+  const rowStyle  = sev === "critical" ? "ring-rose-400/20 bg-rose-500/[0.04]"
+                  : sev === "warning"  ? "ring-ember-400/20 bg-ember-500/[0.04]"
+                  :                      "ring-white/[0.07] bg-white/[0.025]";
+  const barColor  = sev === "critical" ? "bg-rose-400"        : sev === "warning" ? "bg-ember-400"    : "bg-emerald-400/70";
+  const sevColor  = sev === "critical" ? "text-rose-300"      : sev === "warning" ? "text-ember-300"  : "text-emerald-300/80";
+  const stockPct  = Math.min(100, Math.max(4, (alert.quantity_in_stock / Math.max(alert.reorder_threshold, 0.01)) * 50));
+
+  return (
+    <li className={`grid grid-cols-12 items-center gap-2 rounded-lg ring-1 px-3 py-2.5 ${rowStyle}`}>
+      <span className="col-span-4 text-[13px] font-semibold text-white truncate">{alert.ingredient}</span>
+      <span className="col-span-2 font-mono text-[10px] text-white/55">{alert.quantity_in_stock}{alert.unit}</span>
+      <div className="col-span-4 h-1.5 rounded bg-white/[0.04] overflow-hidden">
+        <div className={`h-full ${barColor}`} style={{ width: `${stockPct}%` }} />
+      </div>
+      <span className={`col-span-2 text-right font-mono text-[10px] uppercase ${sevColor}`}>{sevLabel}</span>
+    </li>
+  );
+}
+
 function AlertRow({ alert, type }: { alert: Alert; type: "shortage" | "overstock" }) {
   const sev = alert.severity ?? "info";
   return (
@@ -162,14 +184,14 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
   return (
     <div className={compact ? "space-y-4" : "space-y-5"}>
       {/* Summary bar */}
-      <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-slate-500">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-white/40">
         <span>{data.total_items_checked} ingredients checked</span>
-        <span>·</span>
+        <span className="text-white/20">·</span>
         <span>demand ratio: {data.demand_ratio.toFixed(2)}x</span>
         {data.high_demand_week && (
           <>
-            <span>·</span>
-            <span className="text-amber-400">high demand week</span>
+            <span className="text-white/20">·</span>
+            <span className="text-ember-300/80">high demand week</span>
           </>
         )}
       </div>
@@ -264,17 +286,25 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
       {/* Shortage alerts */}
       {hasShortage && (
         <div>
-          <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
-            Shortage alerts — {data.shortage_alerts.length}
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-white/45 mb-2.5">
+            Restock priority · {data.shortage_alerts.length} alert{data.shortage_alerts.length !== 1 ? "s" : ""}
           </p>
-          <div className="space-y-2">
-            {shortagePreview.map((a, i) => (
-              <AlertRow key={`shortage-${i}`} alert={a} type="shortage" />
-            ))}
-          </div>
+          {compact ? (
+            <ul className="space-y-1.5">
+              {shortagePreview.map((a, i) => (
+                <CompactAlertRow key={`shortage-${i}`} alert={a} />
+              ))}
+            </ul>
+          ) : (
+            <div className="space-y-2">
+              {shortagePreview.map((a, i) => (
+                <AlertRow key={`shortage-${i}`} alert={a} type="shortage" />
+              ))}
+            </div>
+          )}
           {compact && data.shortage_alerts.length > shortagePreview.length && (
-            <p className="text-xs text-slate-500 mt-2">
-              {data.shortage_alerts.length - shortagePreview.length} more shortage alerts in details.
+            <p className="text-[11px] text-white/30 mt-2">
+              {data.shortage_alerts.length - shortagePreview.length} more in details.
             </p>
           )}
         </div>
@@ -284,7 +314,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
       {hasOverstock && (
         <div>
           <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
-            Overstock alerts — {data.overstock_alerts.length}
+            Overstock alerts -- {data.overstock_alerts.length}
           </p>
           <div className="space-y-2">
             {overstockPreview.map((a, i) => (

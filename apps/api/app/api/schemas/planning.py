@@ -192,3 +192,36 @@ class FridayRushResponse(BaseModel):
     rag_context: Optional[Dict[str, Any]] = None
     critic: CriticResult
     meta: Dict[str, Any] = Field(default_factory=dict)
+    cache_hit: Optional[bool] = Field(
+        default=None,
+        description="True if this response was served from cache; False if freshly computed; None for legacy/compat responses",
+    )
+
+
+# ── What-if simulator ─────────────────────────────────────────────────────────
+
+class WhatIfRequest(BaseModel):
+    predicted_covers: int = Field(
+        ge=1, le=1000,
+        description="What-if cover count to evaluate",
+    )
+    avg_covers: float = Field(
+        gt=0,
+        description="Historical baseline average covers from the existing run",
+    )
+    scenario: str = Field(default="friday_rush")
+    service_window: str = Field(default="18:00-22:00")
+
+
+class WhatIfResponse(BaseModel):
+    scenario: str
+    service_window: str
+    predicted_covers: int
+    avg_covers: float
+    demand_ratio: float
+    cost_pressure_score: float
+    benefit_score: float
+    tradeoff_score: float
+    pressure_components: Dict[str, float]
+    tradeoff_notes: list[str]
+    recommended_focus: list[str]

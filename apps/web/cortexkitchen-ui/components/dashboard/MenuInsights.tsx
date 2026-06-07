@@ -23,6 +23,7 @@ interface MenuInsightsData {
     scenario_watchouts?: string[];
     note?: string;
   };
+  top_items?: TopItem[];
   highlight_items?: string[];
   deprioritize_items?: string[];
   promo_candidates?: string[];
@@ -46,19 +47,14 @@ function SectionList({
   if (items.length === 0) return null;
 
   const toneClass =
-    tone === "good"
-      ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-200"
-      : tone === "warn"
-      ? "border-amber-500/20 bg-amber-500/5 text-amber-200"
-      : tone === "risk"
-      ? "border-rose-500/20 bg-rose-500/5 text-rose-200"
-      : "border-white/5 bg-slate-900/60 text-slate-200";
+    tone === "good" ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-200"
+    : tone === "warn" ? "border-amber-500/20 bg-amber-500/5 text-amber-200"
+    : tone === "risk" ? "border-rose-500/20 bg-rose-500/5 text-rose-200"
+    : "border-white/5 bg-slate-900/60 text-slate-200";
 
   return (
     <div>
-      <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
-        {title}
-      </p>
+      <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">{title}</p>
       <ul className="space-y-1.5">
         {items.map((item, index) => (
           <li key={`${title}-${index}`} className={`rounded-lg border px-3 py-2 text-xs ${toneClass}`}>
@@ -66,6 +62,43 @@ function SectionList({
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function MenuColumnCard({
+  label,
+  items,
+  tone,
+}: {
+  label: string;
+  items: string[];
+  tone: "good" | "warn" | "risk";
+}) {
+  const styles = {
+    good: { header: "text-emerald-300/80", ring: "ring-emerald-400/25 bg-emerald-500/[0.04]" },
+    warn: { header: "text-ember-300/80",   ring: "ring-ember-400/25 bg-ember-500/[0.04]"     },
+    risk: { header: "text-rose-300/80",    ring: "ring-rose-400/25 bg-rose-500/[0.04]"       },
+  };
+  const s = styles[tone];
+  const primary = items[0];
+  const rest    = items.length - 1;
+
+  return (
+    <div>
+      <div className={`font-mono text-[10px] uppercase tracking-[0.22em] mb-2 ${s.header}`}>{label}</div>
+      <div className={`rounded-xl ring-1 p-3.5 min-h-[68px] ${s.ring}`}>
+        {primary ? (
+          <>
+            <div className="text-[13px] font-semibold text-white leading-snug">{primary}</div>
+            {rest > 0 && (
+              <p className="mt-1.5 text-[11px] text-white/35">+{rest} more in details</p>
+            )}
+          </>
+        ) : (
+          <p className="text-[12px] text-white/30 italic">None flagged</p>
+        )}
+      </div>
     </div>
   );
 }
@@ -151,31 +184,53 @@ export function MenuInsightsBody({
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <SectionList title="Highlight Items" items={data.highlight_items ?? []} tone="good" />
-        <SectionList title="Promo Candidates" items={data.promo_candidates ?? []} />
-        <SectionList title="Deprioritize Items" items={data.deprioritize_items ?? []} tone="warn" />
-        <SectionList title="Operational Notes" items={data.operational_notes ?? []} />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <SectionList title="Inventory Blockers" items={data.inventory_blockers ?? shortageIngredients} tone="risk" />
-        <SectionList
-          title="Complaint Watchouts"
-          items={data.complaint_watchouts ?? complaintThemes}
-          tone="warn"
-        />
-      </div>
-
-      {!compact && scenarioWatchouts.length > 0 && (
-        <SectionList title="Scenario Watchouts" items={scenarioWatchouts} tone="warn" />
+      {/* Compact: 3-col push / ease back / avoid promoting */}
+      {compact && (
+        <div className="grid grid-cols-3 gap-2.5">
+          <MenuColumnCard
+            label="Push tonight"
+            items={data.highlight_items ?? []}
+            tone="good"
+          />
+          <MenuColumnCard
+            label="Ease back"
+            items={data.deprioritize_items ?? []}
+            tone="warn"
+          />
+          <MenuColumnCard
+            label="Avoid promoting"
+            items={[...(data.inventory_blockers ?? shortageIngredients), ...(data.complaint_watchouts ?? complaintThemes)]}
+            tone="risk"
+          />
+        </div>
       )}
 
-      {!compact && (overstockIngredients.length > 0 || (data.risks?.length ?? 0) > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <SectionList title="Overstock Opportunities" items={overstockIngredients} />
-          <SectionList title="Risks" items={data.risks ?? []} tone="risk" />
-        </div>
+      {/* Full view: all section lists */}
+      {!compact && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <SectionList title="Highlight Items"   items={data.highlight_items ?? []}  tone="good" />
+            <SectionList title="Promo Candidates"  items={data.promo_candidates ?? []} />
+            <SectionList title="Deprioritize Items" items={data.deprioritize_items ?? []} tone="warn" />
+            <SectionList title="Operational Notes" items={data.operational_notes ?? []} />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <SectionList title="Inventory Blockers"  items={data.inventory_blockers ?? shortageIngredients} tone="risk" />
+            <SectionList title="Complaint Watchouts" items={data.complaint_watchouts ?? complaintThemes}    tone="warn" />
+          </div>
+
+          {scenarioWatchouts.length > 0 && (
+            <SectionList title="Scenario Watchouts" items={scenarioWatchouts} tone="warn" />
+          )}
+
+          {(overstockIngredients.length > 0 || (data.risks?.length ?? 0) > 0) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <SectionList title="Overstock Opportunities" items={overstockIngredients} />
+              <SectionList title="Risks" items={data.risks ?? []} tone="risk" />
+            </div>
+          )}
+        </>
       )}
     </div>
   );

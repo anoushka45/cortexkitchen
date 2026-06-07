@@ -1,10 +1,17 @@
 import os
 import time
 
+import sentry_sdk
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
 
 from app.api.routes import get_api_router
 from app.api.schemas.common import ErrorResponse
@@ -21,7 +28,18 @@ settings = get_settings()
 configure_logging(debug=settings.app_debug)
 log = structlog.get_logger()
 
-# 3. Propagate LangSmith config into OS env so the langsmith SDK picks it up
+# 3. Sentry — skip silently if DSN is not configured
+if settings.sentry_dsn:
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        environment=settings.app_env,
+        traces_sample_rate=1.0,
+        send_default_pii=False,
+        integrations=[StarletteIntegration(), FastApiIntegration()],
+    )
+    log.info("sentry_enabled", environment=settings.app_env)
+
+# 4. Propagate LangSmith config into OS env so the langsmith SDK picks it up
 if settings.langsmith_api_key:
     os.environ.setdefault("LANGSMITH_TRACING",  settings.langsmith_tracing)
     os.environ.setdefault("LANGSMITH_API_KEY",   settings.langsmith_api_key)
@@ -36,7 +54,12 @@ app = FastAPI(
 )
 
 
-# 3. CORS Middleware
+# 3. OpenTelemetry — HTTP-layer tracing (console exporter for dev; swap for OTLP in prod)
+_tracer_provider = TracerProvider()
+_tracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+FastAPIInstrumentor.instrument_app(app, tracer_provider=_tracer_provider)
+
+# 3b. CORS Middleware
 # Allows the Next.js frontend (port 3000) to call the API (port 8000).
 app.add_middleware(
     CORSMiddleware,
@@ -86,5 +109,14 @@ def root() -> dict[str, str]:
     }
 
 
-# 6. Include Modular Routes
+@app.get("/debug/sentry-test", tags=["debug"], include_in_schema=settings.app_debug)
+def sentry_test():
+    """Raises an intentional error to verify Sentry capture is working."""
+    raise RuntimeError("Sentry smoke test — intentional error from CortexKitchen API")
+
+
+# 6. Prometheus metrics — exposes /metrics in Prometheus text format
+Instrumentator().instrument(app).expose(app)
+
+# 7. Include Modular Routes
 app.include_router(get_api_router())

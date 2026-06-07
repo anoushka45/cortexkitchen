@@ -12,6 +12,9 @@ import functools
 import os
 import time
 import uuid
+
+import sentry_sdk
+from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Any
 
@@ -94,6 +97,10 @@ def _inject(node_fn, traces: list, **deps):
             traces.append({"node": node, "started_at": started_at,
                            "ended_at": datetime.now(timezone.utc).isoformat(),
                            "duration_ms": duration_ms, "error": str(exc)})
+            with sentry_sdk.new_scope() as scope:
+                scope.set_tag("langgraph.node", node)
+                scope.set_extra("duration_ms", duration_ms)
+                sentry_sdk.capture_exception(exc)
             raise
     return _wrapped
 
@@ -247,6 +254,8 @@ async def run_planning_scenario(
     org_capacity: int = 70,
     org_peak_hours: str = "18:00-22:00",
     restaurant_profile: dict | None = None,
+    critic_threshold: float = 0.7,
+    org_id: int | None = None,
 ) -> dict:
     """
     Top-level convenience function for a named planning scenario.
@@ -290,8 +299,10 @@ async def run_planning_scenario(
     initial_state["simulation_mode"] = simulation_mode
     initial_state["force_critic_decision"] = force_critic_decision
     initial_state["debug"] = debug
+    initial_state["org_id"] = org_id
     initial_state["org_capacity"] = effective_capacity
     initial_state["org_peak_hours"] = effective_peak_hours
+    initial_state["critic_threshold"] = critic_threshold
 
     # Initialize debug trace container
     if debug:
@@ -348,3 +359,117 @@ async def run_planning_scenario(
         )
 
     return final_response
+
+
+# ── SSE node names → state field mapping ─────────────────────────────────────
+_NODE_SSE_MAP: dict[str, str] = {
+    "demand_forecast":        "forecast",
+    "reservation":            "reservation",
+    "complaint_intelligence": "complaint",
+    "menu_intelligence":      "menu",
+    "inventory":              "inventory",
+    "aggregator":             "aggregator",
+    "critic":                 "critic",
+}
+
+_NODE_OUTPUT_FIELD: dict[str, str] = {
+    "forecast":    "forecast_output",
+    "reservation": "reservation_output",
+    "complaint":   "complaint_output",
+    "menu":        "menu_output",
+    "inventory":   "inventory_output",
+    "aggregator":  "aggregated_recommendation",
+    "critic":      "critic_output",
+}
+
+
+async def stream_planning_scenario(
+    deps: dict[str, Any],
+    scenario: str,
+    target_date: str | None = None,
+    simulation_mode: bool = False,
+    force_critic_decision: str | None = None,
+    debug: bool = False,
+    org_capacity: int = 70,
+    org_peak_hours: str = "18:00-22:00",
+    restaurant_profile: dict | None = None,
+    critic_threshold: float = 0.7,
+    org_id: int | None = None,
+) -> AsyncGenerator[dict[str, Any], None]:
+    """
+    Streams planning results node-by-node for SSE delivery.
+
+    Yields dicts:
+      {"event": "node_complete", "node": str}        — as each agent finishes
+      {"event": "complete",      "response": dict}   — full final response
+      {"event": "error",         "message": str}     — on failure
+    """
+    traces: list[dict] = []
+    graph_instance = build_graph(deps, traces=traces)
+
+    run_id = uuid.uuid4().hex[:8]
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(run_id=run_id, scenario=scenario)
+    log = structlog.get_logger()
+
+    effective_capacity   = restaurant_profile["capacity"]   if restaurant_profile else org_capacity
+    effective_peak_hours = restaurant_profile["peak_hours"] if restaurant_profile else org_peak_hours
+
+    initial_state = make_initial_state(
+        scenario=scenario, target_date=target_date,
+        simulation_mode=simulation_mode, force_critic_decision=force_critic_decision,
+        debug=debug, restaurant_profile=restaurant_profile,
+    )
+    initial_state.update({
+        "simulation_mode":        simulation_mode,
+        "force_critic_decision":  force_critic_decision,
+        "debug":                  debug,
+        "org_id":                 org_id,
+        "org_capacity":           effective_capacity,
+        "org_peak_hours":         effective_peak_hours,
+        "critic_threshold":       critic_threshold,
+    })
+    if debug:
+        initial_state["execution_trace"] = []
+
+    run_label = f"{scenario}/{target_date or 'next'}"
+    llm_metadata = _llm_log_fields(deps.get("llm"))
+    config = RunnableConfig(
+        run_name=f"cortexkitchen/stream/{run_label}",
+        tags=[scenario, "planning_run", "stream"],
+        metadata={"scenario": scenario, "target_date": target_date or "", "run_id": run_id, **llm_metadata},
+    )
+
+    t0 = time.perf_counter()
+    log.info("stream_start", target_date=target_date or "next", **llm_metadata)
+
+    final_response: dict | None = None
+
+    async for chunk in graph_instance.astream(initial_state, config=config):
+        for node_name, state_update in chunk.items():
+            sse_name = _NODE_SSE_MAP.get(node_name)
+            if sse_name:
+                yield {"event": "node_complete", "node": sse_name}
+
+            if node_name == "final_assembler":
+                final_response = state_update.get("final_response")
+
+    total_duration_ms = round((time.perf_counter() - t0) * 1000, 2)
+    llm_usage      = deps["llm"].drain_usage()
+    total_cost_usd = round(sum(u.get("cost_usd", 0) for u in llm_usage), 6)
+    total_tokens   = sum(u.get("prompt_tokens", 0) + u.get("completion_tokens", 0) for u in llm_usage)
+
+    log.info("stream_end", duration_ms=total_duration_ms,
+             total_tokens=total_tokens, total_cost_usd=total_cost_usd)
+
+    if final_response:
+        obs = {
+            "run_id": run_id, "node_traces": traces,
+            "llm_usage": llm_usage, "total_duration_ms": total_duration_ms,
+            "total_tokens": total_tokens, "total_cost_usd": total_cost_usd,
+            **llm_metadata,
+        }
+        final_response.setdefault("meta", {}).update(obs)
+        yield {"event": "complete", "response": final_response}
+    else:
+        yield {"event": "error", "message": "Graph completed without a final response"}

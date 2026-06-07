@@ -1,31 +1,36 @@
 # CortexKitchen Documentation
 
-Last updated: May 2026.
+Last updated: June 2026. Phase 5 complete.
 
 All documents in this folder reflect the implemented codebase.
 
 ---
 
-## Reference documents
+## Documents
 
-| Document | Contents |
-|----------|---------|
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | System shape, graph topology, layer descriptions, data flow |
-| [`APIS.md`](APIS.md) | Full API reference — all endpoints with request/response schemas |
-| [`AGENTS.md`](AGENTS.md) | Orchestration node descriptions, graph wiring, state management |
-| [`DATA_MODEL.md`](DATA_MODEL.md) | PostgreSQL schema (all tables and columns), Qdrant collections |
-| [`ROADMAP.md`](ROADMAP.md) | Completed work, planned next phase, known gaps |
-| [`EVALUATION.md`](EVALUATION.md) | Evaluation criteria across correctness, quality, realism, and auditability |
-| [`DECISIONS.md`](DECISIONS.md) | Architecture decision log (D-001 through D-008) |
+| File | Contents |
+|------|---------|
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Full system architecture — graph topology, SSE streaming, Redis caching, multi-tenant isolation, observability stack, Phase 5 additions |
+| [`AGENTS.md`](AGENTS.md) | All nine LangGraph orchestration nodes + the RAG chat agent |
+| [`APIS.md`](APIS.md) | Complete API reference — all endpoints including exports, chat, observability, and Prometheus |
+| [`DATA_MODEL.md`](DATA_MODEL.md) | PostgreSQL schema and Qdrant collections |
+| [`EVALUATION.md`](EVALUATION.md) | LangSmith golden dataset + CI gate, RAGAS, DeepEval, observability |
+| [`ROADMAP.md`](ROADMAP.md) | Phase-by-phase delivery history — Phases 0–5 complete |
+| [`DECISIONS.md`](DECISIONS.md) | Architecture decision log |
+| [`PRD.md`](PRD.md) | Product requirements document |
+| [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) | Delivery plan with completed milestones |
 
 ---
 
-## Design and planning documents
+## What Phase 5 added
 
-| Document | Notes |
-|----------|-------|
-| [`PRD.md`](PRD.md) | Original product requirements and vision |
-| [`PHASE2_EVALUATION_REFINEMENT.md`](PHASE2_EVALUATION_REFINEMENT.md) | Scenario rubric and sanity-check detail from Phase 2 |
-| [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) | Original delivery phasing |
-
-These documents capture design intent and planning context. The reference documents above reflect what is actually implemented.
+- **PDF + Excel export** — chef brief and owner workbook per planning run
+- **SSE streaming** — node-by-node results delivered to the frontend in real time
+- **Redis caching** — 1hr TTL plan cache; zero LLM cost on repeat runs same day
+- **What-if simulator** — instant cover count adjustment without a full re-run
+- **OpenTelemetry + Prometheus** — HTTP tracing and `/metrics` scrape endpoint
+- **Sentry** — unhandled exception capture with LangGraph node tags
+- **LangSmith regression evals** — `cortexkitchen-golden-v1` dataset (50 runs), 90% CI gate
+- **Multi-tenant workspace isolation** — Postgres `org_id` scoping + Qdrant payload filter per org
+- **RAG chatbot** — `POST /api/v1/chat` SSE; AsyncGroq streaming; answers from real run data
+- **Prelaunch polish** — homepage pipeline redesign, professional footer, prompt refinements

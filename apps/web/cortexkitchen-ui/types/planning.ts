@@ -192,7 +192,7 @@ export interface PlanningScenarioOption {
   operational_focus: string;
 }
 
-// Run history entry — stored in memory during the session
+// Run history entry -- stored in memory during the session
 export interface RunHistoryEntry {
   id:          string | number;
   targetDate:  string;

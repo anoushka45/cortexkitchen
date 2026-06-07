@@ -133,7 +133,7 @@ export function ComplaintInsightsBody({
         <span>{normalized.summary.total_feedback ?? 0} feedback</span>
         {typeof negativePct === "number" && (
           <>
-            <span>·</span>
+            <span> - </span>
             <span className={negativePct >= 25 ? "text-rose-300" : "text-slate-400"}>
               negative: {negativePct}%
             </span>
@@ -141,7 +141,7 @@ export function ComplaintInsightsBody({
         )}
         {issues.length > 0 && (
           <>
-            <span>·</span>
+            <span> - </span>
             <span>{issues.length} issues</span>
           </>
         )}

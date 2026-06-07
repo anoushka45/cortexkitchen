@@ -104,6 +104,93 @@ export async function runPlanningScenario(
   return res.json() as Promise<FridayRushResponse>;
 }
 
+export interface ObservabilitySummary {
+  period_days: number;
+  total_runs: number;
+  by_verdict: Record<string, number>;
+  by_scenario: Record<string, number>;
+  success_rate: number | null;
+  avg_critic_score: number | null;
+  avg_duration_ms: number | null;
+  top_scenario: string | null;
+  latest_run_at: string | null;
+}
+
+export async function getObservabilitySummary(days = 7): Promise<ObservabilitySummary> {
+  const res = await fetch(`${BASE_URL}/api/v1/observability/summary?days=${days}`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Observability API error ${res.status}`);
+  return res.json() as Promise<ObservabilitySummary>;
+}
+
+export interface WhatIfRequest  { predicted_covers: number; avg_covers: number; scenario: string; service_window: string }
+export interface WhatIfResponse {
+  scenario: string; service_window: string;
+  predicted_covers: number; avg_covers: number; demand_ratio: number;
+  cost_pressure_score: number; benefit_score: number; tradeoff_score: number;
+  pressure_components: Record<string, number>;
+  tradeoff_notes: string[]; recommended_focus: string[];
+}
+
+export async function runWhatIf(body: WhatIfRequest): Promise<WhatIfResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/planning/whatif`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`What-if error ${res.status}`);
+  return res.json() as Promise<WhatIfResponse>;
+}
+
+export type SSENodeEvent   = { event: "node_complete"; node: string; cached?: boolean };
+export type SSECompleteEvent = { event: "complete" } & FridayRushResponse;
+export type SSEErrorEvent  = { event: "error"; message: string };
+export type SSEEvent = SSENodeEvent | SSECompleteEvent | SSEErrorEvent;
+
+export async function* streamPlanningScenario(
+  request: FridayRushRequest = {}
+): AsyncGenerator<SSEEvent> {
+  const res = await fetch(`${BASE_URL}/api/v1/planning/stream`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(request),
+  });
+
+  if (!res.ok || !res.body) {
+    throw new Error(`Stream failed: ${res.status}`);
+  }
+
+  const reader  = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer    = "";
+  let eventType = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (line.startsWith("event:")) {
+        eventType = line.slice(6).trim();
+      } else if (line.startsWith("data:")) {
+        const raw = line.slice(5).trim();
+        if (!raw) continue;
+        try {
+          const parsed = JSON.parse(raw);
+          yield { event: eventType, ...parsed } as SSEEvent;
+        } catch { /* skip malformed line */ }
+        eventType = "";
+      }
+    }
+  }
+}
+
 export async function getPlanningScenarios(): Promise<PlanningScenarioOption[]> {
   const res = await fetch(`${BASE_URL}/api/v1/planning/scenarios`, {
     headers: authHeaders(),

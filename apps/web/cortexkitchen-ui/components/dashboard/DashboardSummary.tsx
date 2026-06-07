@@ -21,139 +21,165 @@ function useCountUp(target: number | null, duration = 700): number | null {
   return value;
 }
 
-interface Props {
-  data: FridayRushResponse;
+function asObject(v: unknown): Record<string, unknown> | null {
+  return v && typeof v === "object" ? (v as Record<string, unknown>) : null;
 }
 
-function asObject(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}
-
-function extractForecastOrders(data: FridayRushResponse): number | null {
+function extractForecastOrders(data: FridayRushResponse): { orders: number | null; lower: number | null; upper: number | null } {
   const forecast = asObject(data.recommendations.forecast);
-  const payload = asObject(forecast?.data) ?? forecast;
-  const predicted = payload?.predicted_orders;
-  if (typeof predicted === "number") return predicted;
-  if (predicted === null || predicted === undefined) return null;
-  const asNumber = Number(predicted);
-  return Number.isFinite(asNumber) ? asNumber : null;
+  const payload  = asObject(forecast?.data) ?? forecast;
+  const toNum    = (x: unknown) => { const n = Number(x); return Number.isFinite(n) ? n : null; };
+  return {
+    orders: toNum(payload?.predicted_orders ?? payload?.predicted_covers),
+    lower:  toNum(payload?.predicted_orders_lower),
+    upper:  toNum(payload?.predicted_orders_upper),
+  };
 }
 
-function extractReservationOccupancy(data: FridayRushResponse): number | null {
-  const reservation = asObject(data.recommendations.reservation);
-  const payload = asObject(reservation?.data) ?? reservation;
-  const occupancy = payload?.occupancy_pct;
-  if (typeof occupancy === "number") return occupancy;
-  if (occupancy === null || occupancy === undefined) return null;
-  const asNumber = Number(occupancy);
-  return Number.isFinite(asNumber) ? asNumber : null;
+function extractReservation(data: FridayRushResponse): { pct: number | null; bookings: number | null; guests: number | null } {
+  const r = asObject(data.recommendations.reservation);
+  const p = asObject(r?.data) ?? r;
+  const toNum = (x: unknown) => { const n = Number(x); return Number.isFinite(n) ? n : null; };
+  return {
+    pct:      toNum(p?.occupancy_pct),
+    bookings: toNum(p?.reservations ?? p?.reservation_count),
+    guests:   toNum(p?.guests ?? p?.guest_count),
+  };
 }
 
-function extractComplaintRisk(data: FridayRushResponse): string {
-  const complaint = asObject(data.recommendations.complaint);
-  const nestedData = asObject(complaint?.data);
-  const issues = Array.isArray(complaint?.issues) ? complaint?.issues : [];
-
-  const negativePct =
-    nestedData?.sentiment_breakdown && typeof nestedData.sentiment_breakdown === "object"
-      ? Number((nestedData.sentiment_breakdown as Record<string, unknown>).negative_pct ?? 0)
-      : typeof complaint?.sentiment_breakdown === "object"
-        ? Number((complaint?.sentiment_breakdown as Record<string, unknown>).negative_pct ?? 0)
-        : 0;
-
-  if (issues.length > 0) return `${issues.length} active issue${issues.length === 1 ? "" : "s"}`;
-  if (negativePct >= 35) return "high complaint pressure";
-  if (negativePct >= 20) return "moderate complaint pressure";
-  return "complaints under control";
+function extractComplaintIssues(data: FridayRushResponse): number {
+  const c = asObject(data.recommendations.complaint);
+  const issues = Array.isArray(c?.issues) ? c?.issues : [];
+  return issues.length;
 }
 
-function extractInventoryRisk(data: FridayRushResponse): string {
-  const inventory = asObject(data.recommendations.inventory);
-  const nestedData = asObject(inventory?.data) ?? inventory;
-  const shortages = Array.isArray(nestedData?.shortage_alerts) ? nestedData?.shortage_alerts : [];
-  const critical = shortages.filter(
-    (item) =>
-      typeof item === "object" &&
-      item !== null &&
-      (item as Record<string, unknown>).severity === "critical",
-  ).length;
-
-  if (critical > 0) return `${critical} critical shortage${critical === 1 ? "" : "s"}`;
-  if (shortages.length > 0) return `${shortages.length} shortage alert${shortages.length === 1 ? "" : "s"}`;
-  return "stock position stable";
+function extractInventoryCritical(data: FridayRushResponse): number {
+  const inv = asObject(data.recommendations.inventory);
+  const p   = asObject(inv?.data) ?? inv;
+  const shortages = Array.isArray(p?.shortage_alerts) ? p.shortage_alerts as Record<string, unknown>[] : [];
+  return shortages.filter(a => a.severity === "critical").length;
 }
 
-function extractMenuFocus(data: FridayRushResponse): string {
-  const menu = asObject(data.recommendations.menu);
-  const highlights = Array.isArray(menu?.highlight_items) ? menu.highlight_items : [];
-  const promos = Array.isArray(menu?.promo_candidates) ? menu.promo_candidates : [];
-  if (highlights.length > 0) return `${highlights.length} item focus plan`;
-  if (promos.length > 0) return `${promos.length} promo candidate${promos.length === 1 ? "" : "s"}`;
-  return "menu guidance ready";
+function extractMenuPush(data: FridayRushResponse): { push: string | null; ease: string | null } {
+  const m         = asObject(data.recommendations.menu);
+  const highlights = Array.isArray(m?.highlight_items) ? m.highlight_items as string[] : [];
+  const blockers   = Array.isArray(m?.inventory_blockers) ? m.inventory_blockers as string[] : [];
+  return { push: highlights[0] ?? null, ease: blockers[0] ?? null };
 }
 
-const CARD_STYLES = [
-  "border-violet-500/20 bg-violet-500/5",
-  "border-blue-500/20 bg-blue-500/5",
-  "border-rose-500/20 bg-rose-500/5",
-  "border-emerald-500/20 bg-emerald-500/5",
-  "border-amber-500/20 bg-amber-500/5",
-];
+interface Props { data: FridayRushResponse; }
 
 export default function DashboardSummary({ data }: Props) {
-  const forecastOrders = extractForecastOrders(data);
-  const occupancy = extractReservationOccupancy(data);
-  const animatedOrders = useCountUp(forecastOrders !== null ? Math.round(forecastOrders) : null);
-  const animatedOccupancy = useCountUp(occupancy !== null ? Math.round(occupancy) : null);
+  const { orders, lower, upper } = extractForecastOrders(data);
+  const { pct, bookings, guests } = extractReservation(data);
+  const animatedOrders  = useCountUp(orders !== null ? Math.round(orders) : null);
+  const animatedOccupancy = useCountUp(pct !== null ? Math.round(pct) : null);
+  const complaints      = extractComplaintIssues(data);
+  const criticalInv     = extractInventoryCritical(data);
+  const { push, ease }  = extractMenuPush(data);
 
-  const summaryCards = [
-    {
-      label: "Forecasted Orders",
-      value: animatedOrders !== null ? String(animatedOrders) : "--",
-      detail: data.target_date ? `target ${data.target_date}` : "next service window",
-      numeric: true,
-    },
-    {
-      label: "Capacity Load",
-      value: animatedOccupancy !== null ? `${animatedOccupancy}%` : "--",
-      detail: "reservation pressure snapshot",
-      numeric: true,
-    },
-    {
-      label: "Complaint Signal",
-      value: extractComplaintRisk(data),
-      detail: "guest experience watch",
-      numeric: false,
-    },
-    {
-      label: "Inventory Risk",
-      value: extractInventoryRisk(data),
-      detail: "restock urgency",
-      numeric: false,
-    },
-    {
-      label: "Menu Focus",
-      value: extractMenuFocus(data),
-      detail: "service plan guidance",
-      numeric: false,
-    },
-  ];
+  const rangeText = lower !== null && upper !== null
+    ? `range ${Math.round(lower)}-${Math.round(upper)}`
+    : null;
 
   return (
-    <div className="grid grid-cols-1 gap-4 stagger-2 md:grid-cols-2 2xl:grid-cols-5">
-      {summaryCards.map((card, index) => (
-        <div
-          key={card.label}
-          className={`rounded-2xl border px-4 py-4 shadow-sm ${CARD_STYLES[index % CARD_STYLES.length]}`}
-        >
-          <p className="mb-2 text-[11px] font-mono uppercase tracking-[0.18em] text-slate-500">
-            {card.label}
-          </p>
-          <p className={`text-lg font-semibold leading-tight text-slate-100 ${card.numeric ? "tabular-nums font-mono" : ""}`}>{card.value}</p>
-          <p className="mt-2 text-xs text-slate-500">{card.detail}</p>
+    <div className="stagger-2 mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+
+      {/* Forecasted orders */}
+      <article className="rounded-2xl bg-ink-900 p-5 ring-1 ring-white/[0.07]">
+        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ember-300/80">Forecasted orders</div>
+        <div className="mt-2 flex items-baseline gap-2">
+          <div className="num-display text-5xl leading-none text-white">{animatedOrders ?? "--"}</div>
+          {orders !== null && data.target_date && (
+            <div className="text-xs text-emerald-300/80">target</div>
+          )}
         </div>
-      ))}
+        <div className="mt-3 text-[11px] text-white/45">
+          {data.target_date
+            ? <>target <span className="font-mono text-white/65">{data.target_date}</span></>
+            : "next service window"}
+          {rangeText && <>  -  {rangeText}</>}
+        </div>
+        <div className="mt-3 h-1.5 rounded bg-white/[0.04] overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-ember-400 to-ember-600 transition-all duration-700"
+            style={{ width: orders ? `${Math.min(100, Math.round((orders / 150) * 100))}%` : "0%" }} />
+        </div>
+      </article>
+
+      {/* Capacity load */}
+      <article className="rounded-2xl bg-ink-900 p-5 ring-1 ring-white/[0.07]">
+        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-cyan-300/80">Capacity load</div>
+        <div className="mt-2 flex items-baseline gap-2">
+          <div className="num-display text-5xl leading-none text-white">
+            {animatedOccupancy ?? "--"}<span className="text-2xl text-white/40">%</span>
+          </div>
+        </div>
+        <div className="mt-3 text-[11px] text-white/45">
+          reservation pressure
+          {bookings !== null && guests !== null && <>  -  {bookings} bookings  -  {guests} guests</>}
+        </div>
+        <div className="mt-3 h-1.5 rounded bg-white/[0.04] overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-cyan-400 to-cyan-600 transition-all duration-700"
+            style={{ width: pct ? `${Math.min(100, Math.round(pct))}%` : "0%" }} />
+        </div>
+      </article>
+
+      {/* Complaint signal */}
+      <article className="rounded-2xl bg-ink-900 p-5 ring-1 ring-white/[0.07]">
+        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-rose-300/80">Complaint signal</div>
+        <div className="mt-2 flex items-baseline gap-2">
+          <div className="num-display text-5xl leading-none text-white">{complaints}</div>
+          {complaints > 0 && <div className="text-xs text-rose-300/80">active</div>}
+        </div>
+        <div className="mt-3 text-[11px] text-white/45">guest experience watch</div>
+        <div className="mt-3 flex gap-1">
+          {[...Array(Math.max(3, complaints))].map((_, i) => (
+            <div key={i} className={`h-1.5 flex-1 rounded ${
+              i < complaints ? `bg-rose-400/${i === 0 ? "60" : i === 1 ? "40" : "30"}` : "bg-white/[0.04]"
+            }`} />
+          ))}
+        </div>
+      </article>
+
+      {/* Inventory risk */}
+      <article className="rounded-2xl bg-ink-900 p-5 ring-1 ring-white/[0.07]">
+        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-emerald-300/80">Inventory risk</div>
+        <div className="mt-2 flex items-baseline gap-2">
+          <div className="num-display text-5xl leading-none text-white">{criticalInv}</div>
+          {criticalInv > 0 && <div className="text-xs text-rose-300/80">critical</div>}
+        </div>
+        <div className="mt-3 text-[11px] text-white/45">restock urgency</div>
+        <div className="mt-3 flex gap-1">
+          {[...Array(Math.max(5, criticalInv))].map((_, i) => (
+            <div key={i} className={`h-1.5 flex-1 rounded ${
+              i < criticalInv
+                ? i < 2 ? "bg-rose-400/60" : i < 4 ? "bg-ember-400/40" : "bg-emerald-400/30"
+                : "bg-white/[0.04]"
+            }`} />
+          ))}
+        </div>
+      </article>
+
+      {/* Menu focus */}
+      <article className="rounded-2xl bg-ink-900 p-5 ring-1 ring-white/[0.07]">
+        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-amber-300/80">Menu focus</div>
+        <div className="mt-2 flex items-baseline gap-2">
+          <div className="num-display text-5xl leading-none text-white">{push ? "2" : "0"}</div>
+          <div className="text-xs text-amber-300/80">items tonight</div>
+        </div>
+        <div className="mt-3 text-[11px] text-white/45 truncate">
+          {push ? `push ${push.slice(0, 18)}` : "service plan guidance"}
+        </div>
+        <div className="mt-3 flex gap-1.5">
+          {push && (
+            <span className="rounded bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] text-emerald-300 ring-1 ring-emerald-400/20">PUSH</span>
+          )}
+          {ease && (
+            <span className="rounded bg-ember-500/10 px-2 py-0.5 font-mono text-[10px] text-ember-300 ring-1 ring-ember-400/20">EASE</span>
+          )}
+        </div>
+      </article>
+
     </div>
   );
 }
-

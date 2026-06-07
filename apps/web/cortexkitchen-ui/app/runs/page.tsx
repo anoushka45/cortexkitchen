@@ -6,7 +6,79 @@ import {
   Tooltip, XAxis, YAxis,
 } from "recharts";
 import { getPlanningRun, listPlanningRuns } from "@/lib/api";
+import { getAuthToken } from "@/lib/auth-cookies";
 import { PlanningRunDetail, PlanningRunSummary } from "@/types/planning";
+
+// ── Agent output display ──────────────────────────────────────────────────────
+
+const AGENT_LABELS: Record<string, string> = {
+  forecast:    "Demand Forecast",
+  reservation: "Reservation Pressure",
+  complaint:   "Complaint Intelligence",
+  menu:        "Menu Intelligence",
+  inventory:   "Inventory Status",
+};
+
+const AGENT_ACCENT: Record<string, { dot: string; border: string; bg: string }> = {
+  forecast:    { dot: "bg-ember-400",  border: "border-ember-500/20",  bg: "bg-ember-500/[0.04]"  },
+  reservation: { dot: "bg-cyan-400",    border: "border-cyan-500/20",    bg: "bg-cyan-500/[0.04]"    },
+  complaint:   { dot: "bg-rose-400",    border: "border-rose-500/20",    bg: "bg-rose-500/[0.04]"    },
+  menu:        { dot: "bg-amber-400",   border: "border-amber-500/20",   bg: "bg-amber-500/[0.04]"   },
+  inventory:   { dot: "bg-emerald-400", border: "border-emerald-500/20", bg: "bg-emerald-500/[0.04]" },
+};
+
+const PRIORITY_CLS: Record<string, string> = {
+  high:   "text-rose-400   border-rose-500/20   bg-rose-500/10",
+  medium: "text-amber-400  border-amber-500/20  bg-amber-500/10",
+  low:    "text-emerald-400 border-emerald-500/20 bg-emerald-500/10",
+};
+
+function AgentOutputCard({ agentKey, data }: { agentKey: string; data: unknown }) {
+  const accent = AGENT_ACCENT[agentKey] ?? { dot: "bg-slate-400", border: "border-white/10", bg: "bg-white/[0.02]" };
+  const label  = AGENT_LABELS[agentKey] ?? agentKey.replace(/_/g, " ");
+
+  if (!data || typeof data !== "object") return null;
+  const obj = data as Record<string, unknown>;
+
+  const TEXT_KEYS  = ["recommendation", "reasoning", "overall_summary"];
+  const LIST_KEYS  = ["restock_actions", "action_items", "highlight_items", "risks"];
+  const mainText   = TEXT_KEYS.map(k => obj[k]).find((v): v is string => typeof v === "string");
+  const priority   = typeof obj.priority === "string" ? obj.priority.toLowerCase() : null;
+  const listEntry  = LIST_KEYS.map(k => ({ key: k, items: Array.isArray(obj[k]) ? obj[k] as string[] : [] })).find(e => e.items.length > 0);
+
+  return (
+    <div className={`rounded-lg border ${accent.border} ${accent.bg} p-4`}>
+      <div className="flex items-center gap-2 mb-3">
+        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${accent.dot}`} />
+        <p className="text-xs font-mono uppercase tracking-[0.14em] text-slate-400">{label}</p>
+        {priority && (
+          <span className={`ml-auto rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase ${PRIORITY_CLS[priority] ?? "text-slate-500 border-white/10 bg-white/5"}`}>
+            {priority}
+          </span>
+        )}
+      </div>
+      {mainText && (
+        <p className="text-sm text-slate-300 leading-relaxed">{mainText}</p>
+      )}
+      {listEntry && (
+        <ul className="mt-2.5 space-y-1">
+          {listEntry.items.slice(0, 3).map((item, i) => (
+            <li key={i} className="flex gap-2 text-xs text-slate-400">
+              <span className="text-slate-600 shrink-0 mt-0.5"> - </span>
+              <span className="leading-relaxed">{item}</span>
+            </li>
+          ))}
+          {listEntry.items.length > 3 && (
+            <li className="text-[10px] text-slate-600 pl-3">+{listEntry.items.length - 3} more</li>
+          )}
+        </ul>
+      )}
+      {!mainText && !listEntry && (
+        <p className="text-xs text-slate-600 italic">No summary available.</p>
+      )}
+    </div>
+  );
+}
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -75,7 +147,7 @@ function TrendChart({ runs }: { runs: PlanningRunSummary[] }) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           formatter={(v: any, _: any, props: any) => [
             `${v}/100`,
-            `${props.payload?.scenario ?? ""} · ${props.payload?.verdict ?? ""}`,
+            `${props.payload?.scenario ?? ""}  -  ${props.payload?.verdict ?? ""}`,
           ]}
           labelStyle={{ color: "#94a3b8" }}
         />
@@ -157,7 +229,7 @@ function DiffModal({
                 <div className="flex gap-2 items-center">
                   {/* Run A bar */}
                   <div className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div className="h-full rounded-full bg-violet-500" style={{ width: `${a}%` }} />
+                    <div className="h-full rounded-full bg-ember-500" style={{ width: `${a}%` }} />
                   </div>
                   <div className="w-16 text-center">
                     <span className="text-xs text-slate-400 font-mono">
@@ -174,7 +246,7 @@ function DiffModal({
           })}
 
           <div className="flex items-center gap-4 pt-2 text-xs text-slate-500">
-            <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded-full bg-violet-500 inline-block" /> Run #{runA.id}</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded-full bg-ember-500 inline-block" /> Run #{runA.id}</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded-full bg-cyan-500 inline-block" /> Run #{runB.id}</span>
           </div>
         </div>
@@ -222,6 +294,54 @@ export default function RunsPage() {
   const [compareIds, setCompareIds]             = useState<number[]>([]);
   const [diffRuns,   setDiffRuns]               = useState<[PlanningRunDetail, PlanningRunDetail] | null>(null);
   const [diffLoading, setDiffLoading]           = useState(false);
+
+  // Export helpers
+  const [exportingPdf,   setExportingPdf]   = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
+
+  async function downloadFile(url: string, filename: string) {
+    const token = getAuthToken();
+    const base  = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+    const res   = await fetch(`${base}${url}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+    const blob = await res.blob();
+    const href = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = href;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(href);
+  }
+
+  async function downloadPdf(runId: number, scenario: string) {
+    setExportingPdf(true);
+    try {
+      await downloadFile(
+        `/api/v1/runs/${runId}/export`,
+        `cortexkitchen-${scenario.replace(/_/g, "-")}-${runId}.pdf`,
+      );
+    } catch (err) {
+      console.error("PDF export error:", err);
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
+  async function downloadExcel(runId: number, scenario: string) {
+    setExportingExcel(true);
+    try {
+      await downloadFile(
+        `/api/v1/runs/${runId}/export/excel`,
+        `cortexkitchen-${scenario.replace(/_/g, "-")}-${runId}.xlsx`,
+      );
+    } catch (err) {
+      console.error("Excel export error:", err);
+    } finally {
+      setExportingExcel(false);
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -273,7 +393,7 @@ export default function RunsPage() {
     }
   }
 
-  const selectEl = "rounded-lg border border-white/10 bg-slate-950/60 px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-violet-500/50";
+  const selectEl = "rounded-lg border border-white/10 bg-slate-950/60 px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-ember-500/50";
 
   return (
     <main className="min-h-screen bg-[#09111f] px-5 py-6 text-slate-100 xl:px-8">
@@ -282,10 +402,10 @@ export default function RunsPage() {
         {/* Header */}
         <header className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-mono uppercase tracking-[0.22em] text-violet-300">audit trail</p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight">Runs</h1>
+            <p className="text-xs font-mono uppercase tracking-[0.22em] text-ember-300">history</p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight">Plan History</h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-400">
-              Persisted planning runs with critic verdicts, agent outputs, RAG context, and trace metadata.
+              Every plan your kitchen has run — verdict, scores, agent findings, and exports. Select any run to inspect or compare.
             </p>
           </div>
           <div className="text-sm text-slate-500">
@@ -326,8 +446,8 @@ export default function RunsPage() {
             </button>
             {compareIds.length === 2 && (
               <button onClick={openDiff} disabled={diffLoading}
-                className="text-xs bg-violet-600 hover:bg-violet-500 disabled:opacity-50 rounded-lg px-3 py-1.5 text-white font-medium transition-colors">
-                {diffLoading ? "Loading…" : "Compare (2)"}
+                className="text-xs bg-ember-600 hover:bg-ember-500 disabled:opacity-50 rounded-lg px-3 py-1.5 text-white font-medium transition-colors">
+                {diffLoading ? "Loading..." : "Compare (2)"}
               </button>
             )}
             {compareIds.length > 0 && (
@@ -345,7 +465,7 @@ export default function RunsPage() {
             <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500 mb-3">
               Critic Score Trend
               <span className="ml-3 normal-case text-slate-600">
-                · <span className="text-emerald-400">●</span> approved
+                 -  <span className="text-emerald-400">●</span> approved
                 <span className="text-amber-400"> ●</span> revision
                 <span className="text-rose-400"> ●</span> rejected
               </span>
@@ -386,18 +506,18 @@ export default function RunsPage() {
                     const verdict    = run.critic_verdict ?? "unknown";
                     return (
                       <div key={run.id}
-                        className={`flex items-start gap-2 px-3 py-3 transition-colors hover:bg-white/[0.04] ${isActive ? "bg-violet-500/10" : ""}`}>
+                        className={`flex items-start gap-2 px-3 py-3 transition-colors hover:bg-white/[0.04] ${isActive ? "bg-ember-500/10" : ""}`}>
                         {/* Compare checkbox */}
                         <button
                           onClick={() => toggleCompare(run.id)}
                           className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
                             isCompared
-                              ? "bg-violet-500 border-violet-500 text-white"
-                              : "border-slate-700 hover:border-violet-500"
+                              ? "bg-ember-500 border-ember-500 text-white"
+                              : "border-slate-700 hover:border-ember-500"
                           }`}
                           title="Select to compare"
                         >
-                          {isCompared && <span className="text-[10px] leading-none">✓</span>}
+                          {isCompared && <span className="text-[10px] leading-none">done</span>}
                         </button>
 
                         {/* Run info */}
@@ -429,8 +549,12 @@ export default function RunsPage() {
           {/* Run detail */}
           <section className="space-y-5 xl:col-span-8">
             {!selected ? (
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] px-5 py-8 text-sm text-slate-500">
-                Select a run to inspect its audit detail.
+              <div className="rounded-lg border border-white/10 bg-white/[0.03] px-5 py-12 flex flex-col items-center gap-3 text-center">
+                <svg className="h-8 w-8 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <p className="text-sm text-slate-500">Select a run from the list to see the full breakdown.</p>
+                <p className="text-xs text-slate-700">Critic verdict, quality scores, what each specialist found, and export buttons.</p>
               </div>
             ) : (
               <>
@@ -440,12 +564,34 @@ export default function RunsPage() {
                       <p className="font-mono text-xs uppercase tracking-[0.18em] text-slate-500">run #{selected.id}</p>
                       <h2 className="mt-2 text-xl font-semibold">{selected.scenario.replace(/_/g, " ")}</h2>
                       <p className="mt-1 text-sm text-slate-400">
-                        target {selected.target_date ?? "-"} · generated {selected.generated_at?.slice(0, 10) ?? "-"}
+                        target {selected.target_date ?? "-"}  -  generated {selected.generated_at?.slice(0, 10) ?? "-"}
                       </p>
                     </div>
-                    <span className={`rounded-full border px-3 py-1 text-sm ${VERDICT_STYLE[selected.critic_verdict ?? "unknown"]}`}>
-                      {selected.critic_verdict ?? "unknown"}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded-full border px-3 py-1 text-sm ${VERDICT_STYLE[selected.critic_verdict ?? "unknown"]}`}>
+                        {selected.critic_verdict ?? "unknown"}
+                      </span>
+                      <button
+                        onClick={() => downloadPdf(selected.id, selected.scenario)}
+                        disabled={exportingPdf}
+                        className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+                      >
+                        <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        {exportingPdf ? "Exporting..." : "PDF"}
+                      </button>
+                      <button
+                        onClick={() => downloadExcel(selected.id, selected.scenario)}
+                        disabled={exportingExcel}
+                        className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+                      >
+                        <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        {exportingExcel ? "Exporting..." : "Excel"}
+                      </button>
+                    </div>
                   </div>
                   <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
                     <Metric label="status" value={selected.status} />
@@ -453,14 +599,28 @@ export default function RunsPage() {
                     <Metric label="run id" value={selected.metadata?.run_id as string ?? "--"} />
                     <Metric label="tokens" value={selected.metadata?.total_tokens as number ?? "--"} />
                   </div>
-                  {selected.metadata?.total_cost_usd != null && (
-                    <p className="mt-2 text-xs text-slate-500">
-                      Cost: <span className="text-slate-300">${(selected.metadata.total_cost_usd as number).toFixed(5)}</span>
-                      {selected.metadata?.total_duration_ms != null && (
-                        <span className="ml-3">Duration: <span className="text-slate-300">{Math.round(selected.metadata.total_duration_ms as number)}ms</span></span>
-                      )}
-                    </p>
-                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                    {selected.metadata?.total_cost_usd != null && (
+                      <span>Cost: <span className="text-slate-300">${(selected.metadata.total_cost_usd as number).toFixed(5)}</span></span>
+                    )}
+                    {selected.metadata?.total_duration_ms != null && (
+                      <span>Duration: <span className="text-slate-300">{Math.round(selected.metadata.total_duration_ms as number)}ms</span></span>
+                    )}
+                    {!!selected.metadata?.llm_model && (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-ember-400/70" />
+                        <span className="font-mono text-ember-300/80">{selected.metadata.llm_model as string}</span>
+                        {!!selected.metadata?.llm_provider && (
+                          <span className="text-slate-600">· {selected.metadata.llm_provider as string}</span>
+                        )}
+                      </span>
+                    )}
+                    {selected.metadata?.cache_hit === true && (
+                      <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-cyan-300/80 ring-1 ring-cyan-400/20">
+                        cached
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
@@ -504,15 +664,15 @@ export default function RunsPage() {
                       <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500">Actionable Feedback</p>
                       <ul className="mt-2 space-y-2 text-sm text-slate-300">
                         {selected.critic.actionable_feedback.map((item, i) => (
-                          <li key={i} className="rounded-lg border border-cyan-400/10 bg-cyan-500/5 px-3 py-2">{item}</li>
+                          <li key={i} className="rounded-lg border border-ember-400/10 bg-ember-500/5 px-3 py-2">{item}</li>
                         ))}
                       </ul>
                     </div>
                   ) : null}
 
                   {selected.critic?.cost_analysis && (
-                    <div className="mt-5 rounded-lg border border-cyan-400/10 bg-cyan-500/5 p-4">
-                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-cyan-200">Cost-Aware Scoring</p>
+                    <div className="mt-5 rounded-lg border border-ember-400/10 bg-ember-500/5 p-4">
+                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-ember-300">Cost-Aware Scoring</p>
                       <div className="mt-3 grid grid-cols-3 gap-3">
                         <Metric label="cost pressure" value={`${Math.round(selected.critic.cost_analysis.cost_pressure_score * 100)}/100`} />
                         <Metric label="benefit"       value={`${Math.round(selected.critic.cost_analysis.benefit_score * 100)}/100`} />
@@ -522,18 +682,16 @@ export default function RunsPage() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  {selectedAgents.map(([name, value]) => (
-                    <div key={name} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                      <p className="font-mono text-xs uppercase tracking-[0.16em] text-slate-500">{name}</p>
-                      <div className="mt-3 rounded-lg border border-white/5 bg-slate-950/60 overflow-hidden">
-                        <pre className="max-h-48 overflow-y-auto p-3 whitespace-pre-wrap text-xs leading-5 text-slate-300">
-                          {JSON.stringify(value, null, 2)}
-                        </pre>
-                      </div>
+                {selectedAgents.length > 0 && (
+                  <div>
+                    <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500 mb-3">Agent Outputs</p>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      {selectedAgents.map(([name, value]) => (
+                        <AgentOutputCard key={name} agentKey={name} data={value} />
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
               </>
             )}
           </section>
@@ -552,7 +710,7 @@ function Metric({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-lg border border-white/10 bg-slate-950/40 p-3">
       <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-slate-100">{value}</p>
+      <p className="mt-1.5 text-xl font-bold tabular-nums text-slate-100 leading-none">{value}</p>
     </div>
   );
 }

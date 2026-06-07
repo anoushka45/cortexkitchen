@@ -1,5 +1,5 @@
 // components/dashboard/RunHistory.tsx
-// Session run history — last 5 runs, clickable to reload.
+// Session run history -- last 5 runs, clickable to reload.
 
 "use client";
 
@@ -54,8 +54,8 @@ export default function RunHistory({ history, activeId, onSelect }: Props) {
                   w-full text-left rounded-xl border px-3 py-3
                   transition-all duration-200
                   ${isActive
-                    ? "border-violet-500/50 bg-violet-500/10"
-                    : "border-white/5 bg-navy-900 hover:border-violet-500/20 hover:bg-navy-800"
+                    ? "border-ember-500/50 bg-ember-500/10"
+                    : "border-white/5 bg-navy-900 hover:border-ember-500/20 hover:bg-navy-800"
                   }
                 `}
               >

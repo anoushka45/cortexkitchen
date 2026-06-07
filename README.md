@@ -23,6 +23,7 @@ A critic agent reviews the plan across five quality dimensions before it reaches
 The result: one brief, one verdict, under 90 seconds.
 
 ![Dashboard — Plan Approved](screenshots/03_dashboard/03_plan_approved_top.png)
+*Completed dashboard — Plan Approved, critic score 0.92, with five agent metric cards across demand, capacity, complaints, inventory risk, and menu signals.*
 
 ---
 
@@ -41,8 +42,10 @@ One planning run executes a nine-node LangGraph pipeline:
 9. **Final Assembler** — shapes the API response with full metadata and cost tracking
 
 ![Dashboard — Pipeline Running](screenshots/03_dashboard/02_loading_screen.png)
+*Live pipeline diagram mid-run — Ops Manager and Demand Forecast complete (green), four parallel specialists running simultaneously, Aggregator and Critic waiting.*
 
 ![Dashboard — Full Plan](screenshots/03_dashboard/04_full_plan_scroll.png)
+*Full plan view after pipeline completes — critic verdict banner at top, followed by service planning, menu direction, and operational risk sections.*
 
 ---
 
@@ -57,10 +60,13 @@ One planning run executes a nine-node LangGraph pipeline:
 - **Critic quality gate** — 5-dimension scoring (safety, feasibility, evidence, actionability, clarity); three verdicts: approved / revision / rejected
 
 ![Service Planning & Reservation Pressure](screenshots/03_dashboard/05_service_planning.png)
+*Service Planning section — Prophet demand forecast bar chart by hour with peak detection, alongside the Reservation Pressure panel showing occupancy %, waitlist, and priority.*
 
 ![Menu Direction](screenshots/03_dashboard/06_menu_direction.png)
+*Menu Direction section — Menu Intelligence output showing items to push tonight, ease back on, and avoid, with a high-priority strategy recommendation.*
 
 ![Operational Risk](screenshots/03_dashboard/07_operational_risk.png)
+*Operational Risk section — Complaint Intelligence (top issues, action items) alongside Inventory Status (shortage alerts with severity ratings and restock quantities).*
 
 ### Streaming & Real-time
 - **SSE streaming** — node-by-node results streamed to the frontend as each agent completes; no waiting for the full pipeline
@@ -72,10 +78,13 @@ One planning run executes a nine-node LangGraph pipeline:
 - **Excel workbook** — role-aware `.xlsx` with an Inventory & Staffing sheet (chef view) and a Cost Breakdown sheet (owner view)
 
 ![PDF Chef Brief](screenshots/08_exports/pdf_chef_brief.png)
+*PDF chef brief — APPROVED verdict, 0.90/1.00 score, critic dimension scores table, prioritised action items, and full agent recommendations.*
 
 ![Excel — Inventory & Staffing](screenshots/08_exports/excel_inventory_chef_view.png)
+*Excel workbook, Inventory & Staffing sheet (chef view) — shortage alerts with severity and spoilage risk, overstock alerts, and itemised restock actions.*
 
 ![Excel — Cost Breakdown](screenshots/08_exports/excel_cost_breakdown_owner_view.png)
+*Excel workbook, Cost Breakdown sheet (owner view) — LLM provider, token count, total cost ($0.004), critic dimension scores per 100, and cost-aware analysis scores.*
 
 ### Ask AI (RAG Chatbot)
 - **Conversational interface** over your actual run history, inventory data, and guest feedback — not generic AI
@@ -84,16 +93,20 @@ One planning run executes a nine-node LangGraph pipeline:
 - Suggested questions surface on first load; answers cite your own data
 
 ![Ask AI — Empty State](screenshots/05_chat/01_empty_state.png)
+*Ask AI empty state — "Ask about Casa Mia" with six suggested question cards covering quality, complaints, inventory, menu, demand, and strategy.*
 
 ![Ask AI — Conversation](screenshots/05_chat/02_conversation_complaints.png)
+*Active conversation — the chatbot answers a complaint question with structured markdown: top issues, specific incidents, and improvement steps drawn from real feedback records.*
 
 ![Ask AI — Performance Overview](screenshots/05_chat/03_conversation_performance.png)
+*Multi-turn conversation — "How is my restaurant performing?" returns a structured breakdown of feedback counts, average demand, occupancy range, and plan quality scores.*
 
 ### What-If Simulator
 - Slide covers, date, or scenario — cost pressure, benefit score, and tradeoff indicators update instantly
 - No extra LLM call — partial LangGraph execution for instant feedback
 
 ![What-If Simulator](screenshots/03_dashboard/08_what_if_simulator.png)
+*What-If Simulator modal — cover count slider at 135, with cost pressure, benefit, and tradeoff scores updating instantly without triggering a new LLM call.*
 
 ### Run History & Audit Trail
 - Full run history with critic score trend chart, scenario filter, and date range picker
@@ -101,8 +114,10 @@ One planning run executes a nine-node LangGraph pipeline:
 - Every run persisted permanently with token count, LLM cost, and node-level latency
 
 ![Run History](screenshots/04_runs/runs_history_page.png)
+*Plan History page — run list with scenario labels and critic scores on the left, selected run detail with critic dimension score bars and export buttons on the right.*
 
 ![Run Detail](screenshots/04_runs/run_detail_panel.png)
+*Run detail panel — critic scores across all five dimensions, plan approved badge, with options to export for chef, open the manager brief, or ask the AI about this run.*
 
 ### Data Health & Observability
 - **Data Health page** — live database coverage: orders, reservations, feedback, inventory, menu items, scenario coverage
@@ -112,8 +127,10 @@ One planning run executes a nine-node LangGraph pipeline:
 - **Sentry** — unhandled exception capture with LangGraph node tags for fast debugging
 
 ![Data Health](screenshots/06_data_health/data_health.png)
+*Data Health page — live database coverage showing 6,495 orders, 1,201 reservations, 160 feedback records, 18 inventory items, and 27 menu items with scenario coverage table.*
 
 ![Observability Panel](screenshots/06_data_health/observability_panel.png)
+*Observability panel — last 7 days: 59 total runs, 81% success rate, 81/100 avg critic score, 16.6s avg duration, breakdown by verdict (approved/revision/rejected) and scenario.*
 
 ### LangSmith Regression Evals
 - **Golden dataset** — `cortexkitchen-golden-v1` with 50 curated planning runs across all scenarios
@@ -121,10 +138,13 @@ One planning run executes a nine-node LangGraph pipeline:
 - **Per-node traces** in LangSmith for every planning run in production
 
 ![LangSmith Golden Dataset](screenshots/09_observability_tools/langsmith_golden_dataset.png)
+*LangSmith — `cortexkitchen-golden-v1` dataset with 50 curated planning runs across all four scenarios, used as the CI regression quality gate.*
 
 ![LangSmith Run Traces](screenshots/09_observability_tools/langsmith_run_traces.png)
+*LangSmith run traces — per-run tracing with latency breakdown per node, scenario labels, and linked evaluation datasets.*
 
 ![Sentry Error Capture](screenshots/09_observability_tools/sentry_error_capture.png)
+*Sentry error capture — RuntimeError caught from a LangGraph node, with full stack trace, transaction ID, and issue tracking linked to the FastAPI integration.*
 
 ### Multi-Tenant Workspace Isolation
 - JWT authentication with org-scoped planning runs, settings, and profiles
@@ -132,13 +152,25 @@ One planning run executes a nine-node LangGraph pipeline:
 - Qdrant payload filter per org on complaint and SOP vectors
 - `org_id` carried through `OrchestratorState` for end-to-end isolation
 
+### LLM Provider Abstraction
+
+CortexKitchen never calls an LLM provider directly from a service. All agents depend on `BaseLLMProvider`, a provider-agnostic abstraction layer.
+
+- **Current default:** Groq (`llama-3.3-70b-versatile`) — chosen for its high free-tier RPM limits and fast inference
+- **Automatic fallback:** Gemini — if Groq hits a rate limit or fails, the `FallbackLLMProvider` retries transparently on Gemini with no user-facing error
+- **Swappable:** switching providers requires only a one-line change in `.env` (`LLM_PROVIDER=gemini`); no service code changes
+- **Extensible:** adding a new provider (OpenAI, Claude, Mistral, etc.) means implementing `BaseLLMProvider` — the rest of the system picks it up automatically
+- **Tracked:** the provider used (`llm_provider_used`, `llm_fallback_used`) is logged in structlog output and persisted in every planning run's metadata
+
 ### Configuration
 - **Workspace settings** — seating capacity, cuisine type, peak service hours, timezone, plan approval threshold, stock warning levels
 - **Restaurant profiles** — named profiles override org-level capacity and peak hours per run
 
 ![Settings](screenshots/07_config/settings.png)
+*Workspace Settings — seating capacity, cuisine type, peak service hours, timezone, minimum critic approval score, and low/overstock warning thresholds.*
 
 ![Restaurant Profiles](screenshots/07_config/restaurant_profiles.png)
+*Restaurant Profiles — named profile (Casa Mia Rooftop) with cuisine, capacity, peak hours, and timezone; selected from the dashboard to override org defaults for a run.*
 
 ### MCP Server
 - `run_planning_scenario` and `get_run_history` tools via Anthropic MCP SDK
@@ -162,12 +194,16 @@ One planning run executes a nine-node LangGraph pipeline:
 | Restaurant Profiles | `/restaurant-profiles` | Named restaurant profiles |
 
 ![Homepage Hero](screenshots/01_homepage/hero.png)
+*Public homepage hero — headline, live dashboard mockup with a critic-approved brief, and CTAs to start free or watch the 90-second tour.*
 
 ![Homepage Pipeline](screenshots/01_homepage/pipeline.png)
+*Homepage pipeline section — "Five specialists. One coherent verdict." with the horizontal flow diagram showing Orchestrator → Gate → four parallel agents → Quality Check.*
 
 ![Login](screenshots/02_auth/login.png)
+*Login page — email and password sign-in with a link to create a new workspace.*
 
 ![Register](screenshots/02_auth/register.png)
+*Register page — create a restaurant workspace with org name, user name, email, and password in a single step.*
 
 ---
 

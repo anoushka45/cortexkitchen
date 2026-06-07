@@ -149,7 +149,6 @@ The frontend `/data-health` page includes an Observability section showing 7-day
 
 ## References
 
-- `docs/PHASE2_EVALUATION_REFINEMENT.md` — scenario rubric and sanity-check detail from Phase 2
 - `apps/api/tests/` — backend test suite
 - `apps/api/evals/` — RAGAS, DeepEval, and LangSmith regression eval scripts
 - `apps/api/scripts/build_golden_dataset.py` — golden dataset builder

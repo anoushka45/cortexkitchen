@@ -153,7 +153,7 @@ Executes the nine-node multi-agent planning pipeline. Returns the **full respons
 |-------|------|----------|---------|-------------|
 | `scenario` | string | Yes | — | One of `friday_rush`, `weekday_lunch`, `holiday_spike`, `low_stock_weekend` |
 | `target_date` | string | No | Next matching weekday | ISO date string, e.g. `"2026-06-12"` |
-| `restaurant_profile_id` | integer | No | `null` | Override org defaults with a named profile |
+| `restaurant_id` | integer | No | `null` | Override org defaults with a named profile |
 | `simulation_mode` | boolean | No | `false` | Use deterministic mock data |
 | `force_critic_decision` | string | No | `null` | Override critic verdict for testing |
 | `debug` | boolean | No | `false` | Include LangGraph execution trace in `meta` |
@@ -269,6 +269,41 @@ data: {"message": "Stream error: ..."}
 
 ---
 
+### `POST /api/v1/planning/whatif`
+
+What-if demand simulator. Recalculates cost/benefit scoring for a user-supplied cover count without running the LangGraph pipeline — no LLM calls, instant response.
+
+**Auth:** JWT required.
+
+**Request body**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `predicted_covers` | integer (1–1000) | Yes | — | Hypothetical cover count to evaluate |
+| `avg_covers` | float | Yes | — | Historical baseline average covers from the existing run |
+| `scenario` | string | No | `friday_rush` | Scenario label for context |
+| `service_window` | string | No | `18:00-22:00` | Service window label for context |
+
+**Response `200`**
+
+```json
+{
+  "scenario": "friday_rush",
+  "service_window": "18:00-22:00",
+  "predicted_covers": 135,
+  "avg_covers": 89.0,
+  "demand_ratio": 1.52,
+  "cost_pressure_score": 0.78,
+  "benefit_score": 0.65,
+  "tradeoff_score": 0.83,
+  "pressure_components": { "demand": 0.8, "occupancy": 0.0, "inventory": 0.0 },
+  "tradeoff_notes": ["High demand ratio suggests elevated operational pressure."],
+  "recommended_focus": ["Prioritise staffing and prep capacity for the higher-than-baseline cover count."]
+}
+```
+
+---
+
 ## Runs
 
 ### `GET /api/v1/runs`
@@ -281,10 +316,12 @@ Lists persisted planning runs in reverse-chronological order, org-scoped.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `limit` | integer (1–100) | `25` | Max runs to return |
+| `limit` | integer (1–200) | `50` | Max runs to return |
 | `scenario` | string | — | Filter by scenario id |
 | `status` | string | — | Filter by status |
 | `verdict` | string | — | Filter by critic verdict |
+| `date_from` | string | — | ISO date — return runs on or after this date |
+| `date_to` | string | — | ISO date — return runs on or before this date |
 
 **Response `200`**
 
@@ -438,6 +475,8 @@ Intentionally raises a `RuntimeError` to verify Sentry exception capture is work
 
 Returns database coverage summary for the seeded operational data.
 
+**Auth:** JWT required.
+
 **Response `200`**
 
 ```json
@@ -474,13 +513,17 @@ Returns the authenticated org's workspace settings.
 
 ```json
 {
-  "seating_capacity": 110,
-  "cuisine_type": "Italian",
-  "peak_service_hours": "19:00-23:00",
-  "timezone": "Asia/Kolkata",
-  "plan_approval_score": 0.75,
-  "low_stock_warning_pct": 25,
-  "overstock_warning_pct": 160
+  "org_id": 1,
+  "org_name": "Casa Mia",
+  "settings": {
+    "capacity": 110,
+    "cuisine_type": "Italian",
+    "peak_hours": "19:00-23:00",
+    "timezone": "Asia/Kolkata",
+    "critic_threshold": 0.75,
+    "low_stock_threshold_pct": 25.0,
+    "overstock_threshold_pct": 160.0
+  }
 }
 ```
 
@@ -523,7 +566,7 @@ Lists all restaurant profiles for the org.
 
 ### `POST /api/v1/restaurant-profiles`
 
-Creates a new restaurant profile. Profile overrides org-level capacity and peak hours for a planning run when `restaurant_profile_id` is supplied.
+Creates a new restaurant profile. Profile overrides org-level capacity and peak hours for a planning run when `restaurant_id` is supplied in the planning request.
 
 **Auth:** JWT required (owner role).
 

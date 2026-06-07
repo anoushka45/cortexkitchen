@@ -43,6 +43,7 @@ FastAPI application
   ├── GET  /api/v1/planning/scenarios
   ├── POST /api/v1/planning/run          (JWT, full JSON)
   ├── POST /api/v1/planning/stream       (JWT, SSE — node_complete + complete events)
+  ├── POST /api/v1/planning/whatif       (JWT, deterministic — no LLM)
   ├── GET  /api/v1/runs                  (JWT)
   ├── GET  /api/v1/runs/{id}             (JWT)
   ├── GET  /api/v1/runs/{id}/export       (JWT, PDF)
@@ -148,8 +149,8 @@ Planning runs are cached in Redis by `(org_id, scenario, target_date)` key with 
 
 ### Export layer
 
-- **PDF** — `apps/api/app/infrastructure/exports/pdf_exporter.py` uses ReportLab to generate a structured chef brief with plan summary, agent outputs, critic verdict, dimension scores bar chart, and action items.
-- **Excel** — `apps/api/app/infrastructure/exports/excel_exporter.py` uses openpyxl to produce a multi-sheet workbook: Summary, Inventory & Staffing (chef view), Cost Breakdown (owner view).
+- **PDF** — `apps/api/app/infrastructure/pdf/report_generator.py` uses ReportLab to generate a structured chef brief with plan summary, agent outputs, critic verdict, dimension scores bar chart, and action items.
+- **Excel** — `apps/api/app/infrastructure/excel/report_generator.py` uses openpyxl to produce a multi-sheet workbook: Summary, Inventory & Staffing (chef view), Cost Breakdown (owner view).
 
 ### RAG chatbot
 
@@ -164,7 +165,8 @@ Planning runs are cached in Redis by `(org_id, scenario, target_date)` key with 
 | Module | Responsibility |
 |--------|----------------|
 | `db/models.py` | SQLAlchemy ORM — `users`, `organizations`, `user_organizations`, `restaurant_profiles`, `planning_runs`, `decision_logs`, `feedback`, `orders`, `reservations`, `inventory`, `menu_items` |
-| `db/session.py` | Session factory and FastAPI dependency |
+| `db/base.py` | SQLAlchemy `DeclarativeBase` — all ORM models inherit from this; Alembic reads `Base.metadata` |
+| `api/dependencies.py` | `get_db()` session factory + FastAPI dependency provider for auth, LLM, memory, and orchestration |
 | `llm/base.py` | `BaseLLMProvider` ABC — `complete()`, `complete_json()`, thread-safe usage tracking |
 | `llm/factory.py` | `FallbackLLMProvider` + `create_llm_provider()` — reads `LLM_PROVIDER`, wires fallback |
 | `llm/groq.py` | `GroqProvider` — groq SDK |
@@ -172,10 +174,9 @@ Planning runs are cached in Redis by `(org_id, scenario, target_date)` key with 
 | `llm/prompt_utils.py` | Centralised prompt builders for all agents — zero raw prompt strings in service files |
 | `forecasting/` | Prophet-backed time-series forecaster |
 | `vector/memory_service.py` | `MemoryService` and `EmbeddingService` for Qdrant retrieval with org payload filter |
-| `cache/redis_cache.py` | Redis plan cache — get/set/invalidate by composite key |
+| `cache/plan_cache.py` | Redis plan cache — `get_cached_plan` / `cache_plan` / `build_cache_key` by composite key |
 | `observability/dependency_health.py` | PostgreSQL, Qdrant, Redis connectivity checks |
-| `observability/metrics.py` | Prometheus instrumentation — request count, latency histograms |
-| `observability/otel.py` | OpenTelemetry HTTP tracing setup |
+| `main.py` (OTel + Prometheus) | OpenTelemetry `ConsoleSpanExporter` and `prometheus_fastapi_instrumentator` wired directly in app startup |
 
 ### LLM provider abstraction
 

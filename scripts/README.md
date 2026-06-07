@@ -12,7 +12,7 @@ Last updated: June 2026.
 | `seed_qdrant_memory.py` | Loads complaint patterns and SOP-style memory into Qdrant (`complaints_memory` collection) |
 | `test_qdrant_retrieval.py` | Quick retrieval sanity check — verifies Qdrant is seeded and returning results |
 
-Note: `build_golden_dataset.py` (the LangSmith regression eval dataset builder) lives in `apps/api/scripts/`.
+Note: `build_golden_dataset.py` (the LangSmith regression eval dataset builder) also lives in this `scripts/` folder.
 
 ## Typical usage
 

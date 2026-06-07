@@ -114,8 +114,8 @@ API at `http://localhost:8000` · Swagger at `http://localhost:8000/docs`
 | `CriticService` | `services/critic_service.py` | 5-dimension plan scoring and verdict |
 | `ChatService` | `services/chat_service.py` | RAG chatbot — AsyncGroq streaming |
 | `RunService` | `services/run_service.py` | Planning run persistence and retrieval |
-| `CostAwareScoringService` | `services/cost_scoring_service.py` | Cost/benefit analysis for critic |
-| `EvaluationSanityChecker` | `services/sanity_checker.py` | Automated sanity checks in critic |
+| `CostAwareScoringService` | `services/cost_aware_scoring.py` | Cost/benefit analysis for critic |
+| `EvaluationSanityChecker` | `services/evaluation_sanity.py` | Automated sanity checks in critic |
 
 ---
 

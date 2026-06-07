@@ -167,7 +167,7 @@ The project is successful if:
 - SSE streaming works — users see results arrive node by node
 - PDF and Excel exports are usable by a real chef or owner
 - The chatbot answers questions using the org's actual data
-- LangSmith CI gate passes — 90% of golden dataset runs score ≥ 0.80
+- LangSmith CI gate passes — 90% of golden dataset runs meet the evaluator thresholds (critic score ≥ 0.70)
 - The system is presentable as a production-grade AI platform in interviews and demos
 
 ---

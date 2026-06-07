@@ -45,11 +45,11 @@ FastAPI application
   ├── POST /api/v1/planning/stream       (JWT, SSE — node_complete + complete events)
   ├── GET  /api/v1/runs                  (JWT)
   ├── GET  /api/v1/runs/{id}             (JWT)
-  ├── GET  /api/v1/runs/{id}/export/pdf  (JWT)
-  ├── GET  /api/v1/runs/{id}/export/excel (JWT)
+  ├── GET  /api/v1/runs/{id}/export       (JWT, PDF)
+  ├── GET  /api/v1/runs/{id}/export/excel (JWT, Excel)
   ├── POST /api/v1/chat                  (JWT, SSE stream)
   ├── GET  /api/v1/observability/summary (JWT)
-  ├── GET/PUT /api/v1/settings           (JWT)
+  ├── GET/PATCH /api/v1/settings         (JWT)
   ├── CRUD /api/v1/restaurant-profiles   (JWT)
   ├── GET  /metrics                      (Prometheus)
   └── GET  /api/v1/debug/sentry-test
@@ -74,11 +74,9 @@ Service and data layer
 The FastAPI application (`apps/api`) exposes all routes under `/api/v1`. Routes are split across modules:
 
 - `app/api/routes/auth.py` — register, login, `/auth/me`
-- `app/api/routes/planning.py` — scenario listing, planning execution (SSE stream)
-- `app/api/routes/runs.py` — audit run list, run detail, data-health
-- `app/api/routes/exports.py` — PDF and Excel export endpoints
+- `app/api/routes/planning.py` — scenario listing, `/run` (JSON), `/stream` (SSE), `/whatif`
+- `app/api/routes/runs.py` — audit run list, run detail, PDF export, Excel export, data-health, observability summary
 - `app/api/routes/chat.py` — RAG chatbot SSE endpoint
-- `app/api/routes/observability.py` — 7-day planning summary stats
 - `app/api/routes/settings.py` — tenant org settings
 - `app/api/routes/restaurant_profiles.py` — restaurant profile CRUD
 
@@ -127,7 +125,7 @@ reservation    complaint_intel    menu_intel       inventory
 - `POST /api/v1/planning/stream` — the planning SSE endpoint. Emits `node_complete` events as each LangGraph node finishes; each event carries only the node name (`{"node": "forecast"}`). The frontend loading screen uses these to update the pipeline diagram in real time. A final `complete` event delivers the entire plan payload — the dashboard renders all sections at once from this single event. `POST /api/v1/planning/run` is the non-streaming equivalent, returning the full JSON response in one go.
 - `POST /api/v1/chat` — the chat SSE endpoint. Streams individual tokens word-by-word (`{"token": "..."}`), rendered progressively via ReactMarkdown. Completely separate from the planning SSE.
 
-**Per-node tracing:** every node emits `node_start` / `node_end` structlog events with `duration_ms`, `llm_provider_used`, and `llm_fallback_used`. When LangSmith tracing is enabled (`LANGCHAIN_TRACING_V2=true`), each node also sends a trace span.
+**Per-node tracing:** every node emits `node_start` / `node_end` structlog events with `duration_ms`, `llm_provider_used`, and `llm_fallback_used`. When LangSmith tracing is enabled (`LANGSMITH_TRACING=true`), each node also sends a trace span.
 
 ### Domain services
 
@@ -266,19 +264,19 @@ The frontend (`apps/web/cortexkitchen-ui`) is a Next.js App Router application w
 
 ### Streaming
 
-The dashboard uses `fetch` with a `ReadableStream` reader to consume the SSE stream from `/api/v1/planning/run`. Each `data:` event carries a node name and partial output. Agent cards render progressively as events arrive.
+The dashboard uses `fetch` with a `ReadableStream` reader against `/api/v1/planning/stream`. Each `node_complete` event carries only the node name — the loading screen pipeline diagram updates in real time. The full plan renders all at once when the final `complete` event arrives.
 
-The chat page uses the same pattern against `/api/v1/chat` — tokens stream in as the LLM generates them, rendered via ReactMarkdown.
+The chat page streams against `/api/v1/chat` — individual tokens arrive word-by-word and render progressively via ReactMarkdown. A separate mechanism from the planning SSE.
 
 ---
 
 ## Data flow — planning run
 
 1. User selects scenario and submits from the dashboard
-2. Frontend opens an SSE connection to `POST /api/v1/planning/run` with JWT
-3. FastAPI resolves `get_current_user`, checks Redis cache — returns immediately on hit
+2. Frontend opens an SSE connection to `POST /api/v1/planning/stream` with JWT
+3. FastAPI resolves `get_current_user`, checks Redis cache — emits all node events instantly and returns on hit
 4. On cache miss: loads org settings + restaurant profile, builds LangGraph graph, invokes it
-5. Each node emits an SSE event as it completes; frontend renders the card
+5. Each node emits a `node_complete` event (node name only) as it finishes; loading screen diagram updates
 6. `ops_manager` → `demand_forecast` → [4 parallel nodes] → `aggregator` → `critic` → `final_assembler`
 7. Final response includes plan, critic verdict, RAG context, cost metadata, and node traces
 8. Run is persisted to `planning_runs`; result is stored in Redis cache

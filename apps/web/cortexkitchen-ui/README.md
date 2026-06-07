@@ -81,7 +81,7 @@ The core of the app. The dashboard has three states:
 
 ![Operational Risk Section](../../../screenshots/03_dashboard/07_operational_risk.png)
 
-**What-If Simulator** — available after a completed run. Slider to adjust cover count; cost pressure, benefit, and tradeoff scores update instantly via partial LangGraph execution.
+**What-If Simulator** — available after a completed run. Slider to adjust cover count; cost pressure, benefit, and tradeoff scores update instantly — no LLM calls, no LangGraph, purely deterministic via `CostAwareScoringService`.
 
 ![What-If Simulator](../../../screenshots/03_dashboard/08_what_if_simulator.png)
 

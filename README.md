@@ -215,7 +215,7 @@ CortexKitchen never calls an LLM provider directly from a service. All agents de
 | Backend API | FastAPI 0.115, Uvicorn, Pydantic v2 |
 | Orchestration | LangGraph (StateGraph, nine nodes, parallel fan-out) |
 | LLM | Groq llama-3.3-70b (default) or Gemini — pluggable via `LLM_PROVIDER`; auto-fallback |
-| Streaming | FastAPI SSE — node-by-node results via fetch ReadableStream |
+| Streaming | FastAPI SSE (`/planning/stream`) — `node_complete` status events drive the loading screen; full plan delivered in one `complete` event |
 | Caching | Redis 7 — 1hr TTL plan cache by scenario + date |
 | Database | PostgreSQL 16 via SQLAlchemy + Alembic |
 | Vector store | Qdrant — complaints and SOPs, org-scoped payload filters |

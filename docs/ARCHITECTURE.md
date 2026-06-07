@@ -52,7 +52,7 @@ FastAPI application
   ├── GET/PATCH /api/v1/settings         (JWT)
   ├── CRUD /api/v1/restaurant-profiles   (JWT)
   ├── GET  /metrics                      (Prometheus)
-  └── GET  /api/v1/debug/sentry-test
+  └── GET  /debug/sentry-test             (not under /api/v1 prefix)
           │
           ▼
 LangGraph orchestration graph (nine nodes)
@@ -208,7 +208,7 @@ Tenant isolation is enforced at three levels:
 
 ## LangSmith regression evals
 
-`scripts/build_golden_dataset.py` builds the `cortexkitchen-golden-v1` dataset from historical planning runs across all four scenarios. The CI gate (`evals/test_langsmith_regression.py`) runs automated evaluators against this dataset and requires a 90% pass rate to succeed.
+`scripts/build_golden_dataset.py` (root `scripts/` folder) builds the `cortexkitchen-golden-v1` dataset from historical planning runs. The CI gate (`tests/unit/test_langsmith_evals.py`) runs evaluators against a local JSON fixture and requires a 90% pass rate to succeed.
 
 ---
 

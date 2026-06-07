@@ -33,7 +33,7 @@ Status snapshot: June 2026. Phase 5 complete.
 
 ### Phase 4 — Productisation
 - **P4-01** Multi-tenant auth — users, orgs, JWT (HS256), protected routes, login/register UI
-- **P4-02** LangSmith tracing — `LANGCHAIN_TRACING_V2` enabled, per-node traces
+- **P4-02** LangSmith tracing — `LANGSMITH_TRACING` enabled, per-node traces
 - **P4-03** Real health checks — live PostgreSQL, Qdrant, Redis connectivity pings
 - **P4-04** Structured logging — structlog JSON output across all orchestration nodes
 - **P4-05** LLM cost tracking — `prompt_tokens`, `completion_tokens`, `cost_usd` per call; aggregated in run metadata
@@ -51,7 +51,7 @@ Status snapshot: June 2026. Phase 5 complete.
 - **P5-03** Design polish — unified dark theme, ember accent palette, Instrument Serif display font, card hover elevation
 - **P5-04** Frontend UX fixes — restaurant profile selector on dashboard, input validation, cost/token aggregate on runs list, back navigation
 - **P5-05** Redis caching — 1hr TTL plan cache by scenario + date; `cache_hit` flag in response; zero LLM cost on hits
-- **P5-06** SSE streaming — FastAPI SSE endpoint streams node outputs as each completes; live pipeline diagram in frontend
+- **P5-06** SSE streaming — `POST /api/v1/planning/stream` emits `node_complete` status events (node name only) as each LangGraph node finishes; loading screen pipeline diagram updates in real time; full plan delivered in single `complete` event
 - **P5-07** What-if simulator — cover count slider; cost pressure, benefit, and tradeoff scores update instantly without a full re-run
 - **P5-08** OpenTelemetry + Prometheus — OTel HTTP tracing on every request; `/metrics` Prometheus scrape endpoint; observability summary API and frontend panel
 - **P5-09** Sentry error tracking — `sentry-sdk` FastApiIntegration; DSN-gated init; `capture_exception` in LangGraph nodes; `/debug/sentry-test` smoke test

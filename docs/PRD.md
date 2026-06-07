@@ -110,7 +110,7 @@ Restaurant manager / ops lead planning a shift for a casual dining restaurant.
 - Verdicts: approved / revision / rejected
 
 ### Streaming & UX
-- FastAPI SSE streaming — node-by-node results via `fetch` ReadableStream
+- FastAPI SSE streaming (`/planning/stream`) — `node_complete` status events update the loading screen pipeline diagram as each node finishes; full plan delivered in a single `complete` event
 - Branded loading screen with restaurant name and live pipeline diagram
 - Redis 1hr plan cache — `cache_hit` flag in response, zero LLM cost on hits
 - What-if simulator — cover count slider, instant cost/benefit/tradeoff update

@@ -37,7 +37,7 @@ Last updated: June 2026. Phase 5 complete.
 | `POST` | `/api/v1/planning/friday-rush` | JWT | Legacy alias |
 | `GET` | `/api/v1/runs` | JWT | List runs (org-scoped) |
 | `GET` | `/api/v1/runs/{id}` | JWT | Run detail |
-| `GET` | `/api/v1/runs/{id}/export/pdf` | JWT | PDF chef brief |
+| `GET` | `/api/v1/runs/{id}/export` | JWT | PDF chef brief |
 | `GET` | `/api/v1/runs/{id}/export/excel` | JWT | Excel workbook |
 | `POST` | `/api/v1/chat` | JWT | RAG chatbot (SSE stream) |
 | `GET` | `/api/v1/observability/summary` | JWT | 7-day planning stats |

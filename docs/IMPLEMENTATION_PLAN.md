@@ -47,7 +47,7 @@ Last updated: June 2026. Phase 5 complete.
 - Design polish — ember accent palette, Instrument Serif display font
 - Frontend UX fixes — profile selector, validation, cost aggregates
 - Redis plan caching — 1hr TTL, `cache_hit` flag
-- SSE streaming — node-by-node results, live pipeline diagram
+- SSE streaming — `node_complete` status events drive the loading screen pipeline diagram; full plan delivered in single `complete` event via `/planning/stream`
 - What-if simulator — cover count slider, instant score update
 - OpenTelemetry + Prometheus — `/metrics` scrape endpoint
 - Sentry error capture with LangGraph node tags

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // Publicly accessible without auth
-const PUBLIC_ROUTES = ["/", "/login", "/register"];
+const PUBLIC_ROUTES = ["/", "/login", "/register", "/carousel"];
 
 // Auth pages — redirect away if already logged in
 const AUTH_ONLY_ROUTES = ["/login", "/register"];

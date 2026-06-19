@@ -308,6 +308,10 @@ async def run_planning_scenario(
     if debug:
         initial_state["execution_trace"] = []
 
+    # Inject tier registry into state when tiered comet mode is active
+    if deps.get("llm_registry"):
+        initial_state["llm_registry"] = deps["llm_registry"]
+
     # Execute graph with LangSmith trace metadata
     run_label = f"{scenario}/{target_date or 'next'}"
     llm_metadata = _llm_log_fields(deps.get("llm"))
@@ -321,8 +325,10 @@ async def run_planning_scenario(
     final_state = await graph.ainvoke(initial_state, config=config)
     total_duration_ms = round((time.perf_counter() - t0) * 1000, 2)
 
-    # Drain token/cost usage from the LLM provider
+    # Drain token/cost usage from the LLM provider (and all tier providers in tiered mode)
     llm_usage = deps["llm"].drain_usage()
+    for tier_llm in deps.get("llm_registry", {}).values():
+        llm_usage.extend(tier_llm.drain_usage())
     total_cost_usd  = round(sum(u.get("cost_usd", 0)  for u in llm_usage), 6)
     total_tokens    = sum(u.get("prompt_tokens", 0) + u.get("completion_tokens", 0) for u in llm_usage)
 
@@ -432,6 +438,10 @@ async def stream_planning_scenario(
     if debug:
         initial_state["execution_trace"] = []
 
+    # Inject tier registry into state when tiered comet mode is active
+    if deps.get("llm_registry"):
+        initial_state["llm_registry"] = deps["llm_registry"]
+
     run_label = f"{scenario}/{target_date or 'next'}"
     llm_metadata = _llm_log_fields(deps.get("llm"))
     config = RunnableConfig(
@@ -456,6 +466,8 @@ async def stream_planning_scenario(
 
     total_duration_ms = round((time.perf_counter() - t0) * 1000, 2)
     llm_usage      = deps["llm"].drain_usage()
+    for tier_llm in deps.get("llm_registry", {}).values():
+        llm_usage.extend(tier_llm.drain_usage())
     total_cost_usd = round(sum(u.get("cost_usd", 0) for u in llm_usage), 6)
     total_tokens   = sum(u.get("prompt_tokens", 0) + u.get("completion_tokens", 0) for u in llm_usage)
 

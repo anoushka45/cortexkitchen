@@ -20,6 +20,8 @@ async def menu_intelligence_node(
     if state.get("error"):
         return state
 
+    llm = (state.get("llm_registry") or {}).get("balanced") or llm
+
     try:
         if state.get("simulation_mode", False):
             return {

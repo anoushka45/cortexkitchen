@@ -40,6 +40,8 @@ async def critic_node(
     if state.get("error"):
         return state
 
+    llm = (state.get("llm_registry") or {}).get("strong") or llm
+
     # ── Debug tracing ───────────────────────────────────────────────────────
     if state.get("debug") and state.get("execution_trace") is not None:
         state["execution_trace"].append("critic")

@@ -67,6 +67,9 @@ class OrchestratorState(TypedDict):
     # Observability — always-on node timing records
     execution_trace: Annotated[Optional[List[Dict[str, Any]]], keep_last]
 
+    # Per-node model tier routing — populated when COMET_TIERED=True
+    llm_registry: Annotated[Optional[Dict[str, Any]], keep_last]
+
     # Error handling
     error: Annotated[Optional[str], keep_last]
 
@@ -126,6 +129,9 @@ def make_initial_state(
 
         # Observability — always-on
         execution_trace=[],
+
+        # Per-node model tier routing
+        llm_registry=None,
 
         # Error handling
         error=None,

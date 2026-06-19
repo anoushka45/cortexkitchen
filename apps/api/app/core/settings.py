@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     llm_provider: str = Field(default="groq", alias="LLM_PROVIDER")
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
+    cometapi_key: str = Field(default="", alias="COMETAPI_KEY")
+    cometapi_model_fast: str = Field(default="deepseek-v4-flash", alias="COMETAPI_MODEL_FAST")
+    cometapi_model_balanced: str = Field(default="gemini-3.5-flash", alias="COMETAPI_MODEL_BALANCED")
+    cometapi_model_strong: str = Field(default="claude-sonnet-4-6", alias="COMETAPI_MODEL_STRONG")
+    comet_tiered: bool = Field(default=False, alias="COMET_TIERED")
 
     # Auth
     jwt_secret_key: str = Field(default="change-me-in-production", alias="JWT_SECRET_KEY")

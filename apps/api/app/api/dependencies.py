@@ -92,4 +92,11 @@ def get_orchestration_deps(
     Bundle all infrastructure deps into the dict shape that
     build_graph() and run_friday_rush() expect.
     """
-    return {"db": db, "llm": llm, "memory": memory}
+    from app.core.settings import get_settings
+    from app.infrastructure.llm.factory import create_tiered_llm_providers
+
+    deps = {"db": db, "llm": llm, "memory": memory}
+    settings = get_settings()
+    if settings.llm_provider.strip().lower() == "comet" and settings.comet_tiered:
+        deps["llm_registry"] = create_tiered_llm_providers(settings)
+    return deps

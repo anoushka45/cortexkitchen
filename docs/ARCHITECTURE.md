@@ -63,7 +63,7 @@ Service and data layer
   ├── PostgreSQL   — structured data + planning_runs audit table (org_id scoped)
   ├── Qdrant       — complaints + SOPs, org payload filter per tenant
   ├── Redis        — 1hr TTL plan cache by scenario + date
-  └── LLM provider — Groq llama-3.3-70b (default) or Gemini, auto-fallback
+  └── LLM provider — Groq (default), Gemini (fallback), or CometAPI with per-node tier routing
 ```
 
 ---
@@ -171,6 +171,7 @@ Planning runs are cached in Redis by `(org_id, scenario, target_date)` key with 
 | `llm/factory.py` | `FallbackLLMProvider` + `create_llm_provider()` — reads `LLM_PROVIDER`, wires fallback |
 | `llm/groq.py` | `GroqProvider` — groq SDK |
 | `llm/gemini.py` | `GeminiProvider` — google-genai SDK |
+| `llm/comet.py` | `CometProvider` — AsyncOpenAI SDK pointed at CometAPI (`api.cometapi.com/v1`); supports any of 500+ models via a single key |
 | `llm/prompt_utils.py` | Centralised prompt builders for all agents — zero raw prompt strings in service files |
 | `forecasting/` | Prophet-backed time-series forecaster |
 | `vector/memory_service.py` | `MemoryService` and `EmbeddingService` for Qdrant retrieval with org payload filter |
@@ -181,6 +182,22 @@ Planning runs are cached in Redis by `(org_id, scenario, target_date)` key with 
 ### LLM provider abstraction
 
 All agents depend on `BaseLLMProvider`, never on a concrete class. On any LLM exception the `FallbackLLMProvider` logs `llm_primary_failed_retrying_fallback` and transparently retries on the secondary provider. The provider used is surfaced in structlog output and in planning run metadata.
+
+### Per-node model tier routing
+
+When `LLM_PROVIDER=comet` and `COMET_TIERED=true`, the factory builds a tier-keyed `llm_registry` of `FallbackLLMProvider` instances and injects it into `OrchestratorState`. Each node reads its assigned tier from state and substitutes the tier provider for the default flat provider.
+
+| Tier | Model | Assigned nodes | Fallback |
+|------|-------|----------------|---------|
+| `fast` | `deepseek-v4-flash` | demand_forecast, inventory, reservation | — |
+| `balanced` | `gemini-3.5-flash` | complaint_intelligence, menu_intelligence | fast |
+| `strong` | `claude-sonnet-4-6` | critic | balanced |
+
+The lookup pattern used in every node is `(state.get("llm_registry") or {}).get("<tier>") or llm` — if the registry is absent (flat mode or Groq/Gemini), the injected default `llm` is used unchanged. Backward compatibility is total.
+
+All tier provider usage is drained at the end of each run and merged into the `llm_usage` array, so cost tracking across models is accurate and per-model visible in every planning run's metadata.
+
+`create_tiered_llm_providers()` in `factory.py` is the single construction point. Model names are fully configurable via `COMETAPI_MODEL_FAST`, `COMETAPI_MODEL_BALANCED`, and `COMETAPI_MODEL_STRONG` env vars — swapping models requires no code changes.
 
 ---
 
@@ -296,7 +313,8 @@ The chat page streams against `/api/v1/chat` — individual tokens arrive word-b
 
 ## Architectural strengths
 
-- Parallel fan-out across four domain agents reduces pipeline latency
+- Parallel fan-out across four domain agents reduces pipeline latency; AsyncOpenAI ensures the fan-out is truly concurrent, not serialised by event-loop blocking
+- Per-node model tier routing — simple nodes get fast cheap models, the critic gets the strongest model; all via a single CometAPI key with no code changes to swap models
 - SSE streaming makes every planning run feel interactive — results arrive node by node
 - Redis cache eliminates repeat LLM cost for the same scenario on the same day
 - Prompts centralized in `prompt_utils.py` — zero raw strings in service files

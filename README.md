@@ -10,6 +10,7 @@
 ![Vector DB](https://img.shields.io/badge/vector_db-Qdrant-orange)
 ![Database](https://img.shields.io/badge/database-PostgreSQL_16-blue)
 ![Cache](https://img.shields.io/badge/cache-Redis-red)
+![LLM Routing](https://img.shields.io/badge/LLM_routing-per--node_tier-8B5CF6)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
@@ -163,6 +164,22 @@ CortexKitchen never calls an LLM provider directly from a service. All agents de
 - **Extensible:** adding a new provider (OpenAI, Claude, Mistral, etc.) means implementing `BaseLLMProvider` — the rest of the system picks it up automatically
 - **Tracked:** the provider used (`llm_provider_used`, `llm_fallback_used`) is logged in structlog output and persisted in every planning run's metadata
 
+### Per-Node Model Tier Routing
+
+When `LLM_PROVIDER=comet` and `COMET_TIERED=true`, each node in the LangGraph pipeline is routed to a different model tier based on the complexity of its task — rather than using a single model for everything.
+
+| Tier | Model | Nodes |
+|------|-------|-------|
+| **fast** | `deepseek-v4-flash` | Demand Forecast, Inventory, Reservation |
+| **balanced** | `gemini-3.5-flash` | Complaint Intelligence, Menu Intelligence |
+| **strong** | `claude-sonnet-4-6` | Critic |
+
+Powered by [CometAPI](https://cometapi.com) — a unified proxy that exposes 500+ models through a single key and OpenAI-compatible endpoint. Each tier has a fallback chain (strong → balanced → fast) so if a primary model fails, the node degrades gracefully rather than erroring.
+
+LangSmith traces show exactly which model hit which node in real time, with per-model cost visible in every run's `llm_usage` breakdown. All tier usage is drained and aggregated at the end of each run for accurate cost tracking.
+
+This mode is fully opt-in — Groq and Gemini behaviour is completely unchanged when `COMET_TIERED` is not set.
+
 ### Configuration
 - **Workspace settings** — seating capacity, cuisine type, peak service hours, timezone, plan approval threshold, stock warning levels
 - **Restaurant profiles** — named profiles override org-level capacity and peak hours per run
@@ -214,7 +231,7 @@ CortexKitchen never calls an LLM provider directly from a service. All agents de
 |-------|-----------|
 | Backend API | FastAPI 0.115, Uvicorn, Pydantic v2 |
 | Orchestration | LangGraph (StateGraph, nine nodes, parallel fan-out) |
-| LLM | Groq llama-3.3-70b (default) or Gemini — pluggable via `LLM_PROVIDER`; auto-fallback |
+| LLM | Groq llama-3.3-70b (default) or Gemini — pluggable via `LLM_PROVIDER`; auto-fallback. Optional per-node tier routing via CometAPI (`COMET_TIERED=true`) |
 | Streaming | FastAPI SSE (`/planning/stream`) — `node_complete` status events drive the loading screen; full plan delivered in one `complete` event |
 | Caching | Redis 7 — 1hr TTL plan cache by scenario + date |
 | Database | PostgreSQL 16 via SQLAlchemy + Alembic |
@@ -312,6 +329,15 @@ LANGSMITH_API_KEY=your_langsmith_key
 
 # Optional — enables Sentry exception capture
 SENTRY_DSN=your_sentry_dsn
+
+# Optional — CometAPI per-node model tier routing
+# Set LLM_PROVIDER=comet and COMET_TIERED=true to activate
+# Get your key at https://cometapi.com
+COMETAPI_KEY=your_cometapi_key_here
+COMETAPI_MODEL_FAST=deepseek-v4-flash
+COMETAPI_MODEL_BALANCED=gemini-3.5-flash
+COMETAPI_MODEL_STRONG=claude-sonnet-4-6
+COMET_TIERED=false
 ```
 
 ### 3. Install and seed

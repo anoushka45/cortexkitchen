@@ -96,9 +96,9 @@ Export buttons:
 - **Open Manager Brief** — opens the full plan detail modal
 - **Ask the AI a question** — links to the `/chat` page
 
-![Run History Page](../../../screenshots/04_runs/runs_history_page.png)
+![Run History audit page](../../../screenshots/04_runs/runs_history_audit.png)
 
-![Run Detail Panel](../../../screenshots/04_runs/run_detail_panel.png)
+![Run detail history panel](../../../screenshots/04_runs/run_detail_history_panel.png)
 
 ---
 
@@ -213,3 +213,18 @@ Set this in `.env.local` in this directory.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8000` | Backend API base URL |
+
+---
+
+## Tech stack
+
+<p>
+  <img src="../../../screenshots/logos/langgraph.png" height="22" alt="LangGraph">&nbsp;&nbsp;
+  <img src="../../../screenshots/logos/langsmith.png" height="22" alt="LangSmith">&nbsp;&nbsp;
+  <img src="../../../screenshots/logos/groq.png" height="22" alt="Groq">&nbsp;&nbsp;
+  <img src="../../../screenshots/logos/redis.png" height="22" alt="Redis">&nbsp;&nbsp;
+  <img src="../../../screenshots/logos/sentry.png" height="22" alt="Sentry">&nbsp;&nbsp;
+  <img src="../../../screenshots/logos/otel.png" height="22" alt="OpenTelemetry">&nbsp;&nbsp;
+  <img src="../../../screenshots/logos/ragas.png" height="22" alt="RAGAS">&nbsp;&nbsp;
+  <img src="../../../screenshots/logos/mcp.png" height="22" alt="MCP">
+</p>

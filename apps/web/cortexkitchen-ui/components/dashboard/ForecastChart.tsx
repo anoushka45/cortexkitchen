@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   BarChart, Bar,
   LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine,
+  XAxis, YAxis, CartesianGrid, Tooltip, Cell, ReferenceLine,
 } from "recharts";
 
 interface ForecastData {
@@ -200,6 +200,17 @@ function buildChartData(
 
 export default function ForecastChart({ forecast, scenario }: Props) {
   const [chartType, setChartType] = useState<"bar" | "line">("bar");
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [chartWidth, setChartWidth] = useState(800);
+
+  useEffect(() => {
+    const el = chartContainerRef.current;
+    if (!el) return;
+    setChartWidth(el.getBoundingClientRect().width || el.offsetWidth);
+    const ro = new ResizeObserver(entries => setChartWidth(entries[0].contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const forecastData = normalizeForecastData(forecast);
   if (!forecastData) return null;
 
@@ -315,9 +326,9 @@ export default function ForecastChart({ forecast, scenario }: Props) {
           ))}
         </div>
 
-        <ResponsiveContainer width="100%" height={210}>
+        <div ref={chartContainerRef} style={{ height: 210 }}>
           {chartType === "bar" ? (
-            <BarChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <BarChart width={chartWidth} height={210} data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
               <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#6b7280", fontFamily: "Space Mono" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 9, fill: "#6b7280", fontFamily: "Space Mono" }} axisLine={false} tickLine={false} />
@@ -340,7 +351,7 @@ export default function ForecastChart({ forecast, scenario }: Props) {
               </Bar>
             </BarChart>
           ) : (
-            <LineChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <LineChart width={chartWidth} height={210} data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
               <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#6b7280", fontFamily: "Space Mono" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 9, fill: "#6b7280", fontFamily: "Space Mono" }} axisLine={false} tickLine={false} />
@@ -362,7 +373,7 @@ export default function ForecastChart({ forecast, scenario }: Props) {
               />
             </LineChart>
           )}
-        </ResponsiveContainer>
+        </div>
       </div>
 
       {/* Forecast context strip */}

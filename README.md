@@ -115,11 +115,11 @@ One planning run executes a nine-node LangGraph pipeline:
 - Side-by-side run detail with critic dimension scores, RAG context, and full agent outputs
 - Every run persisted permanently with token count, LLM cost, and node-level latency
 
-![Run History](screenshots/04_runs/runs_history_page.png)
-*Plan History page — run list with scenario labels and critic scores on the left, selected run detail with critic dimension score bars and export buttons on the right.*
+![Run History](screenshots/04_runs/runs_history_audit.png)
+*Run History audit page — full run list with scenario, target date, critic score and verdict on the left; selected run showing critic notes, dimension scores, and revision reasons on the right.*
 
-![Run Detail](screenshots/04_runs/run_detail_panel.png)
-*Run detail panel — critic scores across all five dimensions, plan approved badge, with options to export for chef, open the manager brief, or ask the AI about this run.*
+![Run Detail](screenshots/04_runs/run_detail_history_panel.png)
+*Run detail history panel — selected run's critic notes, dimension score bars, and revision reasons; export to PDF/Excel from the top-right.*
 
 ### Data Health & Observability
 - **Data Health page** — live database coverage: orders, reservations, feedback, inventory, menu items, scenario coverage
@@ -168,11 +168,11 @@ CortexKitchen never calls an LLM provider directly from a service. All agents de
 
 When `LLM_PROVIDER=comet` and `COMET_TIERED=true`, each node in the LangGraph pipeline is routed to a different model tier based on the complexity of its task — rather than using a single model for everything.
 
-| Tier | Model | Nodes |
-|------|-------|-------|
-| **fast** | `deepseek-v4-flash` | Demand Forecast, Inventory, Reservation |
-| **balanced** | `gemini-3.5-flash` | Complaint Intelligence, Menu Intelligence |
-| **strong** | `claude-sonnet-4-6` | Critic |
+| Tier | Model | &nbsp; | Nodes |
+|------|-------|--------|-------|
+| **fast** | `deepseek-v4-flash` | <img src="screenshots/logos/deepseek.png" height="16"> | Demand Forecast, Inventory, Reservation |
+| **balanced** | `gemini-3.5-flash` | <img src="screenshots/logos/gemini.png" height="16"> | Complaint Intelligence, Menu Intelligence |
+| **strong** | `claude-sonnet-4-6` | <img src="screenshots/logos/claude.png" height="16"> | Critic |
 
 Powered by [CometAPI](https://cometapi.com) — a unified proxy that exposes 500+ models through a single key and OpenAI-compatible endpoint. Each tier has a fallback chain (strong → balanced → fast) so if a primary model fails, the node degrades gracefully rather than erroring.
 
@@ -244,6 +244,23 @@ This mode is fully opt-in — Groq and Gemini behaviour is completely unchanged 
 | Exports | ReportLab (PDF), openpyxl (Excel) |
 | MCP | Anthropic MCP SDK — `run_planning_scenario` + `get_run_history` |
 | Local infra | Docker Compose (PostgreSQL, Qdrant, Redis) |
+
+### Integrations
+
+<p>
+  <img src="screenshots/logos/langgraph.png" height="24" alt="LangGraph">&nbsp;&nbsp;
+  <img src="screenshots/logos/langsmith.png" height="24" alt="LangSmith">&nbsp;&nbsp;
+  <img src="screenshots/logos/groq.png" height="24" alt="Groq">&nbsp;&nbsp;
+  <img src="screenshots/logos/gemini.png" height="24" alt="Gemini">&nbsp;&nbsp;
+  <img src="screenshots/logos/deepseek.png" height="24" alt="DeepSeek">&nbsp;&nbsp;
+  <img src="screenshots/logos/claude.png" height="24" alt="Claude">&nbsp;&nbsp;
+  <img src="screenshots/logos/redis.png" height="24" alt="Redis">&nbsp;&nbsp;
+  <img src="screenshots/logos/sentry.png" height="24" alt="Sentry">&nbsp;&nbsp;
+  <img src="screenshots/logos/otel.png" height="24" alt="OpenTelemetry">&nbsp;&nbsp;
+  <img src="screenshots/logos/ragas.png" height="24" alt="RAGAS">&nbsp;&nbsp;
+  <img src="screenshots/logos/mcp.png" height="24" alt="MCP">&nbsp;&nbsp;
+  <img src="screenshots/logos/github.png" height="24" alt="GitHub">
+</p>
 
 ---
 

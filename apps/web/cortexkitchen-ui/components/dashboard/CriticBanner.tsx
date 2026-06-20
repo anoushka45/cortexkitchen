@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { CriticResult } from "@/types/planning";
 
 const VERDICT_CONFIG: Record<string, { chipColor: string; chipBg: string; scoreColor: string; gradientStop: string }> = {
@@ -34,6 +34,7 @@ interface Props {
 }
 
 export default function CriticBanner({ critic, generatedAt, targetDate, actions }: Props) {
+  const [notesExpanded, setNotesExpanded] = useState(false);
   const config     = VERDICT_CONFIG[critic.verdict] ?? VERDICT_CONFIG.unknown;
   const scorePct   = Math.round(critic.score * 100);
   const circumference = 2 * Math.PI * 52;
@@ -73,7 +74,21 @@ export default function CriticBanner({ critic, generatedAt, targetDate, actions 
           </div>
 
           {critic.notes && (
-            <p className="mt-4 max-w-lg text-[14px] leading-[1.7] text-white/65">{critic.notes}</p>
+            <div className="mt-4 max-w-lg">
+              <p className={`text-[14px] leading-[1.7] text-white/65 ${notesExpanded ? "" : "line-clamp-4"}`}>
+                {critic.notes}
+              </p>
+              <button
+                onClick={() => setNotesExpanded(v => !v)}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-white/55 ring-1 ring-white/10 transition-all hover:bg-emerald-500/10 hover:text-emerald-300 hover:ring-emerald-400/25"
+              >
+                {notesExpanded ? (
+                  <><span>Show less</span><span className="text-[8px]">▲</span></>
+                ) : (
+                  <><span>Read more</span><span className="text-[8px]">▼</span></>
+                )}
+              </button>
+            </div>
           )}
 
           <div className="mt-5 flex flex-wrap items-center gap-5 font-mono text-[10px] uppercase tracking-[0.18em] text-white/40">

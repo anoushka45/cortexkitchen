@@ -29,7 +29,7 @@ pytest tests/integration -q --ignore=tests/integration/test_langgraph_flow.py
 
 ---
 
-### Layer 2 — LangSmith regression evals
+### Layer 2 — LangSmith regression evals  <img src="../screenshots/logos/langsmith.png" height="18" alt="LangSmith">
 
 The primary quality gate. A golden dataset of 50 curated planning runs is stored in LangSmith as `cortexkitchen-golden-v1`. Automated evaluators run against this dataset and the CI gate requires a **90% pass rate**.
 
@@ -61,7 +61,7 @@ The gate runs against the local `golden_runs.json` fixture — no live LangSmith
 
 ---
 
-### Layer 3 — LLM quality evals (RAGAS + DeepEval)
+### Layer 3 — LLM quality evals (RAGAS + DeepEval)  <img src="../screenshots/logos/ragas.png" height="18" alt="RAGAS">
 
 Fine-grained evals on complaint RAG quality and critic/agent output quality.
 
@@ -125,7 +125,7 @@ Expected counts for a fresh seed: ~6500 orders, ~1200 reservations, ~160 feedbac
 
 ---
 
-## Sentry exception capture
+## Sentry exception capture  <img src="../screenshots/logos/sentry.png" height="18" alt="Sentry">
 
 All unhandled exceptions are captured by Sentry (`sentry-sdk` with FastAPI integration). LangGraph node failures are wrapped with `capture_exception` so stack traces are tagged by node name.
 

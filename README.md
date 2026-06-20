@@ -45,7 +45,7 @@ One planning run executes a nine-node LangGraph pipeline:
 ![Dashboard — Pipeline Running](screenshots/03_dashboard/02_loading_screen.png)
 *Live pipeline diagram mid-run — Ops Manager and Demand Forecast complete (green), four parallel specialists running simultaneously, Aggregator and Critic waiting.*
 
-![Dashboard — Full Plan](screenshots/03_dashboard/04_full_plan_scroll.png)
+![Full Plan - Dashboard](screenshots/03_dashboard/04_full_plan_scroll.png)
 *Full plan view after pipeline completes — critic verdict banner at top, followed by service planning, menu direction, and operational risk sections.*
 
 ---

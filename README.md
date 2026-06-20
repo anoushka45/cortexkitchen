@@ -17,7 +17,7 @@
 
 ## What is CortexKitchen?
 
-CortexKitchen is a multi-agent AI platform for restaurant operations. Before every shift, five specialist agents read your demand data, bookings, guest complaints, menu performance, and inventory — in parallel — and produce a single verified pre-shift brief.
+CortexKitchen is a multi-agent AI platform for restaurant operations. Before every shift, five specialist agents read your demand data, bookings, guest complaints, menu performance, and inventory in parallel ,  and produce a single verified pre-shift brief.
 
 A critic agent reviews the plan across five quality dimensions before it reaches the manager. If anything looks unsafe or unrealistic, the plan is blocked and the reason is explained.
 

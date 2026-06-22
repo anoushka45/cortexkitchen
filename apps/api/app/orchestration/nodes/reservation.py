@@ -36,6 +36,8 @@ async def reservation_node(
     if state.get("error"):
         return state
 
+    llm = (state.get("llm_registry") or {}).get("fast") or llm
+
     try:
         target_date = _parse_target_date(state.get("target_date"))
         service = ReservationService(db=db, llm=llm)

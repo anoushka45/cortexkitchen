@@ -77,16 +77,41 @@ def _inject(node_fn, traces: list, **deps):
         started_at = datetime.now(timezone.utc).isoformat()
         t0 = time.perf_counter()
         log.info("node_start", node=node)
+
+        # All providers this node might write to (default llm + any tier providers)
+        llm_dep = deps.get("llm")
+        registry_providers = list((state.get("llm_registry") or {}).values())
+        all_providers = [p for p in [llm_dep] + registry_providers if p is not None]
+        for p in all_providers:
+            p.drain_usage()  # clear slate so only this node's calls are captured
+
         try:
             result = await node_fn(state, **deps)
             duration_ms = round((time.perf_counter() - t0) * 1000, 2)
+
+            node_usage = []
+            for p in all_providers:
+                node_usage.extend(p.drain_usage())
+            node_cost_usd = round(sum(u.get("cost_usd", 0) for u in node_usage), 6)
+
             log.info("node_end", node=node, duration_ms=duration_ms, **_llm_log_fields(deps.get("llm")))
-            traces.append({"node": node, "started_at": started_at,
-                           "ended_at": datetime.now(timezone.utc).isoformat(),
-                           "duration_ms": duration_ms})
+            traces.append({
+                "node": node,
+                "started_at": started_at,
+                "ended_at": datetime.now(timezone.utc).isoformat(),
+                "duration_ms": duration_ms,
+                "llm_usage": node_usage,
+                "node_cost_usd": node_cost_usd,
+            })
             return result
         except Exception as exc:
             duration_ms = round((time.perf_counter() - t0) * 1000, 2)
+
+            node_usage = []
+            for p in all_providers:
+                node_usage.extend(p.drain_usage())
+            node_cost_usd = round(sum(u.get("cost_usd", 0) for u in node_usage), 6)
+
             log.error(
                 "node_error",
                 node=node,
@@ -94,9 +119,15 @@ def _inject(node_fn, traces: list, **deps):
                 error=str(exc),
                 **_llm_log_fields(deps.get("llm")),
             )
-            traces.append({"node": node, "started_at": started_at,
-                           "ended_at": datetime.now(timezone.utc).isoformat(),
-                           "duration_ms": duration_ms, "error": str(exc)})
+            traces.append({
+                "node": node,
+                "started_at": started_at,
+                "ended_at": datetime.now(timezone.utc).isoformat(),
+                "duration_ms": duration_ms,
+                "error": str(exc),
+                "llm_usage": node_usage,
+                "node_cost_usd": node_cost_usd,
+            })
             with sentry_sdk.new_scope() as scope:
                 scope.set_tag("langgraph.node", node)
                 scope.set_extra("duration_ms", duration_ms)
@@ -308,6 +339,10 @@ async def run_planning_scenario(
     if debug:
         initial_state["execution_trace"] = []
 
+    # Inject tier registry into state when tiered comet mode is active
+    if deps.get("llm_registry"):
+        initial_state["llm_registry"] = deps["llm_registry"]
+
     # Execute graph with LangSmith trace metadata
     run_label = f"{scenario}/{target_date or 'next'}"
     llm_metadata = _llm_log_fields(deps.get("llm"))
@@ -321,8 +356,13 @@ async def run_planning_scenario(
     final_state = await graph.ainvoke(initial_state, config=config)
     total_duration_ms = round((time.perf_counter() - t0) * 1000, 2)
 
-    # Drain token/cost usage from the LLM provider
-    llm_usage = deps["llm"].drain_usage()
+    # Collect usage captured per-node by _inject, then drain any remainder
+    llm_usage = []
+    for trace in traces:
+        llm_usage.extend(trace.get("llm_usage") or [])
+    llm_usage.extend(deps["llm"].drain_usage())
+    for tier_llm in deps.get("llm_registry", {}).values():
+        llm_usage.extend(tier_llm.drain_usage())
     total_cost_usd  = round(sum(u.get("cost_usd", 0)  for u in llm_usage), 6)
     total_tokens    = sum(u.get("prompt_tokens", 0) + u.get("completion_tokens", 0) for u in llm_usage)
 
@@ -432,6 +472,10 @@ async def stream_planning_scenario(
     if debug:
         initial_state["execution_trace"] = []
 
+    # Inject tier registry into state when tiered comet mode is active
+    if deps.get("llm_registry"):
+        initial_state["llm_registry"] = deps["llm_registry"]
+
     run_label = f"{scenario}/{target_date or 'next'}"
     llm_metadata = _llm_log_fields(deps.get("llm"))
     config = RunnableConfig(
@@ -455,7 +499,12 @@ async def stream_planning_scenario(
                 final_response = state_update.get("final_response")
 
     total_duration_ms = round((time.perf_counter() - t0) * 1000, 2)
-    llm_usage      = deps["llm"].drain_usage()
+    llm_usage = []
+    for trace in traces:
+        llm_usage.extend(trace.get("llm_usage") or [])
+    llm_usage.extend(deps["llm"].drain_usage())
+    for tier_llm in deps.get("llm_registry", {}).values():
+        llm_usage.extend(tier_llm.drain_usage())
     total_cost_usd = round(sum(u.get("cost_usd", 0) for u in llm_usage), 6)
     total_tokens   = sum(u.get("prompt_tokens", 0) + u.get("completion_tokens", 0) for u in llm_usage)
 

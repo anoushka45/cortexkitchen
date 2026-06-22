@@ -10,13 +10,14 @@
 ![Vector DB](https://img.shields.io/badge/vector_db-Qdrant-orange)
 ![Database](https://img.shields.io/badge/database-PostgreSQL_16-blue)
 ![Cache](https://img.shields.io/badge/cache-Redis-red)
+![LLM Routing](https://img.shields.io/badge/LLM_routing-per--node_tier-8B5CF6)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
 
 ## What is CortexKitchen?
 
-CortexKitchen is a multi-agent AI platform for restaurant operations. Before every shift, five specialist agents read your demand data, bookings, guest complaints, menu performance, and inventory — in parallel — and produce a single verified pre-shift brief.
+CortexKitchen is a multi-agent AI platform for restaurant operations. Before every shift, five specialist agents read your demand data, bookings, guest complaints, menu performance, and inventory in parallel ,  and produce a single verified pre-shift brief.
 
 A critic agent reviews the plan across five quality dimensions before it reaches the manager. If anything looks unsafe or unrealistic, the plan is blocked and the reason is explained.
 
@@ -44,7 +45,7 @@ One planning run executes a nine-node LangGraph pipeline:
 ![Dashboard — Pipeline Running](screenshots/03_dashboard/02_loading_screen.png)
 *Live pipeline diagram mid-run — Ops Manager and Demand Forecast complete (green), four parallel specialists running simultaneously, Aggregator and Critic waiting.*
 
-![Dashboard — Full Plan](screenshots/03_dashboard/04_full_plan_scroll.png)
+![Full Plan - Dashboard](screenshots/03_dashboard/04_full_plan_scroll.png)
 *Full plan view after pipeline completes — critic verdict banner at top, followed by service planning, menu direction, and operational risk sections.*
 
 ---
@@ -114,11 +115,11 @@ One planning run executes a nine-node LangGraph pipeline:
 - Side-by-side run detail with critic dimension scores, RAG context, and full agent outputs
 - Every run persisted permanently with token count, LLM cost, and node-level latency
 
-![Run History](screenshots/04_runs/runs_history_page.png)
-*Plan History page — run list with scenario labels and critic scores on the left, selected run detail with critic dimension score bars and export buttons on the right.*
+![Run History](screenshots/04_runs/runs_history_audit.png)
+*Run History audit page — full run list with scenario, target date, critic score and verdict on the left; selected run showing critic notes, dimension scores, and revision reasons on the right.*
 
-![Run Detail](screenshots/04_runs/run_detail_panel.png)
-*Run detail panel — critic scores across all five dimensions, plan approved badge, with options to export for chef, open the manager brief, or ask the AI about this run.*
+![Run Detail](screenshots/04_runs/run_detail_history_panel.png)
+*Run detail history panel — selected run's critic notes, dimension score bars, and revision reasons; export to PDF/Excel from the top-right.*
 
 ### Data Health & Observability
 - **Data Health page** — live database coverage: orders, reservations, feedback, inventory, menu items, scenario coverage
@@ -162,6 +163,22 @@ CortexKitchen never calls an LLM provider directly from a service. All agents de
 - **Swappable:** switching providers requires only a one-line change in `.env` (`LLM_PROVIDER=gemini`); no service code changes
 - **Extensible:** adding a new provider (OpenAI, Claude, Mistral, etc.) means implementing `BaseLLMProvider` — the rest of the system picks it up automatically
 - **Tracked:** the provider used (`llm_provider_used`, `llm_fallback_used`) is logged in structlog output and persisted in every planning run's metadata
+
+### Per-Node Model Tier Routing
+
+When `LLM_PROVIDER=comet` and `COMET_TIERED=true`, each node in the LangGraph pipeline is routed to a different model tier based on the complexity of its task — rather than using a single model for everything.
+
+| Tier | Model | &nbsp; | Nodes |
+|------|-------|--------|-------|
+| **fast** | `deepseek-v4-flash` | <img src="screenshots/logos/deepseek.png" height="16"> | Demand Forecast, Inventory, Reservation |
+| **balanced** | `gemini-3.5-flash` | <img src="screenshots/logos/gemini.png" height="16"> | Complaint Intelligence, Menu Intelligence |
+| **strong** | `claude-sonnet-4-6` | <img src="screenshots/logos/claude.png" height="16"> | Critic |
+
+Powered by [CometAPI](https://cometapi.com) — a unified proxy that exposes 500+ models through a single key and OpenAI-compatible endpoint. Each tier has a fallback chain (strong → balanced → fast) so if a primary model fails, the node degrades gracefully rather than erroring.
+
+LangSmith traces show exactly which model hit which node in real time, with per-model cost visible in every run's `llm_usage` breakdown. All tier usage is drained and aggregated at the end of each run for accurate cost tracking.
+
+This mode is fully opt-in — Groq and Gemini behaviour is completely unchanged when `COMET_TIERED` is not set.
 
 ### Configuration
 - **Workspace settings** — seating capacity, cuisine type, peak service hours, timezone, plan approval threshold, stock warning levels
@@ -214,7 +231,7 @@ CortexKitchen never calls an LLM provider directly from a service. All agents de
 |-------|-----------|
 | Backend API | FastAPI 0.115, Uvicorn, Pydantic v2 |
 | Orchestration | LangGraph (StateGraph, nine nodes, parallel fan-out) |
-| LLM | Groq llama-3.3-70b (default) or Gemini — pluggable via `LLM_PROVIDER`; auto-fallback |
+| LLM | Groq llama-3.3-70b (default) or Gemini — pluggable via `LLM_PROVIDER`; auto-fallback. Optional per-node tier routing via CometAPI (`COMET_TIERED=true`) |
 | Streaming | FastAPI SSE (`/planning/stream`) — `node_complete` status events drive the loading screen; full plan delivered in one `complete` event |
 | Caching | Redis 7 — 1hr TTL plan cache by scenario + date |
 | Database | PostgreSQL 16 via SQLAlchemy + Alembic |
@@ -227,6 +244,23 @@ CortexKitchen never calls an LLM provider directly from a service. All agents de
 | Exports | ReportLab (PDF), openpyxl (Excel) |
 | MCP | Anthropic MCP SDK — `run_planning_scenario` + `get_run_history` |
 | Local infra | Docker Compose (PostgreSQL, Qdrant, Redis) |
+
+### Integrations
+
+<p>
+  <img src="screenshots/logos/langgraph.png" height="24" alt="LangGraph">&nbsp;&nbsp;
+  <img src="screenshots/logos/langsmith.png" height="24" alt="LangSmith">&nbsp;&nbsp;
+  <img src="screenshots/logos/groq.png" height="24" alt="Groq">&nbsp;&nbsp;
+  <img src="screenshots/logos/gemini.png" height="24" alt="Gemini">&nbsp;&nbsp;
+  <img src="screenshots/logos/deepseek.png" height="24" alt="DeepSeek">&nbsp;&nbsp;
+  <img src="screenshots/logos/claude.png" height="24" alt="Claude">&nbsp;&nbsp;
+  <img src="screenshots/logos/redis.png" height="24" alt="Redis">&nbsp;&nbsp;
+  <img src="screenshots/logos/sentry.png" height="24" alt="Sentry">&nbsp;&nbsp;
+  <img src="screenshots/logos/otel.png" height="24" alt="OpenTelemetry">&nbsp;&nbsp;
+  <img src="screenshots/logos/ragas.png" height="24" alt="RAGAS">&nbsp;&nbsp;
+  <img src="screenshots/logos/mcp.png" height="24" alt="MCP">&nbsp;&nbsp;
+  <img src="screenshots/logos/github.png" height="24" alt="GitHub">
+</p>
 
 ---
 
@@ -312,6 +346,15 @@ LANGSMITH_API_KEY=your_langsmith_key
 
 # Optional — enables Sentry exception capture
 SENTRY_DSN=your_sentry_dsn
+
+# Optional — CometAPI per-node model tier routing
+# Set LLM_PROVIDER=comet and COMET_TIERED=true to activate
+# Get your key at https://cometapi.com
+COMETAPI_KEY=your_cometapi_key_here
+COMETAPI_MODEL_FAST=deepseek-v4-flash
+COMETAPI_MODEL_BALANCED=gemini-3.5-flash
+COMETAPI_MODEL_STRONG=claude-sonnet-4-6
+COMET_TIERED=false
 ```
 
 ### 3. Install and seed

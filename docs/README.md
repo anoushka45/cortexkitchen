@@ -22,6 +22,12 @@ All documents in this folder reflect the implemented codebase.
 
 ---
 
+## What's new (post Phase 5)
+
+- **Per-node model tier routing** — CometAPI integration routes each LangGraph node to the right model tier (fast / balanced / strong) via a single key. The critic always gets `claude-sonnet-4-6`; simpler nodes get `deepseek-v4-flash`. Fully opt-in via `COMET_TIERED=true`. See `docs/ARCHITECTURE.md` for the full tier table and fallback chain design.
+
+---
+
 ## What Phase 5 added
 
 - **PDF + Excel export** — chef brief and owner workbook per planning run

@@ -67,7 +67,8 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 **Outputs:** Forecast output block in `state["forecast"]` — predicted covers, peak hour, confidence band, day-of-week adjustment  
 **Implementation:** `app/orchestration/nodes/demand_forecast.py`  
 **Service:** `ForecastService` — queries historical orders from PostgreSQL and runs Prophet time-series  
-**Dependencies:** `db`, `llm`
+**Dependencies:** `db`, `llm`  
+**Model tier:** `fast` (`deepseek-v4-flash` when `COMET_TIERED=true`)
 
 ---
 
@@ -79,7 +80,8 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 **Outputs:** Reservation output block in `state["reservation"]` — occupancy %, waitlist count, peak hour, priority level, risks, recommendations  
 **Implementation:** `app/orchestration/nodes/reservation.py`  
 **Service:** `ReservationService`  
-**Dependencies:** `db`, `llm`
+**Dependencies:** `db`, `llm`  
+**Model tier:** `fast` (`deepseek-v4-flash` when `COMET_TIERED=true`)
 
 ---
 
@@ -91,7 +93,8 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 **Outputs:** Complaint output block and RAG context in state  
 **Implementation:** `app/orchestration/nodes/complaint_intelligence.py`  
 **Service:** `ComplaintService` + `MemoryService` (Qdrant retrieval with org payload filter)  
-**Dependencies:** `db`, `llm`, `memory`
+**Dependencies:** `db`, `llm`, `memory`  
+**Model tier:** `balanced` (`gemini-3.5-flash` when `COMET_TIERED=true`)
 
 **Note:** RAG context is retrieved **before** the LLM call so retrieved complaints and SOPs feed directly into the prompt — the LLM reasons over real past data, not summaries.
 
@@ -105,7 +108,8 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 **Outputs:** Menu output block in `state["menu"]` — top items, weak items, promotion strategy, watchouts  
 **Implementation:** `app/orchestration/nodes/menu_intelligence.py`  
 **Service:** `MenuService`  
-**Dependencies:** `db`, `llm`
+**Dependencies:** `db`, `llm`  
+**Model tier:** `balanced` (`gemini-3.5-flash` when `COMET_TIERED=true`)
 
 ---
 
@@ -117,7 +121,8 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 **Outputs:** Inventory output block in `state["inventory"]` — shortage alerts, overstock alerts, restock priority list  
 **Implementation:** `app/orchestration/nodes/inventory.py`  
 **Service:** `InventoryService`  
-**Dependencies:** `db`, `llm`
+**Dependencies:** `db`, `llm`  
+**Model tier:** `fast` (`deepseek-v4-flash` when `COMET_TIERED=true`)
 
 ---
 
@@ -151,7 +156,8 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 **Outputs:** Critic block in `state["critic"]` — verdict, composite score (0–1), dimension scores, revision reasons, actionable feedback, cost analysis, sanity check results  
 **Implementation:** `app/orchestration/nodes/critic.py`  
 **Services:** `CriticService`, `CostAwareScoringService`, `EvaluationSanityChecker`  
-**Dependencies:** `db`, `llm`
+**Dependencies:** `db`, `llm`  
+**Model tier:** `strong` (`claude-sonnet-4-6` when `COMET_TIERED=true`) — the highest-capability model is reserved for the node that gates every plan
 
 ---
 
@@ -205,6 +211,7 @@ The shared state type is `OrchestratorState` (TypedDict) in `app/orchestration/s
 - Per-node output fields written progressively as nodes execute
 - `error` field checked by the conditional edge after `ops_manager`
 - `execution_trace` list populated when `debug=True`
+- `llm_registry` — tier-keyed dict of `FallbackLLMProvider` instances, populated when `COMET_TIERED=true`; each parallel node reads its assigned tier from this dict at runtime
 
 Initial state is created by `make_initial_state()` in the same module.
 

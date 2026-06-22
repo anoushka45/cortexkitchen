@@ -16,6 +16,10 @@ def _load_provider_class(provider_name: str) -> ProviderClass:
         from app.infrastructure.llm.groq import GroqProvider
 
         return GroqProvider
+    if provider_name == "comet":
+        from app.infrastructure.llm.comet import CometProvider
+
+        return CometProvider
     raise KeyError(provider_name)
 
 
@@ -94,7 +98,7 @@ def create_llm_provider(
 ) -> FallbackLLMProvider:
     settings = settings or get_settings()
     primary_name = settings.llm_provider.strip().lower()
-    supported_providers = set(provider_classes or {"gemini": None, "groq": None})
+    supported_providers = set(provider_classes or {"gemini": None, "groq": None, "comet": None})
 
     if primary_name not in supported_providers:
         supported = ", ".join(sorted(supported_providers))
@@ -118,3 +122,27 @@ def create_llm_provider(
             )
 
     return FallbackLLMProvider(primary=primary, fallback=fallback)
+
+
+def create_tiered_llm_providers(
+    settings: Settings | None = None,
+) -> dict[str, FallbackLLMProvider]:
+    """
+    Build a tier-keyed dict of FallbackLLMProviders backed by CometAPI.
+
+    Fallback chain: strong → balanced → fast (each tier falls back to the one below).
+    "default" is an untiered CometProvider for nodes with no tier assignment.
+    """
+    from app.infrastructure.llm.comet import CometProvider
+
+    settings = settings or get_settings()
+    fast_model     = settings.cometapi_model_fast
+    balanced_model = settings.cometapi_model_balanced
+    strong_model   = settings.cometapi_model_strong
+
+    return {
+        "fast":     FallbackLLMProvider(CometProvider(model=fast_model)),
+        "balanced": FallbackLLMProvider(CometProvider(model=balanced_model), CometProvider(model=fast_model)),
+        "strong":   FallbackLLMProvider(CometProvider(model=strong_model),   CometProvider(model=balanced_model)),
+        "default":  FallbackLLMProvider(CometProvider()),
+    }

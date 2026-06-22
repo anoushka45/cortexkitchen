@@ -28,6 +28,8 @@ async def complaint_intelligence_node(
     if state.get("error"):
         return state
 
+    llm = (state.get("llm_registry") or {}).get("balanced") or llm
+
     try:
         service = ComplaintService(db=db, llm=llm)
         target_date = (

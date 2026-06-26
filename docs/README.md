@@ -26,6 +26,8 @@ All documents in this folder reflect the implemented codebase.
 
 - **Per-node model tier routing** — CometAPI integration routes each LangGraph node to the right model tier (fast / balanced / strong) via a single key. The critic always gets `claude-sonnet-4-6`; simpler nodes get `deepseek-v4-flash`. Fully opt-in via `COMET_TIERED=true`. See `docs/ARCHITECTURE.md` for the full tier table and fallback chain design.
 
+- **Cross-agent assumption diffing** — Each domain node now writes the assumptions it acted on into `OrchestratorState` (`menu_assumptions`, `inventory_assumptions`, `reservation_assumptions`, `complaint_assumptions`). `EvaluationSanityChecker` cross-diffs these after the parallel fan-out completes, surfacing contradictions (e.g. menu assumed no stockouts while inventory flagged items low) as `stale_assumptions`. Conflicts are injected directly into the critic's LLM prompt and returned in `critic.stale_assumptions` in the API response. This replaces a hardcoded contradiction pair approach that would have caused a combinatorial explosion as agents grow. See D-017 in `docs/DECISIONS.md`.
+
 ---
 
 ## What Phase 5 added

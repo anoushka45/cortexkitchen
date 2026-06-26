@@ -58,11 +58,14 @@ class CriticService:
             else {}
         )
 
+        stale_assumptions = sanity_report.get("stale_assumptions") or []
         prompt = PromptUtils.format_critic_prompt(
             recommendation=(
                 f"{recommendation_text}\n\n"
                 f"## Automated sanity checks\n"
                 f"{self.sanity_checker.format_report(sanity_report)}\n\n"
+                f"## Cross-agent assumption conflicts\n"
+                f"{self.sanity_checker.format_stale_assumptions(stale_assumptions)}\n\n"
                 f"## Cost-aware tradeoff analysis\n"
                 f"{self.cost_scoring.format_report(cost_analysis)}"
             ),
@@ -166,6 +169,7 @@ class CriticService:
             "dimension_scores": dimension_scores,
             "revision_reasons": revision_reasons,
             "actionable_feedback": actionable_feedback,
+            "stale_assumptions": stale_assumptions,
         }
 
     async def evaluate_and_log(

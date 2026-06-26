@@ -30,6 +30,12 @@ def aggregator_node(state: OrchestratorState) -> OrchestratorState:
         "scenario": state.get("scenario"),
         "scenario_profile": state.get("scenario_profile"),
         "target_date": state.get("target_date"),
+        "assumptions": {
+            "menu":        state.get("menu_assumptions"),
+            "inventory":   state.get("inventory_assumptions"),
+            "reservation": state.get("reservation_assumptions"),
+            "complaint":   state.get("complaint_assumptions"),
+        },
         "agents": {
             "forecast": {
                 "data": _extract(state.get("forecast_output"), "data"),

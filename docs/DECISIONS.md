@@ -233,6 +233,32 @@ Scattered prompt strings in service files make prompt iteration, testing, and au
 
 ---
 
+## D-017 — Assumption diffing in EvaluationSanityChecker instead of enumerated contradiction pairs
+**Date:** June 2026  
+**Status:** Accepted
+
+### Context
+The original `EvaluationSanityChecker` caught cross-agent contradictions via hardcoded rule pairs (e.g. "if inventory flags item X as low, the menu shouldn't promote X"). As the menu and agent set grow, enumerating every possible pair becomes a combinatorial explosion that is impossible to maintain exhaustively.
+
+### Decision
+Each domain node now declares the assumptions it acted on when producing its output. These assumptions are derived from the node's own computed values — not hardcoded — and written as a small dict to `OrchestratorState` alongside the node's output (`menu_assumptions`, `inventory_assumptions`, `reservation_assumptions`, `complaint_assumptions`). The aggregator collects these into the recommendation bundle. `EvaluationSanityChecker.check_bundle()` then cross-diffs the assumptions: for each assumption in node A, it checks whether it is contradicted by a known fact in node B's output.
+
+The result is a `stale_assumptions` list returned alongside the existing `issues` list. Conflicts surface automatically from structural mismatch — no enumeration of pairs is needed. The critic receives the stale assumptions explicitly in its prompt so it can reason about *why* a contradiction exists rather than detecting it from raw data.
+
+### Rationale
+The combinatorial explosion problem: N agents → O(N²) contradiction pairs to enumerate. The assumption-diff approach scales linearly with agent count — adding a new agent requires only that the new node writes its own assumptions dict. No changes to the checker or other nodes.
+
+A secondary benefit: assumptions make node reasoning explicit and auditable. If a node made recommendations based on a stale belief, that belief is now visible in the run output rather than implicit in the LLM's prompt context.
+
+The hardcoded checks are **kept as a secondary layer** — they catch concrete policy violations (capacity limits, impossible inventory quantities, long-horizon actions) that are structural rather than assumption-based.
+
+### Consequences
+- Each domain node must derive and write its own `assumptions` dict — this is a new contract for any future domain node added to the pipeline
+- Graceful degradation: if a node errored and its assumptions dict is `None`, the checker skips diffing for that node without crashing
+- `stale_assumptions` is always present in `check_bundle()` output (may be an empty list) — callers that previously only used `passed`, `issues`, and `summary` are unaffected
+
+---
+
 ## D-016 — SSE streaming for planning runs and chat
 **Date:** June 2026  
 **Status:** Accepted

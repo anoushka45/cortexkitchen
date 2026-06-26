@@ -56,6 +56,11 @@ Last updated: June 2026. Phase 5 complete.
 - RAG chatbot — `POST /api/v1/chat` SSE, AsyncGroq, ReactMarkdown
 - Prelaunch polish — homepage redesign, professional footer, prompt_utils centralisation
 
+### Post Phase 5 — Architectural improvements
+
+- Per-node model tier routing — `COMET_TIERED` activates `llm_registry` in state; critic gets strong tier, domain nodes get fast/balanced
+- Cross-agent assumption diffing — each domain node writes assumptions dict to state; `EvaluationSanityChecker` cross-diffs post fan-out; `stale_assumptions` in critic prompt and response (D-017)
+
 ---
 
 ## Current state

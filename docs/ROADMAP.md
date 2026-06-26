@@ -60,6 +60,11 @@ Status snapshot: June 2026. Phase 5 complete.
 - **P5-12** RAG chatbot — `POST /api/v1/chat` SSE endpoint; AsyncGroq llama-3.3-70b streaming; RAG from Postgres runs + Feedback table; ReactMarkdown frontend; Ask AI in NavBar
 - **P5-13** Prelaunch polish — homepage pipeline redesign with glowing connectors, plain-language copy; professional Footer; NavBar/dashboard/ForecastChart polish; prompt refinements across all services
 
+### Post Phase 5 — Architectural improvements
+
+- **Per-node model tier routing** — `COMET_TIERED=true` activates tier-keyed `llm_registry` in `OrchestratorState`; each parallel node reads its assigned tier at runtime; critic always gets the strong tier
+- **Cross-agent assumption diffing** — each domain node writes its assumptions to state after its service call; `EvaluationSanityChecker` cross-diffs them post fan-out; `stale_assumptions` injected into critic prompt and returned in `critic.stale_assumptions` in the API response (D-017)
+
 ---
 
 ## Known gaps

@@ -115,22 +115,10 @@ class EvaluationSanityChecker:
         reservation_a = assumptions.get("reservation") or {}
         complaint_a   = assumptions.get("complaint")   or {}
 
-        # Diff 1: menu assumed no active stockouts, but inventory flagged ingredients as low.
-        # Fires when menu ran in parallel before inventory completed, or used stale stock data.
-        if menu_a.get("assumed_no_active_stockouts") is True:
-            items_flagged_low = inventory_a.get("items_flagged_low") or []
-            if items_flagged_low:
-                stale.append({
-                    "node": "menu_intelligence",
-                    "assumption_key": "assumed_no_active_stockouts",
-                    "assumed_value": True,
-                    "actual_value": items_flagged_low,
-                    "conflict": (
-                        f"menu_intelligence assumed no active stockouts, but inventory node "
-                        f"flagged {len(items_flagged_low)} ingredient(s) as low: "
-                        f"{', '.join(str(i) for i in items_flagged_low)}"
-                    ),
-                })
+        # Diff 1 removed: MenuService self-queries InventoryService when inventory_data is None
+        # (parallel execution means inventory_output is never in state when menu runs).
+        # Both nodes hit the same DB with the same demand_ratio, so they always agree on
+        # shortage status. The assumed_no_active_stockouts field is no longer written.
 
         # Diff 2: menu assumed covers within capacity, but reservation shows >90% occupancy.
         # Menu never has access to reservation data; this assumption is always implicit.

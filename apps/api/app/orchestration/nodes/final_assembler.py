@@ -27,6 +27,7 @@ def final_assembler_node(state: OrchestratorState) -> OrchestratorState:
     critic = state.get("critic_output") or {}
     bundle = state.get("aggregated_recommendation") or {}
 
+
     def _safe_rec(output: dict | None) -> dict | None:
         if not output or output.get("error"):
             return None

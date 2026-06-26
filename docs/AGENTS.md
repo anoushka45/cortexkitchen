@@ -118,7 +118,6 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 **Assumptions written to state (`menu_assumptions`):**
 - `items_assumed_available` — top-performing items that are **not** in the shortage list; these are what the node implicitly assumes it can promote
 - `assumed_covers_within_capacity` — always `True`; the menu node never has access to live reservation occupancy data (it runs in parallel with the reservation node), so it implicitly assumes the house is not at capacity
-- `assumed_no_active_stockouts` — `True` when the service call finds no shortage ingredients; `False` when at least one ingredient is flagged low
 
 **Implementation:** `app/orchestration/nodes/menu_intelligence.py`  
 **Service:** `MenuService`  

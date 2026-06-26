@@ -171,6 +171,10 @@ class CriticResult(BaseModel):
         default=None,
         description="Automated evaluation sanity-check report"
     )
+    stale_assumptions: list[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Cross-agent assumption conflicts detected by EvaluationSanityChecker"
+    )
 
 
 # ── Response ──────────────────────────────────────────────────────────────────

@@ -197,10 +197,17 @@ Executes the nine-node multi-agent planning pipeline. Returns the **full respons
     "stale_assumptions": [
       {
         "node": "menu_intelligence",
-        "assumption_key": "assumed_no_active_stockouts",
+        "assumption_key": "assumed_covers_within_capacity",
         "assumed_value": true,
-        "actual_value": ["Lamb", "Cream"],
-        "conflict": "menu_intelligence assumed no active stockouts, but inventory node flagged 2 ingredient(s) as low: Lamb, Cream"
+        "actual_value": 99.1,
+        "conflict": "menu_intelligence assumed covers within capacity, but reservation node shows 99.1% occupancy — menu recommendations must account for kitchen throughput limits under near-full house"
+      },
+      {
+        "node": "complaint_intelligence",
+        "assumption_key": "assumed_high_complaint_volume",
+        "assumed_value": false,
+        "actual_value": 26.3,
+        "conflict": "complaint_intelligence classified complaint volume as low, but negative feedback is 26.3% — borderline elevated complaint risk that may compound under high occupancy"
       }
     ]
   },

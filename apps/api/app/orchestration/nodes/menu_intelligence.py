@@ -68,7 +68,6 @@ async def menu_intelligence_node(
                 "menu_assumptions": {
                     "items_assumed_available": [n for n in top_item_names if n not in shortage_items],
                     "assumed_covers_within_capacity": True,
-                    "assumed_no_active_stockouts": len(shortage_items) == 0,
                 },
             }
 
@@ -91,7 +90,6 @@ async def menu_intelligence_node(
             "menu_assumptions": {
                 "items_assumed_available": [n for n in top_item_names if n not in shortage_items],
                 "assumed_covers_within_capacity": True,
-                "assumed_no_active_stockouts": len(shortage_items) == 0,
             },
         }
 

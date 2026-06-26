@@ -317,14 +317,15 @@ Because the four domain nodes run in parallel, each node executes without knowle
 
 To catch these contradictions automatically, each domain node writes an `assumptions` dict to shared state after its service call. The aggregator collects these into `bundle["assumptions"]`. When the critic node invokes `EvaluationSanityChecker.check_bundle()`, the checker diffs the assumptions cross-agent and returns a `stale_assumptions` list alongside the existing `issues` list.
 
-**Diffs implemented:**
+**Diffs implemented (3 active):**
 
 | Assumption | Checked against | Conflict |
 |------------|-----------------|---------|
-| `menu.assumed_no_active_stockouts = True` | `inventory.items_flagged_low` non-empty | Menu planned for zero stockouts but inventory found shortages |
 | `menu.assumed_covers_within_capacity = True` | `reservation.assumed_peak_occupancy_pct > 90` | Menu recommendations don't account for near-full-house throughput pressure |
 | `reservation.assumed_peak_occupancy_pct > 85` | Forecast `confidence` or `confidence_band` indicating weak signal | High-occupancy planning on a weak forecast overstates certainty |
 | `complaint.assumed_high_complaint_volume = False` | `complaint.assumed_negative_pct > 25` | Complaint node flagged volume as low but negative feedback is borderline elevated |
+
+Note: an earlier Diff checking `menu.assumed_no_active_stockouts` against `inventory.items_flagged_low` was removed. `MenuService` self-queries `InventoryService` when `inventory_data=None` (the parallel execution means inventory output is never in state when the menu node runs), so both nodes always see the same DB state and the assumption can never be stale. See D-017 in DECISIONS.md.
 
 The `stale_assumptions` list is injected into the critic's LLM prompt as a dedicated `## Cross-agent assumption conflicts` section. This gives the LLM concrete *why* reasoning about each inconsistency rather than requiring it to detect contradictions from raw data alone.
 

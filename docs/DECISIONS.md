@@ -257,6 +257,10 @@ The hardcoded checks are **kept as a secondary layer** — they catch concrete p
 - Graceful degradation: if a node errored and its assumptions dict is `None`, the checker skips diffing for that node without crashing
 - `stale_assumptions` is always present in `check_bundle()` output (may be an empty list) — callers that previously only used `passed`, `issues`, and `summary` are unaffected
 
+### Post-implementation note (June 2026)
+
+**Diff 1 removed.** The original implementation included a fourth diff (`assumed_no_active_stockouts` in `menu_intelligence` vs the inventory node's shortage list). This was dropped after discovering it could never fire: `MenuService.analyse_and_recommend()` contains a self-healing fallback that directly instantiates `InventoryService` and queries the DB whenever `inventory_data=None`. Because the four domain nodes run in parallel, `inventory_output` is never in state when `menu_intelligence` runs — but `MenuService` compensates by fetching inventory itself using the same demand ratio. Both nodes always hit the same DB with the same demand ratio, so they always agree on shortage status. The `assumed_no_active_stockouts` field has been removed from `menu_assumptions`. Three diffs remain active: Diff 2 (menu covers capacity vs reservation occupancy), Diff 3 (high-occupancy planning on weak forecast), and Diff 4 (complaint volume gray zone). The 4-parallel-agent topology is unchanged.
+
 ---
 
 ## D-016 — SSE streaming for planning runs and chat

@@ -55,6 +55,13 @@ class OrchestratorState(TypedDict):
     menu_output:        Annotated[Optional[Dict[str, Any]], keep_last]
     inventory_output:   Annotated[Optional[Dict[str, Any]], keep_last]
 
+    # Per-node assumption dicts — populated by each domain node after its service call.
+    # Used by EvaluationSanityChecker to diff cross-agent assumptions against actual state.
+    menu_assumptions:        Annotated[Optional[Dict[str, Any]], keep_last]
+    inventory_assumptions:   Annotated[Optional[Dict[str, Any]], keep_last]
+    reservation_assumptions: Annotated[Optional[Dict[str, Any]], keep_last]
+    complaint_assumptions:   Annotated[Optional[Dict[str, Any]], keep_last]
+
     # Aggregated intelligence
     aggregated_recommendation: Annotated[Optional[Dict[str, Any]], keep_last]
 
@@ -115,6 +122,12 @@ def make_initial_state(
         complaint_output=None,
         menu_output=None,
         inventory_output=None,
+
+        # Per-node assumptions (populated after each domain node completes)
+        menu_assumptions=None,
+        inventory_assumptions=None,
+        reservation_assumptions=None,
+        complaint_assumptions=None,
 
         # Aggregated results
         aggregated_recommendation=None,

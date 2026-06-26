@@ -77,7 +77,11 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 **Role:** Analyses booking density, occupancy percentage, waitlist depth, and busiest service window for the target date.
 
 **Inputs:** Scenario context + demand signal  
-**Outputs:** Reservation output block in `state["reservation"]` — occupancy %, waitlist count, peak hour, priority level, risks, recommendations  
+**Outputs:** Reservation output block in `state["reservation_output"]` — occupancy %, waitlist count, peak hour, priority level, risks, recommendations  
+**Assumptions written to state (`reservation_assumptions`):**
+- `assumed_peak_occupancy_pct` — occupancy percentage computed by `ReservationService` for the target date
+- `assumed_waitlist_active` — True if at least one reservation is on the waitlist
+
 **Implementation:** `app/orchestration/nodes/reservation.py`  
 **Service:** `ReservationService`  
 **Dependencies:** `db`, `llm`  
@@ -91,6 +95,11 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 
 **Inputs:** Scenario context + demand signal  
 **Outputs:** Complaint output block and RAG context in state  
+**Assumptions written to state (`complaint_assumptions`):**
+- `assumed_complaint_categories` — up to 5 unique complaint texts from the last 28 days
+- `assumed_high_complaint_volume` — True when `negative_pct` of recent feedback exceeds 30%
+- `assumed_negative_pct` — the raw negative feedback percentage used for both the flag and cross-agent diffing
+
 **Implementation:** `app/orchestration/nodes/complaint_intelligence.py`  
 **Service:** `ComplaintService` + `MemoryService` (Qdrant retrieval with org payload filter)  
 **Dependencies:** `db`, `llm`, `memory`  
@@ -105,7 +114,12 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 **Role:** Evaluates menu performance in the context of the scenario's demand and operational constraints — identifies what to push, ease back, and avoid promoting tonight.
 
 **Inputs:** Scenario context + demand signal  
-**Outputs:** Menu output block in `state["menu"]` — top items, weak items, promotion strategy, watchouts  
+**Outputs:** Menu output block in `state["menu_output"]` — top items, weak items, promotion strategy, watchouts  
+**Assumptions written to state (`menu_assumptions`):**
+- `items_assumed_available` — top-performing items that are **not** in the shortage list; these are what the node implicitly assumes it can promote
+- `assumed_covers_within_capacity` — always `True`; the menu node never has access to live reservation occupancy data (it runs in parallel with the reservation node), so it implicitly assumes the house is not at capacity
+- `assumed_no_active_stockouts` — `True` when the service call finds no shortage ingredients; `False` when at least one ingredient is flagged low
+
 **Implementation:** `app/orchestration/nodes/menu_intelligence.py`  
 **Service:** `MenuService`  
 **Dependencies:** `db`, `llm`  
@@ -118,7 +132,11 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 **Role:** Identifies shortage and overstock concerns for the selected scenario. Flags items at or below their reorder threshold and items at spoilage risk.
 
 **Inputs:** Scenario context + demand signal  
-**Outputs:** Inventory output block in `state["inventory"]` — shortage alerts, overstock alerts, restock priority list  
+**Outputs:** Inventory output block in `state["inventory_output"]` — shortage alerts, overstock alerts, restock priority list  
+**Assumptions written to state (`inventory_assumptions`):**
+- `items_flagged_low` — ingredient names from all shortage alerts produced by `InventoryService`
+- `items_flagged_overstock` — ingredient names from all overstock alerts
+
 **Implementation:** `app/orchestration/nodes/inventory.py`  
 **Service:** `InventoryService`  
 **Dependencies:** `db`, `llm`  
@@ -209,6 +227,7 @@ The shared state type is `OrchestratorState` (TypedDict) in `app/orchestration/s
 
 - Scenario metadata, runtime flags (`simulation_mode`, `debug`), and `org_id` (Phase 5)
 - Per-node output fields written progressively as nodes execute
+- Per-node assumption dicts (`menu_assumptions`, `inventory_assumptions`, `reservation_assumptions`, `complaint_assumptions`) — each domain node writes one after its service call completes; used by `EvaluationSanityChecker` for cross-agent assumption diffing (see D-017)
 - `error` field checked by the conditional edge after `ops_manager`
 - `execution_trace` list populated when `debug=True`
 - `llm_registry` — tier-keyed dict of `FallbackLLMProvider` instances, populated when `COMET_TIERED=true`; each parallel node reads its assigned tier from this dict at runtime

@@ -60,7 +60,18 @@ async def complaint_intelligence_node(
         )
 
         result["rag_context"] = rag_context
-        return {**state, "complaint_output": result}
+        data = result.get("data") or {}
+        sentiment = data.get("sentiment_breakdown") or {}
+        negative_pct = float(sentiment.get("negative_pct") or 0)
+        return {
+            **state,
+            "complaint_output": result,
+            "complaint_assumptions": {
+                "assumed_complaint_categories": (data.get("unique_complaints") or [])[:5],
+                "assumed_high_complaint_volume": negative_pct > 30.0,
+                "assumed_negative_pct": negative_pct,
+            },
+        }
 
     except Exception as exc:
         return {
@@ -72,4 +83,5 @@ async def complaint_intelligence_node(
                 "recommendation": None,
                 "rag_context": {},
             },
+            "complaint_assumptions": None,
         }

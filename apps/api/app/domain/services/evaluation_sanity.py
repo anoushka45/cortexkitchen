@@ -63,10 +63,18 @@ class EvaluationSanityChecker:
             issues.extend(self._check_inventory_quantities(agents.get("inventory") or {}))
             issues.extend(self._check_24h_feasibility(agents))
 
+        assumptions = bundle.get("assumptions") or {}
+        stale_assumptions = (
+            self._diff_assumptions(assumptions, agents or {})
+            if isinstance(assumptions, dict)
+            else []
+        )
+
         return {
             "passed": not any(issue.severity == "error" for issue in issues),
             "issues": [issue.as_dict() for issue in issues],
             "summary": self._summarize(issues),
+            "stale_assumptions": stale_assumptions,
         }
 
     def format_report(self, report: dict[str, Any]) -> str:
@@ -79,6 +87,111 @@ class EvaluationSanityChecker:
                 f"- [{issue['severity']}] {issue['code']}: {issue['message']}"
             )
         return "\n".join(lines)
+
+    def format_stale_assumptions(self, stale_assumptions: list[dict]) -> str:
+        if not stale_assumptions:
+            return "No stale assumption conflicts detected."
+        lines = ["The following assumptions made by domain agents were found to be stale or contradicted by other agents' outputs:"]
+        for item in stale_assumptions:
+            lines.append(f"- [{item['node']}] {item['conflict']}")
+        return "\n".join(lines)
+
+    def _diff_assumptions(
+        self,
+        assumptions: dict[str, Any],
+        agents: dict[str, Any],
+    ) -> list[dict]:
+        """
+        Cross-diff assumptions written by each domain node against facts from other nodes.
+
+        Each returned dict describes one stale assumption: which node made it, the key,
+        the assumed value, the actual value observed elsewhere, and a human-readable conflict.
+        Nodes that failed (assumptions is None) are gracefully skipped.
+        """
+        stale: list[dict] = []
+
+        menu_a        = assumptions.get("menu")        or {}
+        inventory_a   = assumptions.get("inventory")   or {}
+        reservation_a = assumptions.get("reservation") or {}
+        complaint_a   = assumptions.get("complaint")   or {}
+
+        # Diff 1: menu assumed no active stockouts, but inventory flagged ingredients as low.
+        # Fires when menu ran in parallel before inventory completed, or used stale stock data.
+        if menu_a.get("assumed_no_active_stockouts") is True:
+            items_flagged_low = inventory_a.get("items_flagged_low") or []
+            if items_flagged_low:
+                stale.append({
+                    "node": "menu_intelligence",
+                    "assumption_key": "assumed_no_active_stockouts",
+                    "assumed_value": True,
+                    "actual_value": items_flagged_low,
+                    "conflict": (
+                        f"menu_intelligence assumed no active stockouts, but inventory node "
+                        f"flagged {len(items_flagged_low)} ingredient(s) as low: "
+                        f"{', '.join(str(i) for i in items_flagged_low)}"
+                    ),
+                })
+
+        # Diff 2: menu assumed covers within capacity, but reservation shows >90% occupancy.
+        # Menu never has access to reservation data; this assumption is always implicit.
+        if menu_a.get("assumed_covers_within_capacity") is True:
+            occ = reservation_a.get("assumed_peak_occupancy_pct")
+            if occ is not None and occ > 90:
+                stale.append({
+                    "node": "menu_intelligence",
+                    "assumption_key": "assumed_covers_within_capacity",
+                    "assumed_value": True,
+                    "actual_value": occ,
+                    "conflict": (
+                        f"menu_intelligence assumed covers within capacity, but reservation node "
+                        f"shows {occ}% occupancy — menu recommendations must account for "
+                        f"kitchen throughput limits under near-full house"
+                    ),
+                })
+
+        # Diff 3: reservation planned for high occupancy but demand forecast confidence is low.
+        # High-occupancy planning on a weak forecast is operationally risky.
+        occ = reservation_a.get("assumed_peak_occupancy_pct")
+        if occ is not None and occ > 85:
+            forecast_data = (agents.get("forecast") or {}).get("data") or {}
+            confidence = forecast_data.get("confidence")
+            confidence_band = forecast_data.get("confidence_band")
+            low_confidence = (
+                (isinstance(confidence, (int, float)) and confidence < 0.6)
+                or (isinstance(confidence_band, str) and confidence_band.lower() in ("low", "poor", "weak"))
+            )
+            if low_confidence:
+                stale.append({
+                    "node": "reservation",
+                    "assumption_key": "assumed_peak_occupancy_pct",
+                    "assumed_value": occ,
+                    "actual_value": confidence if confidence is not None else confidence_band,
+                    "conflict": (
+                        f"reservation node planned for {occ}% occupancy, but demand forecast "
+                        f"confidence is low — high-occupancy operational planning on a weak "
+                        f"forecast signal overstates certainty"
+                    ),
+                })
+
+        # Diff 4: complaint node classified volume as low but negative feedback is borderline elevated.
+        # Uses a secondary threshold (25%) below the node's own flag threshold (30%)
+        # to catch the gray zone before it becomes a bigger issue.
+        if complaint_a.get("assumed_high_complaint_volume") is False:
+            negative_pct = float(complaint_a.get("assumed_negative_pct") or 0)
+            if negative_pct > 25.0:
+                stale.append({
+                    "node": "complaint_intelligence",
+                    "assumption_key": "assumed_high_complaint_volume",
+                    "assumed_value": False,
+                    "actual_value": negative_pct,
+                    "conflict": (
+                        f"complaint_intelligence classified complaint volume as low, but "
+                        f"negative feedback is {negative_pct:.1f}% — borderline elevated "
+                        f"complaint risk that may compound under high occupancy"
+                    ),
+                })
+
+        return stale
 
     def _check_top_level_schema(self, bundle: dict[str, Any]) -> list[SanityIssue]:
         issues = []

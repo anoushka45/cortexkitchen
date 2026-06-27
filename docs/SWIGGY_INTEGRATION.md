@@ -1,6 +1,6 @@
 # CortexKitchen x Swiggy Builders Club — Complete Integration Reference
 
-> **Status:** Active development — Phase 6  
+> **Status:** Active development — Phase 6 (P6-S01/S02 complete, P6-S03 next)
 > **Access:** Swiggy Builders Club approved (builders@swiggy.in)  
 > **Staging creds:** Pending (form submitted)  
 > **Docs:** https://mcp.swiggy.com/builders/docs/  
@@ -387,16 +387,20 @@ Every external platform implements `BaseConnector` with two modes:
 
 ```python
 class BaseConnector(ABC):
-    async def sync(self, org_id: int) -> SyncResult:
+    def __init__(self, client: SwiggyMCPClient, org_id: int): ...
+
+    async def sync(self) -> dict:
         """Nightly job. Pulls historical data. Writes to layer 0."""
         ...
 
-    async def enrich(self, context: dict) -> EnrichmentResult:
-        """At planning time. Live signals. NOT written to DB."""
+    async def enrich(self, context: dict) -> dict | None:
+        """At planning time. Live signals. NOT written to DB. Returns None on any failure."""
         ...
 ```
 
-`SwiggyConnector` is the reference implementation. Future connectors (Zomato, Google Reviews, Square POS, EazyDiner) follow the same pattern.
+`SwiggyConnector` is the reference implementation (skeleton — sync/enrich filled in P6-S03 to S08).
+Future connectors (Zomato, Google Reviews, Square POS, EazyDiner) follow the same pattern.
+Token per org stored in `connectors` table via `ConnectorRepository`. See D-019 in `docs/DECISIONS.md`.
 
 ### LangGraph pipeline — 11 nodes
 
@@ -509,13 +513,13 @@ Rate limiting NOT enforced in v1.0 — upstream shedding handles abuse. Wire 429
 
 ### Phase S — foundation and sync (Weeks 1-2)
 
-| Task | Branch | What |
-|------|--------|------|
-| P6-S01 | `feature/swiggy-base-connector` | BaseConnector + SwiggyMCPClient |
-| P6-S02 | `feature/swiggy-base-connector` | connectors table + async job queue |
-| P6-S03 | `feature/swiggy-sync-orders` | get_food_orders → orders table |
-| P6-S04 | `feature/swiggy-sync-reservations` | get_booking_status → reservations table |
-| P6-S05 | `feature/swiggy-sync-feedback` | track_food_order → feedback table |
+| Task | Branch | What | Status |
+|------|--------|------|--------|
+| P6-S01 | `feature/swiggy-base-connector` | BaseConnector + SwiggyMCPClient | ✅ merged to dev 2026-06-27 |
+| P6-S02 | `feature/swiggy-base-connector` | connectors table + async job queue | ✅ merged to dev 2026-06-27 |
+| P6-S03 | `feature/swiggy-sync-orders` | get_food_orders → orders table | next |
+| P6-S04 | `feature/swiggy-sync-reservations` | get_booking_status → reservations table | planned |
+| P6-S05 | `feature/swiggy-sync-feedback` | track_food_order → feedback table | planned |
 
 ### Phase E — enrichers (Week 3)
 

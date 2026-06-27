@@ -61,6 +61,7 @@ def aggregator_node(state: OrchestratorState) -> OrchestratorState:
         },
         # Flat summary for the Critic prompt — easier than passing the full nested dict
         "summary_for_critic": _build_critic_summary(state),
+        "contradictions_detected": bool(_detect_contradictions(state)),
     }
 
     return {**state, "aggregated_recommendation": bundle}
@@ -107,6 +108,77 @@ def _build_critic_summary(state: OrchestratorState) -> str:
             rec_text = str(rec)
         lines.append(f"[{label}] {rec_text}")
 
+    # Append any auto-detected cross-agent contradictions (0 LLM calls)
+    contradiction_text = _detect_contradictions(state)
+    if contradiction_text:
+        lines.append(contradiction_text)
+
+    # Append critic feedback from a previous replan cycle, if any
+    replan_context = state.get("replan_context")
+    if replan_context:
+        lines.append(f"\nCRITIC FEEDBACK FROM PREVIOUS EVALUATION:\n{replan_context}")
+
+    return "\n".join(lines)
+
+
+def _detect_contradictions(state: OrchestratorState) -> str:
+    """
+    Pure Python cross-agent contradiction detection — zero LLM calls.
+    Detects: menu highlights vs inventory shortages, inventory blockers,
+    high-demand-forecast + critical-shortage mismatch.
+    Returns a formatted warning block (empty string if none found).
+    """
+    contradictions = []
+
+    menu_rec = (state.get("menu_output") or {}).get("recommendation") or {}
+    inv_blockers = menu_rec.get("inventory_blockers") or []
+    if isinstance(inv_blockers, list):
+        for blocker in inv_blockers:
+            if blocker:
+                contradictions.append(
+                    f"Menu agent highlights items but flags inventory blocker: {blocker}"
+                )
+
+    inv_assumptions = state.get("inventory_assumptions") or {}
+    items_flagged_low = inv_assumptions.get("items_flagged_low") or []
+    highlight_items = menu_rec.get("highlight_items") or []
+    if items_flagged_low and highlight_items:
+        for low_item in items_flagged_low:
+            low_name = str(low_item).lower()
+            for highlight in highlight_items:
+                h_name = str(highlight).lower()
+                if low_name and (low_name in h_name or h_name in low_name):
+                    contradictions.append(
+                        f"Menu recommends pushing '{highlight}' but inventory flags "
+                        f"'{low_item}' as LOW STOCK — fulfillment risk."
+                    )
+
+    inv_data = (state.get("inventory_output") or {}).get("data") or {}
+    critical_shortages = [
+        a.get("ingredient") for a in (inv_data.get("shortage_alerts") or [])
+        if isinstance(a, dict) and a.get("severity") == "critical" and a.get("ingredient")
+    ]
+    forecast_data = (state.get("forecast_output") or {}).get("data") or {}
+    demand_ratio = forecast_data.get("demand_ratio") or 0
+    if critical_shortages and demand_ratio > 1.1:
+        for item in critical_shortages:
+            contradictions.append(
+                f"Demand forecast predicts {round(float(demand_ratio), 1)}x normal volume but "
+                f"'{item}' has a CRITICAL stock shortage — peak service at risk."
+            )
+
+    if not contradictions:
+        return ""
+
+    lines = [
+        "",
+        "DETECTED CONTRADICTIONS (auto-detected, 0 LLM calls):",
+        "─────────────────────────────────────────────────────",
+    ]
+    for c in contradictions:
+        lines.append(f"  ⚠  {c}")
+    lines.append("─────────────────────────────────────────────────────")
+    lines.append("The Critic MUST explicitly address these contradictions in the verdict.")
     return "\n".join(lines)
 
 

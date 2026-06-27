@@ -33,6 +33,8 @@ from app.orchestration.nodes import (
     aggregator_node,
     critic_node,
     final_assembler_node,
+    qdrant_enrichment_node,
+    replan_orchestrator_node,
 )
 
 
@@ -40,12 +42,14 @@ from app.orchestration.nodes import (
 
 OPS_MANAGER = "ops_manager"
 DEMAND_FORECAST = "demand_forecast"
+QDRANT_ENRICHMENT = "qdrant_enrichment"
 RESERVATION = "reservation"
 COMPLAINT_INTELLIGENCE = "complaint_intelligence"
 MENU_INTELLIGENCE = "menu_intelligence"
 INVENTORY = "inventory"
 AGGREGATOR = "aggregator"
 CRITIC = "critic"
+REPLAN_ORCHESTRATOR = "replan_orchestrator"
 FINAL_ASSEMBLER = "final_assembler"
 
 
@@ -174,17 +178,27 @@ def _log_node(node_fn, traces: list):
     return _wrapped
 
 
-# ── Conditional edge: abort if ops_manager sets an error ─────────────────────
+# ── Conditional edges ────────────────────────────────────────────────────────
 
 def _route_after_ops_manager(state: OrchestratorState) -> str:
-    """
-    After ops_manager validates the scenario:
-    - If there's a fatal error → jump to final_assembler.
-    - Otherwise → proceed with orchestration.
-    """
     if state.get("error"):
         return FINAL_ASSEMBLER
     return DEMAND_FORECAST
+
+
+def _route_after_critic(state: OrchestratorState) -> str:
+    """
+    Replanning loop: if verdict is not 'approved' and we haven't exhausted
+    retries (max 2), route back through replan_orchestrator → aggregator → critic.
+    Otherwise proceed to final_assembler.
+    """
+    critic_out   = state.get("critic_output") or {}
+    verdict      = critic_out.get("verdict", "revision")
+    replan_count = state.get("replan_count") or 0
+
+    if verdict == "approved" or replan_count >= 2:
+        return FINAL_ASSEMBLER
+    return REPLAN_ORCHESTRATOR
 
 
 # ── Graph factory ────────────────────────────────────────────────────────────
@@ -214,14 +228,16 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
     graph.add_node(OPS_MANAGER, _log_node(ops_manager_node, tr))
 
     graph.add_node(DEMAND_FORECAST,        _inject(demand_forecast_node,        tr, db=db, llm=llm))
+    graph.add_node(QDRANT_ENRICHMENT,      _inject(qdrant_enrichment_node,      tr, memory=memory))
     graph.add_node(RESERVATION,            _inject(reservation_node,            tr, db=db, llm=llm))
     graph.add_node(COMPLAINT_INTELLIGENCE, _inject(complaint_intelligence_node, tr, db=db, llm=llm, memory=memory))
     graph.add_node(MENU_INTELLIGENCE,      _inject(menu_intelligence_node,      tr, db=db, llm=llm))
     graph.add_node(INVENTORY,              _inject(inventory_node,              tr, db=db, llm=llm))
 
-    graph.add_node(AGGREGATOR,     _log_node(aggregator_node,      tr))
-    graph.add_node(CRITIC,         _inject(critic_node,            tr, db=db, llm=llm))
-    graph.add_node(FINAL_ASSEMBLER, _log_node(final_assembler_node, tr))
+    graph.add_node(AGGREGATOR,          _log_node(aggregator_node,          tr))
+    graph.add_node(CRITIC,              _inject(critic_node,                 tr, db=db, llm=llm))
+    graph.add_node(REPLAN_ORCHESTRATOR, _log_node(replan_orchestrator_node, tr))
+    graph.add_node(FINAL_ASSEMBLER,     _log_node(final_assembler_node,     tr))
 
     # ── Wire edges ───────────────────────────────────────────────────────────
 
@@ -236,11 +252,14 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
         },
     )
 
-    # Parallel fan-out
-    graph.add_edge(DEMAND_FORECAST, RESERVATION)
-    graph.add_edge(DEMAND_FORECAST, COMPLAINT_INTELLIGENCE)
-    graph.add_edge(DEMAND_FORECAST, MENU_INTELLIGENCE)
-    graph.add_edge(DEMAND_FORECAST, INVENTORY)
+    # Qdrant pre-enrichment before parallel fan-out
+    graph.add_edge(DEMAND_FORECAST, QDRANT_ENRICHMENT)
+
+    # Parallel fan-out from enrichment
+    graph.add_edge(QDRANT_ENRICHMENT, RESERVATION)
+    graph.add_edge(QDRANT_ENRICHMENT, COMPLAINT_INTELLIGENCE)
+    graph.add_edge(QDRANT_ENRICHMENT, MENU_INTELLIGENCE)
+    graph.add_edge(QDRANT_ENRICHMENT, INVENTORY)
 
     # Fan-in
     graph.add_edge(RESERVATION, AGGREGATOR)
@@ -248,9 +267,19 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
     graph.add_edge(MENU_INTELLIGENCE, AGGREGATOR)
     graph.add_edge(INVENTORY, AGGREGATOR)
 
-    # Linear tail
+    # Aggregator → Critic → conditional replanning loop
     graph.add_edge(AGGREGATOR, CRITIC)
-    graph.add_edge(CRITIC, FINAL_ASSEMBLER)
+    graph.add_conditional_edges(
+        CRITIC,
+        _route_after_critic,
+        {
+            FINAL_ASSEMBLER:     FINAL_ASSEMBLER,
+            REPLAN_ORCHESTRATOR: REPLAN_ORCHESTRATOR,
+        },
+    )
+
+    # Replan loop: orchestrator injects context → re-aggregate → re-evaluate
+    graph.add_edge(REPLAN_ORCHESTRATOR, AGGREGATOR)
     graph.add_edge(FINAL_ASSEMBLER, END)
 
     return graph.compile()
@@ -302,6 +331,19 @@ async def run_planning_scenario(
     Returns:
         Final API-ready response from the LangGraph workflow.
     """
+    # ── Semantic cache check (Qdrant, similarity >= 0.92) ───────────────────
+    semantic_cache = deps.get("semantic_cache")
+    if semantic_cache and org_id and not simulation_mode and not force_critic_decision and not debug:
+        try:
+            cached = semantic_cache.get(org_id, scenario, target_date)
+            if cached is not None:
+                structlog.get_logger().info(
+                    "semantic_cache_hit", scenario=scenario, org_id=org_id
+                )
+                return cached
+        except Exception:
+            pass
+
     # Shared list — every node wrapper appends its timing record here
     traces: list[dict] = []
     graph = build_graph(deps, traces=traces)
@@ -395,8 +437,16 @@ async def run_planning_scenario(
                 "simulation_mode": simulation_mode,
                 "forced_critic_decision": force_critic_decision,
                 "execution_trace": final_state.get("execution_trace", []),
+                "replan_count": final_state.get("replan_count", 0),
             }
         )
+
+    # ── Store in semantic cache if result is approved / run is clean ─────────
+    if semantic_cache and org_id and not simulation_mode and not force_critic_decision:
+        try:
+            semantic_cache.set(org_id, scenario, target_date, final_response)
+        except Exception:
+            pass
 
     return final_response
 
@@ -404,12 +454,14 @@ async def run_planning_scenario(
 # ── SSE node names → state field mapping ─────────────────────────────────────
 _NODE_SSE_MAP: dict[str, str] = {
     "demand_forecast":        "forecast",
+    "qdrant_enrichment":      "enrichment",
     "reservation":            "reservation",
     "complaint_intelligence": "complaint",
     "menu_intelligence":      "menu",
     "inventory":              "inventory",
     "aggregator":             "aggregator",
     "critic":                 "critic",
+    "replan_orchestrator":    "replan",
 }
 
 _NODE_OUTPUT_FIELD: dict[str, str] = {

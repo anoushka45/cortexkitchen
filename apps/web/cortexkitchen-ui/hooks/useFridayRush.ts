@@ -13,6 +13,8 @@ interface UseFridayRushReturn {
   error:          string | null;
   history:        RunHistoryEntry[];
   completedNodes: Set<string>;
+  startedNodes:   Set<string>;
+  nodeHints:      Record<string, string>;
   replanCount:    number;
   trigger:        (targetDate?: string, scenario?: FridayRushRequest["scenario"], restaurantId?: number) => Promise<void>;
   reset:          () => void;
@@ -37,6 +39,8 @@ export function useFridayRush(): UseFridayRushReturn {
   const [error,          setError]          = useState<string | null>(null);
   const [history,        setHistory]        = useState<RunHistoryEntry[]>([]);
   const [completedNodes, setCompletedNodes] = useState<Set<string>>(new Set());
+  const [startedNodes,   setStartedNodes]   = useState<Set<string>>(new Set());
+  const [nodeHints,      setNodeHints]      = useState<Record<string, string>>({});
   const [replanCount,    setReplanCount]    = useState<number>(0);
 
   const refreshHistory = useCallback(async () => {
@@ -58,6 +62,8 @@ export function useFridayRush(): UseFridayRushReturn {
     setError(null);
     setData(null);
     setCompletedNodes(new Set());
+    setStartedNodes(new Set());
+    setNodeHints({});
     setReplanCount(0);
 
     try {
@@ -69,10 +75,16 @@ export function useFridayRush(): UseFridayRushReturn {
       });
 
       for await (const evt of stream) {
-        if (evt.event === "node_complete") {
-          const { node } = evt as { event: string; node: string };
+        if (evt.event === "node_start") {
+          const { node, hint } = evt as { event: string; node: string; hint?: string };
+          setStartedNodes(prev => new Set([...prev, node]));
+          if (hint) setNodeHints(prev => ({ ...prev, [node]: hint }));
+        } else if (evt.event === "node_complete") {
+          const { node, hint } = evt as { event: string; node: string; hint?: string };
           setCompletedNodes(prev => new Set([...prev, node]));
           if (node === "replan") setReplanCount(prev => prev + 1);
+          // Completion hint overwrites the start hint with a richer summary
+          if (hint) setNodeHints(prev => ({ ...prev, [node]: hint }));
         } else if (evt.event === "complete") {
           const { event: _e, ...response } = evt as { event: string } & FridayRushResponse;
           setData(response as FridayRushResponse);
@@ -113,5 +125,9 @@ export function useFridayRush(): UseFridayRushReturn {
     }
   }, []);
 
-  return { data, status, error, history, completedNodes, replanCount, trigger, reset, loadFromHistory, refreshHistory };
+  return {
+    data, status, error, history,
+    completedNodes, startedNodes, nodeHints, replanCount,
+    trigger, reset, loadFromHistory, refreshHistory,
+  };
 }

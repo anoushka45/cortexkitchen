@@ -144,10 +144,11 @@ export async function runWhatIf(body: WhatIfRequest): Promise<WhatIfResponse> {
   return res.json() as Promise<WhatIfResponse>;
 }
 
-export type SSENodeEvent   = { event: "node_complete"; node: string; cached?: boolean };
-export type SSECompleteEvent = { event: "complete" } & FridayRushResponse;
-export type SSEErrorEvent  = { event: "error"; message: string };
-export type SSEEvent = SSENodeEvent | SSECompleteEvent | SSEErrorEvent;
+export type SSENodeStartEvent = { event: "node_start";    node: string; hint?: string };
+export type SSENodeEvent      = { event: "node_complete"; node: string; hint?: string; cached?: boolean };
+export type SSECompleteEvent  = { event: "complete" } & FridayRushResponse;
+export type SSEErrorEvent     = { event: "error"; message: string };
+export type SSEEvent = SSENodeStartEvent | SSENodeEvent | SSECompleteEvent | SSEErrorEvent;
 
 export async function* streamPlanningScenario(
   request: FridayRushRequest = {}

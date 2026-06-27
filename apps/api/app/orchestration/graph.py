@@ -38,6 +38,13 @@ from app.orchestration.nodes import (
 )
 
 
+def phase1_sync_node(state):
+    """Barrier — collects outputs from reservation, complaint_intelligence, and inventory,
+    then unblocks menu_intelligence. Ensures aggregator fires exactly once (not twice)
+    by making all parallel paths the same hop-length before menu."""
+    return state
+
+
 # ── Node name constants ──────────────────────────────────────────────────────
 
 OPS_MANAGER = "ops_manager"
@@ -45,8 +52,9 @@ DEMAND_FORECAST = "demand_forecast"
 QDRANT_ENRICHMENT = "qdrant_enrichment"
 RESERVATION = "reservation"
 COMPLAINT_INTELLIGENCE = "complaint_intelligence"
-MENU_INTELLIGENCE = "menu_intelligence"
 INVENTORY = "inventory"
+PHASE1_SYNC = "phase1_sync"
+MENU_INTELLIGENCE = "menu_intelligence"
 AGGREGATOR = "aggregator"
 CRITIC = "critic"
 REPLAN_ORCHESTRATOR = "replan_orchestrator"
@@ -231,8 +239,9 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
     graph.add_node(QDRANT_ENRICHMENT,      _inject(qdrant_enrichment_node,      tr, memory=memory))
     graph.add_node(RESERVATION,            _inject(reservation_node,            tr, db=db, llm=llm))
     graph.add_node(COMPLAINT_INTELLIGENCE, _inject(complaint_intelligence_node, tr, db=db, llm=llm, memory=memory))
-    graph.add_node(MENU_INTELLIGENCE,      _inject(menu_intelligence_node,      tr, db=db, llm=llm))
     graph.add_node(INVENTORY,              _inject(inventory_node,              tr, db=db, llm=llm))
+    graph.add_node(PHASE1_SYNC,            _log_node(phase1_sync_node,         tr))
+    graph.add_node(MENU_INTELLIGENCE,      _inject(menu_intelligence_node,      tr, db=db, llm=llm))
 
     graph.add_node(AGGREGATOR,          _log_node(aggregator_node,          tr))
     graph.add_node(CRITIC,              _inject(critic_node,                 tr, db=db, llm=llm))
@@ -255,18 +264,21 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
     # Qdrant pre-enrichment before parallel fan-out
     graph.add_edge(DEMAND_FORECAST, QDRANT_ENRICHMENT)
 
-    # Partial parallel fan-out: reservation, complaint, inventory run together.
-    # Menu is deferred — it must see inventory reality before making recommendations.
+    # Full parallel fan-out: reservation, complaint, inventory run together
     graph.add_edge(QDRANT_ENRICHMENT, RESERVATION)
     graph.add_edge(QDRANT_ENRICHMENT, COMPLAINT_INTELLIGENCE)
     graph.add_edge(QDRANT_ENRICHMENT, INVENTORY)
 
-    # Inventory completes first → menu reads shortage list and blocks those items
-    graph.add_edge(INVENTORY, MENU_INTELLIGENCE)
+    # Phase1 barrier — all three parallel agents must complete before menu starts.
+    # This equalises hop-counts so aggregator fires exactly once (not twice).
+    graph.add_edge(RESERVATION,            PHASE1_SYNC)
+    graph.add_edge(COMPLAINT_INTELLIGENCE, PHASE1_SYNC)
+    graph.add_edge(INVENTORY,              PHASE1_SYNC)
 
-    # Fan-in: aggregator waits for reservation, complaint, and menu
-    graph.add_edge(RESERVATION, AGGREGATOR)
-    graph.add_edge(COMPLAINT_INTELLIGENCE, AGGREGATOR)
+    # Menu runs after all parallel agents are done (reads inventory shortage list)
+    graph.add_edge(PHASE1_SYNC, MENU_INTELLIGENCE)
+
+    # Single fan-in: aggregator fires exactly once, after menu
     graph.add_edge(MENU_INTELLIGENCE, AGGREGATOR)
 
     # Aggregator → Critic → conditional replanning loop
@@ -476,6 +488,85 @@ _NODE_OUTPUT_FIELD: dict[str, str] = {
     "critic":      "critic_output",
 }
 
+# Human-readable hints emitted when a node STARTS — shown in the loading pipeline
+_NODE_START_HINTS: dict[str, str] = {
+    "demand_forecast":        "Running Prophet model on 90 days of order history…",
+    "qdrant_enrichment":      "Searching Qdrant memory for relevant SOPs and past incidents…",
+    "reservation":            "Querying confirmed bookings and mapping peak-hour pressure…",
+    "complaint_intelligence": "Analysing 28 days of guest feedback with RAG retrieval…",
+    "inventory":              "Cross-referencing all ingredients against the demand forecast…",
+    "menu_intelligence":      "Applying inventory constraints to build menu guidance…",
+    "aggregator":             "Synthesising all agent outputs into one consolidated brief…",
+    "critic":                 "Scoring the plan — safety · feasibility · evidence · actionability · clarity…",
+    "replan_orchestrator":    "Critic flagged issues — injecting corrective context for retry…",
+}
+
+
+def _completion_hint(node_name: str, state_update: dict) -> str:
+    """Extract a brief human-readable hint from a node's completed state update."""
+    try:
+        if node_name == "demand_forecast":
+            data = (state_update.get("forecast_output") or {}).get("data") or {}
+            pred = data.get("predicted_orders") or data.get("predicted_covers")
+            method = data.get("method", "")
+            return f"{method} model: {round(float(pred))} predicted orders" if pred else "Forecast complete"
+
+        if node_name == "qdrant_enrichment":
+            return "Context loaded from memory"
+
+        if node_name == "reservation":
+            data = (state_update.get("reservation_output") or {}).get("data") or {}
+            pct  = data.get("occupancy_pct")
+            total = data.get("total_guests")
+            cap   = data.get("capacity")
+            return f"{pct}% occupancy · {total} advance bookings vs {cap} seats" if pct is not None else "Reservation analysis complete"
+
+        if node_name == "complaint_intelligence":
+            data    = (state_update.get("complaint_output") or {}).get("data") or {}
+            total   = data.get("total_feedback", 0)
+            neg_pct = (data.get("sentiment_breakdown") or {}).get("negative_pct", "?")
+            return f"{total} feedback items · {neg_pct}% negative sentiment"
+
+        if node_name == "inventory":
+            data     = (state_update.get("inventory_output") or {}).get("data") or {}
+            alerts   = data.get("shortage_alerts") or []
+            n_crit   = sum(1 for a in alerts if isinstance(a, dict) and a.get("severity") == "critical")
+            n_warn   = sum(1 for a in alerts if isinstance(a, dict) and a.get("severity") == "warning")
+            n_items  = data.get("total_items_checked", 0)
+            return f"{n_items} ingredients checked · {n_crit} critical · {n_warn} warning shortages"
+
+        if node_name == "menu_intelligence":
+            out = state_update.get("menu_output") or {}
+            if out.get("error"):
+                return f"Skipped — {str(out['error'])[:60]}"
+            rec  = out.get("recommendation") or {}
+            n_hi = len(rec.get("highlight_items") or [])
+            n_bl = len(rec.get("inventory_blockers") or [])
+            return f"{n_hi} items to feature · {n_bl} blocked by stock"
+
+        if node_name == "aggregator":
+            bundle   = state_update.get("aggregated_recommendation") or {}
+            agents   = bundle.get("agents") or {}
+            n_ran    = sum(1 for v in agents.values() if isinstance(v, dict) and v.get("data") is not None)
+            return f"Brief assembled from {n_ran} agent output(s)"
+
+        if node_name == "critic":
+            out     = state_update.get("critic_output") or {}
+            verdict = out.get("verdict", "?")
+            score   = out.get("score")
+            sanity  = out.get("sanity_report") or {}
+            n_err   = sum(1 for i in (sanity.get("issues") or []) if i.get("severity") == "error")
+            score_s = f" · score {round(float(score), 2)}" if score is not None else ""
+            sane_s  = f" · {n_err} sanity error(s)" if n_err else " · sanity ✓"
+            return f"{verdict.capitalize()}{score_s}{sane_s}"
+
+        if node_name == "replan_orchestrator":
+            return f"Replan #{state_update.get('replan_count', 1)} context injected"
+
+    except Exception:
+        pass
+    return ""
+
 
 async def stream_planning_scenario(
     deps: dict[str, Any],
@@ -543,13 +634,29 @@ async def stream_planning_scenario(
 
     final_response: dict | None = None
 
-    async for chunk in graph_instance.astream(initial_state, config=config):
-        for node_name, state_update in chunk.items():
-            sse_name = _NODE_SSE_MAP.get(node_name)
-            if sse_name:
-                yield {"event": "node_complete", "node": sse_name}
+    async for event in graph_instance.astream_events(initial_state, config=config, version="v2"):
+        etype = event.get("event", "")
+        ename = event.get("name", "")
+        sse_name = _NODE_SSE_MAP.get(ename)
 
-            if node_name == "final_assembler":
+        if sse_name:
+            if etype == "on_chain_start":
+                yield {
+                    "event": "node_start",
+                    "node": sse_name,
+                    "hint": _NODE_START_HINTS.get(ename, ""),
+                }
+            elif etype == "on_chain_end":
+                state_update = (event.get("data") or {}).get("output") or {}
+                yield {
+                    "event": "node_complete",
+                    "node": sse_name,
+                    "hint": _completion_hint(ename, state_update if isinstance(state_update, dict) else {}),
+                }
+
+        elif ename == FINAL_ASSEMBLER and etype == "on_chain_end":
+            state_update = (event.get("data") or {}).get("output") or {}
+            if isinstance(state_update, dict):
                 final_response = state_update.get("final_response")
 
     total_duration_ms = round((time.perf_counter() - t0) * 1000, 2)

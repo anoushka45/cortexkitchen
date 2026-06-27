@@ -55,7 +55,7 @@ const SCENARIO_OPTIONS: PlanningScenarioOption[] = [
 
 
 
-type NodeState = "idle" | "running" | "done";
+type NodeState = "idle" | "running" | "done" | "skipped";
 
 function SectionHeader({
   label,
@@ -367,13 +367,31 @@ function IdleState({
 }
 
 function GraphNode({
-  label, subLabel, state, dot,
-}: { label: string; subLabel: string; state: NodeState; dot: string }) {
+  label, subLabel, state, dot, hint,
+}: { label: string; subLabel: string; state: NodeState; dot: string; hint?: string }) {
   const isDone    = state === "done";
   const isRunning = state === "running";
+  const isSkipped = state === "skipped";
+
   const ring = isDone    ? "ring-emerald-400/35 bg-emerald-500/[0.05]"
              : isRunning ? "ring-ember-400/35 bg-ember-500/[0.06]"
+             : isSkipped ? "ring-amber-500/25 bg-amber-500/[0.04]"
              :              "ring-white/[0.08] bg-white/[0.02]";
+
+  const statusLabel = isDone ? "done" : isRunning ? "running" : isSkipped ? "skipped" : "waiting";
+  const statusColor = isDone    ? "text-emerald-300/70"
+                    : isRunning ? "text-ember-300/70"
+                    : isSkipped ? "text-amber-400/60"
+                    :              "text-white/25";
+  const labelColor  = isDone    ? "text-white"
+                    : isRunning ? "text-white/80"
+                    : isSkipped ? "text-amber-200/50"
+                    :              "text-white/25";
+  const subColor    = isDone    ? "text-white/45"
+                    : isRunning ? "text-white/35"
+                    : isSkipped ? "text-amber-200/30"
+                    :              "text-white/15";
+
   return (
     <div className={`rounded-xl ring-1 px-3 py-2.5 min-w-[110px] transition-all duration-500 ${ring}`}>
       <div className="flex items-center gap-1.5 mb-1">
@@ -381,52 +399,65 @@ function GraphNode({
           <svg className="h-3 w-3 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
+        ) : isSkipped ? (
+          <svg className="h-3 w-3 text-amber-400/60 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
         ) : (
           <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isRunning ? `${dot} animate-pulse` : "bg-white/15"}`} />
         )}
-        <span className={`font-mono text-[9px] uppercase tracking-wider transition-colors duration-300 ${
-          isDone ? "text-emerald-300/70" : isRunning ? "text-ember-300/70" : "text-white/25"
-        }`}>
-          {isDone ? "done" : isRunning ? "running" : "waiting"}
+        <span className={`font-mono text-[9px] uppercase tracking-wider transition-colors duration-300 ${statusColor}`}>
+          {statusLabel}
         </span>
       </div>
-      <p className={`text-[12px] font-semibold leading-tight transition-colors duration-300 ${
-        isDone ? "text-white" : isRunning ? "text-white/80" : "text-white/25"
-      }`}>{label}</p>
-      <p className={`text-[10px] mt-0.5 leading-snug transition-colors duration-300 ${
-        isDone ? "text-white/45" : isRunning ? "text-white/35" : "text-white/15"
-      }`}>{subLabel}</p>
+      <p className={`text-[12px] font-semibold leading-tight transition-colors duration-300 ${labelColor}`}>{label}</p>
+      <p className={`text-[10px] mt-0.5 leading-snug transition-colors duration-300 ${subColor}`}>{subLabel}</p>
+      {hint && (isDone || isRunning) && (
+        <p className={`text-[9px] mt-1 leading-snug transition-colors duration-300 line-clamp-2 ${
+          isDone ? "text-emerald-300/50" : "text-ember-300/60"
+        }`}>{hint}</p>
+      )}
     </div>
   );
 }
 
-function LoadingState({ completedNodes, replanCount, scenarioLabel, restaurantName }: {
+function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, scenarioLabel, restaurantName }: {
   completedNodes: Set<string>;
+  startedNodes:   Set<string>;
+  nodeHints:      Record<string, string>;
   replanCount: number;
   scenarioLabel?: string;
   restaurantName?: string | null;
 }) {
-  // Derive node states from real SSE events — no fake timers
-  const anyStarted     = completedNodes.size > 0;
+  // node_start / node_complete SSE events drive everything — no fake timers
+  const ns = (key: string): NodeState => {
+    if (completedNodes.has(key)) return "done";
+    if (startedNodes.has(key))   return "running";
+    return "idle";
+  };
+
+  const anyStarted     = startedNodes.size > 0 || completedNodes.size > 0;
   const forecastDone   = completedNodes.has("forecast");
   const enrichmentDone = completedNodes.has("enrichment");
   const inventoryDone  = completedNodes.has("inventory");
   const menuDone       = completedNodes.has("menu");
+  const menuStarted    = startedNodes.has("menu");
   const aggDone        = completedNodes.has("aggregator");
   const criticDone     = completedNodes.has("critic");
 
-  // Reservation + complaint + inventory run in parallel after enrichment.
-  // Menu is sequential — it waits for inventory to complete.
   const phase1Keys    = ["reservation", "complaint", "inventory"] as const;
   const phase1Done    = phase1Keys.every(k => completedNodes.has(k));
   const allAgentsDone = phase1Done && menuDone;
 
+  // If aggregator completed but menu never even started, menu was skipped (node errored silently)
+  const menuSkipped = aggDone && !menuDone && !menuStarted;
+
   const opsState:        NodeState = anyStarted     ? "done" : "running";
-  const forecastState:   NodeState = forecastDone   ? "done" : anyStarted     ? "running" : "idle";
-  const enrichmentState: NodeState = enrichmentDone ? "done" : forecastDone   ? "running" : "idle";
-  const menuState:       NodeState = menuDone        ? "done" : inventoryDone  ? "running" : "idle";
-  const aggState:        NodeState = aggDone         ? "done" : allAgentsDone  ? "running" : "idle";
-  const criticState:     NodeState = criticDone      ? "done" : aggDone        ? "running" : "idle";
+  const forecastState:   NodeState = ns("forecast");
+  const enrichmentState: NodeState = ns("enrichment");
+  const menuState:       NodeState = menuSkipped ? "skipped" : ns("menu");
+  const aggState:        NodeState = ns("aggregator");
+  const criticState:     NodeState = ns("critic");
 
   const phase1Agents: { key: typeof phase1Keys[number]; label: string; subLabel: string; dot: string }[] = [
     { key: "reservation", label: "Reservations", subLabel: "Bookings & occupancy", dot: "bg-cyan-400"    },
@@ -435,24 +466,22 @@ function LoadingState({ completedNodes, replanCount, scenarioLabel, restaurantNa
   ];
 
   const phase1Remaining = phase1Keys.filter(k => !completedNodes.has(k)).length;
-
-  // replanCount > 0 means the critic found issues and replanning is running / has run.
-  // Once replan fires the Set still shows criticDone=true (the first critic pass completed),
-  // so we explicitly flag the retry state here.
-  const isReplanning = replanCount > 0 && !allAgentsDone;
+  const isReplanning    = replanCount > 0 && !allAgentsDone;
 
   const currentAction =
-    isReplanning                           ? `Replanning — attempt ${replanCount} of 2 re-evaluating…`
-    : replanCount > 0 && criticDone        ? `Critic re-evaluated after replan ${replanCount} of 2`
-    : criticDone                           ? "Critic has reviewed the plan"
-    : aggDone                              ? "Critic is scoring the plan…"
-    : allAgentsDone                        ? "Aggregating all results…"
-    : menuDone                             ? "Aggregating…"
-    : inventoryDone                        ? "Menu intelligence applying inventory constraints…"
-    : enrichmentDone && phase1Remaining > 0 ? `${phase1Remaining} agent${phase1Remaining !== 1 ? "s" : ""} still running…`
-    : forecastDone                         ? "Enriching context from memory…"
-    : anyStarted                           ? "Running demand forecast…"
-    :                                        "Sequencing the pipeline…";
+    isReplanning                              ? `Replanning — attempt ${replanCount} of 2 re-evaluating…`
+    : replanCount > 0 && criticDone          ? `Critic re-evaluated after replan ${replanCount} of 2`
+    : criticDone                             ? "Critic has reviewed the plan"
+    : aggDone                                ? "Critic is scoring the plan…"
+    : allAgentsDone                          ? "Aggregating all results…"
+    : menuSkipped                            ? "Menu skipped — aggregating remaining outputs…"
+    : menuDone                               ? "Aggregating…"
+    : menuStarted                            ? "Menu intelligence applying inventory constraints…"
+    : inventoryDone                          ? "Waiting for menu intelligence…"
+    : enrichmentDone && phase1Remaining > 0  ? `${phase1Remaining} agent${phase1Remaining !== 1 ? "s" : ""} still running…`
+    : forecastDone                           ? "Enriching context from memory…"
+    : anyStarted                             ? "Running demand forecast…"
+    :                                          "Sequencing the pipeline…";
 
   // SVG height for 3 parallel nodes: 3×68px nodes + 2×8px gaps = 220px
   const SVG_H     = 220;
@@ -523,7 +552,7 @@ function LoadingState({ completedNodes, replanCount, scenarioLabel, restaurantNa
           </svg>
 
           {/* Demand Forecast */}
-          <GraphNode label="Demand Forecast" subLabel="Prophet time-series" state={forecastState} dot="bg-ember-400" />
+          <GraphNode label="Demand Forecast" subLabel="Prophet time-series" state={forecastState} dot="bg-ember-400" hint={nodeHints["forecast"]} />
 
           {/* → */}
           <svg className="shrink-0 w-6 h-4" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1">
@@ -531,7 +560,7 @@ function LoadingState({ completedNodes, replanCount, scenarioLabel, restaurantNa
           </svg>
 
           {/* Context Enrichment */}
-          <GraphNode label="Enrichment" subLabel="Qdrant context" state={enrichmentState} dot="bg-violet-400" />
+          <GraphNode label="Enrichment" subLabel="Qdrant context" state={enrichmentState} dot="bg-violet-400" hint={nodeHints["enrichment"]} />
 
           {/* Fan-out SVG — enrichment to 3 parallel agents */}
           <svg
@@ -551,12 +580,16 @@ function LoadingState({ completedNodes, replanCount, scenarioLabel, restaurantNa
 
           {/* 3 parallel agents: reservation, complaint, inventory */}
           <div className="flex flex-col gap-2 shrink-0">
-            {phase1Agents.map((agent) => {
-              const state: NodeState = completedNodes.has(agent.key) ? "done" : enrichmentDone ? "running" : "idle";
-              return (
-                <GraphNode key={agent.key} label={agent.label} subLabel={agent.subLabel} state={state} dot={agent.dot} />
-              );
-            })}
+            {phase1Agents.map((agent) => (
+              <GraphNode
+                key={agent.key}
+                label={agent.label}
+                subLabel={agent.subLabel}
+                state={ns(agent.key)}
+                dot={agent.dot}
+                hint={nodeHints[agent.key]}
+              />
+            ))}
           </div>
 
           {/* Fan-in SVG — 3 parallel agents converge, then inventory feeds menu */}
@@ -576,7 +609,7 @@ function LoadingState({ completedNodes, replanCount, scenarioLabel, restaurantNa
           </svg>
 
           {/* Menu (sequential — waits for inventory) */}
-          <GraphNode label="Menu" subLabel="Inventory-aware" state={menuState} dot="bg-amber-400" />
+          <GraphNode label="Menu" subLabel="Inventory-aware" state={menuState} dot="bg-amber-400" hint={menuSkipped ? "Skipped — inventory data unavailable" : nodeHints["menu"]} />
 
           {/* → */}
           <svg className="shrink-0 w-6 h-4" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1">
@@ -584,7 +617,7 @@ function LoadingState({ completedNodes, replanCount, scenarioLabel, restaurantNa
           </svg>
 
           {/* Aggregator */}
-          <GraphNode label="Aggregator" subLabel="Synthesises outputs" state={aggState} dot="bg-violet-400" />
+          <GraphNode label="Aggregator" subLabel="Synthesises outputs" state={aggState} dot="bg-violet-400" hint={nodeHints["aggregator"]} />
 
           {/* → */}
           <svg className="shrink-0 w-6 h-4" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1">
@@ -593,7 +626,7 @@ function LoadingState({ completedNodes, replanCount, scenarioLabel, restaurantNa
 
           {/* Critic */}
           <div className="relative">
-            <GraphNode label="Critic" subLabel="Scores 5 dimensions" state={criticState} dot="bg-emerald-300" />
+            <GraphNode label="Critic" subLabel="Scores 5 dimensions" state={criticState} dot="bg-emerald-300" hint={nodeHints["critic"]} />
             {replanCount > 0 && (
               <div className="absolute -bottom-5 left-0 right-0 flex justify-center">
                 <span className="font-mono text-[9px] text-amber-400/80 tracking-wide">
@@ -630,7 +663,7 @@ export default function DashboardPage() {
   const searchParams = useSearchParams();
   const dashCtx = useDashboardCtx();
 
-  const { data, status, error, history, completedNodes, replanCount, trigger, reset, loadFromHistory } = useFridayRush();
+  const { data, status, error, history, completedNodes, startedNodes, nodeHints, replanCount, trigger, reset, loadFromHistory } = useFridayRush();
   const [activeHistoryId, setActiveHistoryId] = useState<string | number | undefined>();
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
   const [showManagerBrief, setShowManagerBrief] = useState(false);
@@ -754,7 +787,7 @@ export default function DashboardPage() {
             />
           )}
 
-          {status === "loading" && <LoadingState completedNodes={completedNodes} replanCount={replanCount} scenarioLabel={runMeta.scenarioLabel} restaurantName={runMeta.restaurantName} />}
+          {status === "loading" && <LoadingState completedNodes={completedNodes} startedNodes={startedNodes} nodeHints={nodeHints} replanCount={replanCount} scenarioLabel={runMeta.scenarioLabel} restaurantName={runMeta.restaurantName} />}
 
           {status === "error" && error && (
             <div

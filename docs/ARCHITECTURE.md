@@ -68,6 +68,41 @@ Service and data layer
 
 ---
 
+## Connector layer (Phase 6)
+
+External platform integrations live in `apps/api/app/infrastructure/swiggy/`. All connectors implement `BaseConnector` (ABC) with two methods:
+
+| Method | When called | DB writes? | On failure |
+|--------|------------|------------|------------|
+| `sync()` | Nightly APScheduler job | Yes — writes to orders/reservations/feedback | Logged, error_count++ in connectors table |
+| `enrich()` | At planning time, before fan-out | No | Returns `None` — node falls back to synthetic data |
+
+**File structure:**
+```
+infrastructure/swiggy/
+  __init__.py
+  client.py              — SwiggyMCPClient (JSON-RPC 2.0, httpx, graceful degradation)
+  base_connector.py      — BaseConnector ABC (sync + enrich contract)
+  swiggy_connector.py    — SwiggyConnector (reference implementation)
+  connector_repository.py — ConnectorRepository (DB: token, sync_status, error_count)
+  enrichers/             — CompetitorEnricher, OccupancyEnricher, ProcurementEnricher (P6-S06 to S08)
+  executor/              — ProcurementExecutor, DineoutExecutor (P6-S14 to S15)
+
+infrastructure/jobs/
+  async_runner.py        — Redis-backed async job queue for planning runs (no external job library)
+```
+
+**Three Swiggy MCP servers:**
+- `https://mcp.swiggy.com/food` — delivery orders, competitor menus
+- `https://mcp.swiggy.com/im` — Instamart ingredient procurement
+- `https://mcp.swiggy.com/dineout` — table reservations, competitor occupancy
+
+**Token management:** OAuth tokens stored encrypted per `org_id` in the `connectors` table. `SWIGGY_ACCESS_TOKEN` in `.env` is dev-only. Production reads from `ConnectorRepository`.
+
+See D-019 in `docs/DECISIONS.md` for the full design rationale.
+
+---
+
 ## Backend architecture
 
 ### API layer

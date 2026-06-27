@@ -236,7 +236,8 @@ class ForecastService:
             if predicted and float(predicted) > org_capacity:
                 capacity_line = (
                     f"\n- Restaurant seating capacity: {org_capacity} seats "
-                    f"(demand forecast of {predicted} exceeds this — staffing must target a full house of {org_capacity} seats, NOT {int(predicted)} covers)"
+                    f"(Prophet predicted {predicted} orders — demand exceeds seating capacity. "
+                    f"Frame staffing as 'plan for a full house of {org_capacity}', never reference the demand number as a diner count)"
                 )
             else:
                 capacity_line = f"\n- Restaurant seating capacity: {org_capacity} seats"

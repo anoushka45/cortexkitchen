@@ -302,7 +302,15 @@ class EvaluationSanityChecker:
         issues = []
         data = inventory_agent.get("data") or {}
         recommendation = inventory_agent.get("recommendation") or {}
-        recommendation_text = self._flatten_text(recommendation)
+        # Only scan the operative action lists — reasoning/risks contain explanatory LLM text
+        # with large numbers that are NOT operative order quantities (e.g. "10kg Garlic needed").
+        # Checking those would flag correct explanations as violations.
+        recommendation_text = "\n".join(
+            str(a)
+            for a in
+            (recommendation.get("restock_actions") or []) +
+            (recommendation.get("waste_reduction_actions") or [])
+        )
 
         if not isinstance(data, dict):
             return issues

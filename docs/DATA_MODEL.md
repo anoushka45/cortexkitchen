@@ -33,10 +33,23 @@ class SentimentType(str, Enum):
     negative = "negative"
 
 class FeedbackSource(str, Enum):
-    google    = "google"
-    in_person = "in_person"
-    zomato    = "zomato"
-    swiggy    = "swiggy"
+    google          = "google"
+    in_person       = "in_person"
+    zomato          = "zomato"
+    swiggy          = "swiggy"
+    swiggy_delivery = "swiggy_delivery"   # delivery tracking via track_food_order
+
+class ConnectorType(str, Enum):
+    swiggy         = "swiggy"
+    pos_square     = "pos_square"
+    google_reviews = "google_reviews"
+    zomato         = "zomato"
+
+class SyncStatus(str, Enum):
+    never_synced = "never_synced"
+    syncing      = "syncing"
+    success      = "success"
+    error        = "error"
 
 class CriticVerdict(str, Enum):
     approved = "approved"
@@ -162,6 +175,8 @@ Guest booking records.
 | `status` | Enum(`ReservationStatus`) | Default `confirmed` |
 | `table_number` | Integer | Nullable |
 | `notes` | Text | Nullable |
+| `source` | String(50) | Default `internal` — values: `internal`, `dineout`, `eazydiner`, `phone` |
+| `external_booking_id` | String(200) | Nullable — Dineout booking ID for dedup |
 | `created_at` | DateTime | UTC, set on insert |
 
 ---
@@ -178,6 +193,9 @@ Individual order records. `ordered_at` is the primary signal for demand forecast
 | `total_price` | Float | NOT NULL |
 | `ordered_at` | DateTime | Default UTC now — drives Prophet time-series forecasting |
 | `is_delivery` | Boolean | Default `false` |
+| `source` | String(50) | Default `internal` — values: `internal`, `swiggy`, `pos`, `zomato` |
+| `channel` | String(50) | Default `dine_in` — values: `dine_in`, `delivery`, `takeaway` |
+| `external_order_id` | String(200) | Nullable, unique — Swiggy order ID for dedup |
 
 **Relationships:** belongs to `MenuItem`; one `Order` may have many `Feedback` records.
 
@@ -209,7 +227,10 @@ Customer feedback and complaint text. Optionally linked to an order.
 | `order_id` | Integer FK → `orders.id` | Nullable |
 | `raw_text` | Text | NOT NULL — complaint or review text |
 | `sentiment` | Enum(`SentimentType`) | Nullable |
-| `source` | Enum(`FeedbackSource`) | Default `in_person` |
+| `source` | Enum(`FeedbackSource`) | Default `in_person` — `swiggy_delivery` for delivery tracking rows |
+| `delivery_time_actual_mins` | Integer | Nullable — from `track_food_order` |
+| `delivery_time_promised_mins` | Integer | Nullable — ETA at order placement |
+| `was_late` | Boolean | Nullable — `True` when actual > promised |
 | `created_at` | DateTime | UTC, set on insert |
 
 **Relationships:** optionally belongs to `Order`. Also used by the RAG chatbot — queried directly from Postgres by `ChatService`.
@@ -262,12 +283,37 @@ Full output of each planning execution. Primary audit table; backs the `/runs` A
 
 ---
 
+### `connectors`
+
+Per-org external platform connector registry. Stores OAuth tokens (encrypted) and sync health per platform. Added in P6-S02.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | Integer PK | Auto-increment |
+| `org_id` | Integer FK → `organizations.id` | NOT NULL — tenant scoping |
+| `connector_type` | String(50) | NOT NULL — `swiggy`, `pos_square`, `google_reviews`, `zomato` |
+| `access_token_encrypted` | Text | Nullable — OAuth token (encrypted at rest) |
+| `token_expires_at` | DateTime | Nullable — 5-day TTL for Swiggy tokens |
+| `last_sync_at` | DateTime | Nullable — set on successful sync |
+| `sync_status` | String(20) | Default `never_synced` — `never_synced`, `syncing`, `success`, `error` |
+| `error_count` | Integer | Default 0 — incremented on each sync failure |
+| `last_error` | Text | Nullable — last error message |
+| `created_at` | DateTime | UTC, set on insert |
+| `updated_at` | DateTime | UTC, auto-updated on write |
+
+**Unique constraint:** `(org_id, connector_type)` — one row per org per platform.
+
+**Note:** `SWIGGY_ACCESS_TOKEN` in `.env` is a dev-only shortcut for single-org testing. Production reads the token from this table via `ConnectorRepository`.
+
+---
+
 ## Entity Relationships
 
 ```
 Organization ──< UserOrganization >── User
 Organization ──< RestaurantProfile
 Organization ──< PlanningRun
+Organization ──< Connector
 
 MenuItem ──< Order >──< Feedback
 

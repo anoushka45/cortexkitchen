@@ -24,10 +24,23 @@ class SentimentType(str, enum.Enum):
     negative = "negative"
 
 class FeedbackSource(str, enum.Enum):
-    google    = "google"
-    in_person = "in_person"
-    zomato    = "zomato"
-    swiggy    = "swiggy"
+    google          = "google"
+    in_person       = "in_person"
+    zomato          = "zomato"
+    swiggy          = "swiggy"
+    swiggy_delivery = "swiggy_delivery"
+
+class ConnectorType(str, enum.Enum):
+    swiggy         = "swiggy"
+    pos_square     = "pos_square"
+    google_reviews = "google_reviews"
+    zomato         = "zomato"
+
+class SyncStatus(str, enum.Enum):
+    never_synced = "never_synced"
+    syncing      = "syncing"
+    success      = "success"
+    error        = "error"
 
 class CriticVerdict(str, enum.Enum):
     approved = "approved"
@@ -113,27 +126,35 @@ class MenuItem(Base):
 class Reservation(Base):
     __tablename__ = "reservations"
 
-    id           = Column(Integer, primary_key=True, autoincrement=True)
-    guest_name   = Column(String(100), nullable=False)
-    guest_count  = Column(Integer, nullable=False)
-    reserved_at  = Column(DateTime, nullable=False)     # actual booking time slot #The reserved_at field is what the Reservation Agent analyses for peak load.
-    status       = Column(Enum(ReservationStatus), default=ReservationStatus.confirmed)
-    table_number = Column(Integer, nullable=True)
-    notes        = Column(Text, nullable=True)
-    created_at   = Column(DateTime, default=datetime.utcnow)
+    id                  = Column(Integer, primary_key=True, autoincrement=True)
+    guest_name          = Column(String(100), nullable=False)
+    guest_count         = Column(Integer, nullable=False)
+    reserved_at         = Column(DateTime, nullable=False)
+    status              = Column(Enum(ReservationStatus), default=ReservationStatus.confirmed)
+    table_number        = Column(Integer, nullable=True)
+    notes               = Column(Text, nullable=True)
+    source              = Column(String(50), nullable=False, default="internal")
+    external_booking_id = Column(String(200), nullable=True)
+    created_at          = Column(DateTime, default=datetime.utcnow)
 
 
 # ── 3. orders ──────────────────────────────────────────
 #The ordered_at timestamp is what the Demand Forecast Agent uses to detect patterns like Friday spikes. Also links to Feedback so a complaint can be traced back to a specific order.
 class Order(Base):
     __tablename__ = "orders"
+    __table_args__ = (
+        UniqueConstraint("external_order_id", name="uq_order_external_id"),
+    )
 
-    id           = Column(Integer, primary_key=True, autoincrement=True)
-    menu_item_id = Column(Integer, ForeignKey("menu_items.id"), nullable=False)
-    quantity     = Column(Integer, nullable=False)
-    total_price  = Column(Float, nullable=False)
-    ordered_at   = Column(DateTime, default=datetime.utcnow)  # drives demand forecasting
-    is_delivery  = Column(Boolean, default=False)
+    id                = Column(Integer, primary_key=True, autoincrement=True)
+    menu_item_id      = Column(Integer, ForeignKey("menu_items.id"), nullable=False)
+    quantity          = Column(Integer, nullable=False)
+    total_price       = Column(Float, nullable=False)
+    ordered_at        = Column(DateTime, default=datetime.utcnow)
+    is_delivery       = Column(Boolean, default=False)
+    source            = Column(String(50), nullable=False, default="internal")
+    channel           = Column(String(50), nullable=False, default="dine_in")
+    external_order_id = Column(String(200), nullable=True)
 
     menu_item = relationship("MenuItem", back_populates="orders")
     feedback  = relationship("Feedback", back_populates="order")
@@ -158,12 +179,15 @@ class Inventory(Base):
 class Feedback(Base):
     __tablename__ = "feedback"
 
-    id         = Column(Integer, primary_key=True, autoincrement=True)
-    order_id   = Column(Integer, ForeignKey("orders.id"), nullable=True)  # optional link
-    raw_text   = Column(Text, nullable=False)                             # complaint or review text
-    sentiment  = Column(Enum(SentimentType), nullable=True)
-    source     = Column(Enum(FeedbackSource), default=FeedbackSource.in_person)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id                          = Column(Integer, primary_key=True, autoincrement=True)
+    order_id                    = Column(Integer, ForeignKey("orders.id"), nullable=True)
+    raw_text                    = Column(Text, nullable=False)
+    sentiment                   = Column(Enum(SentimentType), nullable=True)
+    source                      = Column(Enum(FeedbackSource), default=FeedbackSource.in_person)
+    delivery_time_actual_mins   = Column(Integer, nullable=True)
+    delivery_time_promised_mins = Column(Integer, nullable=True)
+    was_late                    = Column(Boolean, nullable=True)
+    created_at                  = Column(DateTime, default=datetime.utcnow)
 
     order = relationship("Order", back_populates="feedback")
 
@@ -226,11 +250,35 @@ class RestaurantProfile(Base):
     organization = relationship("Organization", back_populates="restaurant_profiles")
 
 
+class Connector(Base):
+    """Per-org external platform connector registry.
+
+    Stores OAuth token (encrypted) and sync health per org per platform.
+    SWIGGY_ACCESS_TOKEN in settings is dev-only — production uses this table.
+    """
+    __tablename__ = "connectors"
+    __table_args__ = (
+        UniqueConstraint("org_id", "connector_type", name="uq_connector_org_type"),
+    )
+
+    id                      = Column(Integer, primary_key=True, autoincrement=True)
+    org_id                  = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    connector_type          = Column(String(50), nullable=False)
+    access_token_encrypted  = Column(Text, nullable=True)
+    token_expires_at        = Column(DateTime, nullable=True)
+    last_sync_at            = Column(DateTime, nullable=True)
+    sync_status             = Column(String(20), nullable=False, default="never_synced")
+    error_count             = Column(Integer, nullable=False, default=0)
+    last_error              = Column(Text, nullable=True)
+    created_at              = Column(DateTime, default=datetime.utcnow)
+    updated_at              = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 """
 MenuItem  ──< Order >── Feedback
-                           
+
 Reservation (standalone)
 Inventory   (standalone)
 DecisionLog (standalone)
-
- """
+Connector   (per org, per platform)
+"""

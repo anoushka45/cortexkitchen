@@ -263,6 +263,36 @@ The hardcoded checks are **kept as a secondary layer** — they catch concrete p
 
 ---
 
+## D-019 — Connector layer design: BaseConnector ABC with sync() and enrich() methods
+**Date:** June 2026
+**Status:** Accepted
+
+### Context
+Phase 6 adds Swiggy MCP as a live data source. Future phases will add Zomato, Google Reviews, Square POS, and EazyDiner. Without a common interface, each integration would be a bespoke pile of HTTP calls with no shared error handling, token management, or degradation contract.
+
+### Decision
+All external platform integrations implement `BaseConnector` (ABC defined in `infrastructure/swiggy/base_connector.py`) with two methods:
+
+- `sync()` — nightly job. Pulls historical data from the platform and writes it to the unified Postgres layer (orders, reservations, feedback). Side effects are allowed. Returns a summary dict.
+- `enrich()` — at planning time. Fetches live market signals (competitor prices, area occupancy, ingredient availability). Must NOT write to the DB. Must return `None` on any failure. Nodes fall back to synthetic data when `enrich()` returns `None`.
+
+`SwiggyConnector` is the reference implementation. Every future connector (Zomato, Google, POS) adds one file implementing the same interface.
+
+OAuth tokens are stored encrypted per `org_id` in the `connectors` table, managed by `ConnectorRepository`. `SWIGGY_ACCESS_TOKEN` in `.env` is a dev-only convenience for single-org testing — production always reads from the connectors table.
+
+### Rationale
+- Single interface means one error-handling pattern across all integrations.
+- The sync/enrich split keeps planning-time code read-only and fast; nightly jobs handle slow writes.
+- `enrich()` returning `None` as the degradation contract means no try/except in LangGraph nodes — they just check `if enrichment is None`.
+- Per-org token storage in the DB (not env vars) is required for true multi-tenancy.
+
+### Consequences
+- Every new connector must implement both `sync()` and `enrich()` — even if one is a no-op for that platform.
+- `ConnectorRepository.list_active()` is the entry point for nightly sync jobs — it returns only connectors with a token set.
+- The `connectors` table unique constraint `(org_id, connector_type)` prevents duplicate registrations.
+
+---
+
 ## D-016 — SSE streaming for planning runs and chat
 **Date:** June 2026  
 **Status:** Accepted

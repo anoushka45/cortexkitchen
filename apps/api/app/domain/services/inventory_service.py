@@ -247,8 +247,7 @@ class InventoryService:
             )
             actions.append(
                 f"Order {capped_qty:g}{unit} {ingredient} {urgency} "
-                f"(covers {shortfall:g}{unit} shortfall; current stock {current_stock:g}{unit}; "
-                f"within max actionable cap {max_actionable_qty:g}{unit})."
+                f"(covers {shortfall:g}{unit} shortfall; current stock {current_stock:g}{unit})."
             )
 
         return actions
@@ -334,7 +333,7 @@ class InventoryService:
             current_stock = float(alert["quantity_in_stock"])
             shortfall = float(alert["shortfall"])
             max_actionable_restock = round(
-                max(shortfall, current_stock * RESTOCK_CAP_MULTIPLIER),
+                shortfall * RESTOCK_CAP_MULTIPLIER,
                 2,
             )
             actionable_shortages.append({

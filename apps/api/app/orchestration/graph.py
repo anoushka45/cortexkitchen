@@ -255,17 +255,19 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
     # Qdrant pre-enrichment before parallel fan-out
     graph.add_edge(DEMAND_FORECAST, QDRANT_ENRICHMENT)
 
-    # Parallel fan-out from enrichment
+    # Partial parallel fan-out: reservation, complaint, inventory run together.
+    # Menu is deferred — it must see inventory reality before making recommendations.
     graph.add_edge(QDRANT_ENRICHMENT, RESERVATION)
     graph.add_edge(QDRANT_ENRICHMENT, COMPLAINT_INTELLIGENCE)
-    graph.add_edge(QDRANT_ENRICHMENT, MENU_INTELLIGENCE)
     graph.add_edge(QDRANT_ENRICHMENT, INVENTORY)
 
-    # Fan-in
+    # Inventory completes first → menu reads shortage list and blocks those items
+    graph.add_edge(INVENTORY, MENU_INTELLIGENCE)
+
+    # Fan-in: aggregator waits for reservation, complaint, and menu
     graph.add_edge(RESERVATION, AGGREGATOR)
     graph.add_edge(COMPLAINT_INTELLIGENCE, AGGREGATOR)
     graph.add_edge(MENU_INTELLIGENCE, AGGREGATOR)
-    graph.add_edge(INVENTORY, AGGREGATOR)
 
     # Aggregator → Critic → conditional replanning loop
     graph.add_edge(AGGREGATOR, CRITIC)

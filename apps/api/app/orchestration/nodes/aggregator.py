@@ -108,6 +108,25 @@ def _build_critic_summary(state: OrchestratorState) -> str:
             rec_text = str(rec)
         lines.append(f"[{label}] {rec_text}")
 
+    # Capacity hard constraint — enforce before the critic reads the summary
+    org_capacity = state.get("org_capacity")
+    if org_capacity:
+        forecast_data = (state.get("forecast_output") or {}).get("data") or {}
+        predicted = (
+            forecast_data.get("predicted_covers")
+            or forecast_data.get("predicted_orders")
+            or 0
+        )
+        if predicted and int(predicted) > int(org_capacity):
+            excess = int(predicted) - int(org_capacity)
+            lines.append(
+                f"\n⚠ HARD CAPACITY CONSTRAINT: org_capacity={org_capacity} seats. "
+                f"Forecast predicts {int(predicted)} covers ({excess} above capacity). "
+                f"Any plan section referencing {int(predicted)} simultaneous guests "
+                f"violates Rule 1. Hard ceiling is {org_capacity}. "
+                f"Waitlist or staggered-seating protocol required for excess demand."
+            )
+
     # Append any auto-detected cross-agent contradictions (0 LLM calls)
     contradiction_text = _detect_contradictions(state)
     if contradiction_text:

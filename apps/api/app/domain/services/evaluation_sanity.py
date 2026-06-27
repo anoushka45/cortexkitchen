@@ -318,7 +318,7 @@ class EvaluationSanityChecker:
             shortfall = self._to_float(alert.get("shortfall"))
             max_actionable = self._to_float(alert.get("max_actionable_restock_qty"))
             if max_actionable is None and current_stock is not None and shortfall is not None:
-                max_actionable = max(shortfall, current_stock * 3)
+                max_actionable = shortfall * 3
 
             if max_actionable is None:
                 continue

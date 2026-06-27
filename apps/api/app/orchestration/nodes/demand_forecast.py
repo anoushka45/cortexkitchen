@@ -54,7 +54,10 @@ async def demand_forecast_node(
 
         target_date = _parse_target_date(state.get("target_date"))
         service = ForecastService(db=db, llm=llm)
-        result = await service.analyse_and_recommend(target_date=target_date)
+        result = await service.analyse_and_recommend(
+            target_date=target_date,
+            org_capacity=state.get("org_capacity"),
+        )
         result.setdefault("data", {})
         result["data"]["service_window"] = scenario_profile.get("service_window", "18:00-22:00")
         result["data"]["scenario_label"] = scenario_profile.get("label", state.get("scenario"))

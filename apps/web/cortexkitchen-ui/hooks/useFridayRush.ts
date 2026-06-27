@@ -13,6 +13,7 @@ interface UseFridayRushReturn {
   error:          string | null;
   history:        RunHistoryEntry[];
   completedNodes: Set<string>;
+  replanCount:    number;
   trigger:        (targetDate?: string, scenario?: FridayRushRequest["scenario"], restaurantId?: number) => Promise<void>;
   reset:          () => void;
   loadFromHistory: (entry: RunHistoryEntry) => Promise<void>;
@@ -36,6 +37,7 @@ export function useFridayRush(): UseFridayRushReturn {
   const [error,          setError]          = useState<string | null>(null);
   const [history,        setHistory]        = useState<RunHistoryEntry[]>([]);
   const [completedNodes, setCompletedNodes] = useState<Set<string>>(new Set());
+  const [replanCount,    setReplanCount]    = useState<number>(0);
 
   const refreshHistory = useCallback(async () => {
     const runs = await listPlanningRuns(10);
@@ -56,6 +58,7 @@ export function useFridayRush(): UseFridayRushReturn {
     setError(null);
     setData(null);
     setCompletedNodes(new Set());
+    setReplanCount(0);
 
     try {
       const stream = streamPlanningScenario({
@@ -69,6 +72,7 @@ export function useFridayRush(): UseFridayRushReturn {
         if (evt.event === "node_complete") {
           const { node } = evt as { event: string; node: string };
           setCompletedNodes(prev => new Set([...prev, node]));
+          if (node === "replan") setReplanCount(prev => prev + 1);
         } else if (evt.event === "complete") {
           const { event: _e, ...response } = evt as { event: string } & FridayRushResponse;
           setData(response as FridayRushResponse);
@@ -109,5 +113,5 @@ export function useFridayRush(): UseFridayRushReturn {
     }
   }, []);
 
-  return { data, status, error, history, completedNodes, trigger, reset, loadFromHistory, refreshHistory };
+  return { data, status, error, history, completedNodes, replanCount, trigger, reset, loadFromHistory, refreshHistory };
 }

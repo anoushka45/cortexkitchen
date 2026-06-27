@@ -59,6 +59,7 @@ One planning run executes a nine-node LangGraph pipeline:
 - **Menu guidance** — push / ease-back / avoid strategy aligned to demand and stock signals
 - **Inventory risk detection** — shortage and overstock alerts with feasibility-aware planning
 - **Critic quality gate** — 5-dimension scoring (safety, feasibility, evidence, actionability, clarity); three verdicts: approved / revision / rejected
+- **Cross-agent assumption diffing** — each domain node writes the assumptions it acted on into shared state; `EvaluationSanityChecker` cross-diffs them after the parallel fan-out and surfaces contradictions (e.g. menu assumed covers within capacity while reservation shows >90% occupancy) as `stale_assumptions` injected into the critic's LLM prompt and returned in the API response
 
 ![Service Planning & Reservation Pressure](screenshots/03_dashboard/05_service_planning.png)
 *Service Planning section — Prophet demand forecast bar chart by hour with peak detection, alongside the Reservation Pressure panel showing occupancy %, waitlist, and priority.*

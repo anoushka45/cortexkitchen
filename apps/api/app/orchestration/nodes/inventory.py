@@ -34,34 +34,46 @@ async def inventory_node(
 
     try:
         if state.get("simulation_mode", False):
+            sim_output = {
+                "service": "inventory",
+                "data": {
+                    "total_items_checked": 10,
+                    "shortage_alerts": [
+                        {
+                            "ingredient":        "Mozzarella",
+                            "unit":              "kg",
+                            "quantity_in_stock": 3.5,
+                            "reorder_threshold": 8.0,
+                            "shortfall":         4.5,
+                            "spoilage_risk":     True,
+                            "severity":          "critical",
+                        }
+                    ],
+                    "overstock_alerts": [],
+                    "high_demand_week": True,
+                    "demand_ratio":     1.2,
+                },
+                "recommendation": {
+                    "restock_actions":       ["Order 10kg Mozzarella immediately"],
+                    "waste_reduction_actions": [],
+                    "priority":              "high",
+                    "reasoning":             "Critical shortage on high-demand week.",
+                    "risks":                 ["Unable to fulfil pizza orders during peak hours"],
+                },
+            }
+            sim_data = sim_output["data"]
             return {
                 **state,
-                "inventory_output": {
-                    "service": "inventory",
-                    "data": {
-                        "total_items_checked": 10,
-                        "shortage_alerts": [
-                            {
-                                "ingredient":        "Mozzarella",
-                                "unit":              "kg",
-                                "quantity_in_stock": 3.5,
-                                "reorder_threshold": 8.0,
-                                "shortfall":         4.5,
-                                "spoilage_risk":     True,
-                                "severity":          "critical",
-                            }
-                        ],
-                        "overstock_alerts": [],
-                        "high_demand_week": True,
-                        "demand_ratio":     1.2,
-                    },
-                    "recommendation": {
-                        "restock_actions":       ["Order 10kg Mozzarella immediately"],
-                        "waste_reduction_actions": [],
-                        "priority":              "high",
-                        "reasoning":             "Critical shortage on high-demand week.",
-                        "risks":                 ["Unable to fulfil pizza orders during peak hours"],
-                    },
+                "inventory_output": sim_output,
+                "inventory_assumptions": {
+                    "items_flagged_low": [
+                        a["ingredient"] for a in (sim_data.get("shortage_alerts") or [])
+                        if isinstance(a, dict) and a.get("ingredient")
+                    ],
+                    "items_flagged_overstock": [
+                        a["ingredient"] for a in (sim_data.get("overstock_alerts") or [])
+                        if isinstance(a, dict) and a.get("ingredient")
+                    ],
                 },
             }
 
@@ -76,8 +88,21 @@ async def inventory_node(
             forecast_data=forecast_data,
             scenario_profile=state.get("scenario_profile"),
         )
-
-        return {**state, "inventory_output": result}
+        data = result.get("data") or {}
+        return {
+            **state,
+            "inventory_output": result,
+            "inventory_assumptions": {
+                "items_flagged_low": [
+                    a["ingredient"] for a in (data.get("shortage_alerts") or [])
+                    if isinstance(a, dict) and a.get("ingredient")
+                ],
+                "items_flagged_overstock": [
+                    a["ingredient"] for a in (data.get("overstock_alerts") or [])
+                    if isinstance(a, dict) and a.get("ingredient")
+                ],
+            },
+        }
 
     except Exception as exc:
         return {
@@ -88,4 +113,5 @@ async def inventory_node(
                 "data":    None,
                 "recommendation": None,
             },
+            "inventory_assumptions": None,
         }

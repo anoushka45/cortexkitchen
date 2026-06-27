@@ -193,7 +193,23 @@ Executes the nine-node multi-agent planning pipeline. Returns the **full respons
       "benefit_score": 0.64,
       "tradeoff_score": 0.27,
       "recommended_focus": ["Favour low-complexity prep changes over forced execution changes."]
-    }
+    },
+    "stale_assumptions": [
+      {
+        "node": "menu_intelligence",
+        "assumption_key": "assumed_covers_within_capacity",
+        "assumed_value": true,
+        "actual_value": 99.1,
+        "conflict": "menu_intelligence assumed covers within capacity, but reservation node shows 99.1% occupancy — menu recommendations must account for kitchen throughput limits under near-full house"
+      },
+      {
+        "node": "complaint_intelligence",
+        "assumption_key": "assumed_high_complaint_volume",
+        "assumed_value": false,
+        "actual_value": 26.3,
+        "conflict": "complaint_intelligence classified complaint volume as low, but negative feedback is 26.3% — borderline elevated complaint risk that may compound under high occupancy"
+      }
+    ]
   },
   "meta": {
     "planning_run_id": 42,
@@ -213,6 +229,7 @@ Executes the nine-node multi-agent planning pipeline. Returns the **full respons
 | `cache_hit` | `true` if the result was returned from Redis cache; `false` if the pipeline ran |
 | `critic.verdict` | `approved`, `revision`, or `rejected` |
 | `critic.score` | 0.0 – 1.0 composite quality score |
+| `critic.stale_assumptions` | Cross-agent assumption conflicts detected by `EvaluationSanityChecker`. Empty array when no conflicts exist. Each item has `node`, `assumption_key`, `assumed_value`, `actual_value`, and `conflict`. |
 | `meta.planning_run_id` | ID of the persisted `planning_runs` row |
 | `meta.llm_usage.total_cost_usd` | Total LLM spend for this run |
 

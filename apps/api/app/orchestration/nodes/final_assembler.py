@@ -27,6 +27,7 @@ def final_assembler_node(state: OrchestratorState) -> OrchestratorState:
     critic = state.get("critic_output") or {}
     bundle = state.get("aggregated_recommendation") or {}
 
+
     def _safe_rec(output: dict | None) -> dict | None:
         if not output or output.get("error"):
             return None
@@ -76,6 +77,7 @@ def final_assembler_node(state: OrchestratorState) -> OrchestratorState:
             "actionable_feedback": critic.get("actionable_feedback", []),
             "decision_log_id": critic.get("decision_log_id"),
             "sanity_checks": critic.get("sanity_checks"),
+            "stale_assumptions": critic.get("stale_assumptions", []),
         },
 
         # Frontend status

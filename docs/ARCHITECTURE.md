@@ -141,7 +141,7 @@ reservation    complaint_intel    menu_intel       inventory
 | `ChatService` | RAG chatbot — retrieves from Postgres runs + Feedback table; streams via AsyncGroq |
 | `RunService` | Persists planning runs to `planning_runs`; powers the runs API |
 | `CostAwareScoringService` | Cost/benefit pressure score used by the critic |
-| `EvaluationSanityChecker` | Automated sanity checks in critic evaluation |
+| `EvaluationSanityChecker` | Automated sanity checks + cross-agent assumption diffing in critic evaluation |
 
 ### Redis caching
 
@@ -311,6 +311,28 @@ The chat page streams against `/api/v1/chat` — individual tokens arrive word-b
 
 ---
 
+## Cross-agent assumption diffing
+
+Because the four domain nodes run in parallel, each node executes without knowledge of the others' results. This means a node can make recommendations based on assumptions that are silently contradicted by another node's findings.
+
+To catch these contradictions automatically, each domain node writes an `assumptions` dict to shared state after its service call. The aggregator collects these into `bundle["assumptions"]`. When the critic node invokes `EvaluationSanityChecker.check_bundle()`, the checker diffs the assumptions cross-agent and returns a `stale_assumptions` list alongside the existing `issues` list.
+
+**Diffs implemented (3 active):**
+
+| Assumption | Checked against | Conflict |
+|------------|-----------------|---------|
+| `menu.assumed_covers_within_capacity = True` | `reservation.assumed_peak_occupancy_pct > 90` | Menu recommendations don't account for near-full-house throughput pressure |
+| `reservation.assumed_peak_occupancy_pct > 85` | Forecast `confidence` or `confidence_band` indicating weak signal | High-occupancy planning on a weak forecast overstates certainty |
+| `complaint.assumed_high_complaint_volume = False` | `complaint.assumed_negative_pct > 25` | Complaint node flagged volume as low but negative feedback is borderline elevated |
+
+Note: an earlier Diff checking `menu.assumed_no_active_stockouts` against `inventory.items_flagged_low` was removed. `MenuService` self-queries `InventoryService` when `inventory_data=None` (the parallel execution means inventory output is never in state when the menu node runs), so both nodes always see the same DB state and the assumption can never be stale. See D-017 in DECISIONS.md.
+
+The `stale_assumptions` list is injected into the critic's LLM prompt as a dedicated `## Cross-agent assumption conflicts` section. This gives the LLM concrete *why* reasoning about each inconsistency rather than requiring it to detect contradictions from raw data alone.
+
+If a node errored and its `assumptions` dict is `None`, the checker gracefully skips diffing for that node.
+
+---
+
 ## Architectural strengths
 
 - Parallel fan-out across four domain agents reduces pipeline latency; AsyncOpenAI ensures the fan-out is truly concurrent, not serialised by event-loop blocking
@@ -322,6 +344,7 @@ The chat page streams against `/api/v1/chat` — individual tokens arrive word-b
 - Full tenant isolation at Postgres, Qdrant, and state levels
 - LangSmith golden dataset + CI gate prevents quality regressions from shipping
 - Sentry + OTel + Prometheus give three overlapping observability layers
+- Cross-agent assumption diffing in `EvaluationSanityChecker` automatically surfaces contradictions between parallel nodes — scales to any number of agent pairs without enumerating every possible contradiction (see D-017)
 
 ## Current limitations
 

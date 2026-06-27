@@ -46,7 +46,15 @@ async def reservation_node(
             scenario_profile=state.get("scenario_profile"),
             capacity=state.get("org_capacity") or 70,
         )
-        return {**state, "reservation_output": result}
+        data = result.get("data") or {}
+        return {
+            **state,
+            "reservation_output": result,
+            "reservation_assumptions": {
+                "assumed_peak_occupancy_pct": data.get("occupancy_pct"),
+                "assumed_waitlist_active": (data.get("waitlist_count") or 0) > 0,
+            },
+        }
 
     except Exception as exc:
         return {
@@ -57,4 +65,5 @@ async def reservation_node(
                 "data": None,
                 "recommendation": None,
             },
+            "reservation_assumptions": None,
         }

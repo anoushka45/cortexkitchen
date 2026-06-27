@@ -1,6 +1,6 @@
 # CortexKitchen x Swiggy Builders Club — Complete Integration Reference
 
-> **Status:** Active development — Phase 6 (P6-S01/S02 complete, P6-S03 next)
+> **Status:** Active development — Phase 6 (P6-S01/S02/S03 complete, P6-S04 next)
 > **Access:** Swiggy Builders Club approved (builders@swiggy.in)  
 > **Staging creds:** Pending (form submitted)  
 > **Docs:** https://mcp.swiggy.com/builders/docs/  
@@ -517,7 +517,7 @@ Rate limiting NOT enforced in v1.0 — upstream shedding handles abuse. Wire 429
 |------|--------|------|--------|
 | P6-S01 | `feature/swiggy-base-connector` | BaseConnector + SwiggyMCPClient | ✅ merged to dev 2026-06-27 |
 | P6-S02 | `feature/swiggy-base-connector` | connectors table + async job queue | ✅ merged to dev 2026-06-27 |
-| P6-S03 | `feature/swiggy-sync-orders` | get_food_orders → orders table | next |
+| P6-S03 | `feature/swiggy-sync-orders` | get_food_orders → orders table | ✅ merged to dev 2026-06-27 |
 | P6-S04 | `feature/swiggy-sync-reservations` | get_booking_status → reservations table | planned |
 | P6-S05 | `feature/swiggy-sync-feedback` | track_food_order → feedback table | planned |
 

@@ -265,8 +265,11 @@ async def stream_planning(
                 critic_threshold=org_critic_threshold,
                 org_id=current_user["org_id"],
             ):
-                if evt["event"] == "node_complete":
-                    yield _sse("node_complete", {"node": evt["node"]})
+                if evt["event"] == "node_start":
+                    yield _sse("node_start", {"node": evt["node"], "hint": evt.get("hint", "")})
+
+                elif evt["event"] == "node_complete":
+                    yield _sse("node_complete", {"node": evt["node"], "hint": evt.get("hint", "")})
 
                 elif evt["event"] == "complete":
                     result = evt["response"]

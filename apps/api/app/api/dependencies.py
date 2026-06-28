@@ -133,14 +133,17 @@ def get_orchestration_deps(
     if settings.llm_provider.strip().lower() == "comet" and settings.comet_tiered:
         deps["llm_registry"] = create_tiered_llm_providers(settings)
 
-    # Semantic cache — silently skipped if Qdrant / Gemini not configured
+    # Semantic cache and planning memory — silently skipped if Qdrant / Gemini not configured
     try:
         from app.infrastructure.vector.qdrant_client import get_qdrant_client
         from app.infrastructure.vector.embedding_service import EmbeddingService
         from app.infrastructure.cache.semantic_cache import SemanticPlanCache
-        deps["semantic_cache"] = SemanticPlanCache(
-            qdrant=get_qdrant_client(), embedder=EmbeddingService()
-        )
+        from app.infrastructure.vector.planning_memory import PlanningMemoryService
+
+        qdrant   = get_qdrant_client()
+        embedder = EmbeddingService()
+        deps["semantic_cache"]   = SemanticPlanCache(qdrant=qdrant, embedder=embedder)
+        deps["planning_memory"]  = PlanningMemoryService(qdrant=qdrant, embedder=embedder)
     except Exception:
         pass
 

@@ -224,10 +224,11 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
     Returns:
         Compiled LangGraph runnable.
     """
-    db = deps["db"]
-    llm = deps["llm"]
-    memory = deps.get("memory")
-    tr = traces if traces is not None else []
+    db              = deps["db"]
+    llm             = deps["llm"]
+    memory          = deps.get("memory")
+    planning_memory = deps.get("planning_memory")
+    tr              = traces if traces is not None else []
 
     graph = StateGraph(OrchestratorState)
 
@@ -236,7 +237,7 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
     graph.add_node(OPS_MANAGER, _log_node(ops_manager_node, tr))
 
     graph.add_node(DEMAND_FORECAST,        _inject(demand_forecast_node,        tr, db=db, llm=llm))
-    graph.add_node(QDRANT_ENRICHMENT,      _inject(qdrant_enrichment_node,      tr, memory=memory))
+    graph.add_node(QDRANT_ENRICHMENT,      _inject(qdrant_enrichment_node,      tr, memory=memory, planning_memory=planning_memory))
     graph.add_node(RESERVATION,            _inject(reservation_node,            tr, db=db, llm=llm))
     graph.add_node(COMPLAINT_INTELLIGENCE, _inject(complaint_intelligence_node, tr, db=db, llm=llm, memory=memory))
     graph.add_node(INVENTORY,              _inject(inventory_node,              tr, db=db, llm=llm))
@@ -455,10 +456,22 @@ async def run_planning_scenario(
             }
         )
 
-    # ── Store in semantic cache if result is approved / run is clean ─────────
+    # ── Persist results ───────────────────────────────────────────────────────
+    verdict = (final_response.get("critic") or {}).get("verdict", "")
+
+    # Semantic cache — store regardless of verdict (serves any future similar query)
     if semantic_cache and org_id and not simulation_mode and not force_critic_decision:
         try:
             semantic_cache.set(org_id, scenario, target_date, final_response)
+        except Exception:
+            pass
+
+    # Planning memory — store only approved runs so insights represent validated patterns
+    planning_memory = deps.get("planning_memory")
+    if planning_memory and org_id and verdict == "approved" and not simulation_mode:
+        try:
+            run_id = final_response.get("meta", {}).get("planning_run_id")
+            planning_memory.store(org_id, scenario, run_id, final_response)
         except Exception:
             pass
 
@@ -512,7 +525,15 @@ def _completion_hint(node_name: str, state_update: dict) -> str:
             return f"{method} model: {round(float(pred))} predicted orders" if pred else "Forecast complete"
 
         if node_name == "qdrant_enrichment":
-            return "Context loaded from memory"
+            ctx   = state_update.get("shared_context") or {}
+            n_c   = len(ctx.get("complaints", []))
+            n_s   = len(ctx.get("sops", []))
+            n_p   = len(ctx.get("past_plans", []))
+            parts = []
+            if n_c:  parts.append(f"{n_c} complaint{'s' if n_c != 1 else ''}")
+            if n_s:  parts.append(f"{n_s} SOP{'s' if n_s != 1 else ''}")
+            if n_p:  parts.append(f"{n_p} past plan{'s' if n_p != 1 else ''}")
+            return f"Memory loaded: {', '.join(parts)}" if parts else "Context loaded from memory"
 
         if node_name == "reservation":
             data = (state_update.get("reservation_output") or {}).get("data") or {}
@@ -680,6 +701,17 @@ async def stream_planning_scenario(
             **llm_metadata,
         }
         final_response.setdefault("meta", {}).update(obs)
+
+        # Store approved runs in planning memory for future enrichment
+        planning_memory = deps.get("planning_memory")
+        stream_verdict  = (final_response.get("critic") or {}).get("verdict", "")
+        if planning_memory and org_id and stream_verdict == "approved" and not simulation_mode:
+            try:
+                s_run_id = final_response.get("meta", {}).get("planning_run_id")
+                planning_memory.store(org_id, scenario, s_run_id, final_response)
+            except Exception:
+                pass
+
         yield {"event": "complete", "response": final_response}
     else:
         yield {"event": "error", "message": "Graph completed without a final response"}

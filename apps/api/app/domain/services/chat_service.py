@@ -360,7 +360,29 @@ def build_context(
     return system_prompt
 
 
-# ── Agentic streaming reply (ReAct via Groq function calling) ─────────────────
+# ── Chat LLM client factory ───────────────────────────────────────────────────
+
+def _get_chat_client(settings):
+    """
+    Return (async_client, model_name) for the chatbot based on LLM_PROVIDER.
+
+    Both Groq and CometAPI expose an OpenAI-compatible chat.completions interface,
+    so the rest of stream_reply works unchanged regardless of provider.
+    """
+    provider = settings.llm_provider.strip().lower()
+    if provider == "groq":
+        from groq import AsyncGroq
+        return AsyncGroq(api_key=settings.groq_api_key), _MODEL
+
+    # comet / gemini / any other → CometAPI OpenAI-compatible endpoint
+    from openai import AsyncOpenAI
+    return (
+        AsyncOpenAI(api_key=settings.cometapi_key, base_url="https://api.cometapi.com/v1"),
+        settings.cometapi_model_fast,
+    )
+
+
+# ── Agentic streaming reply (ReAct via configurable LLM provider) ─────────────
 
 async def stream_reply(
     question: str,
@@ -371,19 +393,17 @@ async def stream_reply(
     chat_cache=None,
 ) -> AsyncGenerator[str, None]:
     """
-    Stream a reply using Groq with optional tool use.
+    Stream a reply via the configured LLM provider with optional ReAct tool use.
 
     Flow:
     1. Check semantic cache — if hit, stream cached answer immediately.
-    2. ReAct loop (max 3 iterations): call Groq with tools, execute any tool calls,
+    2. ReAct loop (max 3 iterations): call LLM with tools, execute any tool calls,
        feed results back, call again.
     3. Stream the final text response.
     4. Store in semantic cache.
     """
-    from groq import AsyncGroq
-
     settings = get_settings()
-    client = AsyncGroq(api_key=settings.groq_api_key)
+    client, model = _get_chat_client(settings)
 
     # ── Semantic cache check ─────────────────────────────────────────────────
     if chat_cache and org_id:
@@ -403,7 +423,7 @@ async def stream_reply(
 
     for _ in range(_MAX_TOOL_ITERATIONS):
         response = await client.chat.completions.create(
-            model=_MODEL,
+            model=model,
             messages=messages,
             tools=_TOOLS if tools_available else None,
             tool_choice="auto" if tools_available else None,
@@ -453,7 +473,7 @@ async def stream_reply(
     else:
         # Exhausted iterations without a text response — make one final call without tools
         response = await client.chat.completions.create(
-            model=_MODEL,
+            model=model,
             messages=messages,
             max_tokens=_MAX_TOKENS,
             temperature=0.4,
@@ -475,7 +495,7 @@ async def stream_reply(
 
     # Fallback: streaming path if no tool calls were made on first pass
     stream = await client.chat.completions.create(
-        model=_MODEL,
+        model=model,
         messages=[{"role": "system", "content": system_prompt}]
         + [{"role": msg["role"], "content": msg["content"]} for msg in history[-6:]]
         + [{"role": "user", "content": question}],

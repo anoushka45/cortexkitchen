@@ -1,14 +1,16 @@
 # CortexKitchen Architecture
 
-Last updated: June 2026. Reflects the implemented codebase (Phase 5 complete).
+Last updated: June 2026. Reflects the implemented codebase (Phase 6 in progress).
 
 ---
 
 ## Overview
 
-CortexKitchen is a multi-agent restaurant operations intelligence platform. The backend coordinates structured operational data, time-series forecasting, vector retrieval, LLM reasoning, and business-rule validation through a nine-node LangGraph pipeline. The frontend presents results as a streaming planning dashboard with exports, a RAG chatbot, run history, and observability tooling.
+CortexKitchen is a multi-agent restaurant operations intelligence platform. The backend coordinates structured operational data, time-series forecasting, vector retrieval, LLM reasoning, and business-rule validation through a twelve-node LangGraph pipeline. The frontend presents results as a streaming planning dashboard with exports, a RAG chatbot, run history, and observability tooling.
 
 Phase 5 added: SSE streaming, Redis caching, PDF/Excel export, what-if simulator, OpenTelemetry, Prometheus, Sentry, LangSmith regression evals with a golden dataset, multi-tenant workspace isolation (Postgres + Qdrant), a RAG chatbot (`/chat`), and prelaunch UI polish.
+
+Phase 6 (in progress) added: Swiggy MCP integration with BaseConnector pattern, SwiggyMCPClient with circuit breaker and tool tracing, provider registry, PlanningMemoryService (long-term memory with recency decay), SemanticPlanCache (Qdrant-backed, approved-only), within-session chat memory, and per-node model cost attribution.
 
 ---
 
@@ -42,7 +44,7 @@ FastAPI application
   ├── GET  /api/v1/health/dependencies
   ├── GET  /api/v1/planning/scenarios
   ├── POST /api/v1/planning/run          (JWT, full JSON)
-  ├── POST /api/v1/planning/stream       (JWT, SSE — node_complete + complete events)
+  ├── POST /api/v1/planning/stream       (JWT, SSE — node_start + node_complete + complete events)
   ├── POST /api/v1/planning/whatif       (JWT, deterministic — no LLM)
   ├── GET  /api/v1/runs                  (JWT)
   ├── GET  /api/v1/runs/{id}             (JWT)
@@ -52,17 +54,18 @@ FastAPI application
   ├── GET  /api/v1/observability/summary (JWT)
   ├── GET/PATCH /api/v1/settings         (JWT)
   ├── CRUD /api/v1/restaurant-profiles   (JWT)
+  ├── GET  /health/circuits              (Swiggy MCP circuit breaker states)
   ├── GET  /metrics                      (Prometheus)
   └── GET  /debug/sentry-test             (not under /api/v1 prefix)
           │
           ▼
-LangGraph orchestration graph (nine nodes)
+LangGraph orchestration graph (twelve nodes)
           │
           ▼
 Service and data layer
   ├── PostgreSQL   — structured data + planning_runs audit table (org_id scoped)
-  ├── Qdrant       — complaints + SOPs, org payload filter per tenant
-  ├── Redis        — 1hr TTL plan cache by scenario + date
+  ├── Qdrant       — complaints + SOPs (RAG), planning_memory, semantic_cache, chat_semantic_cache
+  ├── Redis        — 1hr TTL plan cache by scenario + date; circuit breaker state per Swiggy endpoint
   └── LLM provider — Groq (default), Gemini (fallback), or CometAPI with per-node tier routing
 ```
 
@@ -99,6 +102,12 @@ infrastructure/jobs/
 
 **Token management:** OAuth tokens stored encrypted per `org_id` in the `connectors` table. `SWIGGY_ACCESS_TOKEN` in `.env` is dev-only. Production reads from `ConnectorRepository`.
 
+**Governance layer:**
+
+- **Circuit breaker** (`infrastructure/swiggy/circuit_breaker.py`) — Redis-backed: 3 failures in 5 minutes opens a 30-minute circuit per Swiggy endpoint. `SwiggyMCPClient.call_tool()` checks the circuit before every HTTP call and records failure/success on every result. Endpoint tags: `food`, `im`, `dineout`. Exposed at `GET /health/circuits`.
+- **Provider registry** (`infrastructure/swiggy/provider_registry.py`) — routes planning capabilities (`competitor_pricing`, `reservation_data`, `procurement`, `order_history`) to the highest-priority healthy provider. `get_provider_async()` combines DB `sync_status` with live circuit breaker state so a mid-day Swiggy degradation automatically falls through to the next candidate (e.g. Zomato, EazyDiner).
+- **Tool tracing** — every `SwiggyMCPClient` call appends a trace dict to `self._traces`; `drain_traces()` returns and clears them for downstream observability. Trace fields: `provider`, `endpoint`, `tool`, `status`, `duration_ms`, `attempt`, `error?`. Status values: `ok`, `circuit_open`, `auth_error`, `http_{code}`, `tool_error`, `exception`.
+
 See D-019 in `docs/DECISIONS.md` for the full design rationale.
 
 ---
@@ -134,6 +143,12 @@ ops_manager
     ├── (error) → final_assembler → END
     │
     ▼
+qdrant_enrichment       ← retrieves past approved-run insights, injects past_plans into shared_context
+    │
+    ▼
+phase1_sync             ← Pregel hop-count barrier (no logic, prevents double-aggregator bug)
+    │
+    ▼
 demand_forecast
     │
     ├──────────────────┬────────────────┬──────────────┐
@@ -146,19 +161,28 @@ reservation    complaint_intel    menu_intel       inventory
                         aggregator
                             │
                             ▼
+                   replan_orchestrator  ← injects critic feedback for revision cycles (max 2)
+                            │
+                            ▼
                           critic
                             │
                             ▼
                       final_assembler → END
 ```
 
-**Conditional routing:** after `ops_manager`, if `state["error"]` is set the graph skips to `final_assembler`. Otherwise it proceeds through `demand_forecast`.
+**Conditional routing:** after `ops_manager`, if `state["error"]` is set the graph skips to `final_assembler`. Otherwise it proceeds through `qdrant_enrichment`.
 
 **Parallel execution:** the four domain nodes (`reservation`, `complaint_intel`, `menu_intel`, `inventory`) fan out in parallel after `demand_forecast` and are gated by `aggregator`.
 
+**New pipeline nodes (Phase 6):**
+
+- `qdrant_enrichment` — runs immediately after `ops_manager`. Calls `PlanningMemoryService.retrieve()` to fetch the top-3 similar past approved-run insights from the `planning_memory` Qdrant collection, re-ranked with recency decay (`score × 2^(-age/14days)`), excluding runs older than 90 days. Injects `shared_context["past_plans"]`. Falls back to an empty list on any error — never blocks a run.
+- `phase1_sync` — a structural no-op node that equalises LangGraph Pregel hop counts. Without it, `aggregator` is reachable in 4 hops but `menu_intelligence` in 5, causing the aggregator to fire before all parallel nodes complete (the double-aggregator bug). This barrier ensures the fan-out gate holds correctly.
+- `replan_orchestrator` — sits between `aggregator` and `critic`. If the critic returned a `revision` verdict in a prior cycle, this node injects the critic's structured feedback into `state["replan_context"]`. Enforces a maximum of 2 replan cycles — after that it passes through regardless of verdict to prevent infinite loops.
+
 **SSE streaming:** There are two distinct streaming mechanisms:
 
-- `POST /api/v1/planning/stream` — the planning SSE endpoint. Emits `node_complete` events as each LangGraph node finishes; each event carries only the node name (`{"node": "forecast"}`). The frontend loading screen uses these to update the pipeline diagram in real time. A final `complete` event delivers the entire plan payload — the dashboard renders all sections at once from this single event. `POST /api/v1/planning/run` is the non-streaming equivalent, returning the full JSON response in one go.
+- `POST /api/v1/planning/stream` — the planning SSE endpoint. Emits **both `node_start` and `node_complete` events** per node. `node_start` includes a `hint` describing what the node is doing; `node_complete` includes a `hint` with the completion summary. The frontend loading screen uses these to drive a 4-state diagram (idle / running / done / skipped). A final `complete` event delivers the entire plan payload. `POST /api/v1/planning/run` is the non-streaming equivalent.
 - `POST /api/v1/chat` — the chat SSE endpoint. Streams individual tokens word-by-word (`{"token": "..."}`), rendered progressively via ReactMarkdown. Completely separate from the planning SSE.
 
 **Per-node tracing:** every node emits `node_start` / `node_end` structlog events with `duration_ms`, `llm_provider_used`, and `llm_fallback_used`. When LangSmith tracing is enabled (`LANGSMITH_TRACING=true`), each node also sends a trace span.
@@ -173,14 +197,21 @@ reservation    complaint_intel    menu_intel       inventory
 | `MenuService` | Evaluates top and weak menu items; surfaces promotion guidance |
 | `InventoryService` | Computes shortage and overstock alerts from stock vs threshold |
 | `CriticService` | Validates the aggregated plan; scores across 5 dimensions |
-| `ChatService` | RAG chatbot — retrieves from Postgres runs + Feedback table; streams via AsyncGroq |
+| `ChatService` | RAG chatbot — retrieves from Postgres runs + Feedback table; streams via LLM factory |
 | `RunService` | Persists planning runs to `planning_runs`; powers the runs API |
 | `CostAwareScoringService` | Cost/benefit pressure score used by the critic |
 | `EvaluationSanityChecker` | Automated sanity checks + cross-agent assumption diffing in critic evaluation |
+| `PlanningMemoryService` | Stores approved run insights in Qdrant (`planning_memory`) with recency decay; retrieved by `qdrant_enrichment` to enrich planning context with similar past runs |
 
 ### Redis caching
 
-Planning runs are cached in Redis by `(org_id, scenario, target_date)` key with a 1-hour TTL. **Only `approved` verdict plans are written to cache** — revision and rejected plans are not stored. On a cache hit, the full plan is returned immediately — zero LLM cost, zero pipeline execution. The response includes a `cache_hit: true` flag. Cache invalidation happens automatically on TTL expiry.
+Redis serves two purposes in CortexKitchen:
+
+**Plan cache:** planning runs are cached by `(org_id, scenario, target_date)` key with a 1-hour TTL. **Only `approved` verdict plans are written to cache** — revision and rejected plans are not stored. On a cache hit, the full plan is returned immediately — zero LLM cost, zero pipeline execution. The response includes a `cache_hit: true` flag. Cache invalidation happens automatically on TTL expiry.
+
+**Circuit breaker state:** per-Swiggy-endpoint failure counters (`circuit:fail:swiggy:{tag}`, 300s TTL) and open flags (`circuit:open:swiggy:{tag}`, 1800s TTL) are stored in Redis. These auto-expire so circuits reset without any manual intervention. `GET /health/circuits` reads these keys to return real-time state for all three Swiggy endpoints.
+
+In addition, a **Qdrant-backed SemanticPlanCache** (`semantic_cache` collection, 0.92 cosine similarity, 1hr TTL) provides fuzzy plan retrieval for queries where an exact cache key match doesn't exist but a semantically similar approved plan does. The storage embedding is enriched with actual run conditions (demand_ratio, occupancy, shortages) at write time while the query embedding stays lightweight.
 
 ### Export layer
 
@@ -192,7 +223,9 @@ Planning runs are cached in Redis by `(org_id, scenario, target_date)` key with 
 `POST /api/v1/chat` accepts a message + conversation history and returns a streamed response via SSE.
 
 - **Retrieval:** queries the last 10 `planning_runs` (org-scoped) and the last 30 `feedback` records (no org filter — shared demo dataset) to build a context window
-- **LLM:** AsyncGroq `llama-3.3-70b-versatile` for streaming token output
+- **LLM:** `_get_chat_client(settings)` factory — dispatches on `LLM_PROVIDER`. Routes to `AsyncGroq` (`llama-3.3-70b-versatile`) when `LLM_PROVIDER=groq`, or `AsyncOpenAI` against the CometAPI fast tier otherwise.
+- **Within-session memory:** when `len(history) > 8`, older turns are compressed by `SessionMemoryService.build_summary_from_messages()` (no LLM call) and injected as a single `[Earlier in this session: ...]` assistant message. The last 8 turns are included verbatim so long conversations maintain continuity without blowing the token window.
+- **Semantic cache:** `SemanticChatCache` (Qdrant collection `chat_semantic_cache`, 0.92 threshold, 24hr TTL) returns cached answers for semantically similar questions asked by the same org.
 - **Frontend:** ReactMarkdown renders structured responses; multi-turn memory via message history in request body
 
 ### Infrastructure layer
@@ -210,8 +243,12 @@ Planning runs are cached in Redis by `(org_id, scenario, target_date)` key with 
 | `llm/prompt_utils.py` | Centralised prompt builders for all agents — zero raw prompt strings in service files |
 | `forecasting/` | Prophet-backed time-series forecaster |
 | `vector/memory_service.py` | `MemoryService` and `EmbeddingService` for Qdrant retrieval with org payload filter |
+| `vector/planning_memory.py` | `PlanningMemoryService` — approved run insights in Qdrant `planning_memory` with recency decay scoring |
 | `cache/plan_cache.py` | Redis plan cache — `get_cached_plan` / `cache_plan` / `build_cache_key` by composite key |
-| `observability/dependency_health.py` | PostgreSQL, Qdrant, Redis connectivity checks |
+| `cache/semantic_cache.py` | `SemanticPlanCache` (Qdrant-backed, approved-only, condition-enriched storage embedding) and `SemanticChatCache` (Q&A cache, 24hr TTL) |
+| `swiggy/circuit_breaker.py` | Redis-backed circuit breaker — `is_open`, `record_failure`, `record_success`, `get_state` per provider + endpoint |
+| `swiggy/provider_registry.py` | `ProviderRegistry` — capability-to-provider routing combining DB `sync_status` and live circuit breaker state |
+| `observability/dependency_health.py` | PostgreSQL, Qdrant, Redis connectivity checks; `check_swiggy_circuits()` for circuit breaker health |
 | `main.py` (OTel + Prometheus) | OpenTelemetry `ConsoleSpanExporter` and `prometheus_fastapi_instrumentator` wired directly in app startup |
 
 ### LLM provider abstraction
@@ -271,7 +308,7 @@ Tenant isolation is enforced at three levels:
 
 | Tool | Description |
 |------|-------------|
-| `run_planning_scenario` | Triggers the full 9-node planning pipeline |
+| `run_planning_scenario` | Triggers the full 12-node planning pipeline |
 | `get_run_history` | Fetches recent planning runs with optional scenario/verdict filters |
 
 Claude Code discovers the server automatically via `.mcp.json`. Claude Desktop uses `docs/mcp_claude_desktop_config.json`.
@@ -329,8 +366,8 @@ The chat page streams against `/api/v1/chat` — individual tokens arrive word-b
 2. Frontend opens an SSE connection to `POST /api/v1/planning/stream` with JWT
 3. FastAPI resolves `get_current_user`, checks Redis cache — emits all node events instantly and returns on hit
 4. On cache miss: loads org settings + restaurant profile, builds LangGraph graph, invokes it
-5. Each node emits a `node_complete` event (node name only) as it finishes; loading screen diagram updates
-6. `ops_manager` → `demand_forecast` → [4 parallel nodes] → `aggregator` → `critic` → `final_assembler`
+5. Each node emits `node_start` (with hint) and `node_complete` (with completion hint) as it begins/finishes; loading screen diagram drives 4-state UI per node
+6. `ops_manager` → `qdrant_enrichment` → `phase1_sync` → `demand_forecast` → [4 parallel nodes] → `aggregator` → `replan_orchestrator` → `critic` → `final_assembler`
 7. Final response includes plan, critic verdict, RAG context, cost metadata, and node traces
 8. Run is persisted to `planning_runs`; result is stored in Redis cache
 
@@ -340,9 +377,12 @@ The chat page streams against `/api/v1/chat` — individual tokens arrive word-b
 
 | Store | Role |
 |-------|------|
-| **PostgreSQL** | All structured data: orders, reservations, feedback, inventory, menu_items, planning_runs, organizations, users, restaurant_profiles |
-| **Qdrant** | `complaints_memory` and `sop_memory` collections for RAG retrieval, org-scoped payload filters |
-| **Redis** | Plan cache — 1hr TTL by `(org_id, scenario, target_date)` |
+| **PostgreSQL** | All structured data: orders, reservations, feedback, inventory, menu_items, planning_runs, organizations, users, restaurant_profiles, connectors |
+| **Qdrant** | `complaints_memory` and `sop_memory` — RAG retrieval, org-scoped payload filters |
+| **Qdrant** | `planning_memory` — approved run insights with recency decay, used by `qdrant_enrichment` |
+| **Qdrant** | `semantic_cache` — plan cache (0.92 cosine threshold, approved-only, 1hr TTL, condition-enriched storage embedding) |
+| **Qdrant** | `chat_semantic_cache` — chatbot Q&A cache (0.92 threshold, 24hr TTL) |
+| **Redis** | Plan cache — 1hr TTL by `(org_id, scenario, target_date)`; circuit breaker state per Swiggy endpoint |
 
 ---
 
@@ -380,9 +420,12 @@ If a node errored and its `assumptions` dict is `None`, the checker gracefully s
 - LangSmith golden dataset + CI gate prevents quality regressions from shipping
 - Sentry + OTel + Prometheus give three overlapping observability layers
 - Cross-agent assumption diffing in `EvaluationSanityChecker` automatically surfaces contradictions between parallel nodes — scales to any number of agent pairs without enumerating every possible contradiction (see D-017)
+- PlanningMemoryService provides long-term institutional memory — approved runs accumulate insight vectors in Qdrant; recency decay ensures recent context ranks higher without staling indefinitely
+- Circuit breaker + provider registry give the Swiggy integration production-grade resilience — mid-day failures auto-route to fallback providers without operator intervention
+- SemanticPlanCache (Qdrant-backed, approved-only) complements the Redis exact-match cache with fuzzy retrieval for scenarios with similar but not identical conditions
 
 ## Current limitations
 
-- All data integrations are synthetic — no live POS or platform connections
+- Live Swiggy MCP integration underway (Phase 6) — BaseConnector, SwiggyMCPClient, CompetitorEnricher, OccupancyEnricher, ProcurementEnricher, ProcurementExecutor, and DineoutExecutor implemented; nightly sync (P6-S01/S02/S03) complete; market intel and dineout management nodes (P6-S10/S11) pending
 - `packages/core` shared contract package is empty
 - RAGAS/DeepEval datasets are hand-crafted — should be rebuilt from live planning runs periodically

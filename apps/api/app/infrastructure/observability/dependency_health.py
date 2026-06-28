@@ -80,6 +80,13 @@ def check_llm(settings: Settings) -> DependencyStatus:
     )
 
 
+async def check_swiggy_circuits() -> list[dict]:
+    """Return circuit breaker state for all known Swiggy endpoints."""
+    from app.infrastructure.swiggy.circuit_breaker import get_state
+    endpoints = ["food", "im", "dineout"]
+    return [await get_state("swiggy", tag) for tag in endpoints]
+
+
 def get_dependency_statuses(settings: Settings) -> list[DependencyStatus]:
     return [
         check_postgres(settings),

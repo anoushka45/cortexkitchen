@@ -3,7 +3,7 @@
 **Multi-agent restaurant operations intelligence platform**
 
 ![Status](https://img.shields.io/badge/status-active-success)
-![Phase](https://img.shields.io/badge/phase-5_complete-blue)
+![Phase](https://img.shields.io/badge/phase-6_active-blue)
 ![Backend](https://img.shields.io/badge/backend-FastAPI-009688)
 ![Frontend](https://img.shields.io/badge/frontend-Next.js_16-black)
 ![Orchestration](https://img.shields.io/badge/orchestration-LangGraph-purple)
@@ -30,17 +30,20 @@ The result: one brief, one verdict, under 90 seconds.
 
 ## How it works
 
-One planning run executes a nine-node LangGraph pipeline:
+One planning run executes a twelve-node LangGraph pipeline:
 
 1. **Ops Manager** — validates the scenario, initialises shared state, fans out work
-2. **Demand Forecast** — Prophet time-series model produces covers, peak hour, and confidence band
-3. **Bookings & Tables** — analyses reservation density, occupancy %, and waitlist pressure *(parallel)*
-4. **Guest Feedback** — RAG retrieval over Qdrant surfaces complaint patterns and SOPs *(parallel)*
-5. **Menu Intelligence** — evaluates top items, weak items, and promotion opportunities *(parallel)*
-6. **Stock & Inventory** — detects shortages, spoilage risk, and restock priorities *(parallel)*
-7. **Aggregator** — collects all domain outputs into a single package
-8. **Quality Check (Critic)** — scores the plan across 5 dimensions, gates it with a verdict
-9. **Final Assembler** — shapes the API response with full metadata and cost tracking
+2. **Planning Memory** — retrieves similar past approved runs from Qdrant, applying recency decay so recent insights rank higher *(new)*
+3. **Phase Sync** — Pregel barrier node that equalises hop counts to prevent the double-aggregator bug *(new)*
+4. **Demand Forecast** — Prophet time-series model produces covers, peak hour, and confidence band
+5. **Bookings & Tables** — analyses reservation density, occupancy %, and waitlist pressure *(parallel)*
+6. **Guest Feedback** — RAG retrieval over Qdrant surfaces complaint patterns and SOPs *(parallel)*
+7. **Menu Intelligence** — evaluates top items, weak items, and promotion opportunities *(parallel)*
+8. **Stock & Inventory** — detects shortages, spoilage risk, and restock priorities *(parallel)*
+9. **Aggregator** — collects all domain outputs into a single package
+10. **Replan Orchestrator** — if the critic requests revision, injects its feedback and triggers up to 2 replan cycles *(new)*
+11. **Quality Check (Critic)** — scores the plan across 5 dimensions, gates it with a verdict
+12. **Final Assembler** — shapes the API response with full metadata and cost tracking
 
 ![Dashboard — Pipeline Running](screenshots/03_dashboard/02_loading_screen.png)
 *Live pipeline diagram mid-run — Ops Manager and Demand Forecast complete (green), four parallel specialists running simultaneously, Aggregator and Critic waiting.*
@@ -58,8 +61,10 @@ One planning run executes a nine-node LangGraph pipeline:
 - **Complaint intelligence (RAG)** — Qdrant retrieval grounds recommendations in real past guest issues
 - **Menu guidance** — push / ease-back / avoid strategy aligned to demand and stock signals
 - **Inventory risk detection** — shortage and overstock alerts with feasibility-aware planning
-- **Critic quality gate** — 5-dimension scoring (safety, feasibility, evidence, actionability, clarity); three verdicts: approved / revision / rejected
+- **Critic quality gate** — 5-dimension scoring (safety, feasibility, evidence, actionability, clarity); three verdicts: approved / revision / rejected; up to 2 replan cycles when revision requested
 - **Cross-agent assumption diffing** — each domain node writes the assumptions it acted on into shared state; `EvaluationSanityChecker` cross-diffs them after the parallel fan-out and surfaces contradictions (e.g. menu assumed covers within capacity while reservation shows >90% occupancy) as `stale_assumptions` injected into the critic's LLM prompt and returned in the API response
+- **Planning memory** — `PlanningMemoryService` stores approved-run insights in Qdrant (`planning_memory` collection); retrieved at the start of each run using recency decay scoring (`score × 2^(-age/14days)`, 90-day cutoff) so recent similar runs inform the current plan
+- **Semantic plan cache** — Qdrant-backed (collection `semantic_cache`); 0.92 cosine similarity threshold; 1hr TTL; only `approved` plans written; storage embedding enriched with actual run conditions (demand_ratio, occupancy, shortages) for higher-precision future hits
 
 ![Service Planning & Reservation Pressure](screenshots/03_dashboard/05_service_planning.png)
 *Service Planning section — Prophet demand forecast bar chart by hour with peak detection, alongside the Reservation Pressure panel showing occupancy %, waitlist, and priority.*
@@ -71,7 +76,7 @@ One planning run executes a nine-node LangGraph pipeline:
 *Operational Risk section — Complaint Intelligence (top issues, action items) alongside Inventory Status (shortage alerts with severity ratings and restock quantities).*
 
 ### Streaming & Real-time
-- **Planning SSE** (`POST /api/v1/planning/stream`) — as each LangGraph node completes, a `node_complete` event is emitted carrying the node name; the loading screen pipeline diagram updates in real time so you see exactly which agents are done, running, or waiting. A final `complete` event delivers the full plan payload — the dashboard renders all at once from that single event.
+- **Planning SSE** (`POST /api/v1/planning/stream`) — as each LangGraph node begins, a `node_start` event is emitted with a human-readable hint ("Reading past plans from memory...", "Analysing demand signal...", etc.); when it finishes, a `node_complete` event follows. The loading screen pipeline diagram updates in real time. A final `complete` event delivers the full plan payload — the dashboard renders all at once from that single event.
 - **Chat token streaming** (`POST /api/v1/chat`) — the Ask AI chatbot streams individual tokens word-by-word via AsyncGroq; each `{"token": "..."}` event renders progressively via ReactMarkdown. An entirely separate mechanism from the planning SSE.
 - **Non-streaming planning** (`POST /api/v1/planning/run`) — standard JSON endpoint; returns the full response in one go. Used when the frontend doesn't need the live pipeline diagram.
 - **Redis caching** — 1-hour TTL cache by scenario + date; only `approved` plans are cached; zero LLM cost on cache hits; `cache_hit` flag in response
@@ -91,7 +96,9 @@ One planning run executes a nine-node LangGraph pipeline:
 
 ### Ask AI (RAG Chatbot)
 - **Conversational interface** over your actual run history, inventory data, and guest feedback — not generic AI
-- **Groq llama-3.3-70b** with SSE streaming responses
+- **LLM-provider-agnostic** — routes to Groq or CometAPI (fast tier) depending on `LLM_PROVIDER` setting via `_get_chat_client()` factory
+- **Within-session memory** — when conversation exceeds 8 turns, older turns are compressed locally and injected as a single context message; last 8 turns kept verbatim
+- **Semantic cache** — Qdrant-backed Q&A cache (24hr TTL, 0.92 cosine similarity) avoids redundant LLM calls for repeated questions
 - **Multi-turn memory** — follow-up questions understand prior context
 - Suggested questions surface on first load; answers cite your own data
 
@@ -231,8 +238,8 @@ This mode is fully opt-in — Groq and Gemini behaviour is completely unchanged 
 | Layer | Technology |
 |-------|-----------|
 | Backend API | FastAPI 0.115, Uvicorn, Pydantic v2 |
-| Orchestration | LangGraph (StateGraph, nine nodes, parallel fan-out) |
-| LLM | Groq llama-3.3-70b (default) or Gemini — pluggable via `LLM_PROVIDER`; auto-fallback. Optional per-node tier routing via CometAPI (`COMET_TIERED=true`) |
+| Orchestration | LangGraph (StateGraph, twelve nodes, parallel fan-out) |
+| LLM | Groq llama-3.3-70b (default) or Gemini — pluggable via `LLM_PROVIDER`; auto-fallback. Optional per-node tier routing via CometAPI (`COMET_TIERED=true`). Chatbot LLM factory (`_get_chat_client()`) also routes on `LLM_PROVIDER`. |
 | Streaming | FastAPI SSE (`/planning/stream`) — `node_complete` status events drive the loading screen; full plan delivered in one `complete` event |
 | Caching | Redis 7 — 1hr TTL plan cache by scenario + date |
 | Database | PostgreSQL 16 via SQLAlchemy + Alembic |
@@ -274,7 +281,8 @@ This mode is fully opt-in — Groq and Gemini behaviour is completely unchanged 
 | Phase 2 | Complete | Prophet forecasting, inventory alerts, menu intelligence |
 | Phase 3 | Complete | Multi-scenario runner, runs audit trail, critic scoring |
 | Phase 4 | Complete | Auth, LangSmith, health checks, structlog, cost tracking, evals, MCP |
-| Phase 5 | **Complete** | PDF/Excel export, SSE streaming, Redis cache, what-if simulator, OTel, Sentry, LangSmith evals, multi-tenant isolation, RAG chatbot, prelaunch polish |
+| Phase 5 | Complete | PDF/Excel export, SSE streaming, Redis cache, what-if simulator, OTel, Sentry, LangSmith evals, multi-tenant isolation, RAG chatbot, prelaunch polish |
+| Phase 6 | **In Progress** | Swiggy MCP integration — BaseConnector + SwiggyMCPClient, circuit breaker, provider registry, planning memory, semantic plan/chat cache, 3 new graph nodes |
 
 ---
 
@@ -407,6 +415,7 @@ Go to `http://localhost:3000/register`, create your workspace, then log in. All 
 | `POST` | `/api/v1/auth/login` | Public | Get JWT access token |
 | `GET` | `/api/v1/health` | Public | Liveness check |
 | `GET` | `/api/v1/health/dependencies` | Public | PostgreSQL, Qdrant, Redis status |
+| `GET` | `/api/v1/health/circuits` | Public | Swiggy MCP circuit breaker state (food / im / dineout) |
 | `GET` | `/api/v1/planning/scenarios` | Public | List scenario presets |
 | `POST` | `/api/v1/planning/run` | JWT | Execute planning pipeline (full JSON response) |
 | `POST` | `/api/v1/planning/stream` | JWT | Execute planning pipeline (SSE — node_complete events + final complete) |

@@ -1,6 +1,6 @@
 # CortexKitchen API Reference
 
-Last updated: June 2026. Reflects Phase 5 complete.
+Last updated: June 2026. Reflects Phase 6 in progress.
 
 Base URL: `http://localhost:8000`  
 Base prefix: `/api/v1`  
@@ -116,6 +116,30 @@ Live connectivity check for PostgreSQL, Qdrant, and Redis.
 
 ---
 
+### `GET /health/circuits`
+
+Real-time circuit breaker state for all three Swiggy MCP endpoints.
+
+**Auth:** None (public endpoint).
+
+**Response `200`**
+
+```json
+{
+  "circuits": [
+    { "state": "closed", "recent_failures": 0, "resets_in_seconds": null },
+    { "state": "closed", "recent_failures": 0, "resets_in_seconds": null },
+    { "state": "closed", "recent_failures": 0, "resets_in_seconds": null }
+  ]
+}
+```
+
+Endpoints are ordered: `food`, `im` (Instamart), `dineout`.
+
+`state` is `"open"` when the circuit has tripped (3+ failures in the past 5 minutes). `resets_in_seconds` shows time until auto-reset when `state` is `"open"`. A closed circuit returns `resets_in_seconds: null`.
+
+---
+
 ## Planning
 
 ### `GET /api/v1/planning/scenarios`
@@ -143,7 +167,7 @@ Returns all available scenario presets.
 
 ### `POST /api/v1/planning/run`
 
-Executes the nine-node multi-agent planning pipeline. Returns the **full response as a standard JSON object** once the pipeline completes. No streaming — use `/planning/stream` if you need the live pipeline diagram.
+Executes the twelve-node multi-agent planning pipeline. Returns the **full response as a standard JSON object** once the pipeline completes. No streaming — use `/planning/stream` if you need the live pipeline diagram.
 
 **Auth:** JWT required.
 
@@ -243,24 +267,51 @@ Identical request body to `/planning/run`. Returns a `text/event-stream` respons
 
 **How it works**
 
-As each LangGraph node completes, a `node_complete` event is emitted carrying **only the node name** — no output data. The frontend loading screen uses these events to update the pipeline diagram (waiting → running → done). When the full pipeline finishes, a single `complete` event delivers the entire plan payload. The dashboard renders all sections at once from this final event.
+Two event types power the frontend pipeline diagram:
 
-Only plans with `critic.verdict == "approved"` are written to cache. On a cache hit: all `node_complete` events are emitted instantly with `{"node": "...", "cached": true}`, followed by the `complete` event.
+- `node_start` fires when a node begins execution; includes an optional `hint` string with a human-readable description of what the node is doing
+- `node_complete` fires when the node finishes; may also include a completion `hint` (e.g. how many items were retrieved)
+- The loading screen uses both event types to drive a 4-state node UI: idle → running → done
+
+When the full pipeline finishes, a single `complete` event delivers the entire plan payload. The dashboard renders all sections at once from this final event.
+
+Only plans with `critic.verdict == "approved"` are written to semantic cache. On a cache hit: all node events are emitted instantly with `{"node": "...", "cached": true}`, followed by the `complete` event.
 
 **SSE event format**
 
 ```
+event: node_start
+data: {"node": "qdrant_enrichment", "hint": "Reading past plans from memory..."}
+
+event: node_complete
+data: {"node": "qdrant_enrichment", "hint": "Memory loaded: 2 past plans"}
+
+event: node_start
+data: {"node": "forecast", "hint": "Analysing demand signal..."}
+
 event: node_complete
 data: {"node": "forecast"}
+
+event: node_start
+data: {"node": "reservation"}
 
 event: node_complete
 data: {"node": "reservation"}
 
-event: node_complete
+event: node_start
 data: {"node": "complaint"}
 
 event: node_complete
+data: {"node": "complaint"}
+
+event: node_start
 data: {"node": "menu"}
+
+event: node_complete
+data: {"node": "menu"}
+
+event: node_start
+data: {"node": "inventory"}
 
 event: node_complete
 data: {"node": "inventory"}
@@ -275,7 +326,7 @@ event: complete
 data: { ... full response payload — same shape as /planning/run ... }
 ```
 
-Note: `ops_manager` and `final_assembler` do not emit `node_complete` events — they are not in the SSE node map.
+Note: `ops_manager`, `phase1_sync`, `replan_orchestrator`, and `final_assembler` do not emit SSE events — they are infrastructure or assembly nodes.
 
 **Error event**
 
@@ -423,7 +474,9 @@ data: {"token": " your"}
 data: {"done": true}
 ```
 
-**Data sources:** the last 10 `planning_runs` for the org (org-scoped) and the last 30 `feedback` records (not org-filtered — shared across the demo dataset).
+**Data sources:** the last 10 `planning_runs` for the org (org-scoped) and the last 30 `feedback` records (not org-filtered — shared across the demo dataset). Responses are also checked against `SemanticChatCache` (Qdrant-backed, 24hr TTL) — identical or near-identical questions return cached answers instantly without an LLM call.
+
+**Within-session memory:** the last 8 turns are sent verbatim; older turns in the same session are compressed and injected as a summary to preserve conversational context.
 
 **Example questions the chatbot handles**
 

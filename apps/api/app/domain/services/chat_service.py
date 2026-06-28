@@ -412,9 +412,23 @@ async def stream_reply(
             yield cached_answer
             return
 
+    # ── Build message history with within-session compression ───────────────
+    # Keep the last 8 turns verbatim. If there are older turns, summarise them
+    # locally (no LLM call) and inject as a single context message so the model
+    # retains continuity without blowing the token window.
+    _RECENT_WINDOW = 8
     messages = [{"role": "system", "content": system_prompt}]
-    for msg in history[-6:]:
-        messages.append({"role": msg["role"], "content": msg["content"]})
+    if len(history) > _RECENT_WINDOW:
+        from app.infrastructure.vector.session_memory import SessionMemoryService
+        older  = history[:-_RECENT_WINDOW]
+        recent = history[-_RECENT_WINDOW:]
+        summary = SessionMemoryService.build_summary_from_messages(older, question)
+        messages.append({"role": "assistant", "content": f"[Earlier in this session: {summary}]"})
+        for msg in recent:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+    else:
+        for msg in history:
+            messages.append({"role": msg["role"], "content": msg["content"]})
     messages.append({"role": "user", "content": question})
 
     # ── ReAct tool-use loop ──────────────────────────────────────────────────

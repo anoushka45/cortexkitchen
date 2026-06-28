@@ -44,7 +44,31 @@ class SemanticPlanCache:
         ensure_collection(self.qdrant, PLAN_CACHE_COLLECTION)
 
     def _query_text(self, org_id: int, scenario: str, target_date: Optional[str]) -> str:
+        """Lightweight query embedding — only what's known at retrieval time."""
         return f"org:{org_id} scenario:{scenario} date:{target_date or 'next'}"
+
+    @staticmethod
+    def _storage_text(
+        org_id: int,
+        scenario: str,
+        target_date: Optional[str],
+        conditions: Optional[dict],
+    ) -> str:
+        """Richer storage embedding — includes actual run conditions so future
+        retrievals can match on scenario type AND situational signals, not just date."""
+        base  = f"org:{org_id} scenario:{scenario} date:{target_date or 'next'}"
+        if not conditions:
+            return base
+        parts = [base]
+        if conditions.get("demand_ratio") is not None:
+            parts.append(f"demand_ratio:{conditions['demand_ratio']}")
+        if conditions.get("occupancy") is not None:
+            parts.append(f"occupancy:{conditions['occupancy']}%")
+        if conditions.get("shortages"):
+            parts.append(f"shortages:{','.join(str(s) for s in conditions['shortages'][:4])}")
+        if conditions.get("verdict"):
+            parts.append(f"verdict:{conditions['verdict']}")
+        return " ".join(parts)
 
     def get(self, org_id: int, scenario: str, target_date: Optional[str]) -> Optional[dict]:
         """Return cached plan if similarity >= 0.92 and not expired."""
@@ -79,10 +103,22 @@ class SemanticPlanCache:
             logger.debug("Semantic plan cache get failed: %s", exc)
             return None
 
-    def set(self, org_id: int, scenario: str, target_date: Optional[str], result: dict) -> None:
-        """Store a planning result in the semantic cache."""
+    def set(
+        self,
+        org_id: int,
+        scenario: str,
+        target_date: Optional[str],
+        result: dict,
+        conditions: Optional[dict] = None,
+    ) -> None:
+        """Store an approved planning result in the semantic cache.
+
+        Uses a richer storage embedding (conditions included) so future
+        retrievals can match on situational signals, not just scenario + date.
+        """
         try:
-            vector = self.embedder.embed(self._query_text(org_id, scenario, target_date))
+            storage_text = self._storage_text(org_id, scenario, target_date, conditions)
+            vector = self.embedder.embed(storage_text)
             self.qdrant.upsert(
                 collection_name=PLAN_CACHE_COLLECTION,
                 points=[PointStruct(

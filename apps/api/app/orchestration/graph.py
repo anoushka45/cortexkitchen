@@ -459,10 +459,20 @@ async def run_planning_scenario(
     # ── Persist results ───────────────────────────────────────────────────────
     verdict = (final_response.get("critic") or {}).get("verdict", "")
 
-    # Semantic cache — store regardless of verdict (serves any future similar query)
-    if semantic_cache and org_id and not simulation_mode and not force_critic_decision:
+    # Semantic cache — approved runs only (prevents returning rejected plans on future hits)
+    if semantic_cache and org_id and verdict == "approved" and not simulation_mode and not force_critic_decision:
         try:
-            semantic_cache.set(org_id, scenario, target_date, final_response)
+            recs = final_response.get("recommendations", {})
+            conditions = {
+                "demand_ratio": ((recs.get("demand_forecast") or {}).get("data") or {}).get("demand_ratio"),
+                "occupancy":    ((recs.get("reservation") or {}).get("data") or {}).get("occupancy_pct"),
+                "shortages":    [
+                    s.get("item", s) if isinstance(s, dict) else s
+                    for s in (((recs.get("inventory") or {}).get("data") or {}).get("shortage_alerts") or [])[:4]
+                ],
+                "verdict": verdict,
+            }
+            semantic_cache.set(org_id, scenario, target_date, final_response, conditions=conditions)
         except Exception:
             pass
 

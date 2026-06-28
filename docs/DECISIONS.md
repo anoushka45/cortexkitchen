@@ -1,7 +1,7 @@
 # Architecture and Product Decisions
 # CortexKitchen
 
-Last updated: June 2026. Phase 5 complete.
+Last updated: June 2026. Phase 5 complete. Phase 6 in progress.
 
 ---
 
@@ -311,3 +311,53 @@ The planning pipeline takes 10–30 seconds. Emitting node status as each comple
 - Planning `node_complete` events carry `{"node": "nodename"}` only — no output data in the stream
 - The full plan renders all at once from the single `complete` event
 - Frontend must handle stream teardown and error events
+
+---
+
+## D-020: Circuit breaker pattern for Swiggy MCP calls
+**Status:** Accepted
+
+### Context
+Swiggy MCP servers can experience transient degradation or be temporarily unreachable. Without protection, every planning run that uses a Swiggy enricher would block on the timeout for every call, cascading latency into the planning pipeline.
+
+### Decision
+Implement a Redis-backed circuit breaker per Swiggy endpoint (`food`, `im`, `dineout`). Three failures within 5 minutes opens the circuit for 30 minutes. `SwiggyMCPClient.call_tool()` checks the circuit before every HTTP call and records outcomes. The provider registry's async method also checks the circuit before routing.
+
+### Consequences
+- Degraded Swiggy endpoints fail fast instead of blocking the pipeline
+- Circuit state is observable via `GET /health/circuits`
+- Fail-open policy: if Redis is down, `is_open()` returns False so calls are attempted rather than blocked
+- No code changes needed to add a new endpoint — the circuit key is derived from the URL
+
+---
+
+## D-021: Planning memory with recency-weighted retrieval
+**Status:** Accepted
+
+### Context
+Past approved planning runs contain valuable operational signals (what worked, what was flagged, under what conditions). A naive embedding store without time-weighting treats a run from 89 days ago the same as one from yesterday.
+
+### Decision
+Store approved run insights in a Qdrant `planning_memory` collection. At retrieval time, apply recency decay `score × 2^(-age/RECENCY_HALF_LIFE_DAYS)` with a 14-day half-life and a 90-day maximum age cutoff. Over-fetch 2×top_k candidates, re-rank by decayed score, return top-k.
+
+### Consequences
+- Recent runs strongly influence future planning; old runs fade gracefully
+- The decay formula is interpretable: a 14-day-old run has half the weight of today's, a 28-day-old run has a quarter
+- 90-day cutoff prevents very old operational contexts from surfacing (restaurant conditions change)
+- No database migration needed — pure Qdrant
+
+---
+
+## D-022: Asymmetric embeddings for SemanticPlanCache
+**Status:** Accepted
+
+### Context
+Using the same text for both storage and retrieval embeddings in the plan cache causes precision loss. At storage time we know the actual run conditions (demand_ratio, occupancy, shortages); at query time we only know scenario + date. Using the same embedding for both means rich storage context is "wasted" — the query can't match on conditions it doesn't yet know.
+
+### Decision
+Use two distinct embeddings: `_query_text()` (lightweight, retrieval-side: `"org:{id} scenario:{scenario} date:{date}"`) and `_storage_text()` (enriched, write-side: same base + `demand_ratio`, `occupancy%`, `shortages`, `verdict`). This is an intentional asymmetry — the storage embedding is richer so future queries with similar scenarios on similar dates can score higher when conditions were similar, without requiring the caller to know those conditions at query time.
+
+### Consequences
+- Future runs under similar pressure (high demand, same shortages) will match historical runs more accurately
+- The retrieval-side embedding stays simple — no caller changes needed
+- Approved-only writes ensure the cache only returns plans that passed quality review

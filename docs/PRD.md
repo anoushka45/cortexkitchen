@@ -1,7 +1,7 @@
 # Product Requirements Document (PRD)
 # CortexKitchen
 
-Last updated: June 2026. Phase 5 complete.
+Last updated: June 2026. Phase 6 in progress.
 
 ---
 
@@ -37,19 +37,28 @@ A multi-agent AI operating layer for restaurant operations that is:
 - Streaming — results arrive node by node, not as a single slow response
 - Production-minded — Redis caching, OTel tracing, Sentry, LangSmith evals
 - Multi-tenant — one platform, isolated per restaurant org
+- Integrated — connects to live platforms (Swiggy) for real demand, market, and procurement data
+- Governed — circuit breaker, provider registry, and tool tracing protect all external API calls
 
 ---
 
 ## 4. Goals
 
 ### Primary
-- Multi-agent planning pipeline (LangGraph, 9 nodes) across 4 shift scenarios
+- Multi-agent planning pipeline (LangGraph, 12 nodes) across 4 shift scenarios
 - Demand forecasting with Prophet time-series
 - RAG complaint intelligence over Qdrant
 - 5-dimension critic quality gate (safety, feasibility, evidence, actionability, clarity)
 - SSE streaming with live pipeline diagram
 - PDF and Excel exports (chef view and owner view)
 - RAG chatbot over run history and feedback
+
+### Phase 6 (in progress)
+- Swiggy MCP integration — live delivery orders, competitor pricing, occupancy signals, procurement
+- Long-term planning memory (PlanningMemoryService) with recency decay
+- Semantic plan cache (Qdrant-backed, approved-only, condition-enriched embeddings)
+- MCP governance: circuit breaker, provider registry, tool tracing
+- Autonomous action execution with owner approval gates (ProcurementExecutor, DineoutExecutor)
 
 ### Secondary
 - LangSmith golden dataset + 90% CI quality gate

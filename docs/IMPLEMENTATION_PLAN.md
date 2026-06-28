@@ -1,6 +1,6 @@
 # CortexKitchen Implementation Plan
 
-Last updated: June 2026. Phase 5 complete.
+Last updated: June 2026. Phase 5 complete. Phase 6 in progress.
 
 ---
 
@@ -65,19 +65,39 @@ Last updated: June 2026. Phase 5 complete.
 
 ## Current state
 
-All five phases are complete. The system is production-ready for demo and portfolio use.
+Phases 0–5 are complete. Phase 6 (Swiggy MCP integration) is in progress with P6-S01 to P6-S04 merged to dev.
 
 Outstanding known gaps:
-- All data is synthetic — no live POS, reservation system, or supplier integrations
+- Core data integrations are synthetic pending Swiggy enricher completion (P6-S05 to S09)
 - `packages/core` is empty — shared types between frontend and backend are not yet extracted
 - RAGAS/DeepEval datasets are hand-crafted — should be rebuilt from live runs periodically
 
 ---
 
-## Phase 6 — Planned
+## Phase 6 — Swiggy MCP Integration (in progress)
 
-- Real data connectors — CSV/POS import (Square/Toast); map to existing orders schema
-- Live reservation sync — OpenTable/Resy webhook
-- Scheduled weekly digest email — PDF attached, APScheduler + SendGrid
-- Mobile-responsive dashboard
-- Role-based access control — differentiated views for owner vs floor manager
+**P6-S01 to S03** — Foundation and sync (complete, merged to dev):
+- `BaseConnector` ABC (`sync()` + `enrich()` pattern)
+- `SwiggyMCPClient` — JSON-RPC 2.0 to all three Swiggy MCP servers
+- `connectors` table + `ConnectorRepository` (per-org token storage, sync_status)
+- Async job queue for planning runs
+- `SwiggyConnector.sync()` — `get_food_orders` → orders table
+
+**P6-S04 / agent intelligence** (complete, merged to dev):
+- Circuit breaker — Redis-backed, per-endpoint, 3/5min → 30min
+- Provider registry — `get_provider_async()` checks DB + circuit state
+- Tool tracing — per-call trace in SwiggyMCPClient
+- `GET /health/circuits` health endpoint
+- `PlanningMemoryService` — Qdrant long-term memory, recency decay
+- `SemanticPlanCache` (Qdrant) — approved-only, condition-enriched
+- `SemanticChatCache` — chatbot Q&A cache
+- Graph expanded to 12 nodes: `qdrant_enrichment`, `phase1_sync`, `replan_orchestrator`
+- Chatbot LLM factory + within-session memory (8-turn window + compression)
+
+**Planned:**
+- P6-S05: feedback sync (track_food_order → feedback table)
+- P6-S06 to S09: CompetitorEnricher, OccupancyEnricher, ProcurementEnricher, MarketIntelService
+- P6-S10/S11: market_intel_node + dineout_manager_node
+- P6-S13 to S15: Action layer (ActionQueueService, ProcurementExecutor, DineoutExecutor)
+- P6-S16/S17: BriefingService (daily) + LiveMonitorService (during service hours)
+- P6-F01 to F06: Frontend for market intel, action queue, connectors, live mode

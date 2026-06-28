@@ -1,6 +1,6 @@
 # CortexKitchen Roadmap
 
-Status snapshot: June 2026. Phase 5 complete.
+Status snapshot: June 2026. Phase 5 complete. Phase 6 in progress.
 
 ---
 
@@ -69,7 +69,7 @@ Status snapshot: June 2026. Phase 5 complete.
 
 ## Known gaps
 
-- All data integrations are synthetic — no live POS, reservation system, or platform connections
+- Core data integrations are synthetic pending Swiggy enricher completion (P6-S05 to S09); Swiggy order sync is live (P6-S01 to S03)
 - `packages/core` is empty; types are not yet shared between frontend and backend
 - RAGAS/DeepEval eval datasets are hand-crafted — should be rebuilt from live captures periodically
 - `test_langgraph_flow.py` references a removed module and is excluded from the test run
@@ -77,10 +77,36 @@ Status snapshot: June 2026. Phase 5 complete.
 
 ---
 
-## Phase 6 — Planned
+## Phase 6 — In Progress (Swiggy MCP Integration)
 
-- Real data connectors — CSV/POS import framework; first connector (Square/Toast CSV); map to existing orders schema
-- Live reservation sync — OpenTable / Resy webhook integration
-- Scheduled digests — weekly email summary with PDF attached
-- Mobile-responsive dashboard
-- Role-based access control — differentiated views for owner vs floor manager
+Phase 6 is the real data connector phase. CortexKitchen integrates with Swiggy's MCP servers (Food, Instamart, Dineout) to replace synthetic data with live platform signals and enable autonomous action execution.
+
+### Completed (merged to dev)
+
+- **P6-S01** BaseConnector ABC (`sync()` + `enrich()` pattern) + `SwiggyMCPClient` (JSON-RPC 2.0, graceful degradation, retry on 5xx)
+- **P6-S02** `connectors` table + `ConnectorRepository` (per-org OAuth token storage, sync_status tracking) + async job queue
+- **P6-S03** `SwiggyConnector.sync()` — `get_food_orders` → `orders` table (source=swiggy, channel=delivery); external_order_id dedup
+- **P6-S04 / agent intelligence** — full MCP governance layer + intelligence improvements:
+  - Circuit breaker (Redis-backed, 3 failures/5min → 30min open per endpoint)
+  - Provider registry (DB + live circuit health routing)
+  - Tool tracing in SwiggyMCPClient
+  - `GET /health/circuits` endpoint
+  - `PlanningMemoryService` — Qdrant long-term memory with recency decay
+  - `SemanticPlanCache` (Qdrant) — approved-only, condition-enriched storage embedding
+  - `SemanticChatCache` — chatbot Q&A cache
+  - Three new graph nodes: `qdrant_enrichment`, `phase1_sync`, `replan_orchestrator`
+  - Chatbot LLM factory (dispatches on LLM_PROVIDER)
+  - Within-session chat memory (8-turn window with compression)
+
+### Planned
+
+- **P6-S05** track_food_order → feedback table (delivery latency signals)
+- **P6-S06** CompetitorEnricher (Food MCP: search_restaurants + get_restaurant_menu)
+- **P6-S07** OccupancyEnricher (Dineout MCP: search_restaurants_dineout + get_available_slots)
+- **P6-S08** ProcurementEnricher (Instamart: search_products + your_go_to_items)
+- **P6-S09** MarketIntelService + 6 state fields
+- **P6-S10/S11** market_intel_node + dineout_manager_node (12th and 13th nodes)
+- **P6-S12** 2 new cross-agent assumption diffs (market pricing vs menu, Dineout slots vs occupancy)
+- **P6-S13 to S15** Action layer: ActionQueueService, ProcurementExecutor, DineoutExecutor
+- **P6-S16/S17** Product modes: BriefingService (7am daily), LiveMonitorService (during service)
+- **P6-F01 to F06** Frontend: market intel panel, action queue UI, connectors page, /live page

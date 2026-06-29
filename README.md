@@ -30,20 +30,19 @@ The result: one brief, one verdict, under 90 seconds.
 
 ## How it works
 
-One planning run executes a twelve-node LangGraph pipeline:
+One planning run executes an eleven-node LangGraph pipeline:
 
 1. **Ops Manager** — validates the scenario, initialises shared state, fans out work
-2. **Planning Memory** — retrieves similar past approved runs from Qdrant, applying recency decay so recent insights rank higher *(new)*
-3. **Phase Sync** — Pregel barrier node that equalises hop counts to prevent the double-aggregator bug *(new)*
-4. **Demand Forecast** — Prophet time-series model produces covers, peak hour, and confidence band
-5. **Bookings & Tables** — analyses reservation density, occupancy %, and waitlist pressure *(parallel)*
-6. **Guest Feedback** — RAG retrieval over Qdrant surfaces complaint patterns and SOPs *(parallel)*
-7. **Menu Intelligence** — evaluates top items, weak items, and promotion opportunities *(parallel)*
-8. **Stock & Inventory** — detects shortages, spoilage risk, and restock priorities *(parallel)*
-9. **Aggregator** — collects all domain outputs into a single package
-10. **Replan Orchestrator** — if the critic requests revision, injects its feedback and triggers up to 2 replan cycles *(new)*
-11. **Quality Check (Critic)** — scores the plan across 5 dimensions, gates it with a verdict
-12. **Final Assembler** — shapes the API response with full metadata and cost tracking
+2. **Demand Forecast** — Prophet time-series model produces covers, peak hour, and confidence band
+3. **Planning Memory** — retrieves similar past approved runs from Qdrant, applying recency decay so recent insights rank higher *(new)*
+4. **Bookings & Tables** — analyses reservation density, occupancy %, and waitlist pressure *(parallel)*
+5. **Guest Feedback** — RAG retrieval over Qdrant surfaces complaint patterns and SOPs *(parallel)*
+6. **Stock & Inventory** — detects shortages, spoilage risk, and restock priorities *(parallel)*
+7. **Menu Intelligence** — runs after 4, 5, and 6 complete; reads inventory constraints and reservation pressure before forming menu recommendations *(sequential fan-in)*
+8. **Aggregator** — collects all domain outputs into a single package
+9. **Replan Orchestrator** — if the critic requests revision, injects its feedback and triggers up to 2 replan cycles *(new)*
+10. **Quality Check (Critic)** — scores the plan across 5 dimensions, gates it with a verdict
+11. **Final Assembler** — shapes the API response with full metadata and cost tracking
 
 ![Dashboard — Pipeline Running](screenshots/03_dashboard/02_loading_screen.png)
 *Live pipeline diagram mid-run — Ops Manager and Demand Forecast complete (green), four parallel specialists running simultaneously, Aggregator and Critic waiting.*
@@ -238,7 +237,7 @@ This mode is fully opt-in — Groq and Gemini behaviour is completely unchanged 
 | Layer | Technology |
 |-------|-----------|
 | Backend API | FastAPI 0.115, Uvicorn, Pydantic v2 |
-| Orchestration | LangGraph (StateGraph, twelve nodes, parallel fan-out) |
+| Orchestration | LangGraph (StateGraph, eleven nodes, parallel fan-out across reservation/complaint/inventory; menu sequential after) |
 | LLM | Groq llama-3.3-70b (default) or Gemini — pluggable via `LLM_PROVIDER`; auto-fallback. Optional per-node tier routing via CometAPI (`COMET_TIERED=true`). Chatbot LLM factory (`_get_chat_client()`) also routes on `LLM_PROVIDER`. |
 | Streaming | FastAPI SSE (`/planning/stream`) — `node_complete` status events drive the loading screen; full plan delivered in one `complete` event |
 | Caching | Redis 7 — 1hr TTL plan cache by scenario + date |
@@ -282,7 +281,7 @@ This mode is fully opt-in — Groq and Gemini behaviour is completely unchanged 
 | Phase 3 | Complete | Multi-scenario runner, runs audit trail, critic scoring |
 | Phase 4 | Complete | Auth, LangSmith, health checks, structlog, cost tracking, evals, MCP |
 | Phase 5 | Complete | PDF/Excel export, SSE streaming, Redis cache, what-if simulator, OTel, Sentry, LangSmith evals, multi-tenant isolation, RAG chatbot, prelaunch polish |
-| Phase 6 | **In Progress** | Swiggy MCP integration — BaseConnector + SwiggyMCPClient, circuit breaker, provider registry, planning memory, semantic plan/chat cache, 3 new graph nodes |
+| Phase 6 | **In Progress** | Swiggy MCP integration — BaseConnector + SwiggyMCPClient, circuit breaker, provider registry, planning memory, semantic plan/chat cache, 2 new graph nodes |
 
 ---
 

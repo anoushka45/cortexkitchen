@@ -590,8 +590,8 @@
 
   <div class="nav-section-label">Layer 1 — Orchestration</div>
   <a href="#l1" class="nav-link sub">LangGraph StateGraph</a>
-  <a href="#l1-12nodes" class="nav-link sub">12-Node Pipeline</a>
-  <a href="#l1-barrier" class="nav-link sub">Phase1 Sync (Barrier)</a>
+  <a href="#l1-11nodes" class="nav-link sub">11-Node Pipeline</a>
+  <a href="#l1-fanin" class="nav-link sub">Native Fan-In</a>
   <a href="#l1-streaming" class="nav-link sub">astream_events v2</a>
 
   <div class="nav-section-label">Layer 2 — Agent Intelligence</div>
@@ -671,7 +671,7 @@
   <!-- ── OVERVIEW ── -->
   <section class="section" id="overview">
     <h2>Overview</h2>
-    <p class="section-intro">CortexKitchen is a production-grade multi-agent AI system for restaurant operational planning. Given a scenario — Friday Rush, Holiday Spike, Low-Stock Weekend, or Weekday Lunch — it runs a 12-node LangGraph pipeline that forecasts demand, retrieves memory from Qdrant, runs parallel domain agents, synthesises a consolidated brief, validates it through a critic loop, and streams results node-by-node to the frontend via Server-Sent Events.</p>
+    <p class="section-intro">CortexKitchen is a production-grade multi-agent AI system for restaurant operational planning. Given a scenario — Friday Rush, Holiday Spike, Low-Stock Weekend, or Weekday Lunch — it runs an 11-node LangGraph pipeline that forecasts demand, retrieves memory from Qdrant, runs parallel domain agents, synthesises a consolidated brief, validates it through a critic loop, and streams results node-by-node to the frontend via Server-Sent Events.</p>
 
     <div class="callout why">
       <div class="callout-label">Core Design Principle</div>
@@ -685,7 +685,7 @@
   <section class="section" id="arch-map">
     <div class="section-divider"></div>
     <h2>Architecture Map</h2>
-    <p class="section-intro">The complete 12-node pipeline, left to right: entry → enrichment → parallel fan-out → barrier → sequential menu → synthesis → validation → final output. The replan loop is the only cycle in the graph — everything else is a directed acyclic flow.</p>
+    <p class="section-intro">The complete 11-node pipeline, left to right: entry → enrichment → parallel fan-out → sequential menu (native fan-in) → synthesis → validation → final output. The replan loop is the only cycle in the graph — everything else is a directed acyclic flow.</p>
 
     <div class="pipeline">
       <div class="pipe-node entry">ops_manager</div>
@@ -699,9 +699,7 @@
         <div class="pipe-node parallel-item">complaint_intelligence</div>
         <div class="pipe-node parallel-item">inventory</div>
       </div>
-      <div class="pipe-arrow">↓ ↓ ↓</div>
-      <div class="pipe-node barrier">phase1_sync  ← barrier: equalises hop counts</div>
-      <div class="pipe-arrow">↓</div>
+      <div class="pipe-arrow">↓ ↓ ↓  (fan-in — menu_intelligence fires once when all 3 complete)</div>
       <div class="pipe-node menu">menu_intelligence</div>
       <div class="pipe-arrow">↓</div>
       <div class="pipe-node agg">aggregator  ← synthesises all 5 agent outputs</div>
@@ -738,7 +736,7 @@
       <p>A plain <code>asyncio.gather()</code> pipeline could handle the parallel fan-out, but LangGraph gives three things you can't easily build yourself: (1) <strong>parallel fan-out</strong> with guaranteed state merging — reservation, complaint, and inventory run simultaneously and their outputs merge cleanly into a single state object; (2) <strong>conditional edges</strong> — the critic can branch to replan_orchestrator or final_assembler based on state, not code logic; (3) <strong>compiled topology validation</strong> — the graph checks for cycles, disconnected nodes, and missing edges at startup, not at runtime when a user is waiting.</p>
     </div>
 
-    <h3 id="l1-12nodes">12-Node Pipeline</h3>
+    <h3 id="l1-11nodes">11-Node Pipeline</h3>
     <p>In order of execution:</p>
     <div class="table-wrap">
       <table>
@@ -750,8 +748,7 @@
           <tr><td><code>reservation</code></td><td>Occupancy, waitlist, booking conflicts</td><td>Parallel</td></tr>
           <tr><td><code>complaint_intelligence</code></td><td>RAG over complaints + SOPs → risk summary</td><td>Parallel</td></tr>
           <tr><td><code>inventory</code></td><td>Stock vs demand → shortages, overstock (3× restock cap)</td><td>Parallel</td></tr>
-          <tr><td><code>phase1_sync</code></td><td>Passthrough barrier — equalises hop counts, prevents double-aggregator</td><td>Sequential</td></tr>
-          <tr><td><code>menu_intelligence</code></td><td>Inventory-constrained menu guidance</td><td>Sequential</td></tr>
+          <tr><td><code>menu_intelligence</code></td><td>Inventory-constrained menu guidance — fires via native LangGraph fan-in after all 3 parallel nodes</td><td>Sequential</td></tr>
           <tr><td><code>aggregator</code></td><td>Synthesises all 5 agent outputs + contradiction detection</td><td>Sequential</td></tr>
           <tr><td><code>critic</code></td><td>5-dimension LLM evaluation → approved/revision/rejected</td><td>Sequential</td></tr>
           <tr><td><code>replan_orchestrator</code></td><td>Injects critic feedback for retry (max 2 cycles)</td><td>Conditional</td></tr>
@@ -760,24 +757,24 @@
       </table>
     </div>
 
-    <h3 id="l1-barrier">Phase1 Sync — The Barrier Pattern</h3>
-    <p>This is one of the most non-obvious design decisions in the codebase and worth understanding deeply. LangGraph uses <strong>Pregel-style execution</strong> — all nodes at the same "hop count" from the entry point run in the same "superstep." The problem: after the parallel fan-out, <code>reservation</code> and <code>complaint_intelligence</code> were 3 hops from <code>ops_manager</code>, but <code>inventory</code> was also 3 hops. However, in the old topology, <code>inventory → menu_intelligence → aggregator</code> meant inventory was 4 hops from aggregator via menu. This caused <code>aggregator</code> to fire <strong>twice</strong> — once with partial data at 13ms, then again after menu at 4868ms.</p>
+    <h3 id="l1-fanin">Native LangGraph Fan-In</h3>
+    <p>LangGraph uses <strong>Pregel-style execution</strong> — a node fires when <em>all</em> edges pointing into it have resolved. This is the native fan-in guarantee: if three nodes (<code>reservation</code>, <code>complaint_intelligence</code>, <code>inventory</code>) all have an edge to <code>menu_intelligence</code>, then <code>menu_intelligence</code> fires exactly once — after all three have completed — with no extra synchronisation code required.</p>
 
-    <div class="callout important">
-      <div class="callout-label">The Bug (now fixed)</div>
-      <p>Without phase1_sync: aggregator ran at superstep N (when reservation + complaint were done) and again at superstep N+1 (when inventory + menu were done). This produced an early, incomplete plan visible in the UI as "aggregator green before menu." Confirmed via DB query on <code>node_traces</code>: <code>aggregator(13ms) → menu_intelligence(4868ms) → aggregator(26ms)</code> in every run.</p>
+    <div class="callout success">
+      <div class="callout-label">Why phase1_sync was removed</div>
+      <p>An earlier implementation used a passthrough barrier node called <code>phase1_sync</code> to equalise hop counts across the three parallel paths before <code>menu_intelligence</code>. This was a workaround for a hop-count imbalance in the original graph topology. When the graph was refactored so that all three parallel nodes (<code>reservation</code>, <code>complaint_intelligence</code>, <code>inventory</code>) share the same predecessor (<code>qdrant_enrichment</code>) and all feed directly into <code>menu_intelligence</code>, LangGraph's Pregel engine handles the fan-in natively. The barrier node was dead code — it did nothing that the graph engine wasn't already doing. It has been removed.</p>
     </div>
 
-    <p>The fix is elegant: <code>phase1_sync</code> is a zero-logic passthrough node that all three parallel agents feed into. Now reservation, complaint, and inventory all terminate at phase1_sync (same hop count), and the path from phase1_sync to aggregator goes through menu_intelligence. Every path is the same length → aggregator fires exactly once.</p>
+    <p>The current wiring in <code>graph.py</code>:</p>
+    <pre><code>graph.add_edge(RESERVATION,             MENU_INTELLIGENCE)
+graph.add_edge(COMPLAINT_INTELLIGENCE,  MENU_INTELLIGENCE)
+graph.add_edge(INVENTORY,               MENU_INTELLIGENCE)</code></pre>
 
-    <pre><code>def phase1_sync_node(state):
-    """Barrier: equalises hop counts from all parallel paths.
-    Ensures aggregator fires exactly once — not twice (Pregel double-fire bug)."""
-    return state</code></pre>
+    <p>Three edges, one destination. LangGraph fires <code>menu_intelligence</code> exactly once — after all three predecessors have written their outputs to state. No barrier node. No hop-count arithmetic. No extra maintenance surface.</p>
 
-    <div class="callout tradeoff">
-      <div class="callout-label">Tradeoff</div>
-      <p>phase1_sync adds ~1ms of overhead per run — the cost of passing state through an extra node. This is negligible. The alternative was restructuring the entire graph topology to manually balance hop counts, which would make the graph harder to read and maintain.</p>
+    <div class="callout why">
+      <div class="callout-label">When native fan-in works vs when you need a barrier</div>
+      <p>Native fan-in works when all predecessors share a common ancestor in the same superstep (which is the case here — all three parallel nodes originate from <code>qdrant_enrichment</code>). A barrier node would still be needed if you were merging paths with different depths from the entry point — e.g. a node that fans out to two sub-graphs of different lengths. In our topology, all three parallel nodes are equidistant from <code>ops_manager</code>, so the Pregel scheduler guarantees they land in the same superstep and <code>menu_intelligence</code> fires exactly once.</p>
     </div>
 
     <h3 id="l1-streaming">Streaming with astream_events v2</h3>
@@ -851,7 +848,7 @@
     <p>The inventory agent calculates restock quantities as <code>needed = (predicted_covers * per_cover_usage) - current_stock</code>. Early versions could produce absurd restock recommendations (e.g. "order 500kg of chicken for 180 covers"). A deterministic cap was added: <code>restock_qty = min(calculated_qty, current_stock * 3)</code>. You can't recommend restocking more than 3× what you currently hold. This cap is also checked by the EvaluationSanityChecker and overridden if violated.</p>
 
     <h3 id="l2-menu">Menu Intelligence</h3>
-    <p>Runs <strong>sequentially after phase1_sync</strong>. This is an intentional correctness choice, not a performance concession. If menu_intelligence ran in parallel with inventory, it would make recommendations ("push the pasta special") without knowing whether the pasta ingredients are actually in stock. By running after inventory data is in state, it can produce constraint-aware suggestions ("deprioritise the sea bass — critical shortage flagged").</p>
+    <p>Runs <strong>sequentially after all three parallel agents complete</strong> — the LangGraph fan-in guarantees it fires exactly once with all of their outputs available in state. This ordering is an intentional correctness choice, not a performance concession. If menu_intelligence ran in parallel with inventory, it would make recommendations ("push the pasta special") without knowing whether the pasta ingredients are actually in stock. By running after inventory data is in state, it can produce constraint-aware suggestions ("deprioritise the sea bass — critical shortage flagged").</p>
 
     <div class="callout tradeoff">
       <div class="callout-label">Tradeoff: Correctness vs Latency</div>
@@ -1453,8 +1450,8 @@ registry.get_provider(org_id=1, capability="reservation_data", db=db)
       <div class="limit-item">
         <div class="limit-num">10</div>
         <div class="limit-content">
-          <strong>phase1_sync adds ~1ms per run</strong>
-          <p>The barrier node is a passthrough — it does nothing except allow LangGraph's Pregel superstep logic to equalise hop counts. The 1ms overhead is negligible. The alternative was manually counting hops and restructuring the graph topology, which would make the graph harder to understand and modify.</p>
+          <strong>Chatbot <code>org_id</code> filter missing on feedback retrieval</strong>
+          <p>The <code>/chat</code> chatbot retrieves the last 30 feedback records without filtering by <code>org_id</code>. In a single-tenant dev setup this is harmless, but in a multi-tenant production environment it would expose one org's guest feedback to another org's chatbot. The fix is a one-line addition of <code>.filter(Feedback.org_id == org_id)</code> to the feedback query in <code>ChatService</code>. Tracked as a known gap pending the multi-tenant hardening pass in Phase 7.</p>
         </div>
       </div>
 

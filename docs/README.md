@@ -25,7 +25,7 @@ All documents in this folder reflect the implemented codebase.
 ## What's new (Phase 6 — in progress)
 
 ### Graph
-- **3 new LangGraph nodes** — `qdrant_enrichment` (retrieves past approved-run insights from `planning_memory` before the fan-out), `phase1_sync` (Pregel barrier to prevent double-aggregator bug), `replan_orchestrator` (injects critic feedback and drives up to 2 revision cycles). Graph is now 12 nodes.
+- **2 new LangGraph nodes** — `qdrant_enrichment` (retrieves past approved-run insights from `planning_memory` before the fan-out; runs after `demand_forecast`), `replan_orchestrator` (injects critic feedback and drives up to 2 revision cycles). Graph is now 11 nodes.
 
 ### Intelligence & memory
 - **PlanningMemoryService** — stores approved run insights in Qdrant `planning_memory` collection; recency decay scoring (`score × 2^(-age/14days)`, 90-day cutoff) so recent runs rank above older ones

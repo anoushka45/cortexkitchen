@@ -6,7 +6,7 @@ Last updated: June 2026. Reflects the implemented LangGraph graph and chat agent
 
 ## Overview
 
-CortexKitchen's planning pipeline is implemented as a LangGraph `StateGraph`. The graph contains twelve nodes wired in a specific topology: a sequential head (ops_manager → qdrant_enrichment → phase1_sync → demand_forecast), a parallel fan-out across four domain nodes, and a sequential tail through aggregation, replan management, critic, and final assembly.
+CortexKitchen's planning pipeline is implemented as a LangGraph `StateGraph`. The graph contains eleven nodes wired in a specific topology: a sequential head (ops_manager → demand_forecast → qdrant_enrichment), a parallel fan-out across three domain nodes with menu_intelligence sequential after, and a sequential tail through aggregation, replan management, critic, and final assembly.
 
 The graph is constructed per request by `build_graph(deps)` in `app/orchestration/graph.py`. Dependencies (database session, LLM provider, memory service, planning memory service) are injected at wire time.
 
@@ -22,31 +22,31 @@ ops_manager
     ├── (error) → final_assembler → END
     │
     ▼
-qdrant_enrichment       ← retrieves past approved-run insights, injects past_plans into shared_context
-    │
-    ▼
-phase1_sync             ← Pregel hop-count barrier (no logic, prevents double-aggregator bug)
-    │
-    ▼
 demand_forecast
     │
-    ├──────────────────┬────────────────┬──────────────┐
-    ▼                  ▼                ▼              ▼
-reservation    complaint_intel    menu_intel       inventory
-    │                  │                │              │
-    └──────────────────┴────────────────┴──────────────┘
-                            │
-                            ▼
-                        aggregator
-                            │
-                            ▼
-                   replan_orchestrator  ← injects critic feedback for revision cycles (max 2)
-                            │
-                            ▼
-                          critic
-                            │
-                            ▼
-                      final_assembler → END
+    ▼
+qdrant_enrichment       ← retrieves past approved-run insights, injects past_plans into shared_context
+    │
+    ├─────────────────────┬──────────────────────┐
+    ▼                     ▼                      ▼
+reservation      complaint_intelligence       inventory
+    └──────────────────────┼──────────────────────┘
+                           ▼
+                   menu_intelligence   ← sequential after all 3; LangGraph fan-in fires exactly once
+                           │
+                           ▼
+                       aggregator
+                           │
+                           ▼
+                         critic
+                           │
+         ┌─────────────────┴──────────────────────┐
+    (approved or                           (revision, replan_count < 2)
+     replan_count ≥ 2)                            │
+         ▼                                        ▼
+   final_assembler                      replan_orchestrator
+         │                                        │
+        END                              aggregator (loop)
 ```
 
 The conditional edge after `ops_manager` short-circuits to `final_assembler` if `state["error"]` is set.
@@ -70,9 +70,9 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 
 ### `qdrant_enrichment`
 
-**Role:** Retrieves similar past approved-run insights from Qdrant before the planning fan-out, so all downstream nodes benefit from historical context. Uses recency decay scoring (`score × 2^(-age/HALF_LIFE_DAYS)`) so recent runs rank higher than old ones. Runs over the `planning_memory` Qdrant collection.
+**Role:** Retrieves similar past approved-run insights from Qdrant after `demand_forecast`, before the parallel fan-out. Uses recency decay scoring (`score × 2^(-age/HALF_LIFE_DAYS)`) so recent runs rank higher than old ones. Runs over the `planning_memory` Qdrant collection.
 
-**Inputs:** Scenario context from `ops_manager`, `org_id`  
+**Inputs:** Scenario context + demand signal from `demand_forecast`, `org_id`  
 **Outputs:** `shared_context["past_plans"]` — top-3 similar past plan snippets (empty list on failure or if PlanningMemoryService not configured)  
 **Implementation:** `app/orchestration/nodes/qdrant_enrichment.py`  
 **Service:** `PlanningMemoryService` (Qdrant ANN search + recency re-ranking)  
@@ -80,19 +80,6 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 **Model tier:** None — no LLM call; pure vector retrieval
 
 **Failure behaviour:** Any exception returns `past_plans=[]` — the pipeline continues unchanged. The node never blocks a run.
-
----
-
-### `phase1_sync`
-
-**Role:** A structural passthrough node that exists solely to fix a LangGraph Pregel hop-count bug. Without it, `aggregator` is reachable in 4 hops from `qdrant_enrichment` but `menu_intelligence` is reachable in 5 hops — causing `aggregator` to fire before all parallel domain nodes complete (the double-aggregator bug, observed in production node_traces at 13ms vs 4868ms). This node equalises the hop counts so the fan-out barrier holds correctly.
-
-**Inputs:** Passes state through unchanged  
-**Outputs:** Unchanged state  
-**Implementation:** `app/orchestration/nodes/phase1_sync.py`  
-**Dependencies:** None (synchronous, no-op)
-
-**Note:** This is an infrastructure node, not a business logic node. It has no visible output in the planning response.
 
 ---
 
@@ -154,7 +141,7 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 **Outputs:** Menu output block in `state["menu_output"]` — top items, weak items, promotion strategy, watchouts  
 **Assumptions written to state (`menu_assumptions`):**
 - `items_assumed_available` — top-performing items that are **not** in the shortage list; these are what the node implicitly assumes it can promote
-- `assumed_covers_within_capacity` — always `True`; the menu node never has access to live reservation occupancy data (it runs in parallel with the reservation node), so it implicitly assumes the house is not at capacity
+- `assumed_covers_within_capacity` — always `True`; at runtime, `menu_intelligence` fires after `reservation`, `complaint_intelligence`, and `inventory` all complete (LangGraph fan-in). However, `MenuService` does not consume reservation_output from state — it self-queries its own data sources. The cross-agent assumption diff (Diff 2) detects when reservation shows >90% occupancy that menu's implicit capacity assumption doesn't account for.
 
 **Implementation:** `app/orchestration/nodes/menu_intelligence.py`  
 **Service:** `MenuService`  

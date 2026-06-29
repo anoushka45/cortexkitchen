@@ -167,7 +167,7 @@ Returns all available scenario presets.
 
 ### `POST /api/v1/planning/run`
 
-Executes the twelve-node multi-agent planning pipeline. Returns the **full response as a standard JSON object** once the pipeline completes. No streaming — use `/planning/stream` if you need the live pipeline diagram.
+Executes the eleven-node multi-agent planning pipeline. Returns the **full response as a standard JSON object** once the pipeline completes. No streaming — use `/planning/stream` if you need the live pipeline diagram.
 
 **Auth:** JWT required.
 
@@ -326,7 +326,7 @@ event: complete
 data: { ... full response payload — same shape as /planning/run ... }
 ```
 
-Note: `ops_manager`, `phase1_sync`, `replan_orchestrator`, and `final_assembler` do not emit SSE events — they are infrastructure or assembly nodes.
+Note: `ops_manager`, `replan_orchestrator`, and `final_assembler` do not emit SSE events — they are infrastructure or assembly nodes.
 
 **Error event**
 

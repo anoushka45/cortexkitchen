@@ -45,7 +45,7 @@ A multi-agent AI operating layer for restaurant operations that is:
 ## 4. Goals
 
 ### Primary
-- Multi-agent planning pipeline (LangGraph, 12 nodes) across 4 shift scenarios
+- Multi-agent planning pipeline (LangGraph, 11 nodes) across 4 shift scenarios
 - Demand forecasting with Prophet time-series
 - RAG complaint intelligence over Qdrant
 - 5-dimension critic quality gate (safety, feasibility, evidence, actionability, clarity)
@@ -96,7 +96,7 @@ Restaurant manager / ops lead planning a shift for a casual dining restaurant.
 ## 7. Core Use Cases
 
 1. Select a shift scenario (Friday Rush, Weekday Lunch, Holiday Spike, Low-Stock Weekend)
-2. Run the nine-node pipeline — watch agents complete in real time via SSE
+2. Run the eleven-node pipeline — watch agents complete in real time via SSE
 3. Review the critic-verified plan (demand, reservations, complaints, menu, inventory)
 4. Export a PDF chef brief or Excel owner workbook
 5. Adjust cover count in the what-if simulator without a full re-run
@@ -109,7 +109,7 @@ Restaurant manager / ops lead planning a shift for a casual dining restaurant.
 ## 8. Delivered Features (Phase 5 complete)
 
 ### Planning pipeline
-- Nine-node LangGraph StateGraph with parallel fan-out across four domain agents
+- Eleven-node LangGraph StateGraph with parallel fan-out across three domain agents (reservation, complaints, inventory); menu intelligence runs sequentially after with access to their outputs
 - Four scenario presets: `friday_rush`, `weekday_lunch`, `holiday_spike`, `low_stock_weekend`
 - Prophet time-series demand forecasting with peak detection
 - Qdrant RAG complaint intelligence — org-scoped payload filter

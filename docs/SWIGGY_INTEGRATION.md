@@ -402,35 +402,35 @@ class BaseConnector(ABC):
 Future connectors (Zomato, Google Reviews, Square POS, EazyDiner) follow the same pattern.
 Token per org stored in `connectors` table via `ConnectorRepository`. See D-019 in `docs/DECISIONS.md`.
 
-### LangGraph pipeline — 12 nodes
+### LangGraph pipeline — 11 nodes (current) + 2 planned
 
 ```
 ops_manager
     │
-qdrant_enrichment            ← PlanningMemoryService: past approved plans (recency-decay ANN)
-    │
-phase1_sync                  ← Pregel barrier: equalises hop counts before fan-out
-    │
 demand_forecast              ← get_food_orders feeds Prophet (real delivery demand)
+    │
+qdrant_enrichment            ← PlanningMemoryService: past approved plans (recency-decay ANN)
     │
     ├── reservation           ← OccupancyEnricher: Dineout competitor slots
     ├── complaint_intel       ← track_food_order: real delivery complaints
-    ├── menu_intel            ← CompetitorEnricher: competitor prices via Food MCP
-    ├── inventory             ← ProcurementEnricher: Instamart prices + availability
-    ├── market_intel_node     ← NEW (10th): CompetitorEnricher + OccupancyEnricher
-    └── dineout_manager_node  ← NEW (11th): our own Dineout slot management
+    └── inventory             ← ProcurementEnricher: Instamart prices + availability
+            │ (LangGraph fan-in — all 3 complete before menu fires)
+    menu_intel                ← CompetitorEnricher: competitor prices via Food MCP
             │
 aggregator (internal + market context)
             │
 replan_orchestrator          ← manages replan loop (max 2 cycles, critic feedback injection)
             │
-EvaluationSanityChecker (5 cross-diffs including 2 new market diffs)
+EvaluationSanityChecker (cross-agent assumption diffs)
             │
 critic (market-aware, strong model tier)
             │
         ┌───┴─────────────┐
 action_queue              final_assembler → plan
 (approve/execute)
+
+[Planned] market_intel_node     ← CompetitorEnricher + OccupancyEnricher (P6-S10)
+[Planned] dineout_manager_node  ← our own Dineout slot management (P6-S11)
 ```
 
 ### Three product modes

@@ -91,7 +91,7 @@ Outstanding known gaps:
 - `PlanningMemoryService` — Qdrant long-term memory, recency decay
 - `SemanticPlanCache` (Qdrant) — approved-only, condition-enriched
 - `SemanticChatCache` — chatbot Q&A cache
-- Graph expanded to 12 nodes: `qdrant_enrichment`, `phase1_sync`, `replan_orchestrator`
+- Graph expanded to 11 nodes: `qdrant_enrichment`, `replan_orchestrator`
 - Chatbot LLM factory + within-session memory (8-turn window + compression)
 
 **Planned:**

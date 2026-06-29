@@ -38,13 +38,6 @@ from app.orchestration.nodes import (
 )
 
 
-def phase1_sync_node(state):
-    """Barrier — collects outputs from reservation, complaint_intelligence, and inventory,
-    then unblocks menu_intelligence. Ensures aggregator fires exactly once (not twice)
-    by making all parallel paths the same hop-length before menu."""
-    return state
-
-
 # ── Node name constants ──────────────────────────────────────────────────────
 
 OPS_MANAGER = "ops_manager"
@@ -53,7 +46,6 @@ QDRANT_ENRICHMENT = "qdrant_enrichment"
 RESERVATION = "reservation"
 COMPLAINT_INTELLIGENCE = "complaint_intelligence"
 INVENTORY = "inventory"
-PHASE1_SYNC = "phase1_sync"
 MENU_INTELLIGENCE = "menu_intelligence"
 AGGREGATOR = "aggregator"
 CRITIC = "critic"
@@ -241,7 +233,6 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
     graph.add_node(RESERVATION,            _inject(reservation_node,            tr, db=db, llm=llm))
     graph.add_node(COMPLAINT_INTELLIGENCE, _inject(complaint_intelligence_node, tr, db=db, llm=llm, memory=memory))
     graph.add_node(INVENTORY,              _inject(inventory_node,              tr, db=db, llm=llm))
-    graph.add_node(PHASE1_SYNC,            _log_node(phase1_sync_node,         tr))
     graph.add_node(MENU_INTELLIGENCE,      _inject(menu_intelligence_node,      tr, db=db, llm=llm))
 
     graph.add_node(AGGREGATOR,          _log_node(aggregator_node,          tr))
@@ -270,14 +261,11 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
     graph.add_edge(QDRANT_ENRICHMENT, COMPLAINT_INTELLIGENCE)
     graph.add_edge(QDRANT_ENRICHMENT, INVENTORY)
 
-    # Phase1 barrier — all three parallel agents must complete before menu starts.
-    # This equalises hop-counts so aggregator fires exactly once (not twice).
-    graph.add_edge(RESERVATION,            PHASE1_SYNC)
-    graph.add_edge(COMPLAINT_INTELLIGENCE, PHASE1_SYNC)
-    graph.add_edge(INVENTORY,              PHASE1_SYNC)
-
-    # Menu runs after all parallel agents are done (reads inventory shortage list)
-    graph.add_edge(PHASE1_SYNC, MENU_INTELLIGENCE)
+    # All three parallel agents must complete before menu starts.
+    # LangGraph fires menu_intelligence once all three fan-in edges resolve.
+    graph.add_edge(RESERVATION,            MENU_INTELLIGENCE)
+    graph.add_edge(COMPLAINT_INTELLIGENCE, MENU_INTELLIGENCE)
+    graph.add_edge(INVENTORY,              MENU_INTELLIGENCE)
 
     # Single fan-in: aggregator fires exactly once, after menu
     graph.add_edge(MENU_INTELLIGENCE, AGGREGATOR)

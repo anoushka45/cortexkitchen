@@ -94,7 +94,7 @@ Phase 6 is the real data connector phase. CortexKitchen integrates with Swiggy's
   - `PlanningMemoryService` — Qdrant long-term memory with recency decay
   - `SemanticPlanCache` (Qdrant) — approved-only, condition-enriched storage embedding
   - `SemanticChatCache` — chatbot Q&A cache
-  - Three new graph nodes: `qdrant_enrichment`, `phase1_sync`, `replan_orchestrator`
+  - Two new graph nodes: `qdrant_enrichment`, `replan_orchestrator`
   - Chatbot LLM factory (dispatches on LLM_PROVIDER)
   - Within-session chat memory (8-turn window with compression)
 

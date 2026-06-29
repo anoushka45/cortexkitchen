@@ -6,7 +6,7 @@ Last updated: June 2026. Reflects the implemented codebase (Phase 6 in progress)
 
 ## Overview
 
-CortexKitchen is a multi-agent restaurant operations intelligence platform. The backend coordinates structured operational data, time-series forecasting, vector retrieval, LLM reasoning, and business-rule validation through a twelve-node LangGraph pipeline. The frontend presents results as a streaming planning dashboard with exports, a RAG chatbot, run history, and observability tooling.
+CortexKitchen is a multi-agent restaurant operations intelligence platform. The backend coordinates structured operational data, time-series forecasting, vector retrieval, LLM reasoning, and business-rule validation through an eleven-node LangGraph pipeline. The frontend presents results as a streaming planning dashboard with exports, a RAG chatbot, run history, and observability tooling.
 
 Phase 5 added: SSE streaming, Redis caching, PDF/Excel export, what-if simulator, OpenTelemetry, Prometheus, Sentry, LangSmith regression evals with a golden dataset, multi-tenant workspace isolation (Postgres + Qdrant), a RAG chatbot (`/chat`), and prelaunch UI polish.
 
@@ -59,7 +59,7 @@ FastAPI application
   └── GET  /debug/sentry-test             (not under /api/v1 prefix)
           │
           ▼
-LangGraph orchestration graph (twelve nodes)
+LangGraph orchestration graph (eleven nodes)
           │
           ▼
 Service and data layer
@@ -143,41 +143,40 @@ ops_manager
     ├── (error) → final_assembler → END
     │
     ▼
-qdrant_enrichment       ← retrieves past approved-run insights, injects past_plans into shared_context
-    │
-    ▼
-phase1_sync             ← Pregel hop-count barrier (no logic, prevents double-aggregator bug)
-    │
-    ▼
 demand_forecast
     │
-    ├──────────────────┬────────────────┬──────────────┐
-    ▼                  ▼                ▼              ▼
-reservation    complaint_intel    menu_intel       inventory
-    │                  │                │              │
-    └──────────────────┴────────────────┴──────────────┘
-                            │
-                            ▼
-                        aggregator
-                            │
-                            ▼
-                   replan_orchestrator  ← injects critic feedback for revision cycles (max 2)
-                            │
-                            ▼
-                          critic
-                            │
-                            ▼
-                      final_assembler → END
+    ▼
+qdrant_enrichment       ← retrieves past approved-run insights, injects past_plans into shared_context
+    │
+    ├─────────────────────┬──────────────────────┐
+    ▼                     ▼                      ▼
+reservation      complaint_intelligence       inventory
+    └──────────────────────┼──────────────────────┘
+                           ▼
+                   menu_intelligence   ← sequential after all 3; LangGraph fan-in fires exactly once
+                           │
+                           ▼
+                       aggregator
+                           │
+                           ▼
+                         critic
+                           │
+         ┌─────────────────┴──────────────────────┐
+    (approved or                           (revision, replan_count < 2)
+     replan_count ≥ 2)                            │
+         ▼                                        ▼
+   final_assembler                      replan_orchestrator ← injects critic feedback, max 2 cycles
+         │                                        │
+        END                              aggregator (loop)
 ```
 
-**Conditional routing:** after `ops_manager`, if `state["error"]` is set the graph skips to `final_assembler`. Otherwise it proceeds through `qdrant_enrichment`.
+**Conditional routing:** after `ops_manager`, if `state["error"]` is set the graph skips to `final_assembler`. Otherwise it proceeds through `demand_forecast`.
 
-**Parallel execution:** the four domain nodes (`reservation`, `complaint_intel`, `menu_intel`, `inventory`) fan out in parallel after `demand_forecast` and are gated by `aggregator`.
+**Parallel execution:** three domain nodes (`reservation`, `complaint_intelligence`, `inventory`) fan out in parallel after `qdrant_enrichment`. `menu_intelligence` runs sequentially after all three complete — via LangGraph's native fan-in — so it can read inventory shortage data and reservation pressure before forming menu recommendations.
 
 **New pipeline nodes (Phase 6):**
 
-- `qdrant_enrichment` — runs immediately after `ops_manager`. Calls `PlanningMemoryService.retrieve()` to fetch the top-3 similar past approved-run insights from the `planning_memory` Qdrant collection, re-ranked with recency decay (`score × 2^(-age/14days)`), excluding runs older than 90 days. Injects `shared_context["past_plans"]`. Falls back to an empty list on any error — never blocks a run.
-- `phase1_sync` — a structural no-op node that equalises LangGraph Pregel hop counts. Without it, `aggregator` is reachable in 4 hops but `menu_intelligence` in 5, causing the aggregator to fire before all parallel nodes complete (the double-aggregator bug). This barrier ensures the fan-out gate holds correctly.
+- `qdrant_enrichment` — runs after `demand_forecast`. Calls `PlanningMemoryService.retrieve()` to fetch the top-3 similar past approved-run insights from the `planning_memory` Qdrant collection, re-ranked with recency decay (`score × 2^(-age/14days)`), excluding runs older than 90 days. Injects `shared_context["past_plans"]`. Falls back to an empty list on any error — never blocks a run.
 - `replan_orchestrator` — sits between `aggregator` and `critic`. If the critic returned a `revision` verdict in a prior cycle, this node injects the critic's structured feedback into `state["replan_context"]`. Enforces a maximum of 2 replan cycles — after that it passes through regardless of verdict to prevent infinite loops.
 
 **SSE streaming:** There are two distinct streaming mechanisms:
@@ -308,7 +307,7 @@ Tenant isolation is enforced at three levels:
 
 | Tool | Description |
 |------|-------------|
-| `run_planning_scenario` | Triggers the full 12-node planning pipeline |
+| `run_planning_scenario` | Triggers the full 11-node planning pipeline |
 | `get_run_history` | Fetches recent planning runs with optional scenario/verdict filters |
 
 Claude Code discovers the server automatically via `.mcp.json`. Claude Desktop uses `docs/mcp_claude_desktop_config.json`.
@@ -367,7 +366,7 @@ The chat page streams against `/api/v1/chat` — individual tokens arrive word-b
 3. FastAPI resolves `get_current_user`, checks Redis cache — emits all node events instantly and returns on hit
 4. On cache miss: loads org settings + restaurant profile, builds LangGraph graph, invokes it
 5. Each node emits `node_start` (with hint) and `node_complete` (with completion hint) as it begins/finishes; loading screen diagram drives 4-state UI per node
-6. `ops_manager` → `qdrant_enrichment` → `phase1_sync` → `demand_forecast` → [4 parallel nodes] → `aggregator` → `replan_orchestrator` → `critic` → `final_assembler`
+6. `ops_manager` → `demand_forecast` → `qdrant_enrichment` → [3 parallel nodes: reservation, complaint_intelligence, inventory] → `menu_intelligence` → `aggregator` → `critic` → [replan_orchestrator loop] → `final_assembler`
 7. Final response includes plan, critic verdict, RAG context, cost metadata, and node traces
 8. Run is persisted to `planning_runs`; result is stored in Redis cache
 
@@ -388,7 +387,7 @@ The chat page streams against `/api/v1/chat` — individual tokens arrive word-b
 
 ## Cross-agent assumption diffing
 
-Because the four domain nodes run in parallel, each node executes without knowledge of the others' results. This means a node can make recommendations based on assumptions that are silently contradicted by another node's findings.
+Three domain nodes run in parallel (`reservation`, `complaint_intelligence`, `inventory`). `menu_intelligence` runs sequentially after all three via LangGraph fan-in. This means when the parallel nodes execute, they do so without knowledge of each other's results — but menu_intelligence does have access to all three outputs. However, a node can still make recommendations based on assumptions that are silently contradicted by another parallel node's findings.
 
 To catch these contradictions automatically, each domain node writes an `assumptions` dict to shared state after its service call. The aggregator collects these into `bundle["assumptions"]`. When the critic node invokes `EvaluationSanityChecker.check_bundle()`, the checker diffs the assumptions cross-agent and returns a `stale_assumptions` list alongside the existing `issues` list.
 
@@ -400,7 +399,7 @@ To catch these contradictions automatically, each domain node writes an `assumpt
 | `reservation.assumed_peak_occupancy_pct > 85` | Forecast `confidence` or `confidence_band` indicating weak signal | High-occupancy planning on a weak forecast overstates certainty |
 | `complaint.assumed_high_complaint_volume = False` | `complaint.assumed_negative_pct > 25` | Complaint node flagged volume as low but negative feedback is borderline elevated |
 
-Note: an earlier Diff checking `menu.assumed_no_active_stockouts` against `inventory.items_flagged_low` was removed. `MenuService` self-queries `InventoryService` when `inventory_data=None` (the parallel execution means inventory output is never in state when the menu node runs), so both nodes always see the same DB state and the assumption can never be stale. See D-017 in DECISIONS.md.
+Note: an earlier Diff checking `menu.assumed_no_active_stockouts` against `inventory.items_flagged_low` was removed. `MenuService` self-queries `InventoryService` directly when `inventory_data=None` — both nodes use the same demand ratio and DB, so they always agree on shortage status regardless of execution order. See D-017 in DECISIONS.md.
 
 The `stale_assumptions` list is injected into the critic's LLM prompt as a dedicated `## Cross-agent assumption conflicts` section. This gives the LLM concrete *why* reasoning about each inconsistency rather than requiring it to detect contradictions from raw data alone.
 
@@ -410,7 +409,7 @@ If a node errored and its `assumptions` dict is `None`, the checker gracefully s
 
 ## Architectural strengths
 
-- Parallel fan-out across four domain agents reduces pipeline latency; AsyncOpenAI ensures the fan-out is truly concurrent, not serialised by event-loop blocking
+- Parallel fan-out across three domain agents (reservation, complaint, inventory) reduces pipeline latency; menu_intelligence runs sequentially after with access to their combined outputs, eliminating menu/inventory contradictions; AsyncOpenAI ensures the fan-out is truly concurrent, not serialised by event-loop blocking
 - Per-node model tier routing — simple nodes get fast cheap models, the critic gets the strongest model; all via a single CometAPI key with no code changes to swap models
 - SSE streaming makes every planning run feel interactive — results arrive node by node
 - Redis cache eliminates repeat LLM cost for the same scenario on the same day

@@ -1,6 +1,6 @@
 # CortexKitchen UI
 
-Next.js 16 frontend for CortexKitchen. Phase 5 complete.
+Next.js 16 frontend for CortexKitchen. Phase 6 in progress.
 
 Last updated: June 2026.
 
@@ -61,7 +61,7 @@ Standard JWT flow. Login and register pages include a "Back to home" link. Authe
 
 The core of the app. The dashboard has three states:
 
-**Idle** — scenario selector, restaurant profile selector (owner only), four preset cards with scenario descriptions, and the 9-node orchestration list.
+**Idle** — scenario selector, restaurant profile selector (owner only), four preset cards with scenario descriptions, and the 11-node orchestration list.
 
 ![Dashboard — Idle](../../../screenshots/03_dashboard/01_idle_scenario_select.png)
 
@@ -184,7 +184,7 @@ Named profiles that override org-level capacity and peak hours for a specific pl
 
 ## Streaming
 
-**Planning SSE** (`POST /api/v1/planning/stream`) — the dashboard opens a `fetch` ReadableStream against this endpoint. Each `node_complete` event carries only the node name; the loading screen uses these to update the pipeline diagram in real time. The full plan (all agent sections, critic verdict, metric cards) arrives in a single `complete` event and renders all at once.
+**Planning SSE** (`POST /api/v1/planning/stream`) — the dashboard opens a `fetch` ReadableStream against this endpoint. Each node emits a `node_start` event (with a human-readable hint) when it begins and a `node_complete` event when it finishes; the loading screen uses these to drive a 4-state pipeline diagram (idle → running → done). The full plan arrives in a single `complete` event and renders all at once.
 
 **Chat streaming** (`POST /api/v1/chat`) — a separate mechanism. Individual tokens stream word-by-word via AsyncGroq and render progressively through ReactMarkdown.
 

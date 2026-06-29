@@ -33,6 +33,8 @@ from app.orchestration.nodes import (
     aggregator_node,
     critic_node,
     final_assembler_node,
+    qdrant_enrichment_node,
+    replan_orchestrator_node,
 )
 
 
@@ -40,12 +42,14 @@ from app.orchestration.nodes import (
 
 OPS_MANAGER = "ops_manager"
 DEMAND_FORECAST = "demand_forecast"
+QDRANT_ENRICHMENT = "qdrant_enrichment"
 RESERVATION = "reservation"
 COMPLAINT_INTELLIGENCE = "complaint_intelligence"
-MENU_INTELLIGENCE = "menu_intelligence"
 INVENTORY = "inventory"
+MENU_INTELLIGENCE = "menu_intelligence"
 AGGREGATOR = "aggregator"
 CRITIC = "critic"
+REPLAN_ORCHESTRATOR = "replan_orchestrator"
 FINAL_ASSEMBLER = "final_assembler"
 
 
@@ -174,17 +178,27 @@ def _log_node(node_fn, traces: list):
     return _wrapped
 
 
-# ── Conditional edge: abort if ops_manager sets an error ─────────────────────
+# ── Conditional edges ────────────────────────────────────────────────────────
 
 def _route_after_ops_manager(state: OrchestratorState) -> str:
-    """
-    After ops_manager validates the scenario:
-    - If there's a fatal error → jump to final_assembler.
-    - Otherwise → proceed with orchestration.
-    """
     if state.get("error"):
         return FINAL_ASSEMBLER
     return DEMAND_FORECAST
+
+
+def _route_after_critic(state: OrchestratorState) -> str:
+    """
+    Replanning loop: if verdict is not 'approved' and we haven't exhausted
+    retries (max 2), route back through replan_orchestrator → aggregator → critic.
+    Otherwise proceed to final_assembler.
+    """
+    critic_out   = state.get("critic_output") or {}
+    verdict      = critic_out.get("verdict", "revision")
+    replan_count = state.get("replan_count") or 0
+
+    if verdict == "approved" or replan_count >= 2:
+        return FINAL_ASSEMBLER
+    return REPLAN_ORCHESTRATOR
 
 
 # ── Graph factory ────────────────────────────────────────────────────────────
@@ -202,10 +216,11 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
     Returns:
         Compiled LangGraph runnable.
     """
-    db = deps["db"]
-    llm = deps["llm"]
-    memory = deps.get("memory")
-    tr = traces if traces is not None else []
+    db              = deps["db"]
+    llm             = deps["llm"]
+    memory          = deps.get("memory")
+    planning_memory = deps.get("planning_memory")
+    tr              = traces if traces is not None else []
 
     graph = StateGraph(OrchestratorState)
 
@@ -214,14 +229,16 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
     graph.add_node(OPS_MANAGER, _log_node(ops_manager_node, tr))
 
     graph.add_node(DEMAND_FORECAST,        _inject(demand_forecast_node,        tr, db=db, llm=llm))
+    graph.add_node(QDRANT_ENRICHMENT,      _inject(qdrant_enrichment_node,      tr, memory=memory, planning_memory=planning_memory))
     graph.add_node(RESERVATION,            _inject(reservation_node,            tr, db=db, llm=llm))
     graph.add_node(COMPLAINT_INTELLIGENCE, _inject(complaint_intelligence_node, tr, db=db, llm=llm, memory=memory))
-    graph.add_node(MENU_INTELLIGENCE,      _inject(menu_intelligence_node,      tr, db=db, llm=llm))
     graph.add_node(INVENTORY,              _inject(inventory_node,              tr, db=db, llm=llm))
+    graph.add_node(MENU_INTELLIGENCE,      _inject(menu_intelligence_node,      tr, db=db, llm=llm))
 
-    graph.add_node(AGGREGATOR,     _log_node(aggregator_node,      tr))
-    graph.add_node(CRITIC,         _inject(critic_node,            tr, db=db, llm=llm))
-    graph.add_node(FINAL_ASSEMBLER, _log_node(final_assembler_node, tr))
+    graph.add_node(AGGREGATOR,          _log_node(aggregator_node,          tr))
+    graph.add_node(CRITIC,              _inject(critic_node,                 tr, db=db, llm=llm))
+    graph.add_node(REPLAN_ORCHESTRATOR, _log_node(replan_orchestrator_node, tr))
+    graph.add_node(FINAL_ASSEMBLER,     _log_node(final_assembler_node,     tr))
 
     # ── Wire edges ───────────────────────────────────────────────────────────
 
@@ -236,21 +253,36 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
         },
     )
 
-    # Parallel fan-out
-    graph.add_edge(DEMAND_FORECAST, RESERVATION)
-    graph.add_edge(DEMAND_FORECAST, COMPLAINT_INTELLIGENCE)
-    graph.add_edge(DEMAND_FORECAST, MENU_INTELLIGENCE)
-    graph.add_edge(DEMAND_FORECAST, INVENTORY)
+    # Qdrant pre-enrichment before parallel fan-out
+    graph.add_edge(DEMAND_FORECAST, QDRANT_ENRICHMENT)
 
-    # Fan-in
-    graph.add_edge(RESERVATION, AGGREGATOR)
-    graph.add_edge(COMPLAINT_INTELLIGENCE, AGGREGATOR)
+    # Full parallel fan-out: reservation, complaint, inventory run together
+    graph.add_edge(QDRANT_ENRICHMENT, RESERVATION)
+    graph.add_edge(QDRANT_ENRICHMENT, COMPLAINT_INTELLIGENCE)
+    graph.add_edge(QDRANT_ENRICHMENT, INVENTORY)
+
+    # All three parallel agents must complete before menu starts.
+    # LangGraph fires menu_intelligence once all three fan-in edges resolve.
+    graph.add_edge(RESERVATION,            MENU_INTELLIGENCE)
+    graph.add_edge(COMPLAINT_INTELLIGENCE, MENU_INTELLIGENCE)
+    graph.add_edge(INVENTORY,              MENU_INTELLIGENCE)
+
+    # Single fan-in: aggregator fires exactly once, after menu
     graph.add_edge(MENU_INTELLIGENCE, AGGREGATOR)
-    graph.add_edge(INVENTORY, AGGREGATOR)
 
-    # Linear tail
+    # Aggregator → Critic → conditional replanning loop
     graph.add_edge(AGGREGATOR, CRITIC)
-    graph.add_edge(CRITIC, FINAL_ASSEMBLER)
+    graph.add_conditional_edges(
+        CRITIC,
+        _route_after_critic,
+        {
+            FINAL_ASSEMBLER:     FINAL_ASSEMBLER,
+            REPLAN_ORCHESTRATOR: REPLAN_ORCHESTRATOR,
+        },
+    )
+
+    # Replan loop: orchestrator injects context → re-aggregate → re-evaluate
+    graph.add_edge(REPLAN_ORCHESTRATOR, AGGREGATOR)
     graph.add_edge(FINAL_ASSEMBLER, END)
 
     return graph.compile()
@@ -302,6 +334,19 @@ async def run_planning_scenario(
     Returns:
         Final API-ready response from the LangGraph workflow.
     """
+    # ── Semantic cache check (Qdrant, similarity >= 0.92) ───────────────────
+    semantic_cache = deps.get("semantic_cache")
+    if semantic_cache and org_id and not simulation_mode and not force_critic_decision and not debug:
+        try:
+            cached = semantic_cache.get(org_id, scenario, target_date)
+            if cached is not None:
+                structlog.get_logger().info(
+                    "semantic_cache_hit", scenario=scenario, org_id=org_id
+                )
+                return cached
+        except Exception:
+            pass
+
     # Shared list — every node wrapper appends its timing record here
     traces: list[dict] = []
     graph = build_graph(deps, traces=traces)
@@ -395,8 +440,38 @@ async def run_planning_scenario(
                 "simulation_mode": simulation_mode,
                 "forced_critic_decision": force_critic_decision,
                 "execution_trace": final_state.get("execution_trace", []),
+                "replan_count": final_state.get("replan_count", 0),
             }
         )
+
+    # ── Persist results ───────────────────────────────────────────────────────
+    verdict = (final_response.get("critic") or {}).get("verdict", "")
+
+    # Semantic cache — approved runs only (prevents returning rejected plans on future hits)
+    if semantic_cache and org_id and verdict == "approved" and not simulation_mode and not force_critic_decision:
+        try:
+            recs = final_response.get("recommendations", {})
+            conditions = {
+                "demand_ratio": ((recs.get("demand_forecast") or {}).get("data") or {}).get("demand_ratio"),
+                "occupancy":    ((recs.get("reservation") or {}).get("data") or {}).get("occupancy_pct"),
+                "shortages":    [
+                    s.get("item", s) if isinstance(s, dict) else s
+                    for s in (((recs.get("inventory") or {}).get("data") or {}).get("shortage_alerts") or [])[:4]
+                ],
+                "verdict": verdict,
+            }
+            semantic_cache.set(org_id, scenario, target_date, final_response, conditions=conditions)
+        except Exception:
+            pass
+
+    # Planning memory — store only approved runs so insights represent validated patterns
+    planning_memory = deps.get("planning_memory")
+    if planning_memory and org_id and verdict == "approved" and not simulation_mode:
+        try:
+            run_id = final_response.get("meta", {}).get("planning_run_id")
+            planning_memory.store(org_id, scenario, run_id, final_response)
+        except Exception:
+            pass
 
     return final_response
 
@@ -404,12 +479,14 @@ async def run_planning_scenario(
 # ── SSE node names → state field mapping ─────────────────────────────────────
 _NODE_SSE_MAP: dict[str, str] = {
     "demand_forecast":        "forecast",
+    "qdrant_enrichment":      "enrichment",
     "reservation":            "reservation",
     "complaint_intelligence": "complaint",
     "menu_intelligence":      "menu",
     "inventory":              "inventory",
     "aggregator":             "aggregator",
     "critic":                 "critic",
+    "replan_orchestrator":    "replan",
 }
 
 _NODE_OUTPUT_FIELD: dict[str, str] = {
@@ -421,6 +498,93 @@ _NODE_OUTPUT_FIELD: dict[str, str] = {
     "aggregator":  "aggregated_recommendation",
     "critic":      "critic_output",
 }
+
+# Human-readable hints emitted when a node STARTS — shown in the loading pipeline
+_NODE_START_HINTS: dict[str, str] = {
+    "demand_forecast":        "Running Prophet model on 90 days of order history…",
+    "qdrant_enrichment":      "Searching Qdrant memory for relevant SOPs and past incidents…",
+    "reservation":            "Querying confirmed bookings and mapping peak-hour pressure…",
+    "complaint_intelligence": "Analysing 28 days of guest feedback with RAG retrieval…",
+    "inventory":              "Cross-referencing all ingredients against the demand forecast…",
+    "menu_intelligence":      "Applying inventory constraints to build menu guidance…",
+    "aggregator":             "Synthesising all agent outputs into one consolidated brief…",
+    "critic":                 "Scoring the plan — safety · feasibility · evidence · actionability · clarity…",
+    "replan_orchestrator":    "Critic flagged issues — injecting corrective context for retry…",
+}
+
+
+def _completion_hint(node_name: str, state_update: dict) -> str:
+    """Extract a brief human-readable hint from a node's completed state update."""
+    try:
+        if node_name == "demand_forecast":
+            data = (state_update.get("forecast_output") or {}).get("data") or {}
+            pred = data.get("predicted_orders") or data.get("predicted_covers")
+            method = data.get("method", "")
+            return f"{method} model: {round(float(pred))} predicted orders" if pred else "Forecast complete"
+
+        if node_name == "qdrant_enrichment":
+            ctx   = state_update.get("shared_context") or {}
+            n_c   = len(ctx.get("complaints", []))
+            n_s   = len(ctx.get("sops", []))
+            n_p   = len(ctx.get("past_plans", []))
+            parts = []
+            if n_c:  parts.append(f"{n_c} complaint{'s' if n_c != 1 else ''}")
+            if n_s:  parts.append(f"{n_s} SOP{'s' if n_s != 1 else ''}")
+            if n_p:  parts.append(f"{n_p} past plan{'s' if n_p != 1 else ''}")
+            return f"Memory loaded: {', '.join(parts)}" if parts else "Context loaded from memory"
+
+        if node_name == "reservation":
+            data = (state_update.get("reservation_output") or {}).get("data") or {}
+            pct  = data.get("occupancy_pct")
+            total = data.get("total_guests")
+            cap   = data.get("capacity")
+            return f"{pct}% occupancy · {total} advance bookings vs {cap} seats" if pct is not None else "Reservation analysis complete"
+
+        if node_name == "complaint_intelligence":
+            data    = (state_update.get("complaint_output") or {}).get("data") or {}
+            total   = data.get("total_feedback", 0)
+            neg_pct = (data.get("sentiment_breakdown") or {}).get("negative_pct", "?")
+            return f"{total} feedback items · {neg_pct}% negative sentiment"
+
+        if node_name == "inventory":
+            data     = (state_update.get("inventory_output") or {}).get("data") or {}
+            alerts   = data.get("shortage_alerts") or []
+            n_crit   = sum(1 for a in alerts if isinstance(a, dict) and a.get("severity") == "critical")
+            n_warn   = sum(1 for a in alerts if isinstance(a, dict) and a.get("severity") == "warning")
+            n_items  = data.get("total_items_checked", 0)
+            return f"{n_items} ingredients checked · {n_crit} critical · {n_warn} warning shortages"
+
+        if node_name == "menu_intelligence":
+            out = state_update.get("menu_output") or {}
+            if out.get("error"):
+                return f"Skipped — {str(out['error'])[:60]}"
+            rec  = out.get("recommendation") or {}
+            n_hi = len(rec.get("highlight_items") or [])
+            n_bl = len(rec.get("inventory_blockers") or [])
+            return f"{n_hi} items to feature · {n_bl} blocked by stock"
+
+        if node_name == "aggregator":
+            bundle   = state_update.get("aggregated_recommendation") or {}
+            agents   = bundle.get("agents") or {}
+            n_ran    = sum(1 for v in agents.values() if isinstance(v, dict) and v.get("data") is not None)
+            return f"Brief assembled from {n_ran} agent output(s)"
+
+        if node_name == "critic":
+            out     = state_update.get("critic_output") or {}
+            verdict = out.get("verdict", "?")
+            score   = out.get("score")
+            sanity  = out.get("sanity_report") or {}
+            n_err   = sum(1 for i in (sanity.get("issues") or []) if i.get("severity") == "error")
+            score_s = f" · score {round(float(score), 2)}" if score is not None else ""
+            sane_s  = f" · {n_err} sanity error(s)" if n_err else " · sanity ✓"
+            return f"{verdict.capitalize()}{score_s}{sane_s}"
+
+        if node_name == "replan_orchestrator":
+            return f"Replan #{state_update.get('replan_count', 1)} context injected"
+
+    except Exception:
+        pass
+    return ""
 
 
 async def stream_planning_scenario(
@@ -489,13 +653,29 @@ async def stream_planning_scenario(
 
     final_response: dict | None = None
 
-    async for chunk in graph_instance.astream(initial_state, config=config):
-        for node_name, state_update in chunk.items():
-            sse_name = _NODE_SSE_MAP.get(node_name)
-            if sse_name:
-                yield {"event": "node_complete", "node": sse_name}
+    async for event in graph_instance.astream_events(initial_state, config=config, version="v2"):
+        etype = event.get("event", "")
+        ename = event.get("name", "")
+        sse_name = _NODE_SSE_MAP.get(ename)
 
-            if node_name == "final_assembler":
+        if sse_name:
+            if etype == "on_chain_start":
+                yield {
+                    "event": "node_start",
+                    "node": sse_name,
+                    "hint": _NODE_START_HINTS.get(ename, ""),
+                }
+            elif etype == "on_chain_end":
+                state_update = (event.get("data") or {}).get("output") or {}
+                yield {
+                    "event": "node_complete",
+                    "node": sse_name,
+                    "hint": _completion_hint(ename, state_update if isinstance(state_update, dict) else {}),
+                }
+
+        elif ename == FINAL_ASSEMBLER and etype == "on_chain_end":
+            state_update = (event.get("data") or {}).get("output") or {}
+            if isinstance(state_update, dict):
                 final_response = state_update.get("final_response")
 
     total_duration_ms = round((time.perf_counter() - t0) * 1000, 2)
@@ -519,6 +699,17 @@ async def stream_planning_scenario(
             **llm_metadata,
         }
         final_response.setdefault("meta", {}).update(obs)
+
+        # Store approved runs in planning memory for future enrichment
+        planning_memory = deps.get("planning_memory")
+        stream_verdict  = (final_response.get("critic") or {}).get("verdict", "")
+        if planning_memory and org_id and stream_verdict == "approved" and not simulation_mode:
+            try:
+                s_run_id = final_response.get("meta", {}).get("planning_run_id")
+                planning_memory.store(org_id, scenario, s_run_id, final_response)
+            except Exception:
+                pass
+
         yield {"event": "complete", "response": final_response}
     else:
         yield {"event": "error", "message": "Graph completed without a final response"}

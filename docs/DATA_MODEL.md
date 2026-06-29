@@ -1,6 +1,6 @@
 # CortexKitchen Data Model
 
-Last updated: June 2026. Reflects the implemented schema in `apps/api/app/infrastructure/db/models.py` and current Alembic migrations. Phase 5 complete.
+Last updated: June 2026. Reflects the implemented schema in `apps/api/app/infrastructure/db/models.py` and current Alembic migrations. Phase 5 complete. Phase 6 in progress.
 
 ---
 
@@ -11,7 +11,7 @@ CortexKitchen uses three storage systems:
 | Store | Role |
 |-------|------|
 | **PostgreSQL 16** | All structured operational data, auth, planning runs, settings |
-| **Qdrant** | Vector embeddings for complaint and SOP retrieval (RAG), org-scoped payload filters |
+| **Qdrant** | Five collections: RAG retrieval (`complaints_memory`, `sop_memory`), long-term planning memory (`planning_memory`), semantic plan cache (`semantic_cache`), chatbot Q&A cache (`chat_semantic_cache`) — all org-scoped via payload filters |
 | **Redis 7** | Plan cache — 1hr TTL by `(org_id, scenario, target_date)` |
 
 ---
@@ -365,15 +365,94 @@ Stores embedded standard operating procedures and operational guidance.
 
 ---
 
+### `planning_memory`
+
+Stores embedded approved-run insights for long-term planning memory. Retrieved at planning time by the `qdrant_enrichment` node to enrich the current run with similar historical context.
+
+**Written to:** After every approved planning run (verdict == "approved"). Not written for revision or rejected runs.
+
+**Retrieval:** ANN search + recency decay re-ranking (`score × 2^(-age/RECENCY_HALF_LIFE_DAYS)`). Runs older than 90 days excluded. Over-fetches 2×top_k then re-ranks.
+
+**Payload fields per point:**
+
+| Field | Description |
+|-------|-------------|
+| `org_id` | Tenant isolation — all retrieval calls filter by this |
+| `scenario` | Planning scenario id (e.g. `friday_rush`) |
+| `run_id` | Planning run ID for traceability |
+| `timestamp` | ISO timestamp — used for recency decay scoring |
+| `insight_text` | Embedded insight: `"scenario:X | demand_ratio:1.4 | shortages:chicken,basil | occupancy:72% | verdict:approved score:0.82 | menu:..."` |
+
+**Constants:** `RECENCY_HALF_LIFE_DAYS=14`, `MAX_MEMORY_AGE_DAYS=90`
+
+**Used by:** `qdrant_enrichment` node via `PlanningMemoryService`.
+
+---
+
+### `semantic_cache`
+
+Qdrant-backed semantic plan cache. Distinct from the Redis key-value plan cache — uses embedding similarity so semantically similar scenarios on similar dates return a cached result even if the exact (org, scenario, date) key doesn't match.
+
+**Written to:** After every approved planning run. Rejected and revision runs are never cached.
+
+**Hit threshold:** Cosine similarity ≥ 0.92  
+**TTL:** 1 hour (checked via `cached_at` payload field)
+
+**Two-embedding strategy:**
+- **Storage embedding** (`_storage_text()`): enriched — includes `demand_ratio`, `occupancy%`, `shortages`, `verdict` for higher future matching precision
+- **Query embedding** (`_query_text()`): lightweight — `"org:{id} scenario:{scenario} date:{date}"` (conditions not known at query time)
+
+**Payload fields per point:**
+
+| Field | Description |
+|-------|-------------|
+| `org_id` | Tenant isolation |
+| `scenario` | Planning scenario id |
+| `target_date` | ISO date or `"next"` |
+| `cached_at` | ISO timestamp for TTL check |
+| `result` | JSON-serialised full planning response |
+
+**Used by:** `SemanticPlanCache` in `infrastructure/cache/semantic_cache.py`.
+
+---
+
+### `chat_semantic_cache`
+
+Embedding-based cache for chatbot Q&A pairs. Returns cached answers for near-identical questions without an LLM call.
+
+**Hit threshold:** Cosine similarity ≥ 0.92  
+**TTL:** 24 hours
+
+**Payload fields per point:**
+
+| Field | Description |
+|-------|-------------|
+| `org_id` | Tenant isolation |
+| `question` | First 500 chars of the question text |
+| `answer` | Cached answer string |
+| `cached_at` | ISO timestamp for TTL check |
+
+**Used by:** `SemanticChatCache` in `infrastructure/cache/semantic_cache.py`.
+
+---
+
 ## Redis
 
-Redis 7 is used for plan caching.
+Redis 7 is used for two purposes:
 
+### Plan cache (key-value)
 **Cache key:** `plan:{org_id}:{scenario}:{target_date}`  
 **TTL:** 1 hour  
 **On hit:** full planning response returned immediately; `cache_hit: true` in response  
-**On miss:** pipeline executes; result stored in Redis after completion  
+**On miss:** pipeline executes; result stored after completion  
 **Invalidation:** automatic TTL expiry only
+
+### Circuit breaker state
+Redis keys per Swiggy MCP endpoint (`food`, `im`, `dineout`):
+- `circuit:fail:swiggy:{tag}` — failure counter; INCR with 300s TTL auto-expiry
+- `circuit:open:swiggy:{tag}` — open flag; SETEX 1800s (30min)
+
+Failure counter reaching 3 within the window sets the open flag. Open flag auto-expires (no explicit reset needed). `record_success()` DELs the failure counter for faster recovery. `is_open()` fails open (returns False) if Redis is unavailable.
 
 Connection default: `redis://localhost:6379/0`
 

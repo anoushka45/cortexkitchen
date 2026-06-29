@@ -2,14 +2,14 @@
 
 FastAPI backend for CortexKitchen. Owns the orchestration entrypoints, domain services, DB models, run persistence, exports, chat, observability, and eval suites.
 
-Last updated: June 2026. Phase 5 complete.
+Last updated: June 2026. Phase 6 in progress.
 
 ---
 
 ## Backend scope
 
 - Multi-tenant JWT authentication (register, login, org-scoped sessions)
-- Nine-node LangGraph planning pipeline with SSE streaming
+- Eleven-node LangGraph planning pipeline with SSE streaming
 - Redis plan caching — 1hr TTL, zero LLM cost on cache hits
 - PDF export (ReportLab chef brief) and Excel export (openpyxl, multi-sheet workbook)
 - RAG chatbot (`/chat`) — AsyncGroq streaming over Postgres run history + feedback
@@ -18,6 +18,19 @@ Last updated: June 2026. Phase 5 complete.
 - RAGAS + DeepEval quality evals on complaint RAG and critic output
 - Data-health and observability summary endpoints
 - MCP server (`mcp_server.py`) for Claude Code / Claude Desktop integration
+
+### Phase 6 additions (in progress)
+
+- `SwiggyMCPClient` — JSON-RPC 2.0 client to Swiggy Food / Instamart / Dineout MCP servers
+- `BaseConnector` ABC — `sync()` + `enrich()` pattern for all external platform connectors
+- Circuit breaker — Redis-backed, per-endpoint; 3 failures / 5 min → 30-min open; `GET /health/circuits`
+- Provider registry — `get_provider_async()` combines DB connector status + live circuit state
+- Tool call tracing — every `SwiggyMCPClient.call_tool()` logged with status, latency, server tag
+- `PlanningMemoryService` — Qdrant long-term memory of approved runs with recency decay (½-life 14 days)
+- `SemanticPlanCache` — Qdrant-backed, approved-only, condition-enriched asymmetric embedding
+- `SemanticChatCache` — chatbot Q&A cache (0.92 cosine, 24hr TTL)
+- Within-session chat memory — 8-turn verbatim window + older-turn compression (no LLM call)
+- Chatbot LLM factory — dispatches to AsyncGroq or CometAPI based on `LLM_PROVIDER`
 
 ---
 
@@ -30,6 +43,7 @@ Last updated: June 2026. Phase 5 complete.
 | `GET` | `/api/v1/auth/me` | JWT | Current user profile |
 | `GET` | `/api/v1/health` | Public | Liveness |
 | `GET` | `/api/v1/health/dependencies` | Public | PostgreSQL / Qdrant / Redis |
+| `GET` | `/api/v1/health/circuits` | Public | Swiggy circuit breaker state (open/closed, failures, TTL) |
 | `GET` | `/api/v1/planning/scenarios` | Public | Scenario presets |
 | `POST` | `/api/v1/planning/run` | JWT | Execute pipeline (full JSON response) |
 | `POST` | `/api/v1/planning/stream` | JWT | Execute pipeline (SSE — node_complete events + complete) |
@@ -99,6 +113,13 @@ API at `http://localhost:8000` · Swagger at `http://localhost:8000/docs`
 | `LANGSMITH_TRACING` | `false` | Enable LangSmith per-node traces |
 | `LANGSMITH_API_KEY` | — | LangSmith API key |
 | `SENTRY_DSN` | — | Sentry DSN — init is skipped if unset |
+| `COMETAPI_KEY` | — | CometAPI key — enables 500+ models via OpenAI-compat endpoint |
+| `COMETAPI_MODEL_FAST` | `deepseek-v4-flash` | Fast tier model (demand forecast, reservation, inventory) |
+| `COMETAPI_MODEL_BALANCED` | `gemini-3.5-flash` | Balanced tier (complaint intelligence, menu) |
+| `COMETAPI_MODEL_STRONG` | `claude-sonnet-4-6` | Strong tier (aggregator, critic) |
+| `COMET_TIERED` | `false` | Enable per-node model tier routing (CometAPI only) |
+| `SWIGGY_ACCESS_TOKEN` | — | Dev-only Swiggy OAuth token (prod uses `connectors` table) |
+| `SWIGGY_ADDRESS_ID` | — | Dev-only Swiggy address ID for sync |
 
 ---
 

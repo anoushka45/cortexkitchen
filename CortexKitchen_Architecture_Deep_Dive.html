@@ -1,0 +1,1548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CortexKitchen — Architecture Deep Dive</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --sidebar-w: 268px;
+    --accent: #6366f1;
+    --accent-light: #eef2ff;
+    --slate-900: #0f172a;
+    --slate-800: #1e293b;
+    --slate-700: #334155;
+    --slate-600: #475569;
+    --slate-400: #94a3b8;
+    --slate-200: #e2e8f0;
+    --slate-100: #f1f5f9;
+    --body: #374151;
+    --green: #10b981;
+    --amber: #f59e0b;
+    --blue: #3b82f6;
+    --red: #ef4444;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    font-size: 14.5px;
+    line-height: 1.7;
+    color: var(--body);
+    background: #f8fafc;
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    width: var(--sidebar-w);
+    min-width: var(--sidebar-w);
+    background: var(--slate-800);
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    overflow-y: auto;
+    z-index: 100;
+    padding-bottom: 32px;
+  }
+
+  #sidebar::-webkit-scrollbar { width: 4px; }
+  #sidebar::-webkit-scrollbar-track { background: transparent; }
+  #sidebar::-webkit-scrollbar-thumb { background: var(--slate-600); border-radius: 2px; }
+
+  .sidebar-header {
+    padding: 20px 16px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    margin-bottom: 8px;
+  }
+
+  .sidebar-header .logo {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .sidebar-header .tagline {
+    font-size: 11px;
+    color: var(--slate-400);
+    margin-top: 2px;
+  }
+
+  .quick-ref {
+    margin: 8px 12px 12px;
+    background: rgba(99,102,241,0.15);
+    border: 1px solid rgba(99,102,241,0.3);
+    border-radius: 6px;
+    padding: 8px 10px;
+  }
+
+  .quick-ref-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+  }
+
+  .quick-ref a {
+    display: block;
+    font-size: 11.5px;
+    color: #a5b4fc;
+    text-decoration: none;
+    padding: 2px 0;
+    transition: color 0.15s;
+  }
+
+  .quick-ref a:hover { color: #fff; }
+
+  .nav-section-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--slate-400);
+    padding: 10px 16px 4px;
+  }
+
+  .nav-link {
+    display: block;
+    padding: 5px 16px;
+    font-size: 12.5px;
+    color: var(--slate-400);
+    text-decoration: none;
+    transition: all 0.15s;
+    border-left: 2px solid transparent;
+    line-height: 1.4;
+  }
+
+  .nav-link:hover { color: #fff; background: rgba(255,255,255,0.04); }
+  .nav-link.active { color: #a5b4fc; border-left-color: var(--accent); background: rgba(99,102,241,0.1); font-weight: 500; }
+
+  .nav-link.sub { padding-left: 28px; font-size: 12px; }
+  .nav-link.sub2 { padding-left: 40px; font-size: 11.5px; }
+
+  /* ── MAIN ── */
+  #main {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    padding: 0 48px 80px;
+    max-width: calc(100% - var(--sidebar-w));
+  }
+
+  .page-hero {
+    padding: 48px 0 32px;
+    border-bottom: 1px solid var(--slate-200);
+    margin-bottom: 48px;
+  }
+
+  .page-hero h1 {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--slate-800);
+    letter-spacing: -0.02em;
+  }
+
+  .page-hero .subtitle {
+    font-size: 15px;
+    color: var(--slate-600);
+    margin-top: 6px;
+  }
+
+  .hero-tags { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .tag {
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 100px;
+    background: var(--accent-light);
+    color: var(--accent);
+    border: 1px solid #c7d2fe;
+  }
+
+  /* ── SECTIONS ── */
+  .section {
+    margin-bottom: 72px;
+    padding-top: 16px;
+  }
+
+  .section-divider {
+    height: 1px;
+    background: linear-gradient(90deg, var(--slate-200) 0%, transparent 100%);
+    margin-bottom: 40px;
+  }
+
+  h2 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--slate-800);
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  h2 .layer-badge {
+    font-size: 11px;
+    font-weight: 700;
+    background: var(--accent);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 100px;
+    letter-spacing: 0.04em;
+  }
+
+  .section-intro {
+    font-size: 15px;
+    color: var(--slate-600);
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--slate-100);
+    line-height: 1.75;
+  }
+
+  h3 {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--slate-800);
+    margin: 28px 0 10px;
+  }
+
+  h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--slate-700);
+    margin: 20px 0 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 11.5px;
+  }
+
+  p { margin-bottom: 12px; }
+
+  ul, ol { margin: 8px 0 14px 20px; }
+  li { margin-bottom: 5px; }
+
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    background: var(--slate-100);
+    color: #7c3aed;
+    padding: 2px 5px;
+    border-radius: 4px;
+  }
+
+  pre {
+    background: var(--slate-900);
+    border-radius: 8px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    margin: 14px 0 18px;
+  }
+
+  pre code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    background: none;
+    color: #e2e8f0;
+    padding: 0;
+    border-radius: 0;
+    line-height: 1.6;
+  }
+
+  /* ── CALLOUT BOXES ── */
+  .callout {
+    padding: 14px 16px;
+    border-radius: 8px;
+    margin: 16px 0;
+    position: relative;
+  }
+
+  .callout-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+
+  .callout p:last-child { margin-bottom: 0; }
+
+  .why {
+    background: #fffbeb;
+    border-left: 4px solid var(--amber);
+  }
+  .why .callout-label { color: #92400e; }
+  .why p { color: #78350f; }
+
+  .tradeoff {
+    background: #eff6ff;
+    border-left: 4px solid var(--blue);
+  }
+  .tradeoff .callout-label { color: #1e40af; }
+  .tradeoff p { color: #1e3a8a; }
+
+  .important {
+    background: #fef2f2;
+    border-left: 4px solid var(--red);
+  }
+  .important .callout-label { color: #991b1b; }
+  .important p { color: #7f1d1d; }
+
+  .success {
+    background: #f0fdf4;
+    border-left: 4px solid var(--green);
+  }
+  .success .callout-label { color: #065f46; }
+  .success p { color: #14532d; }
+
+  /* ── TABLES ── */
+  .table-wrap { overflow-x: auto; margin: 14px 0 20px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+
+  th {
+    background: var(--slate-800);
+    color: white;
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.03em;
+  }
+
+  td {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--slate-200);
+    vertical-align: top;
+  }
+
+  tr:nth-child(even) td { background: var(--slate-100); }
+  td code { font-size: 11.5px; }
+
+  /* ── PIPELINE DIAGRAM ── */
+  .pipeline {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 28px;
+    background: var(--slate-900);
+    border-radius: 12px;
+    margin: 20px 0;
+  }
+
+  .pipe-node {
+    background: #1e293b;
+    border: 1.5px solid #334155;
+    border-radius: 8px;
+    padding: 9px 22px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    color: #e2e8f0;
+    text-align: center;
+    min-width: 200px;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+
+  .pipe-node:hover { border-color: var(--accent); }
+
+  .pipe-node.entry { border-color: #475569; background: #0f172a; }
+  .pipe-node.enrichment { border-color: #7c3aed; background: rgba(124,58,237,0.12); color: #c4b5fd; }
+  .pipe-node.parallel-row { display: flex; flex-direction: row; gap: 10px; justify-content: center; }
+  .pipe-node.barrier { border-color: var(--amber); background: rgba(245,158,11,0.1); color: #fcd34d; }
+  .pipe-node.menu { border-color: #0891b2; background: rgba(8,145,178,0.1); color: #67e8f9; }
+  .pipe-node.agg { border-color: var(--green); background: rgba(16,185,129,0.1); color: #6ee7b7; }
+  .pipe-node.critic { border-color: #f43f5e; background: rgba(244,63,94,0.1); color: #fda4af; }
+  .pipe-node.final { border-color: var(--green); color: #6ee7b7; background: rgba(16,185,129,0.15); }
+  .pipe-node.replan { border-color: var(--amber); background: rgba(245,158,11,0.1); color: #fcd34d; }
+  .pipe-node.parallel-item { min-width: 160px; border-color: #6366f1; background: rgba(99,102,241,0.12); color: #a5b4fc; }
+
+  .pipe-arrow {
+    color: var(--slate-600);
+    font-size: 18px;
+    line-height: 1;
+    padding: 3px 0;
+  }
+
+  .pipe-label {
+    font-size: 10px;
+    color: var(--slate-400);
+    font-family: 'JetBrains Mono', monospace;
+    text-align: center;
+    padding: 1px 0 4px;
+  }
+
+  .pipe-fork-row {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 16px;
+    margin: 4px 0;
+  }
+
+  .pipe-verdict {
+    display: flex;
+    gap: 32px;
+    margin: 4px 0;
+  }
+
+  .verdict-branch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .verdict-label {
+    font-size: 10px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 2px 8px;
+    border-radius: 100px;
+  }
+
+  .verdict-label.approved { background: rgba(16,185,129,0.2); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.4); }
+  .verdict-label.revision { background: rgba(245,158,11,0.2); color: #fcd34d; border: 1px solid rgba(245,158,11,0.4); }
+
+  .ctx-badge {
+    font-size: 9.5px;
+    background: rgba(124,58,237,0.2);
+    color: #c4b5fd;
+    border: 1px solid rgba(124,58,237,0.3);
+    border-radius: 100px;
+    padding: 1px 7px;
+    margin-left: 6px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .dim-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 9px;
+    border-radius: 100px;
+    margin: 2px 3px;
+  }
+
+  .dim-safety { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+  .dim-feasibility { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+  .dim-evidence { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+  .dim-actionability { background: #f0fdf4; color: #065f46; border: 1px solid #bbf7d0; }
+  .dim-clarity { background: #fdf4ff; color: #7e22ce; border: 1px solid #e9d5ff; }
+
+  .verdict-chip {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 11px;
+    border-radius: 100px;
+    margin: 2px;
+  }
+  .v-approved { background: #f0fdf4; color: #065f46; border: 1px solid #bbf7d0; }
+  .v-revision { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+  .v-rejected { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+  .state-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin: 14px 0;
+  }
+
+  .state-card {
+    padding: 14px;
+    border-radius: 8px;
+    text-align: center;
+    border: 1.5px solid;
+  }
+
+  .state-card .state-icon { font-size: 22px; margin-bottom: 6px; }
+  .state-card .state-name { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+  .state-card .state-desc { font-size: 11.5px; color: var(--slate-600); }
+
+  .s-idle { border-color: var(--slate-200); background: var(--slate-100); }
+  .s-idle .state-name { color: var(--slate-600); }
+  .s-running { border-color: #c7d2fe; background: #eef2ff; }
+  .s-running .state-name { color: var(--accent); }
+  .s-done { border-color: #bbf7d0; background: #f0fdf4; }
+  .s-done .state-name { color: #065f46; }
+  .s-skipped { border-color: #fde68a; background: #fffbeb; }
+  .s-skipped .state-name { color: #92400e; }
+
+  .sse-event-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--slate-100);
+  }
+
+  .sse-event-row:last-child { border-bottom: none; }
+
+  .sse-event-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 4px;
+    min-width: 130px;
+    text-align: center;
+  }
+
+  .e-start { background: #eef2ff; color: var(--accent); border: 1px solid #c7d2fe; }
+  .e-complete { background: #f0fdf4; color: #065f46; border: 1px solid #bbf7d0; }
+  .e-done { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+  .e-error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+  .circuit-states {
+    display: flex;
+    gap: 16px;
+    margin: 14px 0;
+  }
+
+  .circuit-card {
+    flex: 1;
+    padding: 14px;
+    border-radius: 8px;
+    border: 1.5px solid;
+  }
+
+  .circuit-closed { border-color: #bbf7d0; background: #f0fdf4; }
+  .circuit-open { border-color: #fecaca; background: #fef2f2; }
+
+  .circuit-card h4 { text-transform: none; font-size: 13px; letter-spacing: 0; margin-top: 0; }
+
+  .limit-item {
+    display: flex;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--slate-100);
+    align-items: flex-start;
+  }
+
+  .limit-item:last-child { border-bottom: none; }
+
+  .limit-num {
+    font-size: 12px;
+    font-weight: 700;
+    color: white;
+    background: var(--slate-700);
+    border-radius: 100px;
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2px;
+  }
+
+  .limit-content strong { color: var(--slate-800); }
+
+  .config-badge {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    background: var(--slate-800);
+    color: #e2e8f0;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  strong { font-weight: 600; color: var(--slate-800); }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════ SIDEBAR ═══════════════════════════════════════ -->
+<nav id="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">CortexKitchen</div>
+    <div class="tagline">Architecture Deep Dive</div>
+  </div>
+
+  <div class="quick-ref">
+    <div class="quick-ref-label">⚡ Key Discussion Topics</div>
+    <a href="#critic-validation">→ Critic Validation</a>
+    <a href="#memory-arch">→ Memory Architecture</a>
+    <a href="#mcp-governance">→ MCP Governance</a>
+  </div>
+
+  <a href="#overview" class="nav-link">Overview</a>
+  <a href="#arch-map" class="nav-link">Architecture Map</a>
+
+  <div class="nav-section-label">Layer 1 — Orchestration</div>
+  <a href="#l1" class="nav-link sub">LangGraph StateGraph</a>
+  <a href="#l1-11nodes" class="nav-link sub">11-Node Pipeline</a>
+  <a href="#l1-fanin" class="nav-link sub">Native Fan-In</a>
+  <a href="#l1-streaming" class="nav-link sub">astream_events v2</a>
+
+  <div class="nav-section-label">Layer 2 — Agent Intelligence</div>
+  <a href="#l2-ops" class="nav-link sub">Ops Manager</a>
+  <a href="#l2-forecast" class="nav-link sub">Demand Forecast</a>
+  <a href="#l2-enrichment" class="nav-link sub">Qdrant Early Enrichment</a>
+  <a href="#l2-parallel" class="nav-link sub">Parallel Domain Agents</a>
+  <a href="#l2-menu" class="nav-link sub">Menu Intelligence</a>
+  <a href="#l2-agg" class="nav-link sub">Aggregator</a>
+
+  <div class="nav-section-label">Layer 3 — Validation & Critic</div>
+  <a href="#critic-validation" class="nav-link sub">Deterministic Sanity</a>
+  <a href="#l3-critic" class="nav-link sub">LLM Critic (5 Dimensions)</a>
+  <a href="#l3-diffing" class="nav-link sub">Assumption Diffing</a>
+  <a href="#l3-replan" class="nav-link sub">Replanning Loop</a>
+  <a href="#l3-threshold" class="nav-link sub">Critic Threshold Config</a>
+
+  <div class="nav-section-label">Layer 4 — Memory & Retrieval</div>
+  <a href="#memory-arch" class="nav-link sub">Why Early Enrichment</a>
+  <a href="#l4-memory" class="nav-link sub">MemoryService</a>
+  <a href="#l4-planning" class="nav-link sub">PlanningMemoryService</a>
+  <a href="#l4-decay" class="nav-link sub">Recency Decay</a>
+  <a href="#l4-session" class="nav-link sub">SessionMemoryService</a>
+
+  <div class="nav-section-label">Layer 5 — Caching</div>
+  <a href="#l5-redis" class="nav-link sub">Redis Exact-Match</a>
+  <a href="#l5-semantic" class="nav-link sub">Semantic Plan Cache</a>
+  <a href="#l5-chat" class="nav-link sub">Semantic Chat Cache</a>
+  <a href="#l5-hit" class="nav-link sub">Cache Hit SSE Path</a>
+
+  <div class="nav-section-label">Layer 6 — MCP</div>
+  <a href="#mcp-governance" class="nav-link sub">CortexKitchen as Server</a>
+  <a href="#l6-client" class="nav-link sub">Swiggy as Client</a>
+  <a href="#l6-circuit" class="nav-link sub">Circuit Breaker</a>
+  <a href="#l6-registry" class="nav-link sub">Provider Registry</a>
+  <a href="#l6-tracing" class="nav-link sub">Tool Call Tracing</a>
+  <a href="#l6-discovery" class="nav-link sub">Discovery & Governance</a>
+
+  <div class="nav-section-label">Layer 7 — LLM Providers</div>
+  <a href="#l7-fallback" class="nav-link sub">FallbackLLMProvider</a>
+  <a href="#l7-tiered" class="nav-link sub">Tiered Routing</a>
+  <a href="#l7-chatbot" class="nav-link sub">Chatbot LLM Factory</a>
+
+  <div class="nav-section-label">Layer 8 — Observability</div>
+  <a href="#l8-cost" class="nav-link sub">Per-Node Cost Attribution</a>
+  <a href="#l8-sentry" class="nav-link sub">Sentry Integration</a>
+  <a href="#l8-health" class="nav-link sub">Health Endpoints</a>
+
+  <div class="nav-section-label">Streaming UI</div>
+  <a href="#ui-sse" class="nav-link sub">SSE Event Protocol</a>
+  <a href="#ui-states" class="nav-link sub">4-State Node Pipeline</a>
+  <a href="#ui-hints" class="nav-link sub">node_start + node_complete</a>
+
+  <a href="#tradeoffs" class="nav-link" style="margin-top:8px;">⚠ Tradeoffs & Limitations</a>
+  <a href="#config" class="nav-link">⚙ Configuration Reference</a>
+</nav>
+
+<!-- ═══════════════════════════════════════ MAIN ═══════════════════════════════════════ -->
+<main id="main">
+
+  <div class="page-hero">
+    <h1>CortexKitchen — Architecture Deep Dive</h1>
+    <p class="subtitle">A complete technical reference for the multi-agent restaurant operations planning system.</p>
+    <div class="hero-tags">
+      <span class="tag">LangGraph</span>
+      <span class="tag">Qdrant</span>
+      <span class="tag">Redis</span>
+      <span class="tag">MCP</span>
+      <span class="tag">RAG</span>
+      <span class="tag">SSE Streaming</span>
+      <span class="tag">Critic Loop</span>
+      <span class="tag">FastAPI</span>
+      <span class="tag">CometAPI</span>
+    </div>
+  </div>
+
+  <!-- ── OVERVIEW ── -->
+  <section class="section" id="overview">
+    <h2>Overview</h2>
+    <p class="section-intro">CortexKitchen is a production-grade multi-agent AI system for restaurant operational planning. Given a scenario — Friday Rush, Holiday Spike, Low-Stock Weekend, or Weekday Lunch — it runs an 11-node LangGraph pipeline that forecasts demand, retrieves memory from Qdrant, runs parallel domain agents, synthesises a consolidated brief, validates it through a critic loop, and streams results node-by-node to the frontend via Server-Sent Events.</p>
+
+    <div class="callout why">
+      <div class="callout-label">Core Design Principle</div>
+      <p><strong>Every layer degrades gracefully.</strong> No single failure crashes the plan. Qdrant down? Agents run without enrichment. Swiggy MCP unavailable? Circuit opens, enrichers return None, planning continues with DB data. LLM critic fails? Sanity checker results still block bad plans. Redis down? Planning runs execute fresh. Each layer is independently fallible.</p>
+    </div>
+
+    <p>The system is architected in 8 distinct layers, each solving a different class of problem. You can think of them as concentric rings: orchestration → agent intelligence → validation → memory → caching → external integrations → LLM management → observability. Understanding the layers independently makes the system easier to reason about, test, and extend.</p>
+  </section>
+
+  <!-- ── ARCHITECTURE MAP ── -->
+  <section class="section" id="arch-map">
+    <div class="section-divider"></div>
+    <h2>Architecture Map</h2>
+    <p class="section-intro">The complete 11-node pipeline, left to right: entry → enrichment → parallel fan-out → sequential menu (native fan-in) → synthesis → validation → final output. The replan loop is the only cycle in the graph — everything else is a directed acyclic flow.</p>
+
+    <div class="pipeline">
+      <div class="pipe-node entry">ops_manager</div>
+      <div class="pipe-arrow">↓</div>
+      <div class="pipe-node entry">demand_forecast</div>
+      <div class="pipe-arrow">↓</div>
+      <div class="pipe-node enrichment">qdrant_enrichment <span class="ctx-badge">shared_context: complaints · SOPs · past_plans</span></div>
+      <div class="pipe-arrow">↓ ↓ ↓  (parallel fan-out)</div>
+      <div class="pipe-fork-row">
+        <div class="pipe-node parallel-item">reservation</div>
+        <div class="pipe-node parallel-item">complaint_intelligence</div>
+        <div class="pipe-node parallel-item">inventory</div>
+      </div>
+      <div class="pipe-arrow">↓ ↓ ↓  (fan-in — menu_intelligence fires once when all 3 complete)</div>
+      <div class="pipe-node menu">menu_intelligence</div>
+      <div class="pipe-arrow">↓</div>
+      <div class="pipe-node agg">aggregator  ← synthesises all 5 agent outputs</div>
+      <div class="pipe-arrow">↓</div>
+      <div class="pipe-node critic">critic  ← safety · feasibility · evidence · actionability · clarity</div>
+      <div class="pipe-arrow">↓</div>
+      <div class="pipe-verdict">
+        <div class="verdict-branch">
+          <div class="verdict-label approved">approved</div>
+          <div class="pipe-arrow" style="font-size:14px">↓</div>
+          <div class="pipe-node final">final_assembler</div>
+        </div>
+        <div class="verdict-branch">
+          <div class="verdict-label revision">revision / rejected</div>
+          <div class="pipe-arrow" style="font-size:14px">↓</div>
+          <div class="pipe-node replan">replan_orchestrator</div>
+          <div class="pipe-label">↓ injects feedback → aggregator (max 2 retries)</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════ LAYER 1 ════════════════════ -->
+  <section class="section" id="l1">
+    <div class="section-divider"></div>
+    <h2><span class="layer-badge">Layer 1</span> Orchestration Engine</h2>
+    <p class="section-intro">The orchestration layer is the skeleton of the system — it defines what runs, in what order, and under what conditions. CortexKitchen uses LangGraph's <code>StateGraph</code> as its orchestration engine, which gives it parallel execution, conditional branching, and a compiled topology that's verified at startup.</p>
+
+    <h3 id="l1">LangGraph StateGraph</h3>
+    <p>LangGraph represents the pipeline as a directed graph of nodes where each node is a Python function that takes the full <code>OrchestratorState</code> (a <code>TypedDict</code>) and returns a partial dict that gets merged back into state. This immutable-update pattern is critical: you can inspect, replay, or unit-test any node in isolation by simply calling it with a constructed state dict.</p>
+
+    <div class="callout why">
+      <div class="callout-label">Why LangGraph over a plain async pipeline?</div>
+      <p>A plain <code>asyncio.gather()</code> pipeline could handle the parallel fan-out, but LangGraph gives three things you can't easily build yourself: (1) <strong>parallel fan-out</strong> with guaranteed state merging — reservation, complaint, and inventory run simultaneously and their outputs merge cleanly into a single state object; (2) <strong>conditional edges</strong> — the critic can branch to replan_orchestrator or final_assembler based on state, not code logic; (3) <strong>compiled topology validation</strong> — the graph checks for cycles, disconnected nodes, and missing edges at startup, not at runtime when a user is waiting.</p>
+    </div>
+
+    <h3 id="l1-11nodes">11-Node Pipeline</h3>
+    <p>In order of execution:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Node</th><th>Role</th><th>Runs</th></tr></thead>
+        <tbody>
+          <tr><td><code>ops_manager</code></td><td>Entry validation, scenario resolution, fail-fast routing</td><td>Sequential</td></tr>
+          <tr><td><code>demand_forecast</code></td><td>Historical order data → predicted_orders + demand_ratio</td><td>Sequential</td></tr>
+          <tr><td><code>qdrant_enrichment</code></td><td>Single Qdrant query → shared_context for all downstream agents</td><td>Sequential</td></tr>
+          <tr><td><code>reservation</code></td><td>Occupancy, waitlist, booking conflicts</td><td>Parallel</td></tr>
+          <tr><td><code>complaint_intelligence</code></td><td>RAG over complaints + SOPs → risk summary</td><td>Parallel</td></tr>
+          <tr><td><code>inventory</code></td><td>Stock vs demand → shortages, overstock (3× restock cap)</td><td>Parallel</td></tr>
+          <tr><td><code>menu_intelligence</code></td><td>Inventory-constrained menu guidance — fires via native LangGraph fan-in after all 3 parallel nodes</td><td>Sequential</td></tr>
+          <tr><td><code>aggregator</code></td><td>Synthesises all 5 agent outputs + contradiction detection</td><td>Sequential</td></tr>
+          <tr><td><code>critic</code></td><td>5-dimension LLM evaluation → approved/revision/rejected</td><td>Sequential</td></tr>
+          <tr><td><code>replan_orchestrator</code></td><td>Injects critic feedback for retry (max 2 cycles)</td><td>Conditional</td></tr>
+          <tr><td><code>final_assembler</code></td><td>Formats final response, attaches metadata</td><td>Sequential</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="l1-fanin">Native LangGraph Fan-In</h3>
+    <p>LangGraph uses <strong>Pregel-style execution</strong> — a node fires when <em>all</em> edges pointing into it have resolved. This is the native fan-in guarantee: if three nodes (<code>reservation</code>, <code>complaint_intelligence</code>, <code>inventory</code>) all have an edge to <code>menu_intelligence</code>, then <code>menu_intelligence</code> fires exactly once — after all three have completed — with no extra synchronisation code required.</p>
+
+    <div class="callout success">
+      <div class="callout-label">Why phase1_sync was removed</div>
+      <p>An earlier implementation used a passthrough barrier node called <code>phase1_sync</code> to equalise hop counts across the three parallel paths before <code>menu_intelligence</code>. This was a workaround for a hop-count imbalance in the original graph topology. When the graph was refactored so that all three parallel nodes (<code>reservation</code>, <code>complaint_intelligence</code>, <code>inventory</code>) share the same predecessor (<code>qdrant_enrichment</code>) and all feed directly into <code>menu_intelligence</code>, LangGraph's Pregel engine handles the fan-in natively. The barrier node was dead code — it did nothing that the graph engine wasn't already doing. It has been removed.</p>
+    </div>
+
+    <p>The current wiring in <code>graph.py</code>:</p>
+    <pre><code>graph.add_edge(RESERVATION,             MENU_INTELLIGENCE)
+graph.add_edge(COMPLAINT_INTELLIGENCE,  MENU_INTELLIGENCE)
+graph.add_edge(INVENTORY,               MENU_INTELLIGENCE)</code></pre>
+
+    <p>Three edges, one destination. LangGraph fires <code>menu_intelligence</code> exactly once — after all three predecessors have written their outputs to state. No barrier node. No hop-count arithmetic. No extra maintenance surface.</p>
+
+    <div class="callout why">
+      <div class="callout-label">When native fan-in works vs when you need a barrier</div>
+      <p>Native fan-in works when all predecessors share a common ancestor in the same superstep (which is the case here — all three parallel nodes originate from <code>qdrant_enrichment</code>). A barrier node would still be needed if you were merging paths with different depths from the entry point — e.g. a node that fans out to two sub-graphs of different lengths. In our topology, all three parallel nodes are equidistant from <code>ops_manager</code>, so the Pregel scheduler guarantees they land in the same superstep and <code>menu_intelligence</code> fires exactly once.</p>
+    </div>
+
+    <h3 id="l1-streaming">Streaming with astream_events v2</h3>
+    <p>The streaming path uses <code>graph.astream_events(version="v2")</code> instead of the older <code>astream()</code>. The key difference: <code>astream</code> only emits events when a node <em>completes</em>. <code>astream_events</code> emits <code>on_chain_start</code> when a node <em>begins</em> AND <code>on_chain_end</code> when it finishes. This is what enables the UI to show a node as "running" before it's done — the <code>node_start</code> SSE event comes from the <code>on_chain_start</code> hook.</p>
+
+    <p>The <code>name</code> field in each event matches the registered node key. A <code>_NODE_SSE_MAP</code> dict translates internal names to frontend-friendly names: <code>"demand_forecast" → "forecast"</code>, <code>"complaint_intelligence" → "complaint"</code>, etc.</p>
+
+    <pre><code>async for event in graph.astream_events(initial_state, config=config, version="v2"):
+    etype  = event.get("event", "")   # "on_chain_start" or "on_chain_end"
+    ename  = event.get("name", "")    # registered node key
+    sse_name = _NODE_SSE_MAP.get(ename)
+
+    if sse_name:
+        if etype == "on_chain_start":
+            yield {"event": "node_start", "node": sse_name,
+                   "hint": _NODE_START_HINTS.get(ename, "")}
+        elif etype == "on_chain_end":
+            state_update = (event.get("data") or {}).get("output") or {}
+            yield {"event": "node_complete", "node": sse_name,
+                   "hint": _completion_hint(ename, state_update)}</code></pre>
+  </section>
+
+  <!-- ════════════════════ LAYER 2 ════════════════════ -->
+  <section class="section" id="l2-ops">
+    <div class="section-divider"></div>
+    <h2><span class="layer-badge">Layer 2</span> Agent Intelligence</h2>
+    <p class="section-intro">This layer is where the domain reasoning happens. Each agent has a single well-scoped responsibility and reads from shared state rather than calling shared services directly. The shared_context pattern (established by qdrant_enrichment) is the key coupling mechanism — agents share retrieved memory without needing to know about each other.</p>
+
+    <h3>Ops Manager</h3>
+    <p>The entry point node. Validates the incoming scenario against known scenario IDs, resolves <code>target_date</code> to a concrete date (defaulting to the next matching service day), and routes. If validation fails, it routes directly to <code>final_assembler</code> with an error state — the rest of the graph never runs. This is the <strong>fail-fast</strong> pattern: don't burn LLM calls on an invalid request.</p>
+
+    <h3 id="l2-forecast">Demand Forecast</h3>
+    <p>Queries the <code>orders</code> DB table for historical data matching the scenario's day-of-week and service window. Returns:</p>
+    <ul>
+      <li><code>predicted_orders</code> — the forecast for the target date</li>
+      <li><code>avg_friday_orders</code> / <code>avg_same_day_orders</code> — historical baseline</li>
+      <li><code>demand_ratio</code> — predicted / average. This is the key signal. <code>demand_ratio = 1.3</code> means 30% above average demand.</li>
+    </ul>
+    <p>Every downstream agent uses <code>demand_ratio</code> as the primary scaling factor for their recommendations.</p>
+
+    <h3 id="l2-enrichment">Qdrant Early Enrichment</h3>
+    <p>This is one of the most architecturally significant nodes in the system. It runs a <strong>single</strong> Qdrant lookup before the parallel fan-out and writes results to <code>state["shared_context"]</code>. All three parallel agents read from this shared context — none of them make their own Qdrant calls.</p>
+
+    <div id="memory-arch" class="callout why">
+      <div class="callout-label">Why Early Enrichment? (Key Architecture Discussion)</div>
+      <p><strong>Three agents querying Qdrant independently = 3× calls, 3× latency, inconsistent results.</strong> If reservation, complaint, and inventory each ran their own ANN search, they might get different nearest neighbours (non-deterministic ANN) — reservation might retrieve complaint A, while complaint_intelligence retrieves complaint B. The plan would be built on inconsistent context. Early enrichment guarantees: one query (30–50ms), deterministic shared context, zero per-agent retrieval overhead.</p>
+    </div>
+
+    <p>The enrichment node retrieves three types of context:</p>
+    <ul>
+      <li><strong>Complaints</strong> (top-5, cosine similarity) — past guest complaint text, used by complaint_intelligence for RAG</li>
+      <li><strong>SOPs</strong> (top-3) — Standard Operating Procedures relevant to the scenario query</li>
+      <li><strong>Past plans</strong> (top-3, recency-decayed) — approved planning insights from previous runs for this scenario and org</li>
+    </ul>
+
+    <h3 id="l2-parallel">Parallel Domain Agents</h3>
+    <p>Three agents run simultaneously after qdrant_enrichment — this is the parallel fan-out. They all read from <code>shared_context</code> but otherwise operate independently.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Agent</th><th>Primary Input</th><th>Key Output</th></tr></thead>
+        <tbody>
+          <tr><td><code>reservation</code></td><td>Reservation DB + occupancy data</td><td><code>occupancy_pct</code>, waitlist count, booking conflicts</td></tr>
+          <tr><td><code>complaint_intelligence</code></td><td>shared_context complaints + SOPs</td><td>Risk summary, complaint categories, SOP recommendations</td></tr>
+          <tr><td><code>inventory</code></td><td>Inventory DB + demand_ratio</td><td>Shortage alerts, overstock alerts, restock quantities (capped at 3×)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4>Inventory 3× Restock Cap</h4>
+    <p>The inventory agent calculates restock quantities as <code>needed = (predicted_covers * per_cover_usage) - current_stock</code>. Early versions could produce absurd restock recommendations (e.g. "order 500kg of chicken for 180 covers"). A deterministic cap was added: <code>restock_qty = min(calculated_qty, current_stock * 3)</code>. You can't recommend restocking more than 3× what you currently hold. This cap is also checked by the EvaluationSanityChecker and overridden if violated.</p>
+
+    <h3 id="l2-menu">Menu Intelligence</h3>
+    <p>Runs <strong>sequentially after all three parallel agents complete</strong> — the LangGraph fan-in guarantees it fires exactly once with all of their outputs available in state. This ordering is an intentional correctness choice, not a performance concession. If menu_intelligence ran in parallel with inventory, it would make recommendations ("push the pasta special") without knowing whether the pasta ingredients are actually in stock. By running after inventory data is in state, it can produce constraint-aware suggestions ("deprioritise the sea bass — critical shortage flagged").</p>
+
+    <div class="callout tradeoff">
+      <div class="callout-label">Tradeoff: Correctness vs Latency</div>
+      <p>Sequential menu adds ~1–2s to total run time vs running it in parallel. The alternative (parallel menu + post-hoc inventory constraint injection) would require the aggregator to detect and correct contradictions between menu and inventory suggestions — messy, error-prone, and hard to explain. Sequential is the right call.</p>
+    </div>
+
+    <h3 id="l2-agg">Aggregator</h3>
+    <p>Takes all five agent outputs (forecast, reservation, complaint, inventory, menu) and synthesises them into a unified operational brief. The aggregator doesn't just concatenate — it actively runs <strong>contradiction detection</strong> via <code>_detect_contradictions()</code>: pairwise checks across agent outputs for logical conflicts. Example: reservation says "low occupancy expected" while forecast says "1.4× demand ratio." This contradiction is flagged and passed to the critic as part of the synthesis context.</p>
+  </section>
+
+  <!-- ════════════════════ LAYER 3 ════════════════════ -->
+  <section class="section" id="critic-validation">
+    <div class="section-divider"></div>
+    <h2><span class="layer-badge">Layer 3</span> Validation & Critic</h2>
+    <p class="section-intro">Validation is a two-stage process: fast deterministic checks first, then a slower LLM-based evaluation. The deterministic layer catches hard constraint violations that an LLM might reason around. The LLM layer catches quality and coherence issues that no deterministic rule can express. Running them in the right order is what makes the system reliable.</p>
+
+    <div class="callout why">
+      <div class="callout-label">Why Two Validation Layers?</div>
+      <p>LLM critics are good at reasoning but can be convinced. Give an LLM critic a plan that says "serve 90 covers" when capacity is 70, and depending on the prompt framing, it might approve it ("the kitchen seems efficient"). A deterministic checker will always flag <code>predicted_covers &gt; org_capacity * 1.05</code>. Conversely, a deterministic checker can't evaluate whether the plan is "actionable" or "well-evidenced" — that requires reasoning. Both layers are necessary; neither is sufficient alone.</p>
+    </div>
+
+    <h3>Deterministic Sanity Layer</h3>
+    <p><code>EvaluationSanityChecker</code> runs BEFORE the LLM critic on every planning cycle. It checks:</p>
+    <ul>
+      <li><strong>Capacity violation</strong>: <code>predicted_covers &gt; org_capacity * 1.05</code> → flag as critical</li>
+      <li><strong>Restock cap</strong>: any restock recommendation exceeding 3× current stock → cap and flag</li>
+      <li><strong>Guest language</strong>: non-English text in guest name fields → sanitise</li>
+      <li><strong>Assumption staleness</strong>: agent outputs that contradict each other → <code>stale_assumptions</code> list</li>
+    </ul>
+    <p>The checker returns a <code>stale_assumptions</code> list. Critical assumptions can <strong>override</strong> the LLM's verdict — even if the LLM says <code>approved</code>, a critical sanity violation bumps the verdict to <code>revision</code>. This is the "sanity override" pattern: deterministic rules have veto power.</p>
+
+    <h3 id="l3-critic">LLM Critic — 5 Dimensions</h3>
+    <p>The LLM critic evaluates the synthesised plan across five independent dimensions. Each dimension gets a sub-score; the final <code>score</code> is a weighted aggregate.</p>
+
+    <div style="margin: 14px 0;">
+      <span class="dim-badge dim-safety">Safety</span>
+      <span class="dim-badge dim-feasibility">Feasibility</span>
+      <span class="dim-badge dim-evidence">Evidence</span>
+      <span class="dim-badge dim-actionability">Actionability</span>
+      <span class="dim-badge dim-clarity">Clarity</span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Dimension</th><th>What it checks</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Safety</strong></td><td>Does anything violate capacity limits, food safety constraints, or guest safety policies?</td></tr>
+          <tr><td><strong>Feasibility</strong></td><td>Can the kitchen actually execute this plan given current staff levels and stock?</td></tr>
+          <tr><td><strong>Evidence</strong></td><td>Are recommendations grounded in the data the agents actually returned — or are they hallucinated?</td></tr>
+          <tr><td><strong>Actionability</strong></td><td>Are the actions specific enough for ops staff to follow without further interpretation?</td></tr>
+          <tr><td><strong>Clarity</strong></td><td>Is the plan unambiguous? Could a different ops manager interpret it differently?</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>The critic returns: <code>verdict</code>, <code>score</code> (0.0–1.0), and <code>notes</code> (human-readable explanation of the judgement). The notes become part of <code>actionable_feedback</code> injected into the replan cycle.</p>
+
+    <h4>Three Verdicts</h4>
+    <div style="margin: 10px 0 16px;">
+      <span class="verdict-chip v-approved">approved</span>
+      <span class="verdict-chip v-revision">revision</span>
+      <span class="verdict-chip v-rejected">rejected</span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Verdict</th><th>Condition</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><code>approved</code></td><td>score ≥ critic_threshold AND no critical sanity violations</td><td>Proceed to final_assembler</td></tr>
+          <tr><td><code>revision</code></td><td>score &lt; threshold OR sanity override</td><td>Inject feedback → replan_orchestrator → aggregator retry</td></tr>
+          <tr><td><code>rejected</code></td><td>Hard block: fundamental constraint violation, unresolvable</td><td>No replan; final_assembler with failed status</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="l3-diffing">Cross-Agent Assumption Diffing</h3>
+    <p>One of the most sophisticated features of the system. The aggregator extracts "assumptions" from each agent output — structured statements about what the agent assumed to be true when making its recommendation. For example:</p>
+    <ul>
+      <li>Reservation agent: <em>"assumes 65% occupancy based on confirmed bookings"</em></li>
+      <li>Demand forecast: <em>"assumes 180 predicted orders based on historical Friday data"</em></li>
+    </ul>
+    <p><code>_diff_assumptions()</code> in <code>EvaluationSanityChecker</code> diffs these pairwise. If demand says 1.4× but reservation says low occupancy, that's a contradiction — flagged as a <code>stale_assumption</code> and surfaced to the critic. <strong>This surfaces contradictions automatically without needing hardcoded pairwise rules for every possible agent pair.</strong></p>
+
+    <h3 id="l3-replan">Replanning Loop</h3>
+    <p>When the critic returns <code>revision</code>, the graph routes to <code>replan_orchestrator</code> instead of <code>final_assembler</code>. The replan cycle:</p>
+    <ol>
+      <li><code>replan_orchestrator</code> reads <code>revision_reasons</code> and <code>actionable_feedback</code> from state</li>
+      <li>Injects them into <code>replan_context</code> — a new state field</li>
+      <li><code>aggregator</code> re-runs. This time it reads <code>replan_context</code> and uses it to regenerate the synthesis with corrective guidance</li>
+      <li><code>critic</code> re-evaluates the new synthesis</li>
+      <li>If still <code>revision</code> and <code>replan_count &lt; 2</code>, loop continues. Otherwise exits via <code>final_assembler</code></li>
+    </ol>
+
+    <div class="callout why">
+      <div class="callout-label">Why Max 2 Retries?</div>
+      <p>Each replan cycle costs ~1.2–1.8s in LLM calls (aggregator + critic). At max 2 retries, worst-case adds ~3.6s. At 3 retries, you've more than doubled total latency for diminishing returns — the critic's feedback rarely changes fundamentally after the first replan. Two gives a genuine second chance without death-by-retry. The <code>replan_count</code> is tracked in state and visible in the UI as a "Replan" banner.</p>
+    </div>
+
+    <h3 id="l3-threshold">Critic Threshold Configuration</h3>
+    <p>The <code>critic_threshold</code> is stored in <code>organizations.settings</code> as a JSONB float (default <code>0.7</code>). This is a per-org configuration — different restaurant types can have different acceptance bars.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Restaurant Type</th><th>Suggested Threshold</th><th>Reasoning</th></tr></thead>
+        <tbody>
+          <tr><td>Fine dining, high-risk events</td><td>0.85</td><td>Low tolerance for plan quality issues; reputation cost of errors is high</td></tr>
+          <tr><td>Standard full-service</td><td>0.7 (default)</td><td>Balanced quality/speed tradeoff</td></tr>
+          <tr><td>Quick-service, fast-casual</td><td>0.60–0.65</td><td>Speed matters more; plans are simpler; lower consequence of minor gaps</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Code path: <code>org_settings.get("critic_threshold", 0.7)</code> → passed to <code>stream_planning_scenario()</code> → written to <code>initial_state["critic_threshold"]</code> → read by <code>critic_node</code> from state at evaluation time.</p>
+  </section>
+
+  <!-- ════════════════════ LAYER 4 ════════════════════ -->
+  <section class="section" id="l4-memory">
+    <div class="section-divider"></div>
+    <h2><span class="layer-badge">Layer 4</span> Memory & Retrieval</h2>
+    <p class="section-intro">Memory in CortexKitchen is organised into three tiers: operational memory (complaints + SOPs from Qdrant), long-term planning memory (approved run insights with recency decay), and conversational memory (cross-session chat summaries). Each tier serves a different time horizon and use case.</p>
+
+    <h3>MemoryService — Complaints + SOPs</h3>
+    <p><code>infrastructure/vector/memory_service.py</code>. Two Qdrant collections:</p>
+    <ul>
+      <li><code>complaint_memory</code>: embedded guest complaint text, filtered by <code>org_id</code>. Retrieved via cosine ANN search, top-5 by default.</li>
+      <li><code>sop_memory</code>: embedded SOP rules and operational guidelines. Retrieved via cosine ANN search, top-3 by default.</li>
+    </ul>
+    <p>Both collections use Gemini's <code>models/gemini-embedding-001</code> (via <code>EmbeddingService</code>) for embedding. All queries use Qdrant's <code>FieldCondition</code> payload filter on <code>org_id</code> — no org can retrieve another org's data.</p>
+
+    <h3 id="l4-planning">PlanningMemoryService — Long-Term Planning Intelligence</h3>
+    <p><code>infrastructure/vector/planning_memory.py</code>. A new Qdrant collection: <code>planning_memory</code>. After each <em>approved</em> planning run, the system embeds and stores a rich insight text derived from the run's output. What gets embedded:</p>
+    <pre><code>"scenario:friday_rush | demand_ratio:1.38 predicted:182 | shortages:chicken,basil | occupancy:78% | verdict:approved score:0.84 | menu:deprioritise sea bass, push pasta specials"</code></pre>
+
+    <p>This condition-rich text means future ANN retrievals match on <strong>what the situation was</strong>, not just the scenario name. A high-demand Friday with chicken shortage retrieves past plans that had the same conditions — not just all past Friday Rush plans.</p>
+
+    <div class="callout why">
+      <div class="callout-label">Why only APPROVED runs?</div>
+      <p>Storing rejected or revision plans would pollute memory with bad patterns. If a future enrichment retrieved "what didn't work last time" as positive context, agents would be primed to make the same mistakes. Only approved plans represent validated operational intelligence worth learning from. The <code>planning_memory.store()</code> call is gated on <code>verdict == "approved"</code> in both the sync and stream paths.</p>
+    </div>
+
+    <h3 id="l4-decay">Recency Decay</h3>
+    <p>Raw ANN similarity scores are multiplied by a recency decay factor before re-ranking:</p>
+    <pre><code>decayed_score = raw_similarity * 2^(-age_days / HALF_LIFE_DAYS)
+# HALF_LIFE_DAYS = 14</code></pre>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Age of Memory</th><th>Decay Factor</th><th>Effect on Score</th></tr></thead>
+        <tbody>
+          <tr><td>1 day</td><td>0.95</td><td>Near-full weight</td></tr>
+          <tr><td>7 days</td><td>0.71</td><td>Slightly reduced</td></tr>
+          <tr><td>14 days (half-life)</td><td>0.50</td><td>Half weight</td></tr>
+          <tr><td>28 days</td><td>0.25</td><td>Quarter weight</td></tr>
+          <tr><td>&gt; 90 days</td><td>0 (excluded)</td><td>Hard cutoff</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout why">
+      <div class="callout-label">Why Decay Instead of TTL?</div>
+      <p>TTL is binary — memory is fully relevant until it expires, then completely gone. A 3-week-old plan might still be marginally useful (same seasonal pattern, same staffing constraints), but a 90-day TTL would discard it at day 91. Decay is continuous — relevance fades gracefully. The 90-day hard cutoff handles the case where a plan is so old it refers to a fundamentally different operational context (new menu, new staff, seasonal change).</p>
+    </div>
+
+    <p>The retrieve path over-fetches (<code>top_k × 2</code> results from Qdrant), applies decay to all results, re-sorts by decayed score, and returns the true <code>top_k</code>. This avoids the case where the #1 ANN result is 6 weeks old and scores worse than the #3 result from 2 days ago after decay.</p>
+
+    <h3 id="l4-session">SessionMemoryService — Cross-Session Chat</h3>
+    <p><code>infrastructure/vector/session_memory.py</code>. Qdrant collection: <code>chat_sessions</code>. At the start of each chat session, retrieves similar past session summaries (semantic similarity, top-3) and injects them into the chatbot's system prompt. This gives the chatbot continuity across conversations without replaying full history.</p>
+
+    <p><code>build_summary_from_messages()</code> extracts key topics (inventory, demand, menu, reservations, critic evaluation) via keyword matching — <strong>no LLM call needed</strong>. This is intentional: generating a session summary with an LLM adds latency and cost at session end. Lightweight local processing is enough for the topical summary needed for next-session context injection.</p>
+  </section>
+
+  <!-- ════════════════════ LAYER 5 ════════════════════ -->
+  <section class="section" id="l5-redis">
+    <div class="section-divider"></div>
+    <h2><span class="layer-badge">Layer 5</span> Caching Strategy</h2>
+    <p class="section-intro">CortexKitchen has three distinct cache layers, each serving a different purpose. The key insight: caching is not one-size-fits-all. Exact-match caching and semantic caching solve different problems — don't use one when you need the other.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Cache</th><th>Backend</th><th>Key / Match</th><th>Threshold</th><th>TTL</th><th>Written when</th></tr></thead>
+        <tbody>
+          <tr><td>Redis exact-match</td><td>Redis</td><td><code>plan:{org_id}:{scenario}:{date}</code></td><td>Exact</td><td>1 hour</td><td>Critic = approved only</td></tr>
+          <tr><td>SemanticPlanCache</td><td>Qdrant</td><td>Embedding of scenario+date text</td><td>≥ 0.92 cosine</td><td>1 hour</td><td>Every run (all verdicts)</td></tr>
+          <tr><td>SemanticChatCache</td><td>Qdrant</td><td>Embedding of question text</td><td>≥ 0.92 cosine</td><td>24 hours</td><td>Every non-cached answer</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Redis Exact-Match Cache</h3>
+    <p><code>infrastructure/cache/plan_cache.py</code>. First check on every <code>/planning/run</code> and <code>/planning/stream</code> call. Key: <code>plan:{org_id}:{scenario}:{date}</code>. If found: return immediately — zero LLM calls, zero agent runs. TTL: 1 hour.</p>
+
+    <div class="callout why">
+      <div class="callout-label">Why only write on approved?</div>
+      <p>Writing a rejected or revision plan to the Redis cache would return that plan to the next caller — they'd get a "planning complete" response that's actually a failed plan. The Redis cache is the fast-path return; it should only serve validated, usable plans. Cache-hit responses still create a <code>planning_run</code> DB record (with <code>cache_hit: true</code>) so the run appears in history.</p>
+    </div>
+
+    <h3 id="l5-semantic">Semantic Plan Cache</h3>
+    <p><code>infrastructure/cache/semantic_cache.py → SemanticPlanCache</code>. Qdrant-backed. Embeds the text <code>"org:{id} scenario:{scenario} date:{date}"</code> and searches for past runs with cosine similarity ≥ 0.92. The semantic match catches requests that are functionally equivalent even if the exact date differs — "friday_rush 2026-06-28" and "friday_rush 2026-07-05" should be highly similar (both Friday Rush scenarios).</p>
+
+    <div class="callout why">
+      <div class="callout-label">Why 0.92 threshold?</div>
+      <p>0.85 would over-match — a Friday Rush query might retrieve a Weekday Lunch result. 0.97 would under-match — nearly identical requests wouldn't cache. 0.92 is the empirically safe zone where the same scenario on different dates matches, but different scenarios don't. The embedding model (Gemini embedding-001) places scenario names far enough apart in vector space that 0.92 is the right boundary.</p>
+    </div>
+
+    <h3 id="l5-chat">Semantic Chat Cache</h3>
+    <p><code>SemanticChatCache</code> in the same file. Embeds the user's question and checks for similar past Q&A pairs. If "What was last Friday's occupancy?" was asked and answered, a semantically similar follow-up like "How full were we last week Friday?" hits the cache. TTL: 24 hours.</p>
+
+    <h3 id="l5-hit">Cache Hit SSE Path</h3>
+    <p>When the streaming endpoint has a Redis cache hit, it emits all <code>node_complete</code> events instantly (no <code>node_start</code> events — the nodes didn't run), then the <code>complete</code> event. The UI shows all nodes lighting up simultaneously — a visually distinct signal that this was served from cache. The <code>cached: true</code> flag on each <code>node_complete</code> event lets the frontend differentiate if needed.</p>
+  </section>
+
+  <!-- ════════════════════ LAYER 6 ════════════════════ -->
+  <section class="section" id="mcp-governance">
+    <div class="section-divider"></div>
+    <h2><span class="layer-badge">Layer 6</span> MCP Integration</h2>
+    <p class="section-intro">CortexKitchen operates in both directions of the MCP ecosystem simultaneously: it exposes itself as an MCP server (callable by Claude Desktop, other agents, or any MCP client) and it acts as an MCP client calling Swiggy's external MCP endpoints. This dual-role architecture is what makes CortexKitchen genuinely agentic — it can be orchestrated by others and it can orchestrate external services.</p>
+
+    <h3>CortexKitchen as an MCP Server</h3>
+    <p><code>apps/api/mcp_server.py</code>. A stdio MCP server exposing two tools:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Tool</th><th>Args</th><th>Returns</th></tr></thead>
+        <tbody>
+          <tr><td><code>run_planning_scenario</code></td><td>scenario (required), target_date?, restaurant_id?</td><td>Formatted markdown: critic verdict, recommendations per agent, cost, duration</td></tr>
+          <tr><td><code>get_run_history</code></td><td>limit?, scenario?, verdict?</td><td>Recent planning runs with scenario, date, verdict, score</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout why">
+      <div class="callout-label">Why 2 tools, not 12?</div>
+      <p>Exposing <code>run_demand_forecast</code> or <code>run_critic</code> as individual MCP tools would be wrong — they're internal implementation details, meaningless in isolation. An external agent calling <code>run_demand_forecast</code> would have no way to know it needs to also call <code>qdrant_enrichment</code> then <code>reservation</code> then... The tool granularity should match the <strong>intent granularity of the calling agent</strong>. "Plan for Friday Rush" is one intent — one tool. This is the core principle: MCP tools are capabilities, not functions.</p>
+    </div>
+
+    <h3 id="l6-client">Swiggy as MCP Client</h3>
+    <p><code>infrastructure/swiggy/client.py → SwiggyMCPClient</code>. Calls three Swiggy JSON-RPC 2.0 MCP endpoints:</p>
+    <ul>
+      <li><code>https://mcp.swiggy.com/food</code> — food orders, demand signals, competitor data</li>
+      <li><code>https://mcp.swiggy.com/im</code> — Instamart procurement and inventory</li>
+      <li><code>https://mcp.swiggy.com/dineout</code> — reservation data from Swiggy Dineout</li>
+    </ul>
+
+    <p>The primary contract of <code>SwiggyMCPClient</code>: <strong>never raises, always returns None on failure.</strong> 401 → log + None. 5xx → retry once after 1s → if still 5xx → None. Network error → None. Bad response format → None. This is what makes the Swiggy layer a graceful enhancement rather than a hard dependency.</p>
+
+    <h4>BaseConnector ABC</h4>
+    <p><code>infrastructure/swiggy/base_connector.py</code>. Every external platform connector must implement two methods:</p>
+    <pre><code>class BaseConnector(ABC):
+    @abstractmethod
+    async def sync(self) -> dict:
+        """Nightly job. Pull historical data. Write to DB."""
+
+    @abstractmethod
+    async def enrich(self, context: dict) -> dict | None:
+        """At planning time. Fetch live signals. Do NOT write to DB.
+        MUST return None on any failure."""</code></pre>
+
+    <p>The <code>enrich()→None</code> contract is enforced at the ABC level. Any connector that raises from <code>enrich()</code> violates the contract — the caller has no try/except. This design means you can add Zomato, EazyDiner, or Square POS as connectors and the planning pipeline will safely degrade if any of them fail.</p>
+
+    <h3 id="l6-circuit">Circuit Breaker</h3>
+    <p><code>infrastructure/swiggy/circuit_breaker.py</code>. Redis-backed, per-endpoint. Protects the planning pipeline from repeatedly hammering a degraded Swiggy endpoint.</p>
+
+    <div class="circuit-states">
+      <div class="circuit-card circuit-closed">
+        <h4>✓ CLOSED (normal)</h4>
+        <p style="font-size:13px;color:#14532d;margin:6px 0 0;">Calls pass through. Failure counter tracked in Redis with 5-minute TTL. Counter auto-resets if no failures occur within the window.</p>
+      </div>
+      <div class="circuit-card circuit-open">
+        <h4>✗ OPEN (degraded)</h4>
+        <p style="font-size:13px;color:#7f1d1d;margin:6px 0 0;">3 failures in 5 minutes triggered this. All calls return None immediately — no HTTP call attempted. Auto-resets after 30 minutes via Redis TTL.</p>
+      </div>
+    </div>
+
+    <pre><code># On each call_tool() invocation:
+if await is_open("swiggy", server_tag):
+    self._traces.append({..., "status": "circuit_open"})
+    return None   # short-circuit, no HTTP call
+
+# ...make HTTP call...
+result = await self._post(...)
+
+if result is None:
+    await record_failure("swiggy", server_tag)
+    # If failures >= 3: SETEX circuit:open:swiggy:{tag} 1800 "1"
+else:
+    await record_success("swiggy", server_tag)
+    # DEL circuit:fail:swiggy:{tag}  ← faster recovery</code></pre>
+
+    <div class="callout why">
+      <div class="callout-label">Why TTL-based reset, not half-open state?</div>
+      <p>Classic circuit breakers have CLOSED → OPEN → HALF-OPEN (single probe) → CLOSED. The half-open state lets you test the connection before fully reopening. TTL-based skips the probe — after 30 min, the circuit closes automatically and the <em>next real call</em> acts as the implicit probe. For a restaurant planning system where failures are typically transient (Swiggy briefly down, token expired), a 30-minute wait is appropriate and the simplicity of TTL-based reset is worth more than the precision of a half-open probe.</p>
+    </div>
+
+    <h3 id="l6-registry">Provider Registry</h3>
+    <p><code>infrastructure/swiggy/provider_registry.py</code>. Maps planning capabilities to prioritised lists of providers. No DB migration needed — reads the existing <code>connectors</code> table to determine which providers are active for an org.</p>
+
+    <pre><code>CAPABILITY_PROVIDERS = {
+    "competitor_pricing": ["swiggy", "zomato"],
+    "reservation_data":   ["swiggy", "eazydiner"],
+    "procurement":        ["swiggy"],
+    "order_history":      ["swiggy", "zomato"],
+}
+
+registry.get_provider(org_id=1, capability="reservation_data", db=db)
+# → "swiggy" if org 1 has an active Swiggy connector
+# → "eazydiner" if Swiggy is down/unconfigured and EazyDiner is active
+# → None if neither is active (planning continues without live reservation data)</code></pre>
+
+    <p>Adding Zomato as a competitor pricing provider: add a Zomato BaseConnector subclass, insert a row in the connectors table for the org, and the registry automatically routes to it when Swiggy is unavailable. No code change to the planning pipeline required.</p>
+
+    <h3 id="l6-tracing">Tool Call Tracing</h3>
+    <p><code>SwiggyMCPClient</code> accumulates a trace record for every <code>call_tool()</code> invocation — success, failure, circuit-open, or retry. The <code>drain_traces()</code> method returns and clears the list, ready to be rolled up into <code>node_traces</code> per planning run.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>status value</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>ok</code></td><td>Successful call and valid response</td></tr>
+          <tr><td><code>circuit_open</code></td><td>Circuit was open; no HTTP call made</td></tr>
+          <tr><td><code>auth_error</code></td><td>401 — token expired or invalid</td></tr>
+          <tr><td><code>http_5xx</code></td><td>5xx after retry exhausted</td></tr>
+          <tr><td><code>tool_error</code></td><td>success:false in Swiggy's JSON-RPC response</td></tr>
+          <tr><td><code>exception</code></td><td>Network error or unexpected exception</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="l6-discovery">Capability Discovery & Governance — The Honest Picture</h3>
+    <p>Current capability discovery is <strong>static</strong>: each enricher hardcodes which Swiggy tools it calls. There are no runtime <code>tools/list</code> calls at startup to discover available capabilities dynamically. Swiggy's <code>llms.txt</code> is consulted manually when adding new tools.</p>
+
+    <div class="callout tradeoff">
+      <div class="callout-label">The Open Problem</div>
+      <p>When two providers can fulfil the same capability (e.g. Swiggy Dineout and EazyDiner both provide reservation data), the Provider Registry solves the <em>routing</em> problem — which one wins for this org. It doesn't solve the <em>capability-matching</em> problem for novel tools: if Swiggy adds a new "customer_sentiment" tool tomorrow, no code currently knows to use it for complaint enrichment. Full capability discovery would require an LLM to reason about tool schemas and match them to enrichment needs — a non-trivial agentic problem in itself. The governance gap is real and acknowledged, not papered over.</p>
+    </div>
+
+    <p><code>GET /health/circuits</code> returns live circuit state for all 3 Swiggy endpoints: <code>{state, recent_failures, resets_in_seconds}</code> — the start of a governance visibility layer.</p>
+  </section>
+
+  <!-- ════════════════════ LAYER 7 ════════════════════ -->
+  <section class="section" id="l7-fallback">
+    <div class="section-divider"></div>
+    <h2><span class="layer-badge">Layer 7</span> LLM Provider Architecture</h2>
+    <p class="section-intro">CortexKitchen doesn't hardcode a single LLM provider. The provider layer is designed for flexibility — switch between Groq, CometAPI, and Gemini via env var, with automatic fallback if the primary fails. In CometAPI mode, different nodes get different model tiers based on their reasoning requirements.</p>
+
+    <h3>FallbackLLMProvider</h3>
+    <p><code>infrastructure/llm/factory.py → FallbackLLMProvider</code>. Wraps a primary and optional fallback provider. Exposes the same <code>complete()</code> and <code>complete_json()</code> interface as the underlying providers. On any exception from the primary, silently retries with the fallback. Tracks <code>last_provider_used</code> and <code>last_fallback_used</code> for observability logging. <code>drain_usage()</code> collects token usage records from both primary and fallback for cost attribution.</p>
+
+    <pre><code>async def complete(self, prompt, system_prompt=None):
+    try:
+        result = await self.primary.complete(prompt, system_prompt)
+        self.last_provider_used = self.primary.provider_name
+        return result
+    except Exception:
+        # Log warning with provider names, then:
+        result = await self.fallback.complete(prompt, system_prompt)
+        self.last_fallback_used = True
+        return result</code></pre>
+
+    <h3 id="l7-tiered">Tiered Routing (CometAPI mode)</h3>
+    <p>When <code>LLM_PROVIDER=comet</code> and <code>COMET_TIERED=true</code>, <code>create_tiered_llm_providers()</code> builds a registry keyed by tier name. Nodes read their tier from state and use the matching provider:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Tier</th><th>Default Model</th><th>Fallback</th><th>Used by</th></tr></thead>
+        <tbody>
+          <tr><td><code>fast</code></td><td>deepseek-v4-flash</td><td>—</td><td>Demand forecast, reservation, inventory</td></tr>
+          <tr><td><code>balanced</code></td><td>gemini-3.5-flash</td><td>fast</td><td>Complaint intelligence, menu</td></tr>
+          <tr><td><code>strong</code></td><td>claude-sonnet-4-6</td><td>balanced</td><td>Aggregator, critic</td></tr>
+          <tr><td><code>default</code></td><td>CometAPI default</td><td>—</td><td>Nodes without explicit tier</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout why">
+      <div class="callout-label">Why Tiered Routing?</div>
+      <p>Not all nodes need a frontier model. Demand forecast is a straightforward calculation — deepseek-v4-flash is fast and cheap and handles it fine. The critic evaluating a plan across 5 dimensions and the aggregator synthesising 5 agent outputs into a coherent brief genuinely need a stronger model to avoid surface-level, low-quality outputs. Tiered routing routes model capability where it's actually needed, cutting cost ~40–60% vs running everything on the strong model.</p>
+    </div>
+
+    <h3 id="l7-chatbot">Chatbot LLM Factory</h3>
+    <p>The chatbot uses the OpenAI-compatible <code>chat.completions.create()</code> interface with streaming and ReAct tool calls. Both Groq and CometAPI expose this interface, so the factory simply returns the right async client based on <code>LLM_PROVIDER</code>:</p>
+
+    <pre><code>def _get_chat_client(settings):
+    provider = settings.llm_provider.strip().lower()
+    if provider == "groq":
+        from groq import AsyncGroq
+        return AsyncGroq(api_key=settings.groq_api_key), "llama-3.3-70b-versatile"
+
+    # comet / gemini / anything else → CometAPI OpenAI-compat endpoint
+    from openai import AsyncOpenAI
+    return (
+        AsyncOpenAI(api_key=settings.cometapi_key,
+                    base_url="https://api.cometapi.com/v1"),
+        settings.cometapi_model_fast,
+    )</code></pre>
+
+    <p>The ReAct tool loop, streaming path, and semantic cache logic all work identically regardless of which client is returned — the interface is identical.</p>
+
+    <div class="callout why">
+      <div class="callout-label">Groq vs CometAPI for Chat</div>
+      <p>Groq's LPU hardware is optimised for fast token generation — better for the chatbot's interactive latency requirement where every 100ms matters. CometAPI with its access to 500+ models (including Claude and Gemini) is better for the planning pipeline where quality matters more than first-token latency. The factory makes this a one-env-var decision, not a code change.</p>
+    </div>
+  </section>
+
+  <!-- ════════════════════ LAYER 8 ════════════════════ -->
+  <section class="section" id="l8-cost">
+    <div class="section-divider"></div>
+    <h2><span class="layer-badge">Layer 8</span> Observability</h2>
+    <p class="section-intro">Observability in CortexKitchen operates at multiple levels: per-node cost and timing attribution in every planning response, Sentry error tracking for production incidents, and live health endpoints for both infrastructure dependencies and external provider circuit states.</p>
+
+    <h3>Per-Node Cost Attribution</h3>
+    <p>Every planning response includes a <code>meta.node_traces</code> array. Each trace record contains:</p>
+    <pre><code>{
+  "node_name":    "critic",
+  "duration_ms":  1247.3,
+  "llm_usage": [
+    {"model": "claude-sonnet-4-6",
+     "prompt_tokens": 2841, "completion_tokens": 312,
+     "cost_usd": 0.003212}
+  ]
+}</code></pre>
+
+    <p>The final <code>meta</code> block aggregates across all nodes: <code>total_duration_ms</code>, <code>total_tokens</code>, <code>total_cost_usd</code>. All of this is stored in the <code>planning_runs</code> DB table via <code>RunService</code> — every run is a permanent record you can query to understand which nodes are expensive, which are slow, and how cost trends over time.</p>
+
+    <h3 id="l8-sentry">Sentry Integration</h3>
+    <p>Node errors are captured by Sentry with structured context: <code>org_id</code>, <code>scenario</code>, <code>node_name</code>. LangGraph doesn't surface node-level errors through the graph result — a node error is swallowed and appears as a missing output. Without Sentry, you'd debug silent failures from missing state keys. With Sentry, you get a full traceback with context at the point of failure.</p>
+
+    <h3 id="l8-health">Health Endpoints</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Endpoint</th><th>Returns</th><th>Used by</th></tr></thead>
+        <tbody>
+          <tr><td><code>GET /health</code></td><td>Service name, status, environment</td><td>Load balancer health checks</td></tr>
+          <tr><td><code>GET /health/dependencies</code></td><td>Postgres, Qdrant, Redis, LLM config — each with ok/latency_ms</td><td>Frontend Data Health panel</td></tr>
+          <tr><td><code>GET /health/circuits</code></td><td>Swiggy circuit state per endpoint: open/closed, failures, TTL</td><td>Ops monitoring</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ════════════════════ STREAMING UI ════════════════════ -->
+  <section class="section" id="ui-sse">
+    <div class="section-divider"></div>
+    <h2>Real-Time Streaming UI</h2>
+    <p class="section-intro">The frontend receives planning progress via Server-Sent Events and renders a live 4-state node pipeline. Each node transitions through idle → running → done (or skipped) as events arrive. Hint text shows what the node is doing while running, then what it found when done.</p>
+
+    <h3>SSE Event Protocol</h3>
+    <div>
+      <div class="sse-event-row">
+        <span class="sse-event-name e-start">node_start</span>
+        <div><code>{node: str, hint: str}</code> — emitted when a node begins. <code>hint</code> is the human-readable description of what the node is about to do.</div>
+      </div>
+      <div class="sse-event-row">
+        <span class="sse-event-name e-complete">node_complete</span>
+        <div><code>{node: str, hint: str, cached?: bool}</code> — emitted when a node finishes. <code>hint</code> is a brief summary of what it found.</div>
+      </div>
+      <div class="sse-event-row">
+        <span class="sse-event-name e-done">complete</span>
+        <div>Full <code>FridayRushResponse</code> JSON — the complete plan with all agent outputs, critic verdict, and meta.</div>
+      </div>
+      <div class="sse-event-row">
+        <span class="sse-event-name e-error">error</span>
+        <div><code>{message: str}</code> — stream-level error.</div>
+      </div>
+    </div>
+
+    <h3 id="ui-hints">node_start + node_complete Hints</h3>
+    <p>Two separate hint sources in <code>graph.py</code>:</p>
+    <ul>
+      <li><strong><code>_NODE_START_HINTS</code></strong>: Static dict, keyed by node name. Emitted immediately on <code>on_chain_start</code>. Example: <code>"qdrant_enrichment" → "Searching Qdrant memory for relevant SOPs and past incidents…"</code></li>
+      <li><strong><code>_completion_hint(node_name, state_update)</code></strong>: Extracts structured info from the node's state update output. Examples:
+        <ul>
+          <li><code>demand_forecast</code> → <code>"gradient-boost model: 182 predicted orders"</code></li>
+          <li><code>qdrant_enrichment</code> → <code>"Memory loaded: 5 complaints, 3 SOPs, 2 past plans"</code></li>
+          <li><code>critic</code> → <code>"approved (0.82) — plan is feasible and well-evidenced"</code></li>
+        </ul>
+      </li>
+    </ul>
+
+    <div class="callout important">
+      <div class="callout-label">Fixed Bug: Hints Were Being Dropped</div>
+      <p>The original <code>planning.py</code> SSE route only forwarded <code>node_complete</code> events and silently dropped all <code>node_start</code> events. Hints were stripped from <code>node_complete</code> too. This is why the loading pipeline only ever showed "Waiting" or "Done" — the running state never triggered. Fixed by forwarding both event types with their hints.</p>
+    </div>
+
+    <h3 id="ui-states">4-State Node Pipeline</h3>
+    <div class="state-grid">
+      <div class="state-card s-idle">
+        <div class="state-icon">🕐</div>
+        <div class="state-name">Idle</div>
+        <div class="state-desc">Not yet started. Grey ring. "Waiting" label.</div>
+      </div>
+      <div class="state-card s-running">
+        <div class="state-icon">⟳</div>
+        <div class="state-name">Running</div>
+        <div class="state-desc">node_start received. Indigo pulse animation + start hint text.</div>
+      </div>
+      <div class="state-card s-done">
+        <div class="state-icon">✓</div>
+        <div class="state-name">Done</div>
+        <div class="state-desc">node_complete received. Green checkmark + completion hint.</div>
+      </div>
+      <div class="state-card s-skipped">
+        <div class="state-icon">✗</div>
+        <div class="state-name">Skipped</div>
+        <div class="state-desc">Amber X. Only menu node, when ops_manager short-circuits the graph.</div>
+      </div>
+    </div>
+
+    <p>The <code>menuSkipped</code> logic in the frontend: <code>aggDone && !menuDone && !menuStarted</code>. If aggregator completes but menu never received a <code>node_start</code>, menu is flagged as skipped. This handles the edge case where <code>ops_manager</code> routes directly to <code>final_assembler</code> on error — menu never ran, but the pipeline completed. Without this logic, menu would just stay "Idle" which is misleading.</p>
+  </section>
+
+  <!-- ════════════════════ TRADEOFFS ════════════════════ -->
+  <section class="section" id="tradeoffs">
+    <div class="section-divider"></div>
+    <h2>⚠ Tradeoffs & Limitations</h2>
+    <p class="section-intro">Every architectural decision has a cost. This section documents the known tradeoffs, limitations, and gaps honestly — both the intentional ones (where the tradeoff was made consciously) and the genuine gaps (where work is pending or not yet done).</p>
+
+    <div style="margin-top: 20px;">
+
+      <div class="limit-item">
+        <div class="limit-num">1</div>
+        <div class="limit-content">
+          <strong>Menu Intelligence runs sequentially (~1–2s added latency)</strong>
+          <p>Menu depends on inventory data to make constraint-aware suggestions. Running it in parallel with inventory would produce menu recommendations that contradict available stock. Sequential is a correctness choice, not a performance failure. The tradeoff: ~1–2s added to total pipeline time.</p>
+        </div>
+      </div>
+
+      <div class="limit-item">
+        <div class="limit-num">2</div>
+        <div class="limit-content">
+          <strong>Max 2 replan cycles (latency vs quality tradeoff)</strong>
+          <p>Each replan cycle costs ~1.2–1.8s (aggregator + critic LLM calls). Two cycles adds at most ~3.6s. Three cycles would add ~5.4s for diminishing returns — the critic's feedback rarely changes fundamentally after the first replan. The cap exists to bound worst-case latency, not because the plan is good enough after 2 retries.</p>
+        </div>
+      </div>
+
+      <div class="limit-item" style="border-left:4px solid #22c55e;background:#f0fdf4;">
+        <div class="limit-num" style="background:#22c55e;">3</div>
+        <div class="limit-content">
+          <span style="display:inline-block;background:#22c55e;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-bottom:6px;">✓ FIXED</span>
+          <strong>SemanticPlanCache stores all runs, not just approved</strong>
+          <p>This was a minor bug: a rejected plan could be returned as a cache hit to a future caller. The Redis exact-match cache is write-gated on <code>approved</code> only, but the Qdrant semantic cache was writing on every run.</p>
+          <p><strong>Resolution:</strong> <code>SemanticPlanCache.set()</code> is now only called when <code>verdict == "approved"</code>. The write in <code>graph.py</code> is explicitly gated: <code>if semantic_cache and org_id and verdict == "approved" and not simulation_mode</code>. Rejected plans can no longer pollute the semantic cache or be returned as hits to future callers.</p>
+        </div>
+      </div>
+
+      <div class="limit-item" style="border-left:4px solid #22c55e;background:#f0fdf4;">
+        <div class="limit-num" style="background:#22c55e;">4</div>
+        <div class="limit-content">
+          <span style="display:inline-block;background:#22c55e;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-bottom:6px;">✓ FIXED</span>
+          <strong>Semantic cache embedding is basic (scenario + date text only)</strong>
+          <p>At retrieval time the conditions (demand ratio, shortage items, occupancy) aren't yet known — those are computed during the run — so the query embedding must stay lightweight. The storage embedding, however, can be much richer.</p>
+          <p><strong>Resolution:</strong> Asymmetric embedding strategy implemented in <code>SemanticPlanCache</code>. <code>_query_text()</code> stays lightweight: <code>"org:{id} scenario:{scenario} date:{date}"</code>. New static method <code>_storage_text()</code> builds a richer string including <code>demand_ratio</code>, <code>occupancy%</code>, <code>shortages:[items]</code>, and <code>verdict</code> — e.g. <code>"org:1 scenario:friday_rush date:2026-06-27 demand_ratio:1.42 occupancy:88% shortages:chicken,cream verdict:approved"</code>. Storage is now condition-aware; queries still match at scenario-level but stored vectors are semantically richer so future near-miss retrieval is more accurate. <code>graph.py</code> extracts these conditions from the completed run and passes them via the new optional <code>conditions</code> parameter on <code>SemanticPlanCache.set()</code>.</p>
+        </div>
+      </div>
+
+      <div class="limit-item">
+        <div class="limit-num">5</div>
+        <div class="limit-content">
+          <strong>Swiggy enrichers are stubs — enrich() raises NotImplementedError</strong>
+          <p><code>SwiggyConnector.enrich()</code> currently raises <code>NotImplementedError</code>. The planning pipeline runs entirely on DB data. Swiggy MCP is integrated at the infrastructure level (client, circuit breaker, connector ABC) but the enrichers (CompetitorEnricher, OccupancyEnricher, ProcurementEnricher) are pending implementation. Live Swiggy enrichment during planning is not yet wired.</p>
+        </div>
+      </div>
+
+      <div class="limit-item" style="border-left:4px solid #22c55e;background:#f0fdf4;">
+        <div class="limit-num" style="background:#22c55e;">6</div>
+        <div class="limit-content">
+          <span style="display:inline-block;background:#22c55e;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-bottom:6px;">✓ FIXED</span>
+          <strong>Chatbot has no within-session memory (only cross-session)</strong>
+          <p><code>SessionMemoryService</code> provides cross-session context via Qdrant summaries. Previously, within a single session the chatbot only kept the last 6 turns verbatim — early context was silently dropped.</p>
+          <p><strong>Resolution:</strong> Within-session context compression implemented in <code>chat_service.py</code>. Constant <code>_RECENT_WINDOW = 8</code>. When <code>len(history) &gt; 8</code>, older turns are compressed via <code>SessionMemoryService.build_summary_from_messages(older, question)</code> — a lightweight rule-based summariser (no extra LLM call). The summary is injected as an assistant turn: <code>"[Earlier in this session: ...]"</code>, followed by the 8 most recent turns verbatim. The LLM therefore always has: cross-session context (Qdrant), a compressed summary of earlier in this conversation, and the last 8 turns in full. Long conversations no longer lose early context.</p>
+        </div>
+      </div>
+
+      <div class="limit-item">
+        <div class="limit-num">7</div>
+        <div class="limit-content">
+          <strong>Circuit breaker uses TTL-based reset (no half-open probe)</strong>
+          <p>After the 30-minute open period, the circuit closes automatically and the next real call acts as an implicit probe. If Swiggy is still down, that call will fail and re-open the circuit. Classic half-open state would send a single probe before reopening fully. The TTL approach is simpler but means one call will fail after every 30-minute recovery attempt if the provider is still degraded.</p>
+        </div>
+      </div>
+
+      <div class="limit-item" style="border-left:4px solid #22c55e;background:#f0fdf4;">
+        <div class="limit-num" style="background:#22c55e;">8</div>
+        <div class="limit-content">
+          <span style="display:inline-block;background:#22c55e;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-bottom:6px;">✓ FIXED</span>
+          <strong>Provider registry reads connector health at query time (not real-time)</strong>
+          <p>The <code>connectors</code> table's <code>sync_status</code> is written by the nightly sync job. Mid-day degradation was invisible to the registry until the next nightly run.</p>
+          <p><strong>Resolution:</strong> <code>ProviderRegistry.get_provider_async()</code> now performs a dual health check. For each candidate provider: (1) DB check — <code>sync_status in {"success", "syncing"}</code> (nightly, coarse-grained); (2) Circuit breaker check — <code>await circuit_breaker.is_open(provider, endpoint)</code> (real-time Redis, sub-second). A provider only passes routing if it passes <em>both</em>. If Swiggy's food endpoint has had 3 failures in the last 5 minutes, its circuit is open and the registry skips it — falling through to the next priority provider (e.g. Zomato for <code>order_history</code>). The sync version (<code>get_provider</code>) retains DB-only behaviour for backward-compat in sync code paths.</p>
+        </div>
+      </div>
+
+      <div class="limit-item">
+        <div class="limit-num">9</div>
+        <div class="limit-content">
+          <strong>MCP capability discovery is static</strong>
+          <p>No runtime <code>tools/list</code> calls are made at startup. Each enricher hardcodes which Swiggy tools it calls. If Swiggy adds a new relevant tool, code must be updated manually. Full runtime discovery would require an LLM to reason about tool schemas and match them to enrichment needs — a separate agent-level problem.</p>
+        </div>
+      </div>
+
+      <div class="limit-item">
+        <div class="limit-num">10</div>
+        <div class="limit-content">
+          <strong>Chatbot <code>org_id</code> filter missing on feedback retrieval</strong>
+          <p>The <code>/chat</code> chatbot retrieves the last 30 feedback records without filtering by <code>org_id</code>. In a single-tenant dev setup this is harmless, but in a multi-tenant production environment it would expose one org's guest feedback to another org's chatbot. The fix is a one-line addition of <code>.filter(Feedback.org_id == org_id)</code> to the feedback query in <code>ChatService</code>. Tracked as a known gap pending the multi-tenant hardening pass in Phase 7.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ════════════════════ CONFIG ════════════════════ -->
+  <section class="section" id="config">
+    <div class="section-divider"></div>
+    <h2>⚙ Configuration Reference</h2>
+    <p class="section-intro">Configuration is split between environment variables (infrastructure and secrets) and per-org JSONB settings in the database (business configuration that varies per tenant).</p>
+
+    <h3>Environment Variables</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Variable</th><th>Values</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>LLM_PROVIDER</code></td><td>groq | comet | gemini</td><td>Primary LLM provider for planning pipeline and chatbot</td></tr>
+          <tr><td><code>COMETAPI_KEY</code></td><td>string</td><td>CometAPI key — single key for 500+ models</td></tr>
+          <tr><td><code>COMETAPI_MODEL_FAST</code></td><td>e.g. deepseek-v4-flash</td><td>Fast tier model name for CometAPI</td></tr>
+          <tr><td><code>COMETAPI_MODEL_BALANCED</code></td><td>e.g. gemini-3.5-flash</td><td>Balanced tier model name</td></tr>
+          <tr><td><code>COMETAPI_MODEL_STRONG</code></td><td>e.g. claude-sonnet-4-6</td><td>Strong tier model name (critic, aggregator)</td></tr>
+          <tr><td><code>COMET_TIERED</code></td><td>true | false</td><td>Enable per-node model tier routing (CometAPI only)</td></tr>
+          <tr><td><code>GROQ_API_KEY</code></td><td>string</td><td>Groq API key (used when LLM_PROVIDER=groq)</td></tr>
+          <tr><td><code>GEMINI_API_KEY</code></td><td>string</td><td>Gemini API key (used for embedding + Gemini provider)</td></tr>
+          <tr><td><code>REDIS_URL</code></td><td>redis://...</td><td>Redis connection (plan cache + circuit breaker)</td></tr>
+          <tr><td><code>QDRANT_URL</code></td><td>http://...</td><td>Qdrant connection (all vector collections)</td></tr>
+          <tr><td><code>DATABASE_URL</code></td><td>postgresql://...</td><td>Main Postgres DB</td></tr>
+          <tr><td><code>SWIGGY_ACCESS_TOKEN</code></td><td>string</td><td>Dev-only Swiggy OAuth token (prod uses connectors table)</td></tr>
+          <tr><td><code>SWIGGY_ADDRESS_ID</code></td><td>string</td><td>Dev-only Swiggy address ID for sync</td></tr>
+          <tr><td><code>SENTRY_DSN</code></td><td>https://...</td><td>Sentry error reporting DSN</td></tr>
+          <tr><td><code>APP_ENV</code></td><td>development | production</td><td>Environment tag for health endpoint</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Per-Org Settings (organizations.settings JSONB)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Key</th><th>Default</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>capacity</code></td><td>70</td><td>Maximum covers (guests) — hard constraint for critic and sanity checker</td></tr>
+          <tr><td><code>peak_hours</code></td><td>"18:00-22:00"</td><td>Service window used by demand forecast and planning context</td></tr>
+          <tr><td><code>critic_threshold</code></td><td>0.7</td><td>Minimum critic score for approved verdict. Range 0.0–1.0.</td></tr>
+          <tr><td><code>low_stock_threshold_pct</code></td><td>20</td><td>% of par level below which an item is flagged as "low stock"</td></tr>
+          <tr><td><code>overstock_threshold_pct</code></td><td>150</td><td>% of par level above which an item is flagged as overstock</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout why">
+      <div class="callout-label">Why per-org settings in JSONB?</div>
+      <p>A fine-dining restaurant and a quick-service restaurant have fundamentally different operational constraints. Capacity, peak hours, and quality thresholds should be tenant-configurable without code changes. JSONB in Postgres is the right fit: schema-flexible (different orgs can have different keys), queryable with Postgres operators, and no migration required to add new settings fields.</p>
+    </div>
+
+    <h3>Scenario IDs</h3>
+    <p>Valid scenario identifiers: <span class="config-badge">friday_rush</span> <span class="config-badge">weekday_lunch</span> <span class="config-badge">holiday_spike</span> <span class="config-badge">low_stock_weekend</span></p>
+    <p>New scenarios are added via the <code>domain/scenarios.py</code> registry — no route or graph changes required.</p>
+  </section>
+
+  <div style="height: 40px;"></div>
+
+</main>
+
+<script>
+  const navLinks = document.querySelectorAll('#sidebar .nav-link');
+  const sections = [];
+
+  navLinks.forEach(link => {
+    const id = link.getAttribute('href')?.replace('#', '');
+    if (id) {
+      const el = document.getElementById(id);
+      if (el) sections.push({ id, el, link });
+    }
+  });
+
+  function onScroll() {
+    const scrollY = window.scrollY + 100;
+    let current = null;
+    for (const s of sections) {
+      if (s.el.getBoundingClientRect().top + window.scrollY <= scrollY) {
+        current = s;
+      }
+    }
+    navLinks.forEach(l => l.classList.remove('active'));
+    if (current) current.link.classList.add('active');
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+</script>
+
+</body>
+</html>

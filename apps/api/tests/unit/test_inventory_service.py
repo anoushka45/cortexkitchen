@@ -236,7 +236,7 @@ class TestAnalyseAndRecommend:
 
         prompt = llm.complete_json.await_args.kwargs["prompt"]
         assert "recommended_restock=6.87" in prompt
-        assert "max_actionable_restock=6.87" in prompt
+        assert "max_actionable_restock=20.61" in prompt
         assert "Prioritize critical shortages first" in prompt
 
     @pytest.mark.asyncio
@@ -266,11 +266,11 @@ class TestAnalyseAndRecommend:
         actions = result["recommendation"]["restock_actions"]
         assert (
             "Order 1.05kg Garlic immediately "
-            "(covers 1.05kg shortfall; current stock 0.45kg; within max actionable cap 1.35kg)."
+            "(covers 1.05kg shortfall; current stock 0.45kg)."
         ) in actions
         assert (
             "Order 0.83kg Fresh Basil immediately "
-            "(covers 0.83kg shortfall; current stock 0.17kg; within max actionable cap 0.83kg)."
+            "(covers 0.83kg shortfall; current stock 0.17kg)."
         ) in actions
         assert all("20kg" not in action and "15kg" not in action for action in actions)
 

@@ -225,10 +225,22 @@ class ForecastService:
         """Calculate predicted demand for target Friday using Prophet (with baseline fallback)."""
         return self.calculate_prophet_forecast(target_date)
 
-    async def analyse_and_recommend(self, target_date: datetime | None = None) -> dict:
+    async def analyse_and_recommend(self, target_date: datetime | None = None, org_capacity: int | None = None) -> dict:
         """Use Gemini to analyse forecast data and generate recommendation."""
 
         forecast = self.calculate_forecast(target_date)
+
+        predicted = forecast.get("predicted_orders", 0)
+        capacity_line = ""
+        if org_capacity:
+            if predicted and float(predicted) > org_capacity:
+                capacity_line = (
+                    f"\n- Restaurant seating capacity: {org_capacity} seats "
+                    f"(Prophet predicted {predicted} orders — demand exceeds seating capacity. "
+                    f"Frame staffing as 'plan for a full house of {org_capacity}', never reference the demand number as a diner count)"
+                )
+            else:
+                capacity_line = f"\n- Restaurant seating capacity: {org_capacity} seats"
 
         service_day_label = forecast.get("service_day_label", "service day")
         prompt = PromptUtils.format_recommendation_prompt(
@@ -240,7 +252,7 @@ Demand forecast for the target {service_day_label} service (using {forecast.get(
 {f"- Prediction range: {forecast.get('predicted_orders_lower', 'N/A')} - {forecast.get('predicted_orders_upper', 'N/A')}" if forecast.get('predicted_orders_lower') else ""}
 - Predicted peak orders: {forecast['predicted_peak_orders']}
 - Forecast confidence: {forecast.get('confidence', 'medium')}
-- Top ordered items on matching service days: {forecast['top_items']}
+- Top ordered items on matching service days: {forecast['top_items']}{capacity_line}
 """,
             task="Based on this demand forecast, recommend specific staffing and preparation actions for the target service window."
         )

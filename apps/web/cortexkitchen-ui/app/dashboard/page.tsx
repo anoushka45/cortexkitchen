@@ -55,7 +55,7 @@ const SCENARIO_OPTIONS: PlanningScenarioOption[] = [
 
 
 
-type NodeState = "idle" | "running" | "done";
+type NodeState = "idle" | "running" | "done" | "skipped";
 
 function SectionHeader({
   label,
@@ -141,16 +141,16 @@ const AGENT_PIPELINE = [
     border: "border-rose-500/20", bg: "bg-rose-500/[0.06]", dot: "bg-rose-400", icon: "text-rose-400",
   },
   {
-    label: "Menu Intelligence",
-    capability: "Tells you which dishes to push tonight and which to hold back, based on what's actually in stock and what's been getting complaints",
-    iconPath: "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4",
-    border: "border-amber-500/20", bg: "bg-amber-500/[0.06]", dot: "bg-amber-400", icon: "text-amber-400",
-  },
-  {
     label: "Inventory Status",
     capability: "Flags what's running low or overstocked, and tells you exactly what to reorder with specific quantities before the shift starts",
     iconPath: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
     border: "border-emerald-500/20", bg: "bg-emerald-500/[0.06]", dot: "bg-emerald-400", icon: "text-emerald-400",
+  },
+  {
+    label: "Menu Intelligence",
+    capability: "Runs after inventory — only recommends dishes that are actually in stock, blocking anything with a critical shortage so contradictions never reach you",
+    iconPath: "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4",
+    border: "border-amber-500/20", bg: "bg-amber-500/[0.06]", dot: "bg-amber-400", icon: "text-amber-400",
   },
 ] as const;
 
@@ -321,8 +321,8 @@ function IdleState({
               <div className="flex items-start justify-between gap-4 mb-5">
                 <div>
                   <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-slate-600">Agent pipeline</p>
-                  <p className="mt-1 text-base font-semibold text-white">9-node orchestration</p>
-                  <p className="mt-0.5 text-xs text-slate-500">Parallel execution  -  aggregation  -  critic verification</p>
+                  <p className="mt-1 text-base font-semibold text-white">10-node orchestration</p>
+                  <p className="mt-0.5 text-xs text-slate-500">Enrichment · parallel execution · menu synthesis · critic verification</p>
                 </div>
                 <div className="shrink-0 rounded-xl border border-ember-500/20 bg-ember-500/10 px-2.5 py-1">
                   <p className="font-mono text-xs font-bold text-ember-300">LangGraph</p>
@@ -367,13 +367,31 @@ function IdleState({
 }
 
 function GraphNode({
-  label, subLabel, state, dot,
-}: { label: string; subLabel: string; state: NodeState; dot: string }) {
+  label, subLabel, state, dot, hint,
+}: { label: string; subLabel: string; state: NodeState; dot: string; hint?: string }) {
   const isDone    = state === "done";
   const isRunning = state === "running";
+  const isSkipped = state === "skipped";
+
   const ring = isDone    ? "ring-emerald-400/35 bg-emerald-500/[0.05]"
              : isRunning ? "ring-ember-400/35 bg-ember-500/[0.06]"
+             : isSkipped ? "ring-amber-500/25 bg-amber-500/[0.04]"
              :              "ring-white/[0.08] bg-white/[0.02]";
+
+  const statusLabel = isDone ? "done" : isRunning ? "running" : isSkipped ? "skipped" : "waiting";
+  const statusColor = isDone    ? "text-emerald-300/70"
+                    : isRunning ? "text-ember-300/70"
+                    : isSkipped ? "text-amber-400/60"
+                    :              "text-white/25";
+  const labelColor  = isDone    ? "text-white"
+                    : isRunning ? "text-white/80"
+                    : isSkipped ? "text-amber-200/50"
+                    :              "text-white/25";
+  const subColor    = isDone    ? "text-white/45"
+                    : isRunning ? "text-white/35"
+                    : isSkipped ? "text-amber-200/30"
+                    :              "text-white/15";
+
   return (
     <div className={`rounded-xl ring-1 px-3 py-2.5 min-w-[110px] transition-all duration-500 ${ring}`}>
       <div className="flex items-center gap-1.5 mb-1">
@@ -381,64 +399,99 @@ function GraphNode({
           <svg className="h-3 w-3 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
+        ) : isSkipped ? (
+          <svg className="h-3 w-3 text-amber-400/60 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
         ) : (
           <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isRunning ? `${dot} animate-pulse` : "bg-white/15"}`} />
         )}
-        <span className={`font-mono text-[9px] uppercase tracking-wider transition-colors duration-300 ${
-          isDone ? "text-emerald-300/70" : isRunning ? "text-ember-300/70" : "text-white/25"
-        }`}>
-          {isDone ? "done" : isRunning ? "running" : "waiting"}
+        <span className={`font-mono text-[9px] uppercase tracking-wider transition-colors duration-300 ${statusColor}`}>
+          {statusLabel}
         </span>
       </div>
-      <p className={`text-[12px] font-semibold leading-tight transition-colors duration-300 ${
-        isDone ? "text-white" : isRunning ? "text-white/80" : "text-white/25"
-      }`}>{label}</p>
-      <p className={`text-[10px] mt-0.5 leading-snug transition-colors duration-300 ${
-        isDone ? "text-white/45" : isRunning ? "text-white/35" : "text-white/15"
-      }`}>{subLabel}</p>
+      <p className={`text-[12px] font-semibold leading-tight transition-colors duration-300 ${labelColor}`}>{label}</p>
+      <p className={`text-[10px] mt-0.5 leading-snug transition-colors duration-300 ${subColor}`}>{subLabel}</p>
+      {hint && (isDone || isRunning) && (
+        <p className={`text-[9px] mt-1 leading-snug transition-colors duration-300 line-clamp-2 ${
+          isDone ? "text-emerald-300/50" : "text-ember-300/60"
+        }`}>{hint}</p>
+      )}
     </div>
   );
 }
 
-function LoadingState({ completedNodes, scenarioLabel, restaurantName }: { completedNodes: Set<string>; scenarioLabel?: string; restaurantName?: string | null }) {
-  // Derive node states from real SSE data — no fake timers
-  const forecastDone  = completedNodes.has("forecast");
-  const aggDone       = completedNodes.has("aggregator");
-  const criticDone    = completedNodes.has("critic");
-  const parallelKeys  = ["reservation", "complaint", "menu", "inventory"] as const;
-  const allAgentsDone = parallelKeys.every(k => completedNodes.has(k));
+function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, scenarioLabel, restaurantName }: {
+  completedNodes: Set<string>;
+  startedNodes:   Set<string>;
+  nodeHints:      Record<string, string>;
+  replanCount: number;
+  scenarioLabel?: string;
+  restaurantName?: string | null;
+}) {
+  // node_start / node_complete SSE events drive everything — no fake timers
+  const ns = (key: string): NodeState => {
+    if (completedNodes.has(key)) return "done";
+    if (startedNodes.has(key))   return "running";
+    return "idle";
+  };
 
-  // Ops manager is implied — mark done as soon as anything else starts
-  const anyStarted    = completedNodes.size > 0 || forecastDone;
-  const opsState:      NodeState = anyStarted   ? "done" : "running";
-  const forecastState: NodeState = forecastDone ? "done" : anyStarted ? "running" : "idle";
-  const aggState:      NodeState = aggDone       ? "done" : allAgentsDone ? "running" : "idle";
-  const criticState:   NodeState = criticDone    ? "done" : aggDone ? "running" : "idle";
+  const anyStarted     = startedNodes.size > 0 || completedNodes.size > 0;
+  const forecastDone   = completedNodes.has("forecast");
+  const enrichmentDone = completedNodes.has("enrichment");
+  const inventoryDone  = completedNodes.has("inventory");
+  const menuDone       = completedNodes.has("menu");
+  const menuStarted    = startedNodes.has("menu");
+  const aggDone        = completedNodes.has("aggregator");
+  const criticDone     = completedNodes.has("critic");
 
-  const parallelAgents: { key: typeof parallelKeys[number]; label: string; subLabel: string; dot: string }[] = [
-    { key: "reservation", label: "Reservations", subLabel: "Bookings & occupancy",  dot: "bg-cyan-400"    },
-    { key: "complaint",   label: "Complaints",   subLabel: "Guest feedback & RAG",  dot: "bg-rose-400"    },
-    { key: "menu",        label: "Menu",          subLabel: "Demand & stock signals", dot: "bg-amber-400"   },
-    { key: "inventory",   label: "Inventory",     subLabel: "Shortage detection",    dot: "bg-emerald-400" },
+  const phase1Keys    = ["reservation", "complaint", "inventory"] as const;
+  const phase1Done    = phase1Keys.every(k => completedNodes.has(k));
+  const allAgentsDone = phase1Done && menuDone;
+
+  // If aggregator completed but menu never even started, menu was skipped (node errored silently)
+  const menuSkipped = aggDone && !menuDone && !menuStarted;
+
+  const opsState:        NodeState = anyStarted     ? "done" : "running";
+  const forecastState:   NodeState = ns("forecast");
+  const enrichmentState: NodeState = ns("enrichment");
+  const menuState:       NodeState = menuSkipped ? "skipped" : ns("menu");
+  const aggState:        NodeState = ns("aggregator");
+  const criticState:     NodeState = ns("critic");
+
+  const phase1Agents: { key: typeof phase1Keys[number]; label: string; subLabel: string; dot: string }[] = [
+    { key: "reservation", label: "Reservations", subLabel: "Bookings & occupancy", dot: "bg-cyan-400"    },
+    { key: "complaint",   label: "Complaints",   subLabel: "Feedback & RAG",       dot: "bg-rose-400"    },
+    { key: "inventory",   label: "Inventory",    subLabel: "Shortage detection",   dot: "bg-emerald-400" },
   ];
 
-  const runningCount  = parallelKeys.filter(k => !completedNodes.has(k)).length;
-  const currentAction = criticDone    ? "Critic has reviewed the plan"
-    : aggDone                          ? "Critic is scoring the plan…"
-    : allAgentsDone                    ? "Aggregating all results…"
-    : forecastDone                     ? `${runningCount} agent${runningCount !== 1 ? "s" : ""} still running…`
-    : anyStarted                       ? "Running demand forecast…"
-    :                                    "Sequencing the pipeline…";
+  const phase1Remaining = phase1Keys.filter(k => !completedNodes.has(k)).length;
+  const isReplanning    = replanCount > 0 && !allAgentsDone;
 
-  // SVG height matches the parallel agent stack:  4 × 68px nodes + 3 × 8px gaps = 296px
-  const SVG_H = 296;
-  const MID   = SVG_H / 2;                         // 148 — center of stack
-  const POSITIONS = [34, 102, 170, 238] as const;   // center-y of each agent node
+  const currentAction =
+    isReplanning                              ? `Replanning — attempt ${replanCount} of 2 re-evaluating…`
+    : replanCount > 0 && criticDone          ? `Critic re-evaluated after replan ${replanCount} of 2`
+    : criticDone                             ? "Critic has reviewed the plan"
+    : aggDone                                ? "Critic is scoring the plan…"
+    : allAgentsDone                          ? "Aggregating all results…"
+    : menuSkipped                            ? "Menu skipped — aggregating remaining outputs…"
+    : menuDone                               ? "Aggregating…"
+    : menuStarted                            ? "Menu intelligence applying inventory constraints…"
+    : inventoryDone                          ? "Waiting for menu intelligence…"
+    : enrichmentDone && phase1Remaining > 0  ? `${phase1Remaining} agent${phase1Remaining !== 1 ? "s" : ""} still running…`
+    : forecastDone                           ? "Enriching context from memory…"
+    : anyStarted                             ? "Running demand forecast…"
+    :                                          "Sequencing the pipeline…";
+
+  // SVG height for 3 parallel nodes: 3×68px nodes + 2×8px gaps = 220px
+  const SVG_H     = 220;
+  const MID       = SVG_H / 2;                        // 110 — center of stack
+  const POSITIONS = [34, 110, 186] as const;           // center-y of each phase-1 node
 
   return (
     <div className="py-10">
       {/* Header */}
-      <div className="mx-auto max-w-[560px] text-center mb-10">
+      <div className="mx-auto max-w-[560px] text-center mb-8">
         <div className="inline-flex items-center gap-2 rounded-full border border-ember-500/20 bg-ember-500/[0.08] px-3 py-1.5 mb-4">
           <span className="relative flex h-2 w-2">
             {!criticDone && <span className="absolute inset-0 animate-ping rounded-full bg-ember-400 opacity-50" />}
@@ -464,86 +517,137 @@ function LoadingState({ completedNodes, scenarioLabel, restaurantName }: { compl
           </p>
         )}
         <p className="mt-3 text-[13px] leading-[1.7] text-white/45 max-w-xs mx-auto">
-          Five specialists are working through your kitchen data. A critic reviews the plan before you see a word of it.
+          Five specialists work through your kitchen data. Inventory runs first, then menu intelligence applies what&rsquo;s in stock. A critic reviews the plan before you see it.
         </p>
       </div>
 
+      {/* Replan banner — appears only when critic triggered a retry */}
+      {replanCount > 0 && (
+        <div className="mb-5 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3 flex items-start gap-3">
+          <span className="relative flex h-2 w-2 shrink-0 mt-1">
+            <span className="absolute inset-0 animate-ping rounded-full bg-amber-400 opacity-60" />
+            <span className="relative rounded-full bg-amber-400" />
+          </span>
+          <div>
+            <p className="text-xs font-semibold text-amber-300">
+              Auto-replan triggered — attempt {replanCount} of 2
+            </p>
+            <p className="text-[11px] text-amber-300/60 mt-0.5">
+              The critic found issues in the initial plan. Replanning now with corrected constraints — this is automatic, no action needed.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Graph topology — horizontal pipeline */}
-      <div className="rounded-2xl bg-ink-900 ring-1 ring-white/[0.07] px-6 py-6">
-        <div className="flex items-center justify-center gap-0">
+      <div className="rounded-2xl bg-ink-900 ring-1 ring-white/[0.07] px-4 py-6 overflow-x-auto">
+        <div className="flex items-center justify-center gap-0 min-w-max mx-auto">
 
           {/* Ops Manager */}
           <GraphNode label="Ops Manager" subLabel="Sequences pipeline" state={opsState} dot="bg-slate-400" />
 
           {/* → */}
-          <svg className="shrink-0 w-8 h-4" viewBox="0 0 32 16" fill="none" stroke="currentColor" strokeWidth="1">
-            <path d={`M0,8 H26 M20,3 L26,8 L20,13`} className={`transition-colors duration-500 ${anyStarted ? "text-emerald-400/50" : "text-white/15"}`} />
+          <svg className="shrink-0 w-6 h-4" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1">
+            <path d="M0,8 H18 M12,3 L18,8 L12,13" className={`transition-colors duration-500 ${anyStarted ? "text-emerald-400/50" : "text-white/15"}`} />
           </svg>
 
           {/* Demand Forecast */}
-          <GraphNode label="Demand Forecast" subLabel="Prophet time-series" state={forecastState} dot="bg-ember-400" />
+          <GraphNode label="Demand Forecast" subLabel="Prophet time-series" state={forecastState} dot="bg-ember-400" hint={nodeHints["forecast"]} />
 
-          {/* Fan-out SVG */}
+          {/* → */}
+          <svg className="shrink-0 w-6 h-4" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1">
+            <path d="M0,8 H18 M12,3 L18,8 L12,13" className={`transition-colors duration-500 ${forecastDone ? "text-ember-400/50" : "text-white/15"}`} />
+          </svg>
+
+          {/* Context Enrichment */}
+          <GraphNode label="Enrichment" subLabel="Qdrant context" state={enrichmentState} dot="bg-violet-400" hint={nodeHints["enrichment"]} />
+
+          {/* Fan-out SVG — enrichment to 3 parallel agents */}
           <svg
-            className="shrink-0 w-10"
+            className="shrink-0 w-8"
             style={{ height: SVG_H }}
-            viewBox={`0 0 40 ${SVG_H}`}
+            viewBox={`0 0 32 ${SVG_H}`}
             fill="none" stroke="currentColor" strokeWidth="1"
           >
             {POSITIONS.map((y) => (
               <path
                 key={y}
-                d={`M0,${MID} H20 V${y} H36 M30,${y - 5} L36,${y} L30,${y + 5}`}
-                className={`transition-colors duration-500 ${forecastDone ? "text-ember-400/40" : "text-white/10"}`}
+                d={`M0,${MID} H16 V${y} H28 M22,${y - 5} L28,${y} L22,${y + 5}`}
+                className={`transition-colors duration-500 ${enrichmentDone ? "text-violet-400/40" : "text-white/10"}`}
               />
             ))}
           </svg>
 
-          {/* 4 parallel agents */}
+          {/* 3 parallel agents: reservation, complaint, inventory */}
           <div className="flex flex-col gap-2 shrink-0">
-            {parallelAgents.map((agent) => {
-              const state: NodeState = completedNodes.has(agent.key) ? "done" : forecastDone ? "running" : "idle";
-              return (
-                <GraphNode key={agent.key} label={agent.label} subLabel={agent.subLabel} state={state} dot={agent.dot} />
-              );
-            })}
+            {phase1Agents.map((agent) => (
+              <GraphNode
+                key={agent.key}
+                label={agent.label}
+                subLabel={agent.subLabel}
+                state={ns(agent.key)}
+                dot={agent.dot}
+                hint={nodeHints[agent.key]}
+              />
+            ))}
           </div>
 
-          {/* Fan-in SVG */}
+          {/* Fan-in SVG — 3 parallel agents converge, then inventory feeds menu */}
           <svg
-            className="shrink-0 w-10"
+            className="shrink-0 w-8"
             style={{ height: SVG_H }}
-            viewBox={`0 0 40 ${SVG_H}`}
+            viewBox={`0 0 32 ${SVG_H}`}
             fill="none" stroke="currentColor" strokeWidth="1"
           >
             {POSITIONS.map((y) => (
               <path
                 key={y}
-                d={`M4,${y} H20 V${MID} H36 M30,${MID - 5} L36,${MID} L30,${MID + 5}`}
-                className={`transition-colors duration-500 ${allAgentsDone ? "text-emerald-400/40" : "text-white/10"}`}
+                d={`M4,${y} H16 V${MID} H28 M22,${MID - 5} L28,${MID} L22,${MID + 5}`}
+                className={`transition-colors duration-500 ${phase1Done ? "text-emerald-400/40" : "text-white/10"}`}
               />
             ))}
+          </svg>
+
+          {/* Menu (sequential — waits for inventory) */}
+          <GraphNode label="Menu" subLabel="Inventory-aware" state={menuState} dot="bg-amber-400" hint={menuSkipped ? "Skipped — inventory data unavailable" : nodeHints["menu"]} />
+
+          {/* → */}
+          <svg className="shrink-0 w-6 h-4" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1">
+            <path d="M0,8 H18 M12,3 L18,8 L12,13" className={`transition-colors duration-500 ${menuDone ? "text-emerald-400/50" : "text-white/15"}`} />
           </svg>
 
           {/* Aggregator */}
-          <GraphNode label="Aggregator" subLabel="Synthesises outputs" state={aggState} dot="bg-violet-400" />
+          <GraphNode label="Aggregator" subLabel="Synthesises outputs" state={aggState} dot="bg-violet-400" hint={nodeHints["aggregator"]} />
 
           {/* → */}
-          <svg className="shrink-0 w-8 h-4" viewBox="0 0 32 16" fill="none" stroke="currentColor" strokeWidth="1">
-            <path d={`M0,8 H26 M20,3 L26,8 L20,13`} className={`transition-colors duration-500 ${aggDone ? "text-emerald-400/50" : "text-white/15"}`} />
+          <svg className="shrink-0 w-6 h-4" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1">
+            <path d="M0,8 H18 M12,3 L18,8 L12,13" className={`transition-colors duration-500 ${aggDone ? "text-emerald-400/50" : "text-white/15"}`} />
           </svg>
 
           {/* Critic */}
-          <GraphNode label="Critic" subLabel="Scores 5 dimensions" state={criticState} dot="bg-emerald-300" />
+          <div className="relative">
+            <GraphNode label="Critic" subLabel="Scores 5 dimensions" state={criticState} dot="bg-emerald-300" hint={nodeHints["critic"]} />
+            {replanCount > 0 && (
+              <div className="absolute -bottom-5 left-0 right-0 flex justify-center">
+                <span className="font-mono text-[9px] text-amber-400/80 tracking-wide">
+                  retry {replanCount}/2
+                </span>
+              </div>
+            )}
+          </div>
 
         </div>
       </div>
 
       {/* Footer */}
-      <div className="mt-5 text-center">
-        {criticDone ? (
+      <div className="mt-7 text-center">
+        {criticDone && replanCount === 0 ? (
           <div className="rounded-xl bg-emerald-500/[0.06] ring-1 ring-emerald-400/25 px-5 py-3.5">
             <p className="text-sm font-semibold text-emerald-300">Plan approved. Loading your brief...</p>
+          </div>
+        ) : criticDone && replanCount > 0 ? (
+          <div className="rounded-xl bg-emerald-500/[0.06] ring-1 ring-emerald-400/25 px-5 py-3.5">
+            <p className="text-sm font-semibold text-emerald-300">Plan finalised after {replanCount} replan{replanCount > 1 ? "s" : ""}. Loading your brief...</p>
           </div>
         ) : (
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-white/30">{currentAction}</p>
@@ -559,7 +663,7 @@ export default function DashboardPage() {
   const searchParams = useSearchParams();
   const dashCtx = useDashboardCtx();
 
-  const { data, status, error, history, completedNodes, trigger, reset, loadFromHistory } = useFridayRush();
+  const { data, status, error, history, completedNodes, startedNodes, nodeHints, replanCount, trigger, reset, loadFromHistory } = useFridayRush();
   const [activeHistoryId, setActiveHistoryId] = useState<string | number | undefined>();
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
   const [showManagerBrief, setShowManagerBrief] = useState(false);
@@ -683,7 +787,7 @@ export default function DashboardPage() {
             />
           )}
 
-          {status === "loading" && <LoadingState completedNodes={completedNodes} scenarioLabel={runMeta.scenarioLabel} restaurantName={runMeta.restaurantName} />}
+          {status === "loading" && <LoadingState completedNodes={completedNodes} startedNodes={startedNodes} nodeHints={nodeHints} replanCount={replanCount} scenarioLabel={runMeta.scenarioLabel} restaurantName={runMeta.restaurantName} />}
 
           {status === "error" && error && (
             <div

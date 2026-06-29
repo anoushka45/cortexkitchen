@@ -81,6 +81,39 @@ def get_memory():
     return MemoryService(qdrant=qdrant, embedder=embedder)
 
 
+def get_semantic_cache():
+    """Return a SemanticPlanCache backed by Qdrant (P6-S04)."""
+    from app.infrastructure.vector.qdrant_client import get_qdrant_client
+    from app.infrastructure.vector.embedding_service import EmbeddingService
+    from app.infrastructure.cache.semantic_cache import SemanticPlanCache
+
+    qdrant   = get_qdrant_client()
+    embedder = EmbeddingService()
+    return SemanticPlanCache(qdrant=qdrant, embedder=embedder)
+
+
+def get_chat_cache():
+    """Return a SemanticChatCache backed by Qdrant (P6-S04)."""
+    from app.infrastructure.vector.qdrant_client import get_qdrant_client
+    from app.infrastructure.vector.embedding_service import EmbeddingService
+    from app.infrastructure.cache.semantic_cache import SemanticChatCache
+
+    qdrant   = get_qdrant_client()
+    embedder = EmbeddingService()
+    return SemanticChatCache(qdrant=qdrant, embedder=embedder)
+
+
+def get_session_memory():
+    """Return a SessionMemoryService backed by Qdrant (P6-S04)."""
+    from app.infrastructure.vector.qdrant_client import get_qdrant_client
+    from app.infrastructure.vector.embedding_service import EmbeddingService
+    from app.infrastructure.vector.session_memory import SessionMemoryService
+
+    qdrant   = get_qdrant_client()
+    embedder = EmbeddingService()
+    return SessionMemoryService(qdrant=qdrant, embedder=embedder)
+
+
 # ── Orchestration deps bundle ─────────────────────────────────────────────────
 
 def get_orchestration_deps(
@@ -99,4 +132,19 @@ def get_orchestration_deps(
     settings = get_settings()
     if settings.llm_provider.strip().lower() == "comet" and settings.comet_tiered:
         deps["llm_registry"] = create_tiered_llm_providers(settings)
+
+    # Semantic cache and planning memory — silently skipped if Qdrant / Gemini not configured
+    try:
+        from app.infrastructure.vector.qdrant_client import get_qdrant_client
+        from app.infrastructure.vector.embedding_service import EmbeddingService
+        from app.infrastructure.cache.semantic_cache import SemanticPlanCache
+        from app.infrastructure.vector.planning_memory import PlanningMemoryService
+
+        qdrant   = get_qdrant_client()
+        embedder = EmbeddingService()
+        deps["semantic_cache"]   = SemanticPlanCache(qdrant=qdrant, embedder=embedder)
+        deps["planning_memory"]  = PlanningMemoryService(qdrant=qdrant, embedder=embedder)
+    except Exception:
+        pass
+
     return deps

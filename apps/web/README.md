@@ -2,7 +2,7 @@
 
 This folder contains the web application for CortexKitchen. The active frontend lives in `apps/web/cortexkitchen-ui`.
 
-Last updated: June 2026. Phase 5 complete.
+Last updated: June 2026. Phase 6 in progress.
 
 ## What the frontend includes
 

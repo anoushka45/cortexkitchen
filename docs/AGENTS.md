@@ -1,14 +1,14 @@
 # CortexKitchen Orchestration Nodes
 
-Last updated: June 2026. Reflects the implemented LangGraph graph and chat agent (Phase 5 complete).
+Last updated: June 2026. Reflects the implemented LangGraph graph and chat agent (Phase 6 in progress).
 
 ---
 
 ## Overview
 
-CortexKitchen's planning pipeline is implemented as a LangGraph `StateGraph`. The graph contains nine nodes wired in a specific topology: a sequential head, a parallel fan-out across four domain nodes, and a sequential tail through aggregation, critic, and final assembly.
+CortexKitchen's planning pipeline is implemented as a LangGraph `StateGraph`. The graph contains eleven nodes wired in a specific topology: a sequential head (ops_manager → demand_forecast → qdrant_enrichment), a parallel fan-out across three domain nodes with menu_intelligence sequential after, and a sequential tail through aggregation, replan management, critic, and final assembly.
 
-The graph is constructed per request by `build_graph(deps)` in `app/orchestration/graph.py`. Dependencies (database session, LLM provider, memory service) are injected at wire time.
+The graph is constructed per request by `build_graph(deps)` in `app/orchestration/graph.py`. Dependencies (database session, LLM provider, memory service, planning memory service) are injected at wire time.
 
 A separate stateless agent — the **Chat Agent** — powers the `/chat` RAG chatbot and is not part of the LangGraph graph.
 
@@ -24,20 +24,29 @@ ops_manager
     ▼
 demand_forecast
     │
-    ├──────────────────┬────────────────┬──────────────┐
-    ▼                  ▼                ▼              ▼
-reservation    complaint_intel    menu_intel       inventory
-    │                  │                │              │
-    └──────────────────┴────────────────┴──────────────┘
-                            │
-                            ▼
-                        aggregator
-                            │
-                            ▼
-                          critic
-                            │
-                            ▼
-                      final_assembler → END
+    ▼
+qdrant_enrichment       ← retrieves past approved-run insights, injects past_plans into shared_context
+    │
+    ├─────────────────────┬──────────────────────┐
+    ▼                     ▼                      ▼
+reservation      complaint_intelligence       inventory
+    └──────────────────────┼──────────────────────┘
+                           ▼
+                   menu_intelligence   ← sequential after all 3; LangGraph fan-in fires exactly once
+                           │
+                           ▼
+                       aggregator
+                           │
+                           ▼
+                         critic
+                           │
+         ┌─────────────────┴──────────────────────┐
+    (approved or                           (revision, replan_count < 2)
+     replan_count ≥ 2)                            │
+         ▼                                        ▼
+   final_assembler                      replan_orchestrator
+         │                                        │
+        END                              aggregator (loop)
 ```
 
 The conditional edge after `ops_manager` short-circuits to `final_assembler` if `state["error"]` is set.
@@ -56,6 +65,21 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 **Dependencies:** None (synchronous)
 
 **Phase 5 addition:** `org_id` is now written to shared state at this node so all downstream nodes operate in the correct tenant context.
+
+---
+
+### `qdrant_enrichment`
+
+**Role:** Retrieves similar past approved-run insights from Qdrant after `demand_forecast`, before the parallel fan-out. Uses recency decay scoring (`score × 2^(-age/HALF_LIFE_DAYS)`) so recent runs rank higher than old ones. Runs over the `planning_memory` Qdrant collection.
+
+**Inputs:** Scenario context + demand signal from `demand_forecast`, `org_id`  
+**Outputs:** `shared_context["past_plans"]` — top-3 similar past plan snippets (empty list on failure or if PlanningMemoryService not configured)  
+**Implementation:** `app/orchestration/nodes/qdrant_enrichment.py`  
+**Service:** `PlanningMemoryService` (Qdrant ANN search + recency re-ranking)  
+**Dependencies:** `memory`, `planning_memory`  
+**Model tier:** None — no LLM call; pure vector retrieval
+
+**Failure behaviour:** Any exception returns `past_plans=[]` — the pipeline continues unchanged. The node never blocks a run.
 
 ---
 
@@ -117,7 +141,7 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 **Outputs:** Menu output block in `state["menu_output"]` — top items, weak items, promotion strategy, watchouts  
 **Assumptions written to state (`menu_assumptions`):**
 - `items_assumed_available` — top-performing items that are **not** in the shortage list; these are what the node implicitly assumes it can promote
-- `assumed_covers_within_capacity` — always `True`; the menu node never has access to live reservation occupancy data (it runs in parallel with the reservation node), so it implicitly assumes the house is not at capacity
+- `assumed_covers_within_capacity` — always `True`; at runtime, `menu_intelligence` fires after `reservation`, `complaint_intelligence`, and `inventory` all complete (LangGraph fan-in). However, `MenuService` does not consume reservation_output from state — it self-queries its own data sources. The cross-agent assumption diff (Diff 2) detects when reservation shows >90% occupancy that menu's implicit capacity assumption doesn't account for.
 
 **Implementation:** `app/orchestration/nodes/menu_intelligence.py`  
 **Service:** `MenuService`  
@@ -151,6 +175,20 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 **Outputs:** Aggregated recommendations block in state  
 **Implementation:** `app/orchestration/nodes/aggregator.py`  
 **Dependencies:** None (synchronous)
+
+---
+
+### `replan_orchestrator`
+
+**Role:** Manages the replan loop between `aggregator` and `critic`. If the critic returned a `revision` verdict in a prior cycle, this node injects the critic's feedback into `state["replan_context"]` so downstream nodes (if the graph cycles back) receive concrete correction guidance. Enforces a maximum of 2 replan cycles to prevent infinite loops.
+
+**Inputs:** Aggregated plan + `critic` block from prior cycle (if any)  
+**Outputs:** `state["replan_context"]` populated with structured critic feedback  
+**Implementation:** `app/orchestration/nodes/replan_orchestrator.py`  
+**Dependencies:** None (synchronous)  
+**Model tier:** None — no LLM call; pure state management
+
+**Replan limit:** After 2 failed revision cycles, the node lets the run proceed to `final_assembler` with whatever verdict the critic gave most recently — it never blocks indefinitely.
 
 ---
 
@@ -199,13 +237,15 @@ The chat agent is a stateless, streaming agent outside the LangGraph graph. It p
 
 **How it works:**
 
-1. Receives the user's message and conversation history (last 3 turns kept)
-2. Retrieves context from two Postgres sources:
+1. Receives the user's message and conversation history
+2. Checks `SemanticChatCache` — returns cached answer if a similar question was asked by the same org within 24 hours (0.92 cosine threshold)
+3. Retrieves context from two Postgres sources:
    - `planning_runs` — last 10 runs for the org (`org_id` scoped), with critic notes and agent outputs
    - `feedback` — last 30 feedback records (no `org_id` filter in current implementation)
-3. Builds a system prompt grounding the LLM in the retrieved context via `PromptUtils.format_chat_system_prompt`
-4. Streams tokens via `AsyncGroq` (`llama-3.3-70b-versatile`, max 1024 tokens) through the SSE endpoint
-5. Frontend renders the response with ReactMarkdown
+4. Builds a system prompt grounding the LLM in the retrieved context via `PromptUtils.format_chat_system_prompt`
+5. **Within-session memory:** if `len(history) > 8`, older turns are compressed by `SessionMemoryService.build_summary_from_messages()` (no LLM call) and injected as a single `[Earlier in this session: ...]` assistant message; the last 8 turns are kept verbatim
+6. Streams tokens via `_get_chat_client(settings)` factory — dispatches on `LLM_PROVIDER`: routes to `AsyncGroq` (`llama-3.3-70b-versatile`) when `LLM_PROVIDER=groq`, or `AsyncOpenAI` (CometAPI fast tier) otherwise
+7. Frontend renders the response with ReactMarkdown
 
 **Suggested questions (shown on first load):**
 
@@ -216,7 +256,7 @@ The chat agent is a stateless, streaming agent outside the LangGraph graph. It p
 - Which scenario had the highest predicted orders?
 - If I had to focus on one thing to improve our score, what would it be?
 
-**Dependencies:** `db` (Postgres), `AsyncGroq`
+**Dependencies:** `db` (Postgres), `_get_chat_client` (LLM factory), `SemanticChatCache` (Qdrant)
 
 ---
 
@@ -227,6 +267,8 @@ The shared state type is `OrchestratorState` (TypedDict) in `app/orchestration/s
 - Scenario metadata, runtime flags (`simulation_mode`, `debug`), and `org_id` (Phase 5)
 - Per-node output fields written progressively as nodes execute
 - Per-node assumption dicts (`menu_assumptions`, `inventory_assumptions`, `reservation_assumptions`, `complaint_assumptions`) — each domain node writes one after its service call completes; used by `EvaluationSanityChecker` for cross-agent assumption diffing (see D-017)
+- `shared_context["past_plans"]` — list of similar past plan snippets from `PlanningMemoryService`, injected by `qdrant_enrichment`; available to all downstream nodes
+- `replan_context` — structured critic feedback injected by `replan_orchestrator` when a revision cycle is in progress; consumed by domain nodes on replan
 - `error` field checked by the conditional edge after `ops_manager`
 - `execution_trace` list populated when `debug=True`
 - `llm_registry` — tier-keyed dict of `FallbackLLMProvider` instances, populated when `COMET_TIERED=true`; each parallel node reads its assigned tier from this dict at runtime

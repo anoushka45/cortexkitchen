@@ -7,6 +7,8 @@ from app.orchestration.nodes.inventory import inventory_node
 from app.orchestration.nodes.aggregator import aggregator_node
 from app.orchestration.nodes.critic import critic_node
 from app.orchestration.nodes.final_assembler import final_assembler_node
+from app.orchestration.nodes.qdrant_enrichment import qdrant_enrichment_node
+from app.orchestration.nodes.replan_orchestrator import replan_orchestrator_node
 
 __all__ = [
     "ops_manager_node",
@@ -18,4 +20,6 @@ __all__ = [
     "aggregator_node",
     "critic_node",
     "final_assembler_node",
+    "qdrant_enrichment_node",
+    "replan_orchestrator_node",
 ]

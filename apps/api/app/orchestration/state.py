@@ -77,6 +77,13 @@ class OrchestratorState(TypedDict):
     # Per-node model tier routing — populated when COMET_TIERED=True
     llm_registry: Annotated[Optional[Dict[str, Any]], keep_last]
 
+    # Replanning loop (P6-S04)
+    replan_count:   Annotated[Optional[int], keep_last]
+    replan_context: Annotated[Optional[str], keep_last]
+
+    # Shared pre-enrichment context from Qdrant, populated before parallel fan-out (P6-S04)
+    shared_context: Annotated[Optional[Dict[str, Any]], keep_last]
+
     # Error handling
     error: Annotated[Optional[str], keep_last]
 
@@ -145,6 +152,13 @@ def make_initial_state(
 
         # Per-node model tier routing
         llm_registry=None,
+
+        # Replanning loop
+        replan_count=0,
+        replan_context=None,
+
+        # Qdrant early enrichment
+        shared_context=None,
 
         # Error handling
         error=None,

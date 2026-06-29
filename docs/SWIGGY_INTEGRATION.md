@@ -1,6 +1,6 @@
 # CortexKitchen x Swiggy Builders Club — Complete Integration Reference
 
-> **Status:** Active development — Phase 6 (P6-S01/S02/S03 complete, P6-S04 next)
+> **Status:** Active development — Phase 6 (P6-S01/S02/S03/S04 complete; MCP governance layer implemented)
 > **Access:** Swiggy Builders Club approved (builders@swiggy.in)  
 > **Staging creds:** Pending (form submitted)  
 > **Docs:** https://mcp.swiggy.com/builders/docs/  
@@ -402,29 +402,35 @@ class BaseConnector(ABC):
 Future connectors (Zomato, Google Reviews, Square POS, EazyDiner) follow the same pattern.
 Token per org stored in `connectors` table via `ConnectorRepository`. See D-019 in `docs/DECISIONS.md`.
 
-### LangGraph pipeline — 11 nodes
+### LangGraph pipeline — 11 nodes (current) + 2 planned
 
 ```
 ops_manager
     │
 demand_forecast              ← get_food_orders feeds Prophet (real delivery demand)
     │
+qdrant_enrichment            ← PlanningMemoryService: past approved plans (recency-decay ANN)
+    │
     ├── reservation           ← OccupancyEnricher: Dineout competitor slots
     ├── complaint_intel       ← track_food_order: real delivery complaints
-    ├── menu_intel            ← CompetitorEnricher: competitor prices via Food MCP
-    ├── inventory             ← ProcurementEnricher: Instamart prices + availability
-    ├── market_intel_node     ← NEW (10th): CompetitorEnricher + OccupancyEnricher
-    └── dineout_manager_node  ← NEW (11th): our own Dineout slot management
+    └── inventory             ← ProcurementEnricher: Instamart prices + availability
+            │ (LangGraph fan-in — all 3 complete before menu fires)
+    menu_intel                ← CompetitorEnricher: competitor prices via Food MCP
             │
 aggregator (internal + market context)
             │
-EvaluationSanityChecker (5 cross-diffs including 2 new market diffs)
+replan_orchestrator          ← manages replan loop (max 2 cycles, critic feedback injection)
             │
-critic (market-aware)
+EvaluationSanityChecker (cross-agent assumption diffs)
+            │
+critic (market-aware, strong model tier)
             │
         ┌───┴─────────────┐
 action_queue              final_assembler → plan
 (approve/execute)
+
+[Planned] market_intel_node     ← CompetitorEnricher + OccupancyEnricher (P6-S10)
+[Planned] dineout_manager_node  ← our own Dineout slot management (P6-S11)
 ```
 
 ### Three product modes
@@ -518,8 +524,10 @@ Rate limiting NOT enforced in v1.0 — upstream shedding handles abuse. Wire 429
 | P6-S01 | `feature/swiggy-base-connector` | BaseConnector + SwiggyMCPClient | ✅ merged to dev 2026-06-27 |
 | P6-S02 | `feature/swiggy-base-connector` | connectors table + async job queue | ✅ merged to dev 2026-06-27 |
 | P6-S03 | `feature/swiggy-sync-orders` | get_food_orders → orders table | ✅ merged to dev 2026-06-27 |
-| P6-S04 | `feature/swiggy-sync-reservations` | get_booking_status → reservations table | planned |
+| P6-S04 | `feature/agent-intelligence` | get_booking_status → reservations table + MCP governance layer | ✅ merged to dev 2026-06-28 |
 | P6-S05 | `feature/swiggy-sync-feedback` | track_food_order → feedback table | planned |
+
+> **Note:** The `feature/agent-intelligence` branch (merged dev 2026-06-28) delivered P6-S04 alongside several governance features that were not originally scoped per-task: circuit breaker, tool tracing, provider registry, `PlanningMemoryService`, and `SemanticPlanCache` / `SemanticChatCache` improvements. See Section 16 for the full governance layer reference.
 
 ### Phase E — enrichers (Week 3)
 
@@ -707,6 +715,87 @@ Ship to production:   https://mcp.swiggy.com/builders/docs/build/ship-to-product
 Access / onboarding:  https://mcp.swiggy.com/builders/docs/operate/access/
 LangGraph recipe:     https://mcp.swiggy.com/builders/docs/start/developer/build-an-agent/
 ```
+
+---
+
+## 16. MCP Governance Layer
+
+Three governance components were added in Phase 6 (`feature/agent-intelligence` → dev, 2026-06-28) to make Swiggy MCP calls production-safe:
+
+### Circuit Breaker (`infrastructure/swiggy/circuit_breaker.py`)
+
+Redis-backed per-endpoint circuit breaker. Prevents cascading failures when a Swiggy endpoint is degraded.
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `FAILURE_THRESHOLD` | 3 | Failures within `WINDOW_SECONDS` to trip the circuit |
+| `WINDOW_SECONDS` | 300 | Sliding failure window (Redis INCR TTL) |
+| `OPEN_SECONDS` | 1800 | How long the circuit stays open before auto-reset |
+
+**Redis keys:**
+- `circuit:fail:swiggy:{tag}` — failure counter (INCR with 300s TTL)
+- `circuit:open:swiggy:{tag}` — open flag (SETEX 1800s)
+
+**Fail-open policy:** if Redis is unavailable, `is_open()` returns `False` so calls are attempted rather than blocked.
+
+**Integration:** `SwiggyMCPClient.call_tool()` calls `is_open()` before every HTTP request. On `None` result: `record_failure()`. On success: `record_success()` (also clears the counter for faster recovery).
+
+**Health endpoint:** `GET /health/circuits` returns current state for all three endpoints (`food`, `im`, `dineout`).
+
+---
+
+### Tool Tracing (`SwiggyMCPClient._traces`)
+
+Every Swiggy MCP call appends a trace dict to `self._traces`. Call `drain_traces()` at the end of a connector run to collect them for observability.
+
+**Trace shape:**
+```json
+{
+  "provider": "swiggy",
+  "endpoint": "food",
+  "tool": "search_restaurants",
+  "status": "ok",
+  "duration_ms": 234.1,
+  "attempt": 1
+}
+```
+
+`status` values: `"ok"` | `"circuit_open"` | `"auth_error"` | `"http_{code}"` | `"tool_error"` | `"exception"`
+
+A `circuit_open` trace is recorded without an HTTP call — this is how you can distinguish blocked calls from network failures in post-run analysis.
+
+---
+
+### Provider Registry (`infrastructure/swiggy/provider_registry.py`)
+
+Routes planning capabilities to the highest-priority healthy provider. Uses both DB `sync_status` and live circuit breaker state.
+
+```python
+CAPABILITY_PROVIDERS = {
+    "competitor_pricing": ["swiggy", "zomato"],
+    "reservation_data":   ["swiggy", "eazydiner"],
+    "procurement":        ["swiggy"],
+    "order_history":      ["swiggy", "zomato"],
+}
+```
+
+**Two routing methods:**
+- `get_provider(org_id, capability, db)` — synchronous; DB health only. Use when you can't await.
+- `get_provider_async(org_id, capability, db)` — async; DB health AND circuit breaker state. Use this in production enricher calls.
+
+**Routing logic:** iterates providers in priority order; skips any that either (a) lack a healthy connector row in the `connectors` table, or (b) have an open circuit for the capability's endpoint. Returns the first passing provider, or `None`.
+
+**`_SWIGGY_CAPABILITY_ENDPOINT` map:**
+```python
+{
+    "competitor_pricing": "food",
+    "reservation_data":   "dineout",
+    "procurement":        "im",
+    "order_history":      "food",
+}
+```
+
+Adding a new provider (e.g. Zomato for competitor pricing) requires only: (1) a connector row in `CAPABILITY_PROVIDERS`, and (2) a `BaseConnector` subclass. The registry routes to it automatically when the org's connector row is active and the circuit is closed.
 
 ---
 

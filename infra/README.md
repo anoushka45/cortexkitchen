@@ -10,7 +10,7 @@ Last updated: June 2026.
 |---------|---------|------|
 | PostgreSQL 16 | Primary relational data store — all structured data, planning runs, auth | 5432 |
 | Qdrant | Vector memory for complaint RAG and SOP retrieval | 6333 (REST), 6334 (gRPC) |
-| Redis 7 | Plan cache (1hr TTL by scenario + date) | 6379 |
+| Redis 7 | Plan cache (1hr TTL by scenario + date) + circuit breaker state for Swiggy endpoints | 6379 |
 
 ## Start the stack
 
@@ -37,6 +37,6 @@ Persistent Docker volumes (`postgres_data`, `qdrant_data`, `redis_data`) are def
 ## Notes
 
 - This is a local development stack, not a production deployment
-- Redis is actively used for plan caching in Phase 5 (1hr TTL by `org_id + scenario + date`)
+- Redis is used for plan caching (1hr TTL by `org_id + scenario + date`) and circuit breaker state (Phase 6: per-endpoint failure counters and open-circuit flags for Swiggy MCP)
 - Qdrant uses a shared collection with `org_id` payload filters for multi-tenant isolation
 - PostgreSQL uses `org_id` column scoping on all run and settings queries

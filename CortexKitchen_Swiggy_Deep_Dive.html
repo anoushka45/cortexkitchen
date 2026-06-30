@@ -530,7 +530,7 @@ code {
     <div class="phil-box">
       <h3>The Layering Model</h3>
       <p>The existing pipeline &mdash; with its restaurant operational data, 9-node LangGraph graph, Prophet forecaster, and Qdrant RAG &mdash; is the foundation. It works today without any Swiggy token, and it will always work without one.</p>
-      <p>Every Swiggy integration point adds a new signal to that foundation. Real order history layers into the orders table alongside synthetic rows. Live competitor prices inject into agent prompts at planning time. Instamart procurement options appear alongside existing inventory analysis. The agents get smarter &mdash; but they never depend exclusively on Swiggy being available.</p>
+      <p>Every Swiggy integration point adds a new signal to that foundation. Real Swiggy delivery history layers into the orders table alongside the restaurant's own internal records. Live competitor prices inject into agent prompts at planning time. Instamart procurement options appear alongside existing inventory analysis. The agents get smarter &mdash; but they never depend exclusively on Swiggy being available.</p>
       <p><strong>If Swiggy is unreachable, the system runs on what it has. If Swiggy is connected, every layer of intelligence is amplified by real platform data.</strong></p>
     </div>
 

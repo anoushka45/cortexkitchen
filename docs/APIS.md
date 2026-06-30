@@ -654,6 +654,67 @@ Deletes a profile.
 
 ---
 
+## Connectors (P6-S05/S06)
+
+### `POST /api/v1/connectors/swiggy/sync`
+
+Trigger a live Swiggy MCP sync. Calls `get_food_orders`, `track_food_order`, and
+`get_booking_status` against the real Swiggy API. Requires `SWIGGY_ACCESS_TOKEN` and
+`SWIGGY_ADDRESS_ID` set in `.env` (run `python scripts/get_swiggy_token.py` to obtain them).
+
+**Auth:** JWT required.
+
+**Response `200`**
+
+```json
+{
+  "status": "success",
+  "message": "Live Swiggy data synced. Check orders and feedback tables.",
+  "results": {
+    "orders":       {"synced": 5, "skipped": 2, "errors": 0},
+    "feedback":     {"synced": 3, "skipped": 2, "errors": 0},
+    "reservations": {"synced": 0, "skipped": 0, "errors": 0,
+                     "note": "No Dineout bookings registered yet. Booking IDs are captured when book_table is called (P6-S16)."}
+  }
+}
+```
+
+**Error `400`** — token or address not configured:
+```json
+{"detail": "SWIGGY_ACCESS_TOKEN not configured. Run: python scripts/get_swiggy_token.py"}
+```
+
+---
+
+### `GET /api/v1/connectors/status`
+
+Returns connection status and sync counts for all connectors registered for this org.
+Used by the `/connectors` frontend page (P6-F04).
+
+**Auth:** JWT required.
+
+**Response `200`**
+
+```json
+{
+  "connectors": [
+    {
+      "type": "swiggy",
+      "name": "Swiggy",
+      "logo": "/swiggy-logo.png",
+      "connected": true,
+      "last_sync_at": "2026-06-30T07:15:00",
+      "sync_status": "success",
+      "orders_synced": 47,
+      "feedback_synced": 12,
+      "address_configured": true
+    }
+  ]
+}
+```
+
+---
+
 ## Error responses
 
 | Status | Meaning |

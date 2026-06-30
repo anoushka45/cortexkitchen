@@ -1,43 +1,87 @@
 """SwiggyConnector — BaseConnector implementation for Swiggy MCP.
 
-sync()   → P6-S03 (orders) done; P6-S04 (reservations) and P6-S05 (feedback) pending
+sync()   → orchestrates order sync (P6-S03), feedback sync (P6-S06), and
+           reservation sync (P6-S05). address_id arg takes precedence over settings.
 enrich() → P6-S06 (CompetitorEnricher), P6-S07 (OccupancyEnricher),
            P6-S08 (ProcurementEnricher)
 """
 
+from sqlalchemy.orm import Session
+
 from app.core.settings import get_settings
 from app.infrastructure.swiggy.base_connector import BaseConnector
+from app.infrastructure.swiggy.client import SwiggyMCPClient
 from app.infrastructure.swiggy.connector_repository import ConnectorRepository
+from app.infrastructure.swiggy.sync.feedback_sync import SwiggyFeedbackSyncService
 from app.infrastructure.swiggy.sync.order_sync import SwiggyOrderSyncService
+from app.infrastructure.swiggy.sync.reservation_sync import SwiggyReservationSyncService
 
 
 class SwiggyConnector(BaseConnector):
-    """Swiggy MCP connector — order sync live; enrichers and remaining sync pending."""
+    """Swiggy MCP connector — orchestrates order, feedback, and reservation sync."""
 
-    async def sync(self) -> dict:
-        """Nightly sync: pulls Swiggy food orders into the orders table.
+    def __init__(
+        self,
+        client: SwiggyMCPClient,
+        db: Session,
+        org_id: int,
+        repo: ConnectorRepository | None = None,
+    ) -> None:
+        super().__init__(client, db, org_id)
+        self._repo = repo or ConnectorRepository(db)
 
-        Reads SWIGGY_ADDRESS_ID from settings (dev) or connector record (prod).
+    async def sync(self, address_id: str | None = None) -> dict:
+        """Nightly sync: orders + delivery feedback + Dineout reservation status.
+
+        address_id takes precedence over SWIGGY_ADDRESS_ID from settings.
         Updates connector sync_status in the connectors table.
-        Returns {"synced": N, "skipped": N, "errors": N}.
+        Returns aggregated result dict with per-service counts.
         """
-        address_id = get_settings().swiggy_address_id
-        if not address_id:
+        addr = address_id or get_settings().swiggy_address_id
+        if not addr:
             self._log("swiggy_sync_skipped", reason="SWIGGY_ADDRESS_ID not configured")
-            return {"synced": 0, "skipped": 0, "errors": 0}
+            return {
+                "orders":       {"synced": 0, "skipped": 0, "errors": 0},
+                "feedback":     {"synced": 0, "skipped": 0, "errors": 0},
+                "reservations": {"synced": 0, "skipped": 0, "errors": 0},
+            }
 
-        repo = ConnectorRepository(self._db)
-        repo.update_sync_status(self.org_id, "swiggy", "syncing")
+        self._repo.update_sync_status(self.org_id, "swiggy", "syncing")
 
         try:
-            result = await SwiggyOrderSyncService(self._client, self._db).sync(address_id)
-            repo.update_sync_status(self.org_id, "swiggy", "success")
-            self._log("swiggy_sync_complete", **result)
-            return result
+            order_result = await SwiggyOrderSyncService(
+                self._client, self._db
+            ).sync(addr)
+
+            feedback_result = await SwiggyFeedbackSyncService(
+                self._client, self._db
+            ).sync(addr)
+
+            reservation_result = await SwiggyReservationSyncService(
+                self._client, self._db, self._repo
+            ).sync(self.org_id)
+
+            self._repo.update_sync_status(self.org_id, "swiggy", "success")
+            self._log(
+                "swiggy_sync_complete",
+                orders=order_result,
+                feedback=feedback_result,
+                reservations=reservation_result,
+            )
+            return {
+                "orders":       order_result,
+                "feedback":     feedback_result,
+                "reservations": reservation_result,
+            }
+
         except Exception as exc:
-            repo.update_sync_status(self.org_id, "swiggy", "error", error=str(exc))
+            self._repo.update_sync_status(self.org_id, "swiggy", "error", error=str(exc))
             self._log("swiggy_sync_error", error=str(exc))
-            return {"synced": 0, "skipped": 0, "errors": 1}
+            return {
+                "orders":       {"synced": 0, "skipped": 0, "errors": 1},
+                "feedback":     {"synced": 0, "skipped": 0, "errors": 0},
+                "reservations": {"synced": 0, "skipped": 0, "errors": 0},
+            }
 
     async def enrich(self, context: dict) -> dict | None:
         raise NotImplementedError(

@@ -91,6 +91,7 @@ class SwiggyMCPClient:
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type":  "application/json",
+            "Accept":        "application/json, text/event-stream",
         }
 
         result = await self._post(
@@ -134,6 +135,20 @@ class SwiggyMCPClient:
                 })
                 return None
 
+            if response.status_code == 406:
+                log.warning(
+                    "swiggy_406_not_acceptable",
+                    tool=tool_name,
+                    server=server_tag,
+                    detail="Accept header missing or wrong -- should be 'application/json, text/event-stream'",
+                )
+                self._traces.append({
+                    "provider": _PROVIDER, "endpoint": server_tag,
+                    "tool": tool_name, "status": "http_406",
+                    "duration_ms": duration_ms, "attempt": attempt,
+                })
+                return None
+
             if response.status_code >= 500:
                 if attempt == 1:
                     log.warning(
@@ -159,34 +174,76 @@ class SwiggyMCPClient:
 
             body = response.json()
 
-            if not body.get("success"):
-                err = body.get("error", {})
+            # JSON-RPC error at top level
+            if "error" in body:
+                err = body["error"]
+                err_msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
                 log.warning(
                     "swiggy_tool_error",
                     tool=tool_name, server=server_tag,
-                    error=err.get("message", "unknown"), duration_ms=duration_ms,
+                    error=err_msg, duration_ms=duration_ms,
                 )
                 self._traces.append({
                     "provider": _PROVIDER, "endpoint": server_tag,
                     "tool": tool_name, "status": "tool_error",
-                    "error": err.get("message", "unknown"),
+                    "error": err_msg,
                     "duration_ms": duration_ms, "attempt": attempt,
                 })
                 return None
 
-            log.info(
-                "swiggy_tool_ok",
+            if "result" not in body:
+                log.warning(
+                    "swiggy_no_result_key",
+                    tool=tool_name, server=server_tag, duration_ms=duration_ms,
+                )
+                self._traces.append({
+                    "provider": _PROVIDER, "endpoint": server_tag,
+                    "tool": tool_name, "status": "tool_error",
+                    "error": "no result key in response",
+                    "duration_ms": duration_ms, "attempt": attempt,
+                })
+                return None
+
+            result = body["result"]
+
+            # Prefer structuredContent (machine-readable)
+            if "structuredContent" in result:
+                log.info("swiggy_tool_ok", tool=tool_name, server=server_tag, duration_ms=duration_ms)
+                self._traces.append({
+                    "provider":    _PROVIDER,
+                    "endpoint":    server_tag,
+                    "tool":        tool_name,
+                    "status":      "ok",
+                    "duration_ms": duration_ms,
+                    "attempt":     attempt,
+                })
+                return result["structuredContent"]
+
+            # Fallback: plain text content
+            content = result.get("content", [])
+            if content and content[0].get("type") == "text":
+                log.info("swiggy_tool_ok", tool=tool_name, server=server_tag, duration_ms=duration_ms)
+                self._traces.append({
+                    "provider":    _PROVIDER,
+                    "endpoint":    server_tag,
+                    "tool":        tool_name,
+                    "status":      "ok",
+                    "duration_ms": duration_ms,
+                    "attempt":     attempt,
+                })
+                return {"text": content[0]["text"]}
+
+            log.warning(
+                "swiggy_empty_result",
                 tool=tool_name, server=server_tag, duration_ms=duration_ms,
             )
             self._traces.append({
-                "provider":    _PROVIDER,
-                "endpoint":    server_tag,
-                "tool":        tool_name,
-                "status":      "ok",
-                "duration_ms": duration_ms,
-                "attempt":     attempt,
+                "provider": _PROVIDER, "endpoint": server_tag,
+                "tool": tool_name, "status": "tool_error",
+                "error": "result has neither structuredContent nor text content",
+                "duration_ms": duration_ms, "attempt": attempt,
             })
-            return body.get("data")
+            return None
 
         except Exception as exc:
             duration_ms = round((time.perf_counter() - t0) * 1000, 1)
@@ -205,3 +262,20 @@ class SwiggyMCPClient:
                 "attempt":     attempt,
             })
             return None
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    async def smoke():
+        from app.core.settings import get_settings
+        s = get_settings()
+        print(f"Token set: {bool(s.swiggy_access_token)}")
+        print(f"Address ID: {s.swiggy_address_id}")
+        client = SwiggyMCPClient()
+        print(f"Available: {client.is_available()}")
+        if client.is_available():
+            result = await client.call_tool(FOOD_ENDPOINT, "get_addresses", {})
+            print(f"get_addresses result: {result}")
+
+    asyncio.run(smoke())

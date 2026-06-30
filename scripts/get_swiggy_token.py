@@ -126,6 +126,7 @@ async def _get_addresses(access_token: str) -> list:
             headers={
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
             },
             json={
                 "jsonrpc": "2.0",
@@ -137,7 +138,9 @@ async def _get_addresses(access_token: str) -> list:
         )
         resp.raise_for_status()
         data = resp.json()
-    return data.get("result", {}).get("data", {}).get("addresses", [])
+    result = data.get("result", {})
+    structured = result.get("structuredContent", {})
+    return structured.get("addresses", [])
 
 
 # ---------------------------------------------------------------------------

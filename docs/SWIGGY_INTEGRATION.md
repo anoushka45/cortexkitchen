@@ -56,6 +56,7 @@ GET  https://mcp.swiggy.com/.well-known/oauth-authorization-server
 POST https://mcp.swiggy.com/food
 Authorization: Bearer {access_token}
 Content-Type: application/json
+Accept: application/json, text/event-stream   # REQUIRED — 406 without it
 
 {
   "jsonrpc": "2.0",
@@ -65,11 +66,31 @@ Content-Type: application/json
 }
 ```
 
-### Response envelope (all tools)
+### Response envelope (all tools) — ACTUAL format (discovered via live test)
+
+**Success:**
 ```json
-{ "success": true, "data": { ... }, "message": "optional" }
-{ "success": false, "error": { "message": "description" } }
+{
+  "result": {
+    "content": [{"type": "text", "text": "human-readable summary"}],
+    "structuredContent": { }
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}
 ```
+
+Parsing: use `result["structuredContent"]` (machine-readable). If absent, fall back to
+`{"text": result["content"][0]["text"]}`.
+
+**Error:**
+```json
+{ "error": {"code": -32601, "message": "Tool not found"}, "jsonrpc": "2.0", "id": 1 }
+```
+
+> **NOTE:** The original documented envelope `{"success": true, "data": {...}}` was
+> incorrect. `SwiggyMCPClient.call_tool()` was updated in P6-S05/S06 to use the real format.
+> All response schemas in section 16 show the actual `structuredContent` field values.
 
 ### Multi-tenant architecture (CortexKitchen)
 Each restaurant owner authenticates their own Swiggy account. Token stored encrypted per `org_id` in the `connectors` table. Re-auth on 401. 5-day TTL — no refresh tokens in v1.
@@ -819,3 +840,474 @@ Rules:
 6. spinId (not product id) is used for Instamart cart operations.
 7. All Swiggy tokens stored per org_id in connectors table, never in env vars directly.
 ```
+
+---
+
+## 16. Response schemas — actual field names per tool
+
+All responses follow the JSON-RPC 2.0 envelope. `call_tool()` returns the `structuredContent`
+dict directly — the schemas below show the **contents of structuredContent**, not the full envelope.
+
+```
+full response → result.structuredContent → (what is shown below)
+```
+
+Claude Code must use these exact field names when writing sync or enricher code.
+
+---
+
+### Food MCP response schemas
+
+**`get_addresses`**
+```json
+{
+  "addresses": [
+    {
+      "id": "addr_01HXYZ",
+      "label": "Home",
+      "addressLine": "123 MG Road",
+      "city": "Bengaluru",
+      "displayText": "123 MG Road, Bengaluru"
+    }
+  ]
+}
+```
+Key fields: `addresses[]`, each has `id` (use as addressId), `label`, `displayText`
+
+---
+
+**`get_food_orders`**
+```json
+{
+  "orders": [
+    {
+      "orderId": "SW-001",
+      "restaurantName": "Pizza Palace",
+      "status": "delivered",
+      "totalAmount": 360.0,
+      "orderedAt": "2026-06-26T19:30:00+05:30",
+      "items": [
+        {
+          "name": "Margherita Pizza",
+          "quantity": 2,
+          "price": 150.0
+        }
+      ]
+    }
+  ]
+}
+```
+Key fields: `orders[]`, each has `orderId`, `restaurantName`, `status`, `totalAmount`, `orderedAt` (ISO-8601), `items[]` with `name`, `quantity`, `price`
+
+CortexKitchen mapping:
+- `orderId` → `external_order_id` prefix (appended with item index for per-item rows)
+- `orderedAt` → `ordered_at` (parse to naive UTC datetime)
+- `status == "delivered"` → `is_delivery=True`, `source="swiggy"`, `channel="delivery"`
+
+---
+
+**`track_food_order`**
+```json
+{
+  "orderId": "SW-001",
+  "status": "delivered",
+  "prepTime": 18,
+  "deliveryTime": 34,
+  "promisedTime": 30,
+  "isLate": true,
+  "restaurantName": "Pizza Palace",
+  "deliveryPartner": {
+    "name": "Ravi",
+    "phone": "XXXXXX1234"
+  }
+}
+```
+Key fields: `orderId`, `status`, `prepTime` (mins), `deliveryTime` (mins), `promisedTime` (mins), `isLate` (bool)
+
+CortexKitchen mapping:
+- `deliveryTime` → `delivery_time_actual_mins`
+- `promisedTime` → `delivery_time_promised_mins`
+- `isLate` → `was_late`
+- `orderId` → `external_order_id` for dedup on feedback table
+
+---
+
+**`search_restaurants`**
+```json
+{
+  "restaurants": [
+    {
+      "id": "rest_42",
+      "name": "Biryani House",
+      "availabilityStatus": "OPEN",
+      "avgRating": 4.3,
+      "totalRatings": 1240,
+      "costForTwo": 400,
+      "distanceKm": 2.1,
+      "deliveryTime": "30-35 MIN",
+      "cuisines": ["Biryani", "North Indian"]
+    }
+  ],
+  "nextOffset": 10
+}
+```
+Key fields: `restaurants[]`, each has `id`, `name`, `availabilityStatus` (filter to "OPEN" only), `avgRating`, `costForTwo`, `distanceKm`, `cuisines[]`
+
+---
+
+**`get_restaurant_menu`**
+```json
+{
+  "restaurantId": "rest_42",
+  "categories": [
+    {
+      "name": "Starters",
+      "items": [
+        {
+          "id": "item_1",
+          "name": "Chicken Tikka",
+          "price": 220.0,
+          "hasVariants": false,
+          "hasAddons": true,
+          "isAvailable": true
+        }
+      ]
+    }
+  ],
+  "totalPages": 3
+}
+```
+Key fields: `categories[]`, each has `name`, `items[]` with `id`, `name`, `price`, `isAvailable`
+
+CortexKitchen use: extract `name` + `price` per item to build competitor pricing benchmark
+
+---
+
+**`search_menu`**
+```json
+{
+  "items": [
+    {
+      "id": "item_1",
+      "name": "Butter Chicken",
+      "restaurantId": "rest_42",
+      "restaurantName": "Punjab Grill",
+      "price": 320.0,
+      "hasVariants": true,
+      "variations": [
+        {"id": "v1", "name": "Half", "price": 180.0},
+        {"id": "v2", "name": "Full", "price": 320.0}
+      ]
+    }
+  ],
+  "nextOffset": 10
+}
+```
+Key fields: `data.items[]`, each has `name`, `restaurantName`, `price`, `hasVariants`
+CRITICAL: item has EITHER `variations` OR `variantsV2`, never both. Check which exists.
+
+---
+
+### Instamart MCP response schemas
+
+**`search_products`**
+```json
+{
+  "products": [
+    {
+      "id": "prod_1",
+      "name": "Amul Fresh Cream",
+      "category": "Dairy",
+      "variants": [
+        {
+          "spinId": "spin_42",
+          "name": "200ml",
+          "price": 45.0,
+          "mrp": 50.0,
+          "inStock": true,
+          "unit": "200ml"
+        }
+      ]
+    }
+  ],
+  "nextOffset": 10
+}
+```
+Key fields: `products[]`, each has `name`, `category`, `variants[]`
+Per variant: `spinId` (CRITICAL — use for cart, not product id), `price`, `mrp`, `inStock`, `unit`
+
+CortexKitchen mapping:
+- take `products[0].variants[0]` as best match
+- store `spinId` for later execution (ProcurementExecutor)
+- `price` → live ingredient cost
+- `inStock` → availability flag
+
+---
+
+**`your_go_to_items`**
+```json
+{
+  "items": [
+    {
+      "productId": "prod_1",
+      "name": "Amul Butter",
+      "variants": [
+        {
+          "spinId": "spin_99",
+          "price": 55.0,
+          "unit": "100g",
+          "inStock": true
+        }
+      ],
+      "lastOrderedAt": "2026-06-20T10:00:00Z"
+    }
+  ]
+}
+```
+Key fields: `data.items[]`, same variant structure as search_products. `lastOrderedAt` for recency signal.
+
+---
+
+**`get_cart`**
+```json
+{
+  "items": [
+    {
+      "spinId": "spin_42",
+      "name": "Amul Fresh Cream 200ml",
+      "quantity": 3,
+      "price": 45.0
+    }
+  ],
+  "bill": {
+    "itemTotal": 135.0,
+    "deliveryFee": 25.0,
+    "total": 160.0
+  },
+  "availablePaymentMethods": ["COD"]
+}
+```
+Key fields: `items[]`, `bill.total`, `availablePaymentMethods[]`
+Always check `availablePaymentMethods` before checkout — COD only in Builders Club v1.
+
+---
+
+**`checkout`**
+```json
+{
+  "orderId": "IM-001",
+  "status": "placed",
+  "estimatedDelivery": "2026-06-29T20:45:00+05:30",
+  "total": 160.0
+}
+```
+Key fields: `orderId` → store as `instamart_order_id` in procurement_orders table
+CRITICAL: NOT idempotent. On 5xx → call `get_orders` before retrying.
+
+---
+
+**`get_orders` (Instamart)**
+```json
+{
+  "orders": [
+    {
+      "orderId": "IM-001",
+      "status": "delivered",
+      "total": 160.0,
+      "items": [{"name": "Amul Fresh Cream", "quantity": 3}],
+      "placedAt": "2026-06-29T20:30:00+05:30",
+      "deliveryAddress": {
+        "lat": 19.076,
+        "lng": 72.877
+      }
+    }
+  ]
+}
+```
+Key fields: `orders[]`, each has `orderId`, `status`, `total`, `items[]`, `deliveryAddress.lat`, `deliveryAddress.lng`
+Use `deliveryAddress.lat/lng` for `track_order` call.
+
+---
+
+**`track_order` (Instamart)**
+```json
+{
+  "orderId": "IM-001",
+  "status": "out_for_delivery",
+  "eta": "2026-06-29T20:50:00+05:30",
+  "deliveryPartnerName": "Suresh",
+  "storeInfo": {"name": "Instamart Store — Andheri"}
+}
+```
+Key fields: `data.status`, `data.eta`
+
+---
+
+### Dineout MCP response schemas
+
+**`get_saved_locations`**
+```json
+{
+  "locations": [
+    {
+      "id": "loc_01",
+      "addressLine": "123 MG Road, Bengaluru",
+      "lat": 12.9716,
+      "lng": 77.5946
+    }
+  ]
+}
+```
+Key fields: `locations[]`, each has `id` (use as addressId for Dineout), `lat`, `lng`
+IMPORTANT: store `lat` and `lng` — needed for `get_available_slots` and `book_table`
+
+---
+
+**`search_restaurants_dineout`**
+```json
+{
+  "restaurants": [
+    {
+      "id": "drest_42",
+      "name": "The Fatty Bao",
+      "cuisines": ["Asian", "Japanese"],
+      "avgRating": 4.5,
+      "costForTwo": 1200,
+      "distanceKm": 1.8,
+      "availability": "AVAILABLE",
+      "highlights": ["Valet Parking", "Live Music"],
+      "offers": ["20% off on pre-booking"]
+    }
+  ]
+}
+```
+Key fields: `restaurants[]`, each has `id`, `name`, `avgRating`, `costForTwo`, `availability` (filter to "AVAILABLE"), `highlights`, `offers`
+
+---
+
+**`get_restaurant_details`** (Dineout)
+```json
+{
+  "id": "drest_42",
+  "name": "The Fatty Bao",
+  "avgRating": 4.5,
+  "timings": "12:00 PM - 11:00 PM",
+  "address": "123 MG Road, Bengaluru",
+  "deals": [
+    {
+      "title": "20% off on food bill",
+      "isFree": true,
+      "bookingPrice": 0
+    }
+  ],
+  "amenities": ["WiFi", "Valet", "Live Music"]
+}
+```
+Key fields: `deals[]` — each has `isFree` (only use isFree=true in Builders Club v1), `bookingPrice`
+
+---
+
+**`get_available_slots`**
+```json
+{
+  "slots": [
+    {
+      "dateStr": "2026-06-30",
+      "displayTime": "7:00 PM",
+      "reservationTime": 1751289600,
+      "slotGroupName": "Dinner",
+      "availabilityCount": 4,
+      "deals": [
+        {
+          "slotId": 4242,
+          "itemId": "drest_42-ticket_7",
+          "isFree": true,
+          "bookingPrice": 0,
+          "title": "Free Table Booking",
+          "discountPercentage": 0
+        }
+      ]
+    }
+  ]
+}
+```
+Key fields per slot:
+- `dateStr` → date string YYYY-MM-DD
+- `displayTime` → human-readable time
+- `reservationTime` → epoch timestamp (pass to book_table)
+- `availabilityCount` → seats remaining (low = high occupancy signal)
+- `deals[].slotId` → pass to book_table as slotId
+- `deals[].itemId` → pass to book_table as itemId (format: "restaurantId-ticketId")
+- `deals[].isFree` → ONLY use isFree=true deals in Builders Club v1
+
+CortexKitchen occupancy signal:
+- high occupancy = availabilityCount < 2 across most slots
+- area_occupancy_signal = HIGH if >50% of competitor slots have availabilityCount < 2
+
+---
+
+**`book_table`**
+```json
+{
+  "orderId": "DO-001",
+  "bookingId": "BK-001",
+  "status": "confirmed",
+  "restaurantName": "The Fatty Bao",
+  "reservationTime": 1751289600,
+  "guestCount": 4,
+  "confirmationCode": "CK4242"
+}
+```
+Key fields: `orderId` (use for get_booking_status), `bookingId`, `status`, `confirmationCode`
+CRITICAL: NOT idempotent. On 5xx → call `get_booking_status` with orderId before retrying.
+
+---
+
+**`get_booking_status`**
+```json
+{
+  "orderId": "DO-001",
+  "restaurantName": "The Fatty Bao",
+  "date": "2026-06-30",
+  "time": "7:00 PM",
+  "guestCount": 4,
+  "dealTitle": "Free Table Booking",
+  "status": "confirmed"
+}
+```
+Key fields: `orderId`, `status`, `date`, `time`, `guestCount`
+
+CortexKitchen mapping:
+- `orderId` → `external_booking_id` in reservations table
+- `status` → map to `ReservationStatus` enum (confirmed/cancelled)
+- `date` + `time` → parse to `reserved_at` datetime
+
+---
+
+## 17. What each tool maps to in CortexKitchen
+
+| Swiggy tool | Server | Maps to | DB table / State field |
+|-------------|--------|---------|----------------------|
+| `get_food_orders` | Food | order sync | `orders` (source=swiggy) |
+| `track_food_order` | Food | feedback sync | `feedback` (source=swiggy_delivery) |
+| `get_booking_status` | Dineout | reservation sync | `reservations` (source=dineout) |
+| `search_restaurants` | Food | CompetitorEnricher | `swiggy_competitor_context` state |
+| `search_menu` | Food | CompetitorEnricher | `swiggy_competitor_context` state |
+| `get_restaurant_menu` | Food | CompetitorEnricher | `swiggy_competitor_context` state |
+| `search_products` | Instamart | ProcurementEnricher | `swiggy_procurement_options` state |
+| `your_go_to_items` | Instamart | ProcurementEnricher | `swiggy_procurement_options` state |
+| `get_saved_locations` | Dineout | OccupancyEnricher | `swiggy_occupancy_context` state |
+| `search_restaurants_dineout` | Dineout | OccupancyEnricher | `swiggy_occupancy_context` state |
+| `get_restaurant_details` | Dineout | OccupancyEnricher | `swiggy_occupancy_context` state |
+| `get_available_slots` | Dineout | OccupancyEnricher | `swiggy_occupancy_context` state |
+| `update_cart` | Instamart | ProcurementExecutor | `action_queue` table |
+| `get_cart` | Instamart | ProcurementExecutor | verify before checkout |
+| `clear_cart` | Instamart | ProcurementExecutor | before building new cart |
+| `checkout` | Instamart | ProcurementExecutor | `procurement_orders` table |
+| `get_orders` | Instamart | check-then-retry | verify after checkout 5xx |
+| `track_order` | Instamart | LiveMonitorService | SSE feed |
+| `book_table` | Dineout | DineoutExecutor | `reservations` table |
+| `create_cart` | Dineout | DineoutExecutor | internal to book_table |
+| `get_addresses` | Food/IM | all Food+IM calls | resolve addressId once per session |
+| `get_saved_locations` | Dineout | all Dineout calls | resolve lat/lng once per session |
+

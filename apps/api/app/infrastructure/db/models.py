@@ -187,6 +187,7 @@ class Feedback(Base):
     delivery_time_actual_mins   = Column(Integer, nullable=True)
     delivery_time_promised_mins = Column(Integer, nullable=True)
     was_late                    = Column(Boolean, nullable=True)
+    external_order_id           = Column(String(200), nullable=True)
     created_at                  = Column(DateTime, default=datetime.utcnow)
 
     order = relationship("Order", back_populates="feedback")
@@ -270,6 +271,7 @@ class Connector(Base):
     sync_status             = Column(String(20), nullable=False, default="never_synced")
     error_count             = Column(Integer, nullable=False, default=0)
     last_error              = Column(Text, nullable=True)
+    connector_metadata      = Column(JSONB, nullable=True)
     created_at              = Column(DateTime, default=datetime.utcnow)
     updated_at              = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

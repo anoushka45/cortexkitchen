@@ -529,17 +529,17 @@ code {
 
     <div class="phil-box">
       <h3>The Layering Model</h3>
-      <p>The existing pipeline &mdash; with its synthetic seed data, 9-node LangGraph graph, Prophet forecaster, and Qdrant RAG &mdash; is the foundation. It works today without any Swiggy token, and it will always work without one.</p>
+      <p>The existing pipeline &mdash; with its restaurant operational data, 9-node LangGraph graph, Prophet forecaster, and Qdrant RAG &mdash; is the foundation. It works today without any Swiggy token, and it will always work without one.</p>
       <p>Every Swiggy integration point adds a new signal to that foundation. Real order history layers into the orders table alongside synthetic rows. Live competitor prices inject into agent prompts at planning time. Instamart procurement options appear alongside existing inventory analysis. The agents get smarter &mdash; but they never depend exclusively on Swiggy being available.</p>
       <p><strong>If Swiggy is unreachable, the system runs on what it has. If Swiggy is connected, every layer of intelligence is amplified by real platform data.</strong></p>
     </div>
 
     <h3>How the data model enables this</h3>
-    <p>Every table that receives Swiggy data has a <code>source</code> column. Rows with <code>source = "internal"</code> are synthetic seed data. Rows with <code>source = "swiggy"</code> come from real Swiggy delivery data. They coexist in the same tables and are queried together &mdash; no filtering by source, no preference for either.</p>
+    <p>Every table that receives Swiggy data has a <code>source</code> column. Rows with <code>source = "internal"</code> are the restaurant's own operational data &mdash; their existing orders, POS imports, or records built up within CortexKitchen. Rows with <code>source = "swiggy"</code> are layered on top as the Swiggy connection syncs. Both coexist in the same tables and are queried together &mdash; no preference for either, no data gets overwritten.</p>
 
     <div class="codeblock">
       <div class="cb-header"><div class="cb-dots"><div class="cb-dot"></div><div class="cb-dot"></div><div class="cb-dot"></div></div><span class="cb-title">orders table &mdash; both layers coexist</span><span class="cb-lang">sql</span></div>
-      <pre><span class="cm">-- Synthetic seed rows (always present, dev and prod)</span>
+      <pre><span class="cm">-- Restaurant internal data (own records, POS imports, historical data)</span>
 <span class="kw">SELECT</span> * <span class="kw">FROM</span> orders <span class="kw">WHERE</span> source = <span class="str">'internal'</span>;   <span class="cm">-- seeded at startup</span>
 
 <span class="cm">-- Real Swiggy rows (accumulate with each nightly sync)</span>
@@ -551,11 +551,11 @@ code {
 <span class="kw">SELECT</span> * <span class="kw">FROM</span> orders <span class="kw">WHERE</span> ordered_at >= :start;  <span class="cm">-- this is the actual query</span></pre>
     </div>
 
-    <h3>Three reasons synthetic data is permanent, not temporary</h3>
+    <h3>Why internal data stays as the permanent foundation</h3>
     <ul>
-      <li><strong>Circuit breaker fallback.</strong> When Swiggy is down (3 failures trigger a 30-min block), the pipeline runs on all the synthetic data already in the DB. Zero degradation in core functionality.</li>
-      <li><strong>Development without a token.</strong> Any engineer can run the full 9-node pipeline locally without a live Swiggy OAuth token. The synthetic layer makes this possible permanently.</li>
-      <li><strong>Restaurant onboarding bootstrap.</strong> A restaurant that just signed up has zero order history. Synthetic seed data gives them a meaningful first planning run the moment they connect.</li>
+      <li><strong>Circuit breaker fallback.</strong> When Swiggy is down (3 failures trigger a 30-min block), the pipeline runs on all the restaurant's own operational data already in the DB. Zero degradation.</li>
+      <li><strong>Development without a token.</strong> Any engineer can run the full 9-node pipeline locally without a live Swiggy OAuth token. The internal data layer makes this possible at all times.</li>
+      <li><strong>Restaurant onboarding bootstrap.</strong> A restaurant that just signed up has zero order history. Their own operational data &mdash; imported from POS, entered manually, or built up over time &mdash; gives them a meaningful first planning run the moment they connect Swiggy.</li>
     </ul>
 
     <h3>The three data layers</h3>
@@ -569,7 +569,7 @@ code {
   competitor_pricing   <span class="fl-d">&larr; CompetitorEnricher &rarr; menu_intel prompt     P6-S07</span>
   area_occupancy       <span class="fl-d">&larr; OccupancyEnricher  &rarr; reservation prompt     P6-S08</span>
   ingredient_market    <span class="fl-d">&larr; ProcurementEnricher &rarr; inventory prompt      P6-S09</span>
-  <span class="fl-a">No synthetic fallback for Layer 1. If enricher returns None, the prompt section is absent.</span>
+  <span class="fl-a">No internal-data fallback for Layer 1. If enricher returns None, that market context section is simply absent.</span>
   <span class="fl-a">The agents still run &mdash; they just don't have a Market Context section that run.</span>
 
 <span class="fl-g">LAYER 2 &mdash; Execution (owner-approved, needs staging creds)</span>
@@ -995,7 +995,7 @@ Content-Type: application/json
     <h2>Order Sync &mdash; P6-S03</h2>
     <p class="ch-subtitle"><span class="fc">apps/api/app/infrastructure/swiggy/sync/order_sync.py</span> <span class="badge bd-live">Live</span></p>
 
-    <p>Syncs Swiggy delivery order history into the existing <code>orders</code> table as <code>source="swiggy"</code> rows. They sit alongside synthetic seed rows in the same table. <code>ForecastService</code> queries all rows without filtering by source &mdash; as real Swiggy orders accumulate, they progressively shape the demand forecast.</p>
+    <p>Syncs Swiggy delivery order history into the existing <code>orders</code> table as <code>source="swiggy"</code> rows. They sit alongside the restaurant's own internal records in the same table. <code>ForecastService</code> queries all rows without filtering by source &mdash; as real Swiggy orders accumulate, they progressively shape the demand forecast.</p>
 
     <div class="flow">
 <span class="fl-b">call_tool("get_food_orders", {addressId, orderCount: 20})</span>
@@ -1013,7 +1013,7 @@ For each order, for each item at index i:
     channel           = <span class="fl-o">"delivery"</span>
     external_order_id = "SW-001_0"
     ordered_at        = UTC datetime
-    <span class="fl-d">&larr; synthetic rows untouched, coexist in same table</span>
+    <span class="fl-d">&larr; restaurant's own records untouched, both coexist in same table</span>
 
 <span class="fl-g">Returns: {"synced": 5, "skipped": 2, "errors": 0}</span>
     </div>
@@ -1028,7 +1028,7 @@ For each order, for each item at index i:
     <h2>Feedback Sync &mdash; P6-S06</h2>
     <p class="ch-subtitle"><span class="fc">apps/api/app/infrastructure/swiggy/sync/feedback_sync.py</span> <span class="badge bd-live">Live</span></p>
 
-    <p>Syncs real delivery performance data into the <code>feedback</code> table as <code>source="swiggy_delivery"</code> rows. Synthetic internal feedback rows remain untouched. The <code>complaint_intelligence</code> node draws on all feedback rows &mdash; real latency data makes its analysis grounded in actual delivery patterns rather than seeded numbers.</p>
+    <p>Syncs real delivery performance data into the <code>feedback</code> table as <code>source="swiggy_delivery"</code> rows. The restaurant's own internal feedback records remain untouched. The <code>complaint_intelligence</code> node draws on all feedback rows &mdash; real latency data makes its analysis grounded in actual delivery patterns rather than seeded numbers.</p>
 
     <div class="flow">
 <span class="fl-b">Step 1: get_food_orders({addressId, orderCount: 20})</span>
@@ -1131,7 +1131,7 @@ result = <span class="kw">await</span> svc.<span class="fn">sync</span>(org_id=<
       </div>
     </div>
 
-    <p>The planning pipeline already uses both the synthetic and Swiggy DB rows together. What's missing is Layer 1 &mdash; the live enricher signals that turn a planning run from data-informed into market-aware. That's what P6-S07 through S09 build.</p>
+    <p>The planning pipeline already uses both the restaurant's internal data and Swiggy DB rows together. What's missing is Layer 1 &mdash; the live enricher signals that turn a planning run from data-informed into market-aware. That's what P6-S07 through S09 build.</p>
   </section>
 
   <!-- CH 15 -->
@@ -1189,7 +1189,7 @@ result = <span class="kw">await</span> svc.<span class="fn">sync</span>(org_id=<
     <div class="flow">
 ops_manager
   |
-demand_forecast    <span class="fl-d">&larr; queries all orders (synthetic + Swiggy rows combined)</span>
+demand_forecast    <span class="fl-d">&larr; queries all orders (internal restaurant data + Swiggy rows combined)</span>
   |
 qdrant_enrichment
   |

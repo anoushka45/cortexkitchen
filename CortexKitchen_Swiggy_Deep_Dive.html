@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CortexKitchen × Swiggy — Integration Deep Dive</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --sidebar-w: 272px;
+  --accent: #ff6633;
+  --accent-dark: #e55522;
+  --accent-light: #fff4f0;
+  --accent-glow: rgba(255,102,51,0.15);
+  --slate-900: #0f172a;
+  --slate-800: #1e293b;
+  --slate-750: #243044;
+  --slate-700: #334155;
+  --slate-600: #475569;
+  --slate-400: #94a3b8;
+  --slate-300: #cbd5e1;
+  --slate-200: #e2e8f0;
+  --slate-100: #f1f5f9;
+  --body: #374151;
+  --green: #10b981;
+  --amber: #f59e0b;
+  --blue: #3b82f6;
+  --purple: #8b5cf6;
+  --red: #ef4444;
+  --code-bg: #1a2332;
+  --code-border: #2d3f55;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--body);
+  background: #f8fafc;
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ── SIDEBAR ── */
+#sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  background: var(--slate-900);
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  overflow-y: auto;
+  z-index: 100;
+  padding-bottom: 40px;
+}
+#sidebar::-webkit-scrollbar { width: 4px; }
+#sidebar::-webkit-scrollbar-thumb { background: var(--slate-700); border-radius: 2px; }
+
+.sidebar-header {
+  padding: 20px 16px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.sidebar-logo { font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; }
+.sidebar-title { font-size: 13px; font-weight: 600; color: #fff; margin-top: 4px; line-height: 1.4; }
+.sidebar-sub { font-size: 11px; color: var(--slate-400); margin-top: 2px; }
+
+.progress-bar-wrap {
+  margin: 12px 14px;
+  background: var(--slate-800);
+  border-radius: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,102,51,0.2);
+}
+.progress-label { font-size: 10px; color: var(--slate-400); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+.progress-bar { background: var(--slate-700); border-radius: 3px; height: 5px; overflow: hidden; }
+.progress-fill { background: linear-gradient(90deg, var(--accent), #ff9966); height: 100%; border-radius: 3px; width: 22%; transition: width 0.5s; }
+.progress-pct { font-size: 11px; color: var(--accent); font-weight: 600; margin-top: 5px; }
+
+.nav-section { padding: 10px 14px 4px; font-size: 10px; font-weight: 700; color: var(--slate-600); text-transform: uppercase; letter-spacing: 0.1em; }
+
+.nav-item { display: flex; align-items: center; gap: 8px; padding: 6px 14px 6px 16px; cursor: pointer; text-decoration: none; color: var(--slate-400); font-size: 12.5px; line-height: 1.4; transition: all 0.15s; border-left: 2px solid transparent; }
+.nav-item:hover { color: #fff; background: rgba(255,255,255,0.04); }
+.nav-item.active { color: var(--accent); background: var(--accent-glow); border-left-color: var(--accent); }
+.nav-item .ch { font-size: 10px; font-weight: 700; color: var(--slate-600); min-width: 18px; font-family: 'JetBrains Mono', monospace; }
+.nav-item.active .ch { color: var(--accent); }
+.nav-badge { margin-left: auto; font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 700; }
+.nb-done { background: rgba(16,185,129,0.15); color: var(--green); }
+.nb-next { background: rgba(255,102,51,0.2); color: var(--accent); }
+.nb-plan { background: rgba(148,163,184,0.15); color: var(--slate-400); }
+
+/* ── MAIN ── */
+#main {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  max-width: 900px;
+  padding: 48px 56px 80px;
+}
+
+/* ── HERO ── */
+.hero {
+  background: linear-gradient(135deg, var(--slate-900) 0%, #1a1a3e 50%, #2d1a0f 100%);
+  border-radius: 16px;
+  padding: 40px 44px;
+  margin-bottom: 48px;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -60px; right: -60px;
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(255,102,51,0.2) 0%, transparent 70%);
+}
+.hero-eyebrow { font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 10px; }
+.hero h1 { font-size: 26px; font-weight: 700; color: #fff; line-height: 1.25; margin-bottom: 10px; }
+.hero p { font-size: 14px; color: var(--slate-400); max-width: 560px; line-height: 1.65; }
+.hero-badges { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+.hbadge { font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 600; }
+.hb-orange { background: rgba(255,102,51,0.2); color: #ff8866; border: 1px solid rgba(255,102,51,0.3); }
+.hb-green  { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.25); }
+.hb-blue   { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.25); }
+
+/* ── CHAPTERS ── */
+.chapter { margin-bottom: 64px; scroll-margin-top: 24px; }
+.chapter-label { font-size: 10px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px; }
+.chapter h2 { font-size: 22px; font-weight: 700; color: var(--slate-900); margin-bottom: 6px; }
+.chapter-desc { font-size: 13.5px; color: var(--slate-600); margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--slate-200); }
+
+h3 { font-size: 15px; font-weight: 600; color: var(--slate-800); margin: 28px 0 10px; }
+h4 { font-size: 13.5px; font-weight: 600; color: var(--slate-700); margin: 20px 0 8px; }
+
+p { margin-bottom: 14px; }
+ul, ol { padding-left: 20px; margin-bottom: 14px; }
+li { margin-bottom: 5px; }
+
+/* ── CODE ── */
+.code-block {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 10px;
+  margin: 16px 0;
+  overflow: hidden;
+}
+.code-header {
+  background: rgba(255,255,255,0.04);
+  border-bottom: 1px solid var(--code-border);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.code-title { font-size: 11px; font-weight: 600; color: var(--slate-400); font-family: 'JetBrains Mono', monospace; }
+.code-lang { margin-left: auto; font-size: 10px; color: var(--slate-600); font-family: 'JetBrains Mono', monospace; text-transform: uppercase; }
+pre {
+  padding: 18px 20px;
+  overflow-x: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: #cbd5e1;
+}
+.c-kw  { color: #c792ea; }   /* keyword */
+.c-str { color: #c3e88d; }   /* string */
+.c-num { color: #f78c6c; }   /* number */
+.c-cmt { color: #546e7a; font-style: italic; }  /* comment */
+.c-fn  { color: #82aaff; }   /* function */
+.c-cl  { color: #ffcb6b; }   /* class */
+.c-key { color: #89ddff; }   /* dict key / json key */
+.c-acc { color: var(--accent); font-weight: 600; }  /* highlight */
+
+/* ── INLINE CODE ── */
+code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  background: #e8edf5;
+  color: #c2410c;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+/* ── FILE CHIP ── */
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--slate-800);
+  color: #93c5fd;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--slate-700);
+  margin: 2px 3px;
+}
+.file-chip .fc-icon { color: var(--accent); font-size: 11px; }
+
+/* ── STATUS BADGE ── */
+.status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+.s-done { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25); }
+.s-skeleton { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); }
+.s-planned { background: rgba(148,163,184,0.1); color: var(--slate-400); border: 1px solid rgba(148,163,184,0.2); }
+.s-next { background: rgba(255,102,51,0.12); color: var(--accent); border: 1px solid rgba(255,102,51,0.25); }
+
+/* ── CALLOUT ── */
+.callout { border-radius: 8px; padding: 14px 16px; margin: 16px 0; display: flex; gap: 12px; font-size: 13.5px; }
+.callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.co-orange { background: rgba(255,102,51,0.08); border: 1px solid rgba(255,102,51,0.2); }
+.co-green  { background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.2); }
+.co-blue   { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); }
+.co-amber  { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); }
+
+/* ── FLOW DIAGRAM ── */
+.flow {
+  background: var(--slate-900);
+  border: 1px solid var(--slate-700);
+  border-radius: 10px;
+  padding: 20px 24px;
+  margin: 16px 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--slate-300);
+  line-height: 2;
+  overflow-x: auto;
+}
+.flow .f-acc { color: var(--accent); font-weight: 600; }
+.flow .f-green { color: var(--green); }
+.flow .f-blue { color: #60a5fa; }
+.flow .f-purple { color: #a78bfa; }
+.flow .f-dim { color: var(--slate-600); }
+
+/* ── TABLE ── */
+.tbl-wrap { overflow-x: auto; margin: 16px 0; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { background: var(--slate-800); color: #fff; padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+td { padding: 9px 14px; border-bottom: 1px solid var(--slate-200); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--slate-100); }
+
+/* ── TOOL CARD ── */
+.tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin: 16px 0; }
+.tool-card { background: #fff; border: 1px solid var(--slate-200); border-radius: 10px; padding: 14px 16px; }
+.tool-card:hover { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.tc-name { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: var(--slate-800); margin-bottom: 4px; }
+.tc-server { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+.tc-food { color: #ef4444; }
+.tc-im { color: #10b981; }
+.tc-dineout { color: #8b5cf6; }
+.tc-desc { font-size: 12px; color: var(--slate-600); line-height: 1.5; margin-bottom: 6px; }
+.tc-maps { font-size: 11px; color: var(--slate-400); }
+.tc-maps span { color: var(--accent); font-weight: 600; }
+
+/* ── WIRED STATUS TABLE ── */
+.wired-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 16px 0; }
+.wired-card { border-radius: 10px; padding: 16px; }
+.wc-done { background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.2); }
+.wc-not  { background: rgba(148,163,184,0.06); border: 1px solid rgba(148,163,184,0.15); }
+.wc-title { font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+.wt-done { color: var(--green); }
+.wt-not  { color: var(--slate-500); }
+.wired-item { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; margin-bottom: 7px; line-height: 1.45; }
+.wi-icon { flex-shrink: 0; margin-top: 1px; }
+
+/* ── DIVIDER ── */
+.divider { height: 1px; background: var(--slate-200); margin: 40px 0; }
+
+/* ── CHAPTER NAV ── */
+.ch-nav { display: flex; gap: 8px; margin-bottom: 48px; flex-wrap: wrap; }
+.ch-nav a { font-size: 11.5px; padding: 5px 12px; border-radius: 6px; background: #fff; border: 1px solid var(--slate-200); color: var(--slate-600); text-decoration: none; transition: all 0.15s; }
+.ch-nav a:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── LAST UPDATED ── */
+.last-updated { font-size: 11px; color: var(--slate-400); margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════ SIDEBAR ══════════════════════════════ -->
+<nav id="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">CortexKitchen</div>
+    <div class="sidebar-title">Swiggy Integration<br>Deep Dive</div>
+    <div class="sidebar-sub">Updated after every PR merge</div>
+  </div>
+
+  <div class="progress-bar-wrap">
+    <div class="progress-label">Phase 6 Progress</div>
+    <div class="progress-bar"><div class="progress-fill"></div></div>
+    <div class="progress-pct">22% — P6-S06 complete</div>
+  </div>
+
+  <div class="nav-section">Foundation</div>
+  <a class="nav-item" href="#ch0"><span class="ch">00</span> The Big Picture</a>
+  <a class="nav-item" href="#ch1"><span class="ch">01</span> What Swiggy Gave Us</a>
+  <a class="nav-item" href="#ch2"><span class="ch">02</span> The Protocol (JSON-RPC)</a>
+  <a class="nav-item" href="#ch3"><span class="ch">03</span> OAuth — Getting the Token</a>
+
+  <div class="nav-section">The 35 Tools</div>
+  <a class="nav-item" href="#ch4"><span class="ch">04</span> Food MCP (6 tools)</a>
+  <a class="nav-item" href="#ch5"><span class="ch">05</span> Instamart MCP (9 tools)</a>
+  <a class="nav-item" href="#ch6"><span class="ch">06</span> Dineout MCP (7 tools)</a>
+
+  <div class="nav-section">Our Code — Built ✅</div>
+  <a class="nav-item" href="#ch7"><span class="ch">07</span> SwiggyMCPClient <span class="nav-badge nb-done">done</span></a>
+  <a class="nav-item" href="#ch8"><span class="ch">08</span> Circuit Breaker <span class="nav-badge nb-done">done</span></a>
+  <a class="nav-item" href="#ch9"><span class="ch">09</span> Provider Registry <span class="nav-badge nb-done">done</span></a>
+  <a class="nav-item" href="#ch10"><span class="ch">10</span> Connector Pattern <span class="nav-badge nb-done">done</span></a>
+  <a class="nav-item" href="#ch11"><span class="ch">11</span> Order Sync <span class="nav-badge nb-done">done</span></a>
+  <a class="nav-item" href="#ch12"><span class="ch">12</span> Feedback Sync <span class="nav-badge nb-done">done</span></a>
+  <a class="nav-item" href="#ch13"><span class="ch">13</span> Reservation Sync <span class="nav-badge nb-done">done</span></a>
+  <a class="nav-item" href="#ch14"><span class="ch">14</span> Sync Endpoint <span class="nav-badge nb-done">done</span></a>
+
+  <div class="nav-section">What's Next</div>
+  <a class="nav-item" href="#ch15"><span class="ch">15</span> Current State <span class="nav-badge nb-next">now</span></a>
+  <a class="nav-item" href="#ch16"><span class="ch">16</span> Enrichers (S07–S09) <span class="nav-badge nb-next">next</span></a>
+  <a class="nav-item" href="#ch17"><span class="ch">17</span> New Nodes (S10–S13) <span class="nav-badge nb-plan">planned</span></a>
+  <a class="nav-item" href="#ch18"><span class="ch">18</span> Action Layer (S14–S16) <span class="nav-badge nb-plan">planned</span></a>
+  <a class="nav-item" href="#ch19"><span class="ch">19</span> The Full Demo Vision <span class="nav-badge nb-plan">planned</span></a>
+</nav>
+
+<!-- ══════════════════════════════ MAIN ══════════════════════════════ -->
+<main id="main">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-eyebrow">Living Documentation · Updated per PR</div>
+    <h1>CortexKitchen × Swiggy<br>Integration Deep Dive</h1>
+    <p>Everything you need to understand the Swiggy MCP integration — from how the protocol works, to every file we've written, to what happens next. No blind spots.</p>
+    <div class="hero-badges">
+      <span class="hbadge hb-green">P6-S06 Complete</span>
+      <span class="hbadge hb-orange">3 Servers · 22 Tools</span>
+      <span class="hbadge hb-blue">OAuth 2.1 + PKCE</span>
+      <span class="hbadge hb-orange">JSON-RPC 2.0</span>
+    </div>
+    <div class="last-updated">Last updated: 2026-06-30 · Post P6-S05/S06 merge</div>
+  </div>
+
+  <!-- ─────────────────────────── CH 0 ─────────────────────────── -->
+  <section class="chapter" id="ch0">
+    <div class="chapter-label">Chapter 00</div>
+    <h2>The Big Picture</h2>
+    <p class="chapter-desc">What CortexKitchen is becoming and why Swiggy MCP changes everything.</p>
+
+    <p>Before Swiggy, CortexKitchen was a <strong>synthetic-data planning tool</strong>. You'd trigger a scenario, 9 LangGraph agents would analyze fake orders and seed data, the critic would score the plan, and you'd get a recommendation. Useful as a demo. Not useful as a real product.</p>
+
+    <p>With Swiggy MCP, CortexKitchen becomes a <strong>Swiggy-native restaurant operating system</strong>. Every data point the agents reason about comes from real Swiggy platform data — your actual orders, delivery times, competitor prices, how full nearby restaurants are tonight.</p>
+
+    <div class="callout co-orange">
+      <span class="callout-icon">🎯</span>
+      <div><strong>The one-liner:</strong> "The operating brain for a Swiggy-native restaurant — knows your business, knows your market, acts on your behalf using Swiggy's own data."</div>
+    </div>
+
+    <h3>The three data layers we're building</h3>
+    <div class="flow">
+<span class="f-blue">LAYER 0 — PostgreSQL (permanent, always authoritative)</span>
+  orders table       ← real Swiggy delivery orders (synced nightly)  <span class="f-green">✅ working</span>
+  feedback table     ← real delivery timing, late/on-time            <span class="f-green">✅ working</span>
+  reservations table ← Dineout bookings                              <span class="f-dim">⏳ skeleton (P6-S16)</span>
+  connectors table   ← per-org OAuth tokens, sync status
+
+<span class="f-purple">LAYER 1 — Redis (30 min TTL, live market intelligence)</span>
+  competitor_pricing ← what rivals charge right now                  <span class="f-dim">📋 P6-S07 (next)</span>
+  area_occupancy     ← how full nearby restaurants are tonight       <span class="f-dim">📋 P6-S08 (next)</span>
+  ingredient_market  ← Instamart prices for our shortage items       <span class="f-dim">📋 P6-S09 (next)</span>
+
+<span class="f-acc">LAYER 2 — Action surface (with owner approval gates)</span>
+  Instamart cart → checkout ← one-tap procurement after approval     <span class="f-dim">📋 P6-S15</span>
+  Dineout book_table        ← open more slots when surge predicted   <span class="f-dim">📋 P6-S16</span>
+    </div>
+
+    <p>Right now we have Layer 0 working. Layers 1 and 2 are what the next 10 weeks build.</p>
+  </section>
+
+  <!-- ─────────────────────────── CH 1 ─────────────────────────── -->
+  <section class="chapter" id="ch1">
+    <div class="chapter-label">Chapter 01</div>
+    <h2>What Swiggy Actually Gave Us</h2>
+    <p class="chapter-desc">The Builders Club, what access means, and what we got.</p>
+
+    <p>Swiggy runs a program called the <strong>Builders Club</strong> for developers who want to build on top of Swiggy's platform. You applied, got approved by <code>builders@swiggy.in</code>, and received access to their MCP servers.</p>
+
+    <p>What "access" means concretely:</p>
+    <ul>
+      <li>Permission to call <strong>35 internal Swiggy tools</strong> via HTTP — the same functions the Swiggy app uses internally</li>
+      <li>An <strong>OAuth flow</strong> to authenticate with your Swiggy phone number and get a 5-day token</li>
+      <li>Access to 3 servers: Food, Instamart, Dineout</li>
+      <li>Documentation at <code>mcp.swiggy.com/builders</code></li>
+    </ul>
+
+    <div class="callout co-amber">
+      <span class="callout-icon">⚠️</span>
+      <div><strong>Builders Club v1 limits (important):</strong> COD payments only (no UPI/card). ₹1000 cap on Food orders. Dineout: free reservations only (<code>isFree=true</code>). Staging at <code>mcp-staging.swiggy.com</code> — pending creds. Everything else works on production.</div>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Server</th><th>URL</th><th>Tools</th><th>What it gives CortexKitchen</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Food</strong></td><td><code>mcp.swiggy.com/food</code></td><td>14 total, we use 6</td><td>Delivery orders, competitor restaurants + menus</td></tr>
+          <tr><td><strong>Instamart</strong></td><td><code>mcp.swiggy.com/im</code></td><td>13 total, we use 9</td><td>Ingredient procurement — search, cart, checkout</td></tr>
+          <tr><td><strong>Dineout</strong></td><td><code>mcp.swiggy.com/dineout</code></td><td>8 total, we use 7</td><td>Table reservations, competitor occupancy</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>One token authenticates all three servers. Authenticate once, call any tool on any server.</p>
+
+    <div class="callout co-blue">
+      <span class="callout-icon">💡</span>
+      <div>The other 13 tools (out of 35) are consumer tools — <code>flush_food_cart</code>, <code>apply_food_coupon</code>, <code>create_address</code>. They serve end-users placing orders, not restaurant operators. We don't use them.</div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── CH 2 ─────────────────────────── -->
+  <section class="chapter" id="ch2">
+    <div class="chapter-label">Chapter 02</div>
+    <h2>The Protocol — How JSON-RPC 2.0 Works</h2>
+    <p class="chapter-desc">MCP uses JSON-RPC 2.0. Here's exactly what every request and response looks like.</p>
+
+    <p><strong>MCP (Model Context Protocol)</strong> was invented by Anthropic as a standard way for AI agents to call external tools. Swiggy adopted it. The underlying protocol is <strong>JSON-RPC 2.0</strong> — a simple standard where every call looks the same, just the tool name and arguments change.</p>
+
+    <h3>Every request follows this exact shape</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-title">Any Swiggy tool call — HTTP request</span><span class="code-lang">http</span></div>
+      <pre>POST https://mcp.swiggy.com/food
+Authorization: Bearer YOUR_5_DAY_TOKEN
+Content-Type: application/json
+<span class="c-acc">Accept: application/json, text/event-stream</span>   <span class="c-cmt"># REQUIRED — server returns 406 without this</span>
+
+{
+  <span class="c-key">"jsonrpc"</span>: <span class="c-str">"2.0"</span>,
+  <span class="c-key">"method"</span>: <span class="c-str">"tools/call"</span>,       <span class="c-cmt"># always "tools/call" — never changes</span>
+  <span class="c-key">"params"</span>: {
+    <span class="c-key">"name"</span>: <span class="c-str">"get_food_orders"</span>,  <span class="c-cmt"># THIS changes per tool</span>
+    <span class="c-key">"arguments"</span>: {           <span class="c-cmt"># THIS changes per tool</span>
+      <span class="c-key">"addressId"</span>: <span class="c-str">"addr_01"</span>,
+      <span class="c-key">"orderCount"</span>: <span class="c-num">20</span>
+    }
+  },
+  <span class="c-key">"id"</span>: <span class="c-num">1</span>
+}</pre>
+    </div>
+
+    <h3>The response — what actually comes back (discovered via live test)</h3>
+    <div class="callout co-orange">
+      <span class="callout-icon">🔴</span>
+      <div><strong>Critical discovery:</strong> Swiggy's documentation showed <code>{"success": true, "data": {...}}</code> as the response format. The <em>real</em> server returns JSON-RPC 2.0 format. We discovered this when we got our actual OAuth token in P6-S06. All parsing code has been updated.</div>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-title">Actual Swiggy response — success</span><span class="code-lang">json</span></div>
+      <pre>{
+  <span class="c-key">"result"</span>: {
+    <span class="c-key">"content"</span>: [
+      { <span class="c-key">"type"</span>: <span class="c-str">"text"</span>, <span class="c-key">"text"</span>: <span class="c-str">"Human-readable summary..."</span> }
+    ],
+    <span class="c-acc">"structuredContent"</span>: {       <span class="c-cmt"># &lt;-- THIS IS THE DATA WE USE</span>
+      <span class="c-key">"orders"</span>: [...]
+    }
+  },
+  <span class="c-key">"jsonrpc"</span>: <span class="c-str">"2.0"</span>,
+  <span class="c-key">"id"</span>: <span class="c-num">1</span>
+}
+
+<span class="c-cmt"># Error response:</span>
+{
+  <span class="c-key">"error"</span>: { <span class="c-key">"code"</span>: <span class="c-num">-32601</span>, <span class="c-key">"message"</span>: <span class="c-str">"Tool not found"</span> },
+  <span class="c-key">"jsonrpc"</span>: <span class="c-str">"2.0"</span>,
+  <span class="c-key">"id"</span>: <span class="c-num">1</span>
+}</pre>
+    </div>
+
+    <p>Our <code>call_tool()</code> method extracts <code>result["structuredContent"]</code> and returns it directly. You never see the envelope in your sync/enricher code — you just get the data dict.</p>
+
+    <div class="flow">
+<span class="f-dim">What your sync code sees:     </span>  raw = await client.call_tool("get_food_orders", {...})
+<span class="f-dim">What raw actually contains:   </span>  { "orders": [...] }     <span class="f-green">← structuredContent, unwrapped</span>
+<span class="f-dim">What the wire looks like:     </span>  { "result": { "structuredContent": { "orders": [...] } } }
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── CH 3 ─────────────────────────── -->
+  <section class="chapter" id="ch3">
+    <div class="chapter-label">Chapter 03</div>
+    <h2>OAuth — Getting the Token</h2>
+    <p class="chapter-desc">OAuth 2.1 with PKCE — what it is, why it's needed, and what our script does step by step.</p>
+
+    <p>Before calling any tool, you need a <strong>Bearer token</strong> that proves you're an authorised Swiggy user. Swiggy uses <strong>OAuth 2.1 with PKCE</strong> (Proof Key for Code Exchange) — a secure auth flow designed for apps that can't safely store a client secret.</p>
+
+    <p>PKCE works by generating a random secret, hashing it, and using the hash as a "proof" — Swiggy never sees the original secret until the final token exchange, making it impossible to intercept.</p>
+
+    <div class="flow">
+<span class="f-blue">Step 1 — PKCE setup (scripts/get_swiggy_token.py)</span>
+  code_verifier  = secrets.token_urlsafe(32)         <span class="f-dim"># random secret, never sent until step 6</span>
+  code_challenge = base64url(sha256(code_verifier))  <span class="f-dim"># hash of it — safe to send publicly</span>
+
+<span class="f-blue">Step 2 — Start local callback server</span>
+  HTTPServer on localhost:8080                        <span class="f-dim"># waits for Swiggy to redirect back</span>
+  Background thread — doesn't block
+
+<span class="f-blue">Step 3 — Open browser</span>
+  https://mcp.swiggy.com/auth/authorize
+    ?response_type=code
+    &client_id=swiggy-mcp
+    &redirect_uri=http://localhost:8080/callback
+    &code_challenge=HASHED_SECRET
+    &code_challenge_method=S256
+    &scope=mcp:tools
+
+<span class="f-acc">Step 4 — You log in (phone + OTP in browser)</span>
+  Swiggy shows its login page
+  You enter your phone number + OTP
+
+<span class="f-blue">Step 5 — Swiggy redirects back</span>
+  GET http://localhost:8080/callback?code=AUTH_CODE&state=cortexkitchen-local
+  Our server catches this, stores code, shuts down
+
+<span class="f-blue">Step 6 — Exchange code for token</span>
+  POST https://mcp.swiggy.com/auth/token
+  { grant_type, code, code_verifier, client_id, redirect_uri }
+
+<span class="f-green">Step 7 — Save to .env</span>
+  SWIGGY_ACCESS_TOKEN = eyJ...  (expires in 5 days)
+  SWIGGY_ADDRESS_ID   = cjpfcd75ofl5oefqs8mg
+    </div>
+
+    <p>The script lives at <span class="file-chip"><span class="fc-icon">📄</span>scripts/get_swiggy_token.py</span>. Run it with <code>python scripts/get_swiggy_token.py</code> — browser opens, you OTP, done. Token and address ID land in <span class="file-chip"><span class="fc-icon">⚙️</span>apps/api/.env</span> automatically.</p>
+
+    <div class="callout co-green">
+      <span class="callout-icon">✅</span>
+      <div>You have a confirmed working address ID: <code>cjpfcd75ofl5oefqs8mg</code>. This is required for all Food and Instamart tool calls. Dineout uses a different location system (<code>get_saved_locations</code>).</div>
+    </div>
+
+    <h3>Token lifecycle</h3>
+    <ul>
+      <li><strong>Expires:</strong> 5 days (432,000 seconds)</li>
+      <li><strong>No refresh tokens</strong> in Builders Club v1 — must re-run the full OAuth flow on expiry</li>
+      <li><strong>401 response</strong> = token expired → re-run <code>get_swiggy_token.py</code></li>
+      <li><strong>419 response</strong> = session revoked → full re-auth</li>
+      <li><strong>In production:</strong> each restaurant owner authenticates their own Swiggy account. Tokens stored per <code>org_id</code> in the <code>connectors</code> table (encrypted). Dev uses <code>.env</code> for simplicity.</li>
+    </ul>
+  </section>
+
+  <!-- ─────────────────────────── CH 4 ─────────────────────────── -->
+  <section class="chapter" id="ch4">
+    <div class="chapter-label">Chapter 04</div>
+    <h2>Food MCP — 6 Tools We Use</h2>
+    <p class="chapter-desc">Server: <code>mcp.swiggy.com/food</code> · Handles delivery orders and restaurant/menu discovery.</p>
+
+    <div class="tool-grid">
+      <div class="tool-card">
+        <div class="tc-name">get_addresses</div>
+        <div class="tc-server tc-food">Food MCP</div>
+        <div class="tc-desc">Returns your saved Swiggy delivery addresses with IDs. Required before any Food or Instamart call.</div>
+        <div class="tc-maps">Maps to → <span>addressId for all Food + IM calls</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">get_food_orders</div>
+        <div class="tc-server tc-food">Food MCP</div>
+        <div class="tc-desc">Returns recent delivery orders (up to 20). Has orderId, restaurantName, status, items, amounts, orderedAt timestamp.</div>
+        <div class="tc-maps">Maps to → <span>orders table (P6-S03 ✅) + feedback sync input (P6-S06 ✅)</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">track_food_order</div>
+        <div class="tc-server tc-food">Food MCP</div>
+        <div class="tc-desc">For a given orderId: returns actual delivery time, promised time, isLate flag, delivery partner info.</div>
+        <div class="tc-maps">Maps to → <span>feedback table (P6-S06 ✅) · delivery latency patterns</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">search_restaurants</div>
+        <div class="tc-server tc-food">Food MCP</div>
+        <div class="tc-desc">Find restaurants near an addressId by cuisine/name. Returns ratings, costForTwo, availabilityStatus. Filter to OPEN only.</div>
+        <div class="tc-maps">Maps to → <span>CompetitorEnricher (P6-S07 · next)</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">get_restaurant_menu</div>
+        <div class="tc-server tc-food">Food MCP</div>
+        <div class="tc-desc">Full paginated menu for a restaurant. Categories, items, prices, variants. Max 3 calls per planning run.</div>
+        <div class="tc-maps">Maps to → <span>CompetitorEnricher pricing benchmark (P6-S07 · next)</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">search_menu</div>
+        <div class="tc-server tc-food">Food MCP</div>
+        <div class="tc-desc">Search for a specific dish across restaurants. Returns prices + variants. Returns EITHER variations OR variantsV2 — never both.</div>
+        <div class="tc-maps">Maps to → <span>CompetitorEnricher dish-level pricing (P6-S07 · next)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── CH 5 ─────────────────────────── -->
+  <section class="chapter" id="ch5">
+    <div class="chapter-label">Chapter 05</div>
+    <h2>Instamart MCP — 9 Tools We Use</h2>
+    <p class="chapter-desc">Server: <code>mcp.swiggy.com/im</code> · Grocery procurement — search ingredients, manage cart, checkout.</p>
+
+    <div class="callout co-amber">
+      <span class="callout-icon">⚠️</span>
+      <div><strong>Critical Instamart rule:</strong> <code>update_cart</code> REPLACES the entire cart — it does not append. Always build the full cart in one call. Also: use <code>spinId</code> (variant-level SKU) for cart operations, NOT the product id.</div>
+    </div>
+
+    <div class="tool-grid">
+      <div class="tool-card">
+        <div class="tc-name">get_addresses</div>
+        <div class="tc-server tc-im">Instamart MCP</div>
+        <div class="tc-desc">Same tool name as Food but different server. Returns addressId for Instamart calls.</div>
+        <div class="tc-maps">Maps to → <span>addressId for all IM calls</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">search_products</div>
+        <div class="tc-server tc-im">Instamart MCP</div>
+        <div class="tc-desc">Search by ingredient name. Each product has variants with spinId, price, unit, inStock. Take products[0].variants[0] as best match.</div>
+        <div class="tc-maps">Maps to → <span>ProcurementEnricher (P6-S09) · spinId stored for checkout</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">your_go_to_items</div>
+        <div class="tc-server tc-im">Instamart MCP</div>
+        <div class="tc-desc">Frequently ordered items. One-tap reorder suggestions. Has lastOrderedAt for recency signal.</div>
+        <div class="tc-maps">Maps to → <span>ProcurementEnricher (P6-S09) · quick reorder</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">update_cart</div>
+        <div class="tc-server tc-im">Instamart MCP</div>
+        <div class="tc-desc">Build the procurement cart. Takes [{spinId, quantity}]. REPLACES entire cart. Always call get_cart before to verify.</div>
+        <div class="tc-maps">Maps to → <span>ProcurementExecutor (P6-S15 · planned)</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">get_cart</div>
+        <div class="tc-server tc-im">Instamart MCP</div>
+        <div class="tc-desc">Read current cart state. Has bill breakdown, availablePaymentMethods. Never trust cached state — always re-fetch.</div>
+        <div class="tc-maps">Maps to → <span>ProcurementExecutor verify-before-checkout</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">clear_cart</div>
+        <div class="tc-server tc-im">Instamart MCP</div>
+        <div class="tc-desc">Wipes the cart. Call before building a new procurement cart or when switching delivery address.</div>
+        <div class="tc-maps">Maps to → <span>ProcurementExecutor pre-build step</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">checkout</div>
+        <div class="tc-server tc-im">Instamart MCP</div>
+        <div class="tc-desc">Place the Instamart order. <strong>NOT idempotent</strong> — on 5xx, call get_orders BEFORE retrying. COD only in v1.</div>
+        <div class="tc-maps">Maps to → <span>ProcurementExecutor (P6-S15 · needs staging creds)</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">get_orders</div>
+        <div class="tc-server tc-im">Instamart MCP</div>
+        <div class="tc-desc">List Instamart orders. Used in check-then-retry pattern after checkout 5xx. Has deliveryAddress lat/lng.</div>
+        <div class="tc-maps">Maps to → <span>Check-then-retry after checkout failure</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">track_order</div>
+        <div class="tc-server tc-im">Instamart MCP</div>
+        <div class="tc-desc">Track Instamart delivery in real-time. Requires lat/lng from get_orders deliveryAddress.</div>
+        <div class="tc-maps">Maps to → <span>LiveMonitorService (P6-S18 · planned)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── CH 6 ─────────────────────────── -->
+  <section class="chapter" id="ch6">
+    <div class="chapter-label">Chapter 06</div>
+    <h2>Dineout MCP — 7 Tools We Use</h2>
+    <p class="chapter-desc">Server: <code>mcp.swiggy.com/dineout</code> · Table reservations and competitor occupancy.</p>
+
+    <div class="callout co-orange">
+      <span class="callout-icon">🔴</span>
+      <div><strong>Do not mix Dineout with Food/Instamart:</strong> Food and Instamart use <code>addressId</code> from <code>get_addresses</code>. Dineout uses <code>lat/lng</code> for most calls and a different <code>addressId</code> from <code>get_saved_locations</code>. Never pass a Food addressId to a Dineout tool.</div>
+    </div>
+
+    <div class="tool-grid">
+      <div class="tool-card">
+        <div class="tc-name">get_saved_locations</div>
+        <div class="tc-server tc-dineout">Dineout MCP</div>
+        <div class="tc-desc">Returns Dineout-specific saved locations with id, lat, lng. The id can be passed to Dineout search; lat/lng needed for slots and booking.</div>
+        <div class="tc-maps">Maps to → <span>OccupancyEnricher (P6-S08) · resolve lat/lng</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">search_restaurants_dineout</div>
+        <div class="tc-server tc-dineout">Dineout MCP</div>
+        <div class="tc-desc">Find dine-in restaurants. entityType matters: "locality", "CUISINE", "RESTAURANT_CATEGORY". Returns availability, highlights, offers.</div>
+        <div class="tc-maps">Maps to → <span>OccupancyEnricher competitor list (P6-S08)</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">get_restaurant_details</div>
+        <div class="tc-server tc-dineout">Dineout MCP</div>
+        <div class="tc-desc">Deep details: deals, timings, amenities. deals[].isFree tells you which reservations cost nothing (only free ones work in v1).</div>
+        <div class="tc-maps">Maps to → <span>OccupancyEnricher enrichment (P6-S08)</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">get_available_slots</div>
+        <div class="tc-server tc-dineout">Dineout MCP</div>
+        <div class="tc-desc">Slots up to 7 days. Has availabilityCount per slot (low = high occupancy). deals[].slotId and itemId needed for booking.</div>
+        <div class="tc-maps">Maps to → <span>OccupancyEnricher signal + DineoutManager (P6-S11, S16)</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">book_table</div>
+        <div class="tc-server tc-dineout">Dineout MCP</div>
+        <div class="tc-desc"><strong>NOT idempotent.</strong> On 5xx → call get_booking_status before retrying. Only free reservations (isFree=true) in v1. Returns orderId for status tracking.</div>
+        <div class="tc-maps">Maps to → <span>DineoutExecutor (P6-S16 · needs staging creds)</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">create_cart</div>
+        <div class="tc-server tc-dineout">Dineout MCP</div>
+        <div class="tc-desc">Used internally by book_table. Only call directly for standalone cart operations.</div>
+        <div class="tc-maps">Maps to → <span>DineoutExecutor internal step</span></div>
+      </div>
+      <div class="tool-card">
+        <div class="tc-name">get_booking_status</div>
+        <div class="tc-server tc-dineout">Dineout MCP</div>
+        <div class="tc-desc">Get current status of a Dineout booking by orderId. Returns restaurantName, date, time, guestCount, status.</div>
+        <div class="tc-maps">Maps to → <span>reservation_sync.py (P6-S05 ✅ skeleton)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── CH 7 ─────────────────────────── -->
+  <section class="chapter" id="ch7">
+    <div class="chapter-label">Chapter 07</div>
+    <h2>SwiggyMCPClient — The Foundation</h2>
+    <p class="chapter-desc"><span class="file-chip"><span class="fc-icon">📄</span>apps/api/app/infrastructure/swiggy/client.py</span> <span class="status s-done">✅ Done</span></p>
+
+    <p>This is the lowest layer — every Swiggy tool call in the entire system goes through this class. Its entire purpose is to be a <strong>safe, observable HTTP wrapper</strong> around the Swiggy MCP API.</p>
+
+    <p>The primary contract: <strong>it never raises</strong>. Every failure returns <code>None</code>. Your sync services and enrichers don't need try/except — if the client returns None, they skip gracefully.</p>
+
+    <h3>The class at a glance</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-title">client.py — key parts</span><span class="code-lang">python</span></div>
+      <pre><span class="c-kw">class</span> <span class="c-cl">SwiggyMCPClient</span>:
+    <span class="c-kw">def</span> <span class="c-fn">__init__</span>(self) -> <span class="c-kw">None</span>:
+        self._traces: list[dict] = []   <span class="c-cmt"># accumulates call traces for observability</span>
+
+    <span class="c-kw">def</span> <span class="c-fn">is_available</span>(self) -> bool:
+        <span class="c-kw">return</span> bool(get_settings().swiggy_access_token)  <span class="c-cmt"># quick check before calling anything</span>
+
+    <span class="c-kw">async def</span> <span class="c-fn">call_tool</span>(self, endpoint, tool_name, arguments) -> dict | <span class="c-kw">None</span>:
+        <span class="c-cmt"># 1. Check circuit breaker (is this endpoint healthy?)</span>
+        <span class="c-kw">if await</span> is_open(_PROVIDER, server_tag):
+            <span class="c-kw">return None</span>                              <span class="c-cmt"># short-circuit, no HTTP call</span>
+
+        <span class="c-cmt"># 2. Build headers — token + Accept (REQUIRED)</span>
+        headers = {
+            <span class="c-str">"Authorization"</span>: f<span class="c-str">"Bearer {token}"</span>,
+            <span class="c-str">"Content-Type"</span>: <span class="c-str">"application/json"</span>,
+            <span class="c-acc">"Accept"</span>: <span class="c-acc">"application/json, text/event-stream"</span>,
+        }
+
+        <span class="c-cmt"># 3. POST the JSON-RPC payload, handle response</span>
+        result = <span class="c-kw">await</span> self._post(endpoint, payload, headers, ...)
+
+        <span class="c-cmt"># 4. Update circuit breaker based on result</span>
+        <span class="c-kw">if</span> result <span class="c-kw">is None</span>: <span class="c-kw">await</span> record_failure(...)
+        <span class="c-kw">else</span>:             <span class="c-kw">await</span> record_success(...)
+
+        <span class="c-kw">return</span> result  <span class="c-cmt"># structuredContent dict, or None on any failure</span>
+
+    <span class="c-kw">async def</span> <span class="c-fn">_post</span>(self, ...):
+        <span class="c-cmt"># 401 → log "token expired", return None</span>
+        <span class="c-cmt"># 406 → log "Accept header missing", return None</span>
+        <span class="c-cmt"># 5xx → retry once after 1s, then return None</span>
+        <span class="c-cmt"># JSON-RPC error key → log, return None</span>
+        <span class="c-cmt"># No "result" key → log, return None</span>
+        <span class="c-acc"># result.structuredContent → return it  ← primary path</span>
+        <span class="c-cmt"># result.content[0].text → return {"text": "..."} ← fallback</span>
+
+    <span class="c-kw">def</span> <span class="c-fn">drain_traces</span>(self) -> list[dict]:
+        <span class="c-kw">return</span> self._traces  <span class="c-cmt"># call at end of connector run to collect observability data</span></pre>
+    </div>
+
+    <h3>What a trace looks like</h3>
+    <p>Every call appends one trace entry regardless of outcome. This powers the <code>/health/circuits</code> endpoint.</p>
+    <div class="code-block">
+      <div class="code-header"><span class="code-title">Trace entry shape</span><span class="code-lang">json</span></div>
+      <pre>{
+  <span class="c-key">"provider"</span>:    <span class="c-str">"swiggy"</span>,
+  <span class="c-key">"endpoint"</span>:    <span class="c-str">"food"</span>,
+  <span class="c-key">"tool"</span>:        <span class="c-str">"get_food_orders"</span>,
+  <span class="c-key">"status"</span>:      <span class="c-str">"ok"</span>,   <span class="c-cmt">// "ok" | "circuit_open" | "auth_error" | "http_406" | "tool_error" | "exception"</span>
+  <span class="c-key">"duration_ms"</span>: <span class="c-num">234.1</span>,
+  <span class="c-key">"attempt"</span>:     <span class="c-num">1</span>
+}</pre>
+    </div>
+
+    <h3>Smoke test it directly</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-title">Run from repo root</span><span class="code-lang">bash</span></div>
+      <pre>cd apps/api
+python -m app.infrastructure.swiggy.client
+
+<span class="c-cmt"># Output:</span>
+Token set: True
+Address ID: cjpfcd75ofl5oefqs8mg
+Available: True
+get_addresses result: {'addresses': [{'id': 'cjpfcd75ofl5oefqs8mg', 'label': 'Home', ...}]}</pre>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── CH 8 ─────────────────────────── -->
+  <section class="chapter" id="ch8">
+    <div class="chapter-label">Chapter 08</div>
+    <h2>Circuit Breaker</h2>
+    <p class="chapter-desc"><span class="file-chip"><span class="fc-icon">📄</span>apps/api/app/infrastructure/swiggy/circuit_breaker.py</span> <span class="status s-done">✅ Done</span></p>
+
+    <p>Swiggy goes down sometimes. Without a circuit breaker, every planning run during an outage would hang for 30 seconds per tool call, accumulating failures. The circuit breaker prevents this by <strong>stopping calls to a degraded endpoint automatically</strong>.</p>
+
+    <div class="flow">
+<span class="f-green">CLOSED (normal)</span>
+  Every call goes through. Failures counted in Redis.
+
+  If failures &gt;= 3 within 5 minutes:
+    ↓
+<span class="f-acc">OPEN (blocked)</span>
+  All calls short-circuit to None immediately. No HTTP requests.
+  Circuit:open:swiggy:{endpoint} key set in Redis with 30min TTL.
+  Auto-resets when TTL expires.
+
+  On success: failure counter cleared → faster recovery.
+
+<span class="f-blue">FAIL-OPEN (Redis down)</span>
+  If Redis is unavailable, is_open() returns False.
+  Calls go through anyway. Safety &gt; correctness.
+    </div>
+
+    <h3>Redis keys</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Key</th><th>Value</th><th>TTL</th></tr></thead>
+        <tbody>
+          <tr><td><code>circuit:fail:swiggy:food</code></td><td>failure counter (INCR)</td><td>300s (5 min)</td></tr>
+          <tr><td><code>circuit:open:swiggy:food</code></td><td>"1" (open flag)</td><td>1800s (30 min)</td></tr>
+          <tr><td><code>circuit:fail:swiggy:im</code></td><td>same for Instamart</td><td>300s</td></tr>
+          <tr><td><code>circuit:fail:swiggy:dineout</code></td><td>same for Dineout</td><td>300s</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>There's also a health endpoint: <code>GET /api/v1/health/circuits</code> returns current circuit state for all three endpoints.</p>
+  </section>
+
+  <!-- ─────────────────────────── CH 9 ─────────────────────────── -->
+  <section class="chapter" id="ch9">
+    <div class="chapter-label">Chapter 09</div>
+    <h2>Provider Registry</h2>
+    <p class="chapter-desc"><span class="file-chip"><span class="fc-icon">📄</span>apps/api/app/infrastructure/swiggy/provider_registry.py</span> <span class="status s-done">✅ Done</span></p>
+
+    <p>The registry answers one question: <em>"For this planning capability, which provider should we use right now?"</em></p>
+
+    <p>Right now Swiggy is the only provider for most capabilities. But the design is future-proof — when Zomato support is added (P6-R01), the registry routes to Swiggy first and falls back to Zomato automatically if Swiggy's circuit is open or the org's Swiggy connector is broken.</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-title">Capability → provider priority map</span><span class="code-lang">python</span></div>
+      <pre>CAPABILITY_PROVIDERS = {
+    <span class="c-str">"competitor_pricing"</span>: [<span class="c-str">"swiggy"</span>, <span class="c-str">"zomato"</span>],      <span class="c-cmt"># try Swiggy first, Zomato fallback</span>
+    <span class="c-str">"reservation_data"</span>:   [<span class="c-str">"swiggy"</span>, <span class="c-str">"eazydiner"</span>],
+    <span class="c-str">"procurement"</span>:        [<span class="c-str">"swiggy"</span>],               <span class="c-cmt"># Swiggy only</span>
+    <span class="c-str">"order_history"</span>:      [<span class="c-str">"swiggy"</span>, <span class="c-str">"zomato"</span>],
+}</pre>
+    </div>
+
+    <p>Adding Zomato later = one new connector file + one line in this dict. No other code changes needed.</p>
+  </section>
+
+  <!-- ─────────────────────────── CH 10 ─────────────────────────── -->
+  <section class="chapter" id="ch10">
+    <div class="chapter-label">Chapter 10</div>
+    <h2>The Connector Pattern</h2>
+    <p class="chapter-desc">
+      <span class="file-chip"><span class="fc-icon">📄</span>base_connector.py</span>
+      <span class="file-chip"><span class="fc-icon">📄</span>swiggy_connector.py</span>
+      <span class="file-chip"><span class="fc-icon">📄</span>connector_repository.py</span>
+      <span class="status s-done">✅ Done</span>
+    </p>
+
+    <p>The connector pattern is the architectural backbone of all external integrations. Every platform (Swiggy, Zomato, Square POS, EazyDiner) implements the same two-mode interface:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-title">base_connector.py — the contract</span><span class="code-lang">python</span></div>
+      <pre><span class="c-kw">class</span> <span class="c-cl">BaseConnector</span>(ABC):
+    <span class="c-kw">def</span> <span class="c-fn">__init__</span>(self, client: SwiggyMCPClient, db: Session, org_id: int): ...
+
+    <span class="c-kw">async def</span> <span class="c-fn">sync</span>(self) -> dict:
+        <span class="c-str">"""
+        NIGHTLY JOB. Pulls historical data. Writes to PostgreSQL (Layer 0).
+        Think: "download your history into our DB"
+        Returns {"synced": N, "errors": M}
+        """</span>
+
+    <span class="c-kw">async def</span> <span class="c-fn">enrich</span>(self, context: dict) -> dict | <span class="c-kw">None</span>:
+        <span class="c-str">"""
+        AT PLANNING TIME. Fetches live signals. Does NOT write to DB.
+        Returns enrichment dict, or None on any failure.
+        Think: "what's happening on Swiggy right now for this planning run"
+        """</span></pre>
+    </div>
+
+    <h3>sync() vs enrich() — the key distinction</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th></th><th>sync()</th><th>enrich()</th></tr></thead>
+        <tbody>
+          <tr><td><strong>When</strong></td><td>Nightly / on-demand via API</td><td>During each planning run</td></tr>
+          <tr><td><strong>Writes to DB?</strong></td><td>Yes — PostgreSQL</td><td>Never — LangGraph state only</td></tr>
+          <tr><td><strong>Survives restart?</strong></td><td>Yes — permanent</td><td>No — 30 min Redis cache</td></tr>
+          <tr><td><strong>Data type</strong></td><td>Historical (past orders, bookings)</td><td>Live signals (prices right now, occupancy tonight)</td></tr>
+          <tr><td><strong>Status</strong></td><td>✅ Working (orders + feedback)</td><td>📋 Coming (P6-S07 to S09)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>connector_repository.py</h3>
+    <p>CRUD for the <code>connectors</code> DB table. The table stores per-org platform tokens and sync health. Key methods:</p>
+    <ul>
+      <li><code>get(org_id, "swiggy")</code> — fetch connector row</li>
+      <li><code>upsert(org_id, "swiggy", **kwargs)</code> — create or update</li>
+      <li><code>update_sync_status(org_id, "swiggy", "syncing"/"success"/"error")</code></li>
+      <li><code>update_token(org_id, "swiggy", token, expires_at)</code></li>
+    </ul>
+
+    <div class="callout co-blue">
+      <span class="callout-icon">🏗️</span>
+      <div><strong>In production:</strong> each restaurant owner has their own connector row with their own encrypted Swiggy token. Right now in dev, <code>SWIGGY_ACCESS_TOKEN</code> in <code>.env</code> is used directly (single org). The connector table is ready for multi-tenant from day one.</div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── CH 11 ─────────────────────────── -->
+  <section class="chapter" id="ch11">
+    <div class="chapter-label">Chapter 11</div>
+    <h2>Order Sync — P6-S03</h2>
+    <p class="chapter-desc"><span class="file-chip"><span class="fc-icon">📄</span>apps/api/app/infrastructure/swiggy/sync/order_sync.py</span> <span class="status s-done">✅ Done</span></p>
+
+    <p>The first real Swiggy tool call we built. Pulls your last 20 Swiggy delivery orders and writes them to the <code>orders</code> table so the Prophet demand forecaster trains on real delivery demand instead of synthetic data.</p>
+
+    <h3>The flow</h3>
+    <div class="flow">
+<span class="f-blue">Input</span>: address_id = "cjpfcd75ofl5oefqs8mg"
+
+<span class="f-acc">call_tool("get_food_orders", {addressId, orderCount: 20})</span>
+  → structuredContent: { "orders": [ ... up to 20 orders ... ] }
+
+<span class="c-cmt">For each order:</span>
+  orderId = "SW-001"
+  items = [{name: "Margherita Pizza", quantity: 2, price: 150}, ...]
+
+  <span class="c-cmt">For each item (idx 0, 1, 2...):</span>
+    ext_id = "SW-001_0", "SW-001_1"  ← dedup key
+
+    Already in DB? → skip (idempotent)
+
+    Find MenuItem by name (case-insensitive)
+    Not found? → create placeholder MenuItem
+                  category="swiggy_import", is_available=False
+
+    INSERT Order:
+      menu_item_id = found/created item
+      quantity, total_price, ordered_at (parsed from ISO-8601 to UTC)
+      is_delivery = True
+      <span class="f-green">source = "swiggy"</span>
+      <span class="f-green">channel = "delivery"</span>
+      external_order_id = "SW-001_0"
+
+<span class="f-green">Returns</span>: {"synced": 5, "skipped": 2, "errors": 0}
+    </div>
+
+    <h3>Why one row per item?</h3>
+    <p>The existing <code>orders</code> table model links each <code>Order</code> to a specific <code>MenuItem</code>. Swiggy orders have multiple items per order. So a Swiggy order with 3 items = 3 Order rows, each with <code>external_order_id = "SW-001_0"</code>, <code>"SW-001_1"</code>, <code>"SW-001_2"</code>. This matches the DB's cardinality and preserves full item-level detail for Prophet.</p>
+
+    <h3>Effect on the pipeline</h3>
+    <p>Once enough Swiggy orders are synced, <code>ForecastService</code> can train Prophet specifically on delivery-channel demand. The <code>source="swiggy"</code> and <code>channel="delivery"</code> columns enable filtering so delivery and dine-in demand are forecasted separately.</p>
+  </section>
+
+  <!-- ─────────────────────────── CH 12 ─────────────────────────── -->
+  <section class="chapter" id="ch12">
+    <div class="chapter-label">Chapter 12</div>
+    <h2>Feedback Sync — P6-S06</h2>
+    <p class="chapter-desc"><span class="file-chip"><span class="fc-icon">📄</span>apps/api/app/infrastructure/swiggy/sync/feedback_sync.py</span> <span class="status s-done">✅ Done</span></p>
+
+    <p>This fills in the delivery performance picture. We already have your orders in the DB — now we go back to Swiggy and ask "how did the actual delivery go?" for each one. The result: real delivery latency data in the feedback table, which the <code>complaint_intelligence</code> node uses.</p>
+
+    <h3>The flow — two tool calls per order</h3>
+    <div class="flow">
+<span class="f-blue">Step 1:</span> call_tool("get_food_orders", {addressId, orderCount: 20})
+  → gets recent orders
+
+<span class="f-dim">For each order:</span>
+  status == "delivered"? <span class="f-acc">→ process</span>   (pending/out_for_delivery → skip)
+  external_order_id already in feedback table? → skip (dedup)
+
+  <span class="c-cmt">sleep 0.5s  ← rate limit courtesy between track calls</span>
+
+<span class="f-blue">Step 2:</span> call_tool("track_food_order", {orderId: "SW-001"})
+  → structuredContent: {
+      deliveryTime: 34,     <span class="c-cmt"># actual minutes</span>
+      promisedTime: 30,     <span class="c-cmt"># promised minutes</span>
+      isLate: true          <span class="c-cmt"># Swiggy's own flag</span>
+    }
+
+  Handle gracefully: track_raw may be None → skip sentiment, use defaults
+
+<span class="f-green">INSERT Feedback:</span>
+  source = FeedbackSource.swiggy_delivery
+  delivery_time_actual_mins = 34
+  delivery_time_promised_mins = 30
+  was_late = True
+  sentiment = <span class="f-acc">SentimentType.negative</span>    (isLate=True → negative)
+             <span class="f-green">SentimentType.positive</span>   (isLate=False → positive)
+  raw_text = "Swiggy delivery for order SW-001: 34 min actual vs 30 min promised. Late."
+  external_order_id = "SW-001"   <span class="c-cmt"># dedup key</span>
+  order_id = (FK to matching Order row, or NULL if not found)
+
+<span class="f-green">Returns</span>: {"synced": 3, "skipped": 2, "errors": 0}
+    </div>
+
+    <h3>Why 0.5s sleep?</h3>
+    <p>Swiggy's rate limit (even in v1) is 120 req/min per server. We're calling <code>track_food_order</code> once per delivered order. With 20 orders, that's 20 + 1 calls in quick succession. The 0.5s sleep keeps us well under the limit and is courteous to the upstream API.</p>
+
+    <h3>Effect on the pipeline</h3>
+    <p>The <code>complaint_intelligence</code> node now has real delivery latency patterns to reason about. Instead of "3 customers complained this week (synthetic)", it can say "67% of deliveries were late last week, average delay was 8 minutes".</p>
+  </section>
+
+  <!-- ─────────────────────────── CH 13 ─────────────────────────── -->
+  <section class="chapter" id="ch13">
+    <div class="chapter-label">Chapter 13</div>
+    <h2>Reservation Sync — P6-S05</h2>
+    <p class="chapter-desc"><span class="file-chip"><span class="fc-icon">📄</span>apps/api/app/infrastructure/swiggy/sync/reservation_sync.py</span> <span class="status s-skeleton">⏳ Skeleton</span></p>
+
+    <p>This syncs Dineout table bookings into the <code>reservations</code> table. The tool is <code>get_booking_status(orderId)</code>. Simple enough — but there's a chicken-and-egg problem.</p>
+
+    <div class="callout co-amber">
+      <span class="callout-icon">🐣</span>
+      <div><strong>The chicken-and-egg problem:</strong> To sync a booking's status, we need its <code>orderId</code>. But <code>orderId</code> is only returned by <code>book_table</code>. And <code>book_table</code> is only built in P6-S16. So right now, <code>sync()</code> has no order IDs to look up — it returns a polite note explaining why.</div>
+    </div>
+
+    <h3>What's built and ready</h3>
+    <div class="flow">
+<span class="f-green">register_booking_order_id(org_id, "DO-001")</span>
+  → stores orderId in connectors.connector_metadata JSONB
+  → { "dineout_order_ids": ["DO-001", "DO-002"] }
+  → idempotent (won't add duplicates)
+
+  Called by: DineoutExecutor (P6-S16) after every successful book_table
+
+<span class="f-dim">sync(org_id)</span>
+  → reads connector_metadata["dineout_order_ids"]
+  → empty? return {"synced": 0, "note": "No bookings registered yet..."}
+  → for each orderId: call get_booking_status → INSERT Reservation
+    </div>
+
+    <h3>Why build the skeleton now?</h3>
+    <p>Because it means P6-S16 (DineoutExecutor) only needs to call <code>register_booking_order_id()</code> — the sync logic is already waiting. The <code>connector_metadata</code> JSONB column on the connectors table was added in migration <code>d2c8f1e4b7a9</code> specifically for this.</p>
+  </section>
+
+  <!-- ─────────────────────────── CH 14 ─────────────────────────── -->
+  <section class="chapter" id="ch14">
+    <div class="chapter-label">Chapter 14</div>
+    <h2>The Live Sync Endpoint</h2>
+    <p class="chapter-desc"><span class="file-chip"><span class="fc-icon">📄</span>apps/api/app/api/routes/connectors.py</span> <span class="status s-done">✅ Done</span></p>
+
+    <p>The API surface for triggering sync and checking connector health. Two endpoints.</p>
+
+    <h3>POST /api/v1/connectors/swiggy/sync</h3>
+    <div class="flow">
+<span class="f-blue">Request</span>: POST /api/v1/connectors/swiggy/sync
+          Authorization: Bearer YOUR_JWT
+
+<span class="f-dim">Validates</span>: SWIGGY_ACCESS_TOKEN set? SWIGGY_ADDRESS_ID set?
+          → 400 with instructions if missing
+
+<span class="f-acc">Triggers</span>: SwiggyConnector.sync(address_id)
+  ├── SwiggyOrderSyncService.sync(addr)     → orders table
+  ├── SwiggyFeedbackSyncService.sync(addr)  → feedback table
+  └── SwiggyReservationSyncService.sync(org_id) → reservations (no-op for now)
+
+<span class="f-green">Response 200</span>:
+{
+  "status": "success",
+  "results": {
+    "orders":       {"synced": 5, "skipped": 2, "errors": 0},
+    "feedback":     {"synced": 3, "skipped": 2, "errors": 0},
+    "reservations": {"synced": 0, "note": "No Dineout bookings yet..."}
+  }
+}
+    </div>
+
+    <h3>GET /api/v1/connectors/status</h3>
+    <p>Returns health dashboard for all connectors. This is what the <code>/connectors</code> frontend page (P6-F04) will display — green/red badge, last sync time, record counts. Even before the frontend exists, you can hit this endpoint to verify things are working.</p>
+
+    <h3>How SwiggyConnector orchestrates it</h3>
+    <p><span class="file-chip"><span class="fc-icon">📄</span>swiggy_connector.py</span> was updated to accept a <code>repo</code> arg and its <code>sync()</code> method now calls all three services in sequence, sets sync status to <code>syncing</code> before starting and <code>success</code> or <code>error</code> after, and returns the aggregated result dict.</p>
+  </section>
+
+  <!-- ─────────────────────────── CH 15 ─────────────────────────── -->
+  <section class="chapter" id="ch15">
+    <div class="chapter-label">Chapter 15</div>
+    <h2>Current State — What's Wired vs Not</h2>
+    <p class="chapter-desc">Honest assessment of what's actually working right now.</p>
+
+    <div class="wired-grid">
+      <div class="wired-card wc-done">
+        <div class="wc-title wt-done">✅ Working right now</div>
+        <div class="wired-item"><span class="wi-icon">✅</span><div><strong>OAuth flow</strong> — get_swiggy_token.py opens browser, captures callback, saves token to .env</div></div>
+        <div class="wired-item"><span class="wi-icon">✅</span><div><strong>SwiggyMCPClient</strong> — any of the 22 tools callable, correct format, circuit breaker, traces</div></div>
+        <div class="wired-item"><span class="wi-icon">✅</span><div><strong>Order sync</strong> — real Swiggy delivery orders landing in orders table (source=swiggy)</div></div>
+        <div class="wired-item"><span class="wi-icon">✅</span><div><strong>Feedback sync</strong> — real delivery timing (late/on-time, actual vs promised) in feedback table</div></div>
+        <div class="wired-item"><span class="wi-icon">✅</span><div><strong>POST /connectors/swiggy/sync</strong> — trigger sync from API or Swagger UI</div></div>
+        <div class="wired-item"><span class="wi-icon">✅</span><div><strong>GET /connectors/status</strong> — see record counts and sync health</div></div>
+        <div class="wired-item"><span class="wi-icon">✅</span><div><strong>Circuit breaker</strong> — Swiggy outages don't crash the app</div></div>
+      </div>
+      <div class="wired-card wc-not">
+        <div class="wc-title wt-not">❌ Not wired yet</div>
+        <div class="wired-item"><span class="wi-icon">❌</span><div><strong>Planning pipeline</strong> — still uses synthetic data. Orders are in DB but agents don't filter by source="swiggy" yet</div></div>
+        <div class="wired-item"><span class="wi-icon">❌</span><div><strong>Competitor pricing</strong> — no enricher yet. menu_intel node gets no market context</div></div>
+        <div class="wired-item"><span class="wi-icon">❌</span><div><strong>Occupancy signal</strong> — reservation node doesn't know how full nearby restaurants are tonight</div></div>
+        <div class="wired-item"><span class="wi-icon">❌</span><div><strong>Procurement options</strong> — inventory node doesn't know what shortage items cost on Instamart right now</div></div>
+        <div class="wired-item"><span class="wi-icon">❌</span><div><strong>Dashboard</strong> — nothing Swiggy-specific visible in the UI yet</div></div>
+        <div class="wired-item"><span class="wi-icon">❌</span><div><strong>Reservation sync</strong> — skeleton ready, but no Dineout bookings registered (waiting for P6-S16)</div></div>
+      </div>
+    </div>
+
+    <div class="callout co-blue">
+      <span class="callout-icon">💡</span>
+      <div><strong>How to see it work right now:</strong> Run the API server → open <code>localhost:8000/docs</code> → login to get JWT → POST <code>/api/v1/connectors/swiggy/sync</code> → check orders/feedback tables in your DB. That's the entire working surface today.</div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── CH 16 ─────────────────────────── -->
+  <section class="chapter" id="ch16">
+    <div class="chapter-label">Chapter 16</div>
+    <h2>Enrichers — What's Coming Next</h2>
+    <p class="chapter-desc">P6-S07, P6-S08, P6-S09 · The live market intelligence layer.</p>
+
+    <p>Enrichers are fundamentally different from sync services. They don't write to the DB. They run <strong>at planning time</strong> (when you trigger a scenario) and inject live market intelligence directly into agent prompts.</p>
+
+    <h3>CompetitorEnricher — P6-S07</h3>
+    <p><span class="file-chip"><span class="fc-icon">📄</span>enrichers/competitor.py</span> · Branch: <code>feature/swiggy-market-intel-enrichers</code></p>
+    <div class="flow">
+<span class="f-blue">Tools used</span>: get_addresses → search_restaurants → search_menu + get_restaurant_menu (max 3 restaurants)
+
+<span class="f-dim">Flow</span>:
+  get_addresses() → addressId = "cjpfcd75..."
+  search_restaurants(addressId, query="pizza") → nearby OPEN competitors
+  For top 3 results:
+    get_restaurant_menu(addressId, restaurantId) → their full menu
+    search_menu(addressId, "butter chicken") → dish-level pricing
+
+<span class="f-acc">Output (cached in Redis 30 min)</span>:
+  competitor_pricing = {
+    "area_avg_price": {"pizza": 280, "pasta": 220},
+    "pricing_alerts": ["Your Margherita at ₹320 is 14% above area avg (₹280)"]
+  }
+
+<span class="f-green">Injected into</span>: menu_intelligence node prompt as "## Market Context" section
+    </div>
+
+    <h3>OccupancyEnricher — P6-S08</h3>
+    <p><span class="file-chip"><span class="fc-icon">📄</span>enrichers/occupancy.py</span></p>
+    <div class="flow">
+<span class="f-blue">Tools used</span>: get_saved_locations → search_restaurants_dineout → get_available_slots (today, max 3 restaurants)
+
+<span class="f-acc">Output (cached in Redis 30 min)</span>:
+  occupancy_signal = "HIGH"    <span class="c-cmt"># if >50% of competitor slots have availabilityCount &lt; 2</span>
+  tonight_busy = True
+
+<span class="f-green">Injected into</span>: reservation node prompt — "Area occupancy tonight: HIGH"
+    </div>
+
+    <h3>ProcurementEnricher — P6-S09</h3>
+    <p><span class="file-chip"><span class="fc-icon">📄</span>enrichers/procurement.py</span></p>
+    <div class="flow">
+<span class="f-blue">Tools used</span>: search_products (per shortage ingredient, max 5) + your_go_to_items
+
+<span class="f-acc">Output (cached in Redis 30 min)</span>:
+  procurement_options = [
+    {ingredient: "tomatoes", spinId: "spin_42", price: 45, unit: "1kg", inStock: true},
+    ...
+  ]
+
+<span class="c-cmt">CRITICAL: spinId is stored in state — needed for checkout in Layer 2</span>
+
+<span class="f-green">Injected into</span>: inventory node prompt as "## Live Procurement Options" section
+    </div>
+
+    <div class="callout co-green">
+      <span class="callout-icon">🎯</span>
+      <div><strong>After P6-S07/S08/S09:</strong> Every planning run uses real Swiggy market data. The critic can score plans against actual competitor pricing. The recommendation will say "your Margherita is ₹40 above area average — consider a ₹299 weekend offer" based on live data.</div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── CH 17 ─────────────────────────── -->
+  <section class="chapter" id="ch17">
+    <div class="chapter-label">Chapter 17</div>
+    <h2>New LangGraph Nodes — P6-S10 to S13</h2>
+    <p class="chapter-desc">The 11-node pipeline. Two new parallel nodes powered by enrichers.</p>
+
+    <div class="flow">
+ops_manager
+    │
+demand_forecast          ← now trains on real Swiggy delivery orders
+    │
+qdrant_enrichment        ← shared Qdrant RAG context
+    │
+    ├── reservation       ← <span class="f-acc">OccupancyEnricher injected here</span> (P6-S08)
+    ├── complaint_intel   ← real delivery latency from feedback table
+    ├── inventory         ← <span class="f-acc">ProcurementEnricher injected here</span> (P6-S09)
+    └── <span class="f-blue">[NEW] market_intel</span> ← CompetitorEnricher + OccupancyEnricher (P6-S11)
+              │ (all 4 fan in)
+    menu_intelligence     ← <span class="f-acc">CompetitorEnricher injected here</span> (P6-S07)
+              │
+    aggregator
+              │
+    <span class="f-blue">[NEW] dineout_manager</span>  ← our own Dineout slot availability (P6-S12)
+              │
+    replan_orchestrator
+              │
+    critic    ← market-aware scoring
+              │
+    final_assembler
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── CH 18 ─────────────────────────── -->
+  <section class="chapter" id="ch18">
+    <div class="chapter-label">Chapter 18</div>
+    <h2>Action Layer — P6-S14 to S16</h2>
+    <p class="chapter-desc">Layer 2 — execution with owner approval gates.</p>
+
+    <p>This is where CortexKitchen stops just advising and starts <em>acting</em>. After a planning run identifies a shortage, instead of just saying "you're running low on tomatoes", the system can actually place the Instamart order — but only after the restaurant owner approves.</p>
+
+    <div class="flow">
+<span class="f-blue">Instamart procurement flow (P6-S15)</span>:
+  ProcurementEnricher found: tomatoes at ₹45/kg, spinId=spin_42
+  Plan says: "shortage — recommend ordering 10kg"
+  → Action queued: APPROVE_REQUIRED
+  → Owner sees in UI: "Order 10kg tomatoes from Instamart for ₹450. Approve?"
+  → Owner approves → LangGraph interrupt() releases
+  → ProcurementExecutor: update_cart([{spinId: "spin_42", quantity: 10}])
+                         get_cart() → verify ₹450
+                         checkout(addressId) → order placed
+                         → procurement_orders table updated
+
+<span class="f-blue">Dineout booking flow (P6-S16)</span>:
+  OccupancyEnricher: area HIGH tonight, our slots low
+  Plan says: "open 3 more Dineout slots for dinner"
+  → Owner approves
+  → DineoutExecutor: get_available_slots() → find free slot
+                     book_table(slotId, itemId, reservationTime, guestCount, lat, lng)
+                     On 5xx: get_booking_status before retry (NOT idempotent)
+                     → reservations table updated
+                     → register_booking_order_id() called (feeds reservation_sync)
+    </div>
+
+    <div class="callout co-orange">
+      <span class="callout-icon">🔐</span>
+      <div><strong>Why the approval gate?</strong> <code>checkout</code> and <code>book_table</code> are <strong>not idempotent</strong> — a double-trigger = double order/booking = real money spent. The <code>LangGraph interrupt()</code> mechanism pauses execution, waits for explicit owner approval, then resumes. This is non-negotiable for any write operation.</div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── CH 19 ─────────────────────────── -->
+  <section class="chapter" id="ch19">
+    <div class="chapter-label">Chapter 19</div>
+    <h2>The Full Demo Vision</h2>
+    <p class="chapter-desc">What CortexKitchen looks like when everything is wired — the Swiggy team demo.</p>
+
+    <p>A restaurant owner wakes up at 8am, opens CortexKitchen on their phone:</p>
+
+    <div class="flow">
+<span class="f-blue">7:00 AM</span> — BriefingService auto-runs (APScheduler)
+  Overnight Swiggy performance:
+    → 23 orders delivered, avg delivery 31 min (2 late)
+    → Top seller: Butter Chicken ×12
+    → Delivery rating: 4.3 (down from 4.5 yesterday)
+
+<span class="f-blue">8:00 AM</span> — Owner opens /brief page
+  "3 action priorities today:
+   1. Tomatoes critically low (2kg left, need 8kg for service)
+      → Instamart: ₹45/kg · <span class="f-acc">[Order 10kg — ₹450]</span>
+   2. Tonight: HIGH area occupancy expected (competitor Dineout 80% full)
+      → We have 3 Dineout slots available · <span class="f-acc">[Open 5 more]</span>
+   3. Butter Chicken ₹40 above area avg — consider ₹299 promo tonight"
+
+<span class="f-green">Owner taps "Order 10kg" → Instamart order placed</span>
+<span class="f-green">Owner taps "Open 5 more" → Dineout slots booked</span>
+
+<span class="f-blue">12:30 PM</span> — Live mode (service hours)
+  SSE feed every 30s:
+    "Order SW-042: 8 min late — Ravi (delivery partner) stuck at signal"
+    "Competitor Biryani House just went offline (lunch rush overflow — opportunity)"
+
+<span class="f-blue">3:00 PM</span> — Planning run triggered
+  All 11 nodes run with real Swiggy context:
+    Demand: "Friday pattern + competitor occupancy HIGH = +40% delivery demand expected"
+    Menu: "Reduce Butter Chicken by ₹30 — currently 14% above area avg"
+    Inventory: "Pre-order 15kg tomatoes, 5kg paneer for Friday"
+    Critic: 8.7/10 — approved
+    </div>
+
+    <div class="callout co-orange">
+      <span class="callout-icon">🚀</span>
+      <div><strong>This is what we're building.</strong> Every task from P6-S07 onwards moves one step closer to this demo. The pipeline is already there. The data is starting to flow. The enrichers are next.</div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+  <p style="font-size:12px; color: var(--slate-400); text-align:center;">
+    CortexKitchen × Swiggy Deep Dive · Updated after every PR merge · P6-S06 → P6-S07 next
+  </p>
+
+</main>
+
+<script>
+// Highlight active nav item on scroll
+const sections = document.querySelectorAll('.chapter');
+const navItems = document.querySelectorAll('.nav-item');
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.id;
+      navItems.forEach(item => {
+        item.classList.toggle('active', item.getAttribute('href') === '#' + id);
+      });
+    }
+  });
+}, { threshold: 0.3 });
+
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

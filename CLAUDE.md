@@ -46,7 +46,7 @@ immediately legible to someone who knows the Swiggy platform.**
 
 ---
 
-## Current system state (as of last merge: P6-S10–S13c)
+## Current system state (as of last merge: P6-F14/F15/F16/F16b/F17)
 
 ### CRITICAL — Swiggy MCP actual response format (discovered via live test)
 
@@ -179,7 +179,9 @@ GET  /api/v1/connectors/status       connector health + sync counts
 /register            auth
 /dashboard           main ops dashboard (ForecastChart, AgentCard, CriticBanner,
                      ManagerActionPanel, ReservationSummary, InventoryAlerts,
-                     MenuInsights, ComplaintInsights, RunHistory, WhatIfPanel)
+                     MenuInsights, ComplaintInsights, RunHistory, WhatIfPanel,
+                     SwiggyStatusWidget ✅ P6-F15, SwiggyMarketIntelPanel ✅ P6-F17)
+/connectors          data source management — Swiggy card + coming-soon Zomato/POS ✅ P6-F14
 /runs                planning run history
 /chat                agentic chatbot
 /settings            org settings
@@ -278,26 +280,23 @@ P6-S14  ActionQueueService + action_queue table
 
 **STEP 7 — Frontend Swiggy integration**
 
-P6-F04  /connectors page (CAN BUILD NOW — connectors table already exists)
+P6-F14  /connectors page ✅ Done (P6-F14)
 - Lists available connectors with status badges (Connected/Disconnected/Error)
 - Swiggy logo prominently displayed
 - Shows: last sync time, records synced, data freshness indicator
 - Connect button → triggers OAuth flow (phone + OTP)
-- Disconnect → revokes token
+- Placeholder cards: Zomato, Google Reviews, POS Square
 - DEMO CRITICAL: this is the first thing the Swiggy team will see
 
-P6-F06  Dashboard Swiggy widget (CAN BUILD NOW)
-- Small status bar: "Swiggy connected · last sync 2h ago · 23 orders today"
-- Swiggy logo/badge
-- Today's Swiggy KPIs: orders today, avg delivery time, current rating
-- Quick reorder button (your_go_to_items → one-tap Instamart)
+P6-F15  Dashboard Swiggy status widget ✅ Done (P6-F15)
+- SwiggyStatusWidget: compact strip at dashboard top
+- Swiggy logo, connection dot, last-sync age, orders-today count
+- Color-coded: emerald (fresh) → amber (stale) → slate (never synced)
 
-P6-F01  Market intel panel on /runs/{id} (needs P6-S11)
-- Competitor pricing table: your price vs area avg vs cheapest competitor
-- Area occupancy badge (HIGH/MEDIUM/LOW with count)
-- Instamart prices for shortage items
-- Pricing alerts: red if >20% above area avg
-- Swiggy logo next to "Powered by Swiggy MCP"
+P6-F17  Market intel panel on dashboard ✅ Done (P6-F17)
+- SwiggyMarketIntelPanel: competitor pricing table, area occupancy badge, Instamart live prices
+- SwiggyBadge ("via Swiggy MCP") on every data card
+- Handles flat dish→price dict, computes avg/min/max client-side
 
 P6-F02  Action queue UI on /runs/{id} (needs P6-S14)
 - Pending actions with type badge

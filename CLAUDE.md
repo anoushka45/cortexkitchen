@@ -8,7 +8,8 @@
 ## Git rules (non-negotiable)
 
 - **Never** add `Co-Authored-By: Claude` or any Claude authorship line to commit messages.
-- Commit messages are authored by Anoushka only.
+- **Never** add `🤖 Generated with Claude Code` or any Claude attribution line to PR descriptions.
+- Commit messages and PR descriptions are authored by Anoushka only.
 
 ---
 
@@ -31,7 +32,7 @@ immediately legible to someone who knows the Swiggy platform.**
 
 ---
 
-## Current system state (as of last merge: P6-S05/S06)
+## Current system state (as of last merge: P6-S10–S13c)
 
 ### CRITICAL — Swiggy MCP actual response format (discovered via live test)
 
@@ -68,7 +69,9 @@ qdrant_enrichment (shared Qdrant RAG context for all domain nodes — P6-S04)
     ├── reservation          (ReservationService — synthetic data)
     ├── complaint_intelligence (ComplaintService + Qdrant RAG)
     ├── inventory            (InventoryService)
-    └── [above 3 fan in to]
+    ├── market_intel         (MarketIntelService — P6-S11 ✅)
+    ├── dineout_manager      (OccupancyEnricher on OUR slots — P6-S12 ✅)
+    └── [above 5 fan in to]
 menu_intelligence            (MenuService + assumption diffing)
     │
 aggregator                   (builds unified recommendation brief)
@@ -82,16 +85,17 @@ final_assembler              (builds API response)
 
 Key features already shipped:
 - Per-node model tier routing via CometAPI (fast/balanced/strong per node)
-- Cross-agent assumption diffing (3 active diffs — O(N) not O(N²))
+- Cross-agent assumption diffing (5 active diffs — Diffs 5+6 added P6-S13 ✅)
 - Qdrant early enrichment node (shared RAG context before parallel fan-out)
 - Critic replanning loop (rejected/revision → replan, max 2 retries)
 - Semantic cache (Qdrant embedding-based, 0.92 threshold)
 - Agentic chatbot with Groq function calling (query_runs, get_run_detail,
-  trigger_planning_run, get_inventory_status, cross-session memory)
+  trigger_planning_run, get_inventory_status, + 3 Swiggy tools P6-S13c ✅)
 - LangSmith observability on all nodes
 - Multi-tenant (org_id scoped throughout)
 - Role-aware PDF + Excel exports
 - Redis result cache (plan outputs, 1hr TTL, approved verdicts only)
+- MarketIntelService — orchestrates CompetitorEnricher + OccupancyEnricher + ProcurementEnricher (P6-S10 ✅)
 
 **Backend — Swiggy infrastructure**
 
@@ -105,7 +109,7 @@ infrastructure/swiggy/
 ├── swiggy_connector.py    SwiggyConnector — orchestrates order + feedback + reservation sync
 ├── connector_repository.py CRUD for connectors table (per-org token storage)
 ├── provider_registry.py   Routes capabilities to providers (swiggy→zomato fallback)
-├── enrichers/             EMPTY — CompetitorEnricher etc to be built (P6-S07-S09)
+├── enrichers/             CompetitorEnricher, OccupancyEnricher, ProcurementEnricher ✅ (P6-S07-S09)
 ├── executor/              EMPTY — ProcurementExecutor etc to be built (P6-S15-S16)
 └── sync/
     ├── order_sync.py      get_food_orders → orders table (P6-S03 ✅)

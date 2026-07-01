@@ -26,9 +26,10 @@ const AGENT_META: Record<string, {
 };
 
 interface Props {
-  agentKey: string;
-  data:     Record<string, unknown> | null;
-  index?:   number;
+  agentKey:     string;
+  data:         Record<string, unknown> | null;
+  index?:       number;
+  swiggySignal?: string;
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -312,7 +313,7 @@ function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-export default function AgentCard({ agentKey, data, index = 0 }: Props) {
+export default function AgentCard({ agentKey, data, index = 0, swiggySignal }: Props) {
   const [detailOpen, setDetailOpen] = useState(false);
   const meta = AGENT_META[agentKey] ?? { label: agentKey, iconPath: "", headerBg: "bg-slate-500/[0.06] border-b border-slate-500/15", dotColor: "bg-slate-400", iconColor: "text-slate-400", glow: "" };
 
@@ -344,6 +345,12 @@ export default function AgentCard({ agentKey, data, index = 0 }: Props) {
               </span>
             )}
           </div>
+          {swiggySignal && (
+            <div className="flex items-center gap-1.5 rounded-full border border-[#fc8019]/25 bg-[#fc8019]/10 px-2.5 py-1">
+              <img src="/swiggy-logo.png" alt="Swiggy" className="h-3 w-3 rounded-sm object-contain" />
+              <span className="font-mono text-[10px] text-[#fc8019]/90 truncate max-w-[140px]">{swiggySignal}</span>
+            </div>
+          )}
         </div>
 
         {/* Body */}

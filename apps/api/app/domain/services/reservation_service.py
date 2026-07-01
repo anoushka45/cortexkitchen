@@ -88,10 +88,14 @@ class ReservationService:
         target_date: datetime,
         scenario_profile: ScenarioDefinition | None = None,
         capacity: int = 70,
+        occupancy_context: dict | None = None,
     ) -> dict:
         """Use Gemini to analyse reservation data and generate recommendation."""
 
         data = self.get_service_reservations(target_date, scenario_profile=scenario_profile, capacity=capacity)
+
+        occupancy_section = (occupancy_context or {}).get("prompt_text") or ""
+        occupancy_block = f"\n{occupancy_section}\n" if occupancy_section else ""
 
         prompt = PromptUtils.format_recommendation_prompt(
             context=f"""
@@ -104,8 +108,8 @@ Reservation data for {data['scenario_label']} on {data['date']}:
 - Overbooking risk: {data['overbooking_risk']}
 - Busiest hour: {data['busiest_hour']}:00
 - Guests on waitlist: {data['waitlist_count']}
-""",
-            task="Analyse this reservation data and recommend specific actions to manage capacity effectively for this target service window."
+{occupancy_block}""",
+            task="Analyse this reservation data and recommend specific actions to manage capacity effectively for this target service window. Where area occupancy data is provided, factor in the neighbourhood demand signal — HIGH area occupancy means walk-in pressure; LOW means opportunity for promotions to attract diners."
         )
 
         recommendation = await self.llm.complete_json(

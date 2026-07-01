@@ -77,6 +77,7 @@ async def menu_intelligence_node(
             forecast_data=(state.get("forecast_output") or {}).get("data"),
             complaint_data=(state.get("complaint_output") or {}).get("data"),
             inventory_data=(state.get("inventory_output") or {}).get("data"),
+            competitor_context=state.get("swiggy_competitor_context"),
         )
         data = result.get("data") or {}
         shortage_items = [s for s in (data.get("shortage_ingredients") or []) if s]

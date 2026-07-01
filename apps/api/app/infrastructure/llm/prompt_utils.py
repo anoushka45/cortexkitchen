@@ -194,8 +194,10 @@ Respond with a JSON object containing:
         shortage_lines: str,
         overstock_lines: str,
         blocked_lines: str,
+        market_context: str = "",
     ) -> str:
         """Prompt for the Menu Intelligence Agent."""
+        market_section = f"\n{market_context}\n" if market_context else ""
         return f"""
 ## Context
 Menu planning context for {scenario_label} ({service_day_label} service):
@@ -219,7 +221,7 @@ Inventory shortages (all severities):
 
 Inventory overstock:
 {overstock_lines}
-
+{market_section}
 ## Hard constraints — follow strictly before producing output
 CRITICALLY SHORT ingredients (BLOCKED — cannot be safely used for increased prep):
 {blocked_lines}
@@ -229,9 +231,10 @@ Rules:
 2. If a historically top-selling item uses a BLOCKED ingredient, move it to deprioritize_items, not highlight_items.
 3. highlight_items must only contain dishes whose core ingredients are adequately stocked.
 4. These constraints override popularity — a dish that outsells everything but needs a BLOCKED ingredient must still be deprioritized.
+5. Where live competitor pricing data is provided above, reference it in pricing_notes and reasoning. Flag items priced significantly above the area average.
 
 ## Task
-Recommend how the restaurant should shape the menu focus for the target service window. Prioritise items that are popular AND operationally safe (ingredients available), avoid pushing items that depend on shortage ingredients or have complaint patterns, and suggest practical promo or menu positioning actions that can be executed within the next 24 hours.
+Recommend how the restaurant should shape the menu focus for the target service window. Prioritise items that are popular AND operationally safe (ingredients available), avoid pushing items that depend on shortage ingredients or have complaint patterns, and suggest practical promo or menu positioning actions that can be executed within the next 24 hours. Where competitor pricing data is available, factor in market positioning.
 
 ## Response format
 Respond with a JSON object containing:
@@ -241,6 +244,7 @@ Respond with a JSON object containing:
 - "inventory_blockers": array of strings - ingredient or stock constraints affecting menu choices
 - "complaint_watchouts": array of strings - quality or service issues menu execution should watch closely
 - "operational_notes": array of strings - practical kitchen/front-of-house actions tied to the menu plan
+- "pricing_notes": array of strings - items priced above or below area average (omit if no competitor data)
 - "reasoning": string - one concise summary of the menu strategy
 - "priority": string - "high", "medium", or "low"
 - "risks": array of strings - what could go wrong if the menu plan is ignored

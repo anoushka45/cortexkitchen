@@ -87,6 +87,7 @@ async def inventory_node(
         result  = await service.analyse_and_recommend(
             forecast_data=forecast_data,
             scenario_profile=state.get("scenario_profile"),
+            procurement_context=state.get("swiggy_procurement_options"),
         )
         data = result.get("data") or {}
         return {

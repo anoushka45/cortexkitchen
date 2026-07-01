@@ -45,6 +45,7 @@ async def reservation_node(
             target_date=target_date,
             scenario_profile=state.get("scenario_profile"),
             capacity=state.get("org_capacity") or 70,
+            occupancy_context=state.get("swiggy_occupancy_context"),
         )
         data = result.get("data") or {}
         return {

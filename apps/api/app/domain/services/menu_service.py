@@ -60,6 +60,7 @@ class MenuService:
         forecast_data: dict | None = None,
         complaint_data: dict | None = None,
         inventory_data: dict | None = None,
+        competitor_context: dict | None = None,
     ) -> dict:
         top_items = self.get_top_items(target_date)
 
@@ -150,6 +151,8 @@ class MenuService:
         ]
         blocked_lines = "\n".join(f"  - {ing}" for ing in critical_blocked) or "  None"
 
+        market_context = (competitor_context or {}).get("prompt_text") or ""
+
         prompt = PromptUtils.format_menu_prompt(
             scenario_label=scenario_label,
             service_day_label=service_day_label,
@@ -161,6 +164,7 @@ class MenuService:
             shortage_lines=shortage_lines,
             overstock_lines=overstock_lines,
             blocked_lines=blocked_lines,
+            market_context=market_context,
         )
 
         recommendation = await self.llm.complete_json(

@@ -303,6 +303,7 @@ class InventoryService:
         self,
         forecast_data: dict | None = None,
         scenario_profile: ScenarioDefinition | None = None,
+        procurement_context: dict | None = None,
     ) -> dict:
         """
         Query stock, compute alerts, and ask the LLM for operational actions.
@@ -365,6 +366,9 @@ class InventoryService:
         scenario_label = scenario_profile["label"] if scenario_profile else "Friday Rush"
         service_window = scenario_profile["service_window"] if scenario_profile else "18:00-22:00"
 
+        procurement_section = (procurement_context or {}).get("prompt_text") or ""
+        procurement_block = f"\n{procurement_section}\n" if procurement_section else ""
+
         prompt = PromptUtils.format_recommendation_prompt(
             context=f"""
 Inventory status ahead of {scenario_label}:
@@ -379,13 +383,15 @@ Shortage alerts:
 
 Overstock alerts:
 {overstock_lines}
-""",
+{procurement_block}""",
             task=(
                 "Based on the inventory status and demand forecast, recommend specific "
                 "restocking, reorder, and waste-reduction actions before this service window. Prioritize "
                 "critical shortages first, keep every restock quantity realistic for the next "
                 "24 hours, and never suggest ordering more than the max_actionable_restock "
-                "listed for an ingredient."
+                "listed for an ingredient. Where live Instamart prices are provided above, "
+                "reference the specific price (e.g. 'Order 5kg tomatoes via Instamart at Rs.24/kg') "
+                "to make restock actions immediately actionable."
             ),
         )
 

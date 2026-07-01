@@ -933,6 +933,11 @@ export default function DashboardPage() {
                         agentKey="reservation"
                         data={data.recommendations.reservation as Record<string, unknown> | null}
                         index={0}
+                        swiggySignal={(() => {
+                          const occ = data.swiggy_occupancy_context as Record<string, unknown> | null | undefined;
+                          const sig = occ?.occupancy_signal as string | undefined;
+                          return sig ? `area tonight: ${sig}` : undefined;
+                        })()}
                       />
                     </div>
                   </div>
@@ -962,6 +967,11 @@ export default function DashboardPage() {
                         agentKey="inventory"
                         data={data.recommendations.inventory as Record<string, unknown> | null}
                         index={2}
+                        swiggySignal={(() => {
+                          const proc = data.swiggy_procurement_options as Record<string, unknown> | null | undefined;
+                          const opts = proc?.procurement_options as unknown[] | undefined;
+                          return opts && opts.length > 0 ? `${opts.length} Instamart prices live` : undefined;
+                        })()}
                       />
                     </div>
                   </div>
@@ -982,6 +992,15 @@ export default function DashboardPage() {
                     agentKey="menu"
                     data={data.recommendations.menu as Record<string, unknown> | null}
                     index={3}
+                    swiggySignal={(() => {
+                      const comp = data.swiggy_competitor_context as Record<string, unknown> | null | undefined;
+                      const alerts = comp?.alerts as unknown[] | undefined;
+                      const avgMap = comp?.area_avg as Record<string, number> | undefined;
+                      const dishCount = avgMap ? Object.keys(avgMap).length : 0;
+                      if (alerts && alerts.length > 0) return `${alerts.length} pricing alert${alerts.length !== 1 ? "s" : ""} · ${dishCount} dishes`;
+                      if (dishCount > 0) return `${dishCount} competitor dishes tracked`;
+                      return undefined;
+                    })()}
                   />
                 )}
               </div>

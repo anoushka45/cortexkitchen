@@ -110,10 +110,12 @@ class EvaluationSanityChecker:
         """
         stale: list[dict] = []
 
-        menu_a        = assumptions.get("menu")        or {}
-        inventory_a   = assumptions.get("inventory")   or {}
-        reservation_a = assumptions.get("reservation") or {}
-        complaint_a   = assumptions.get("complaint")   or {}
+        menu_a           = assumptions.get("menu")            or {}
+        inventory_a      = assumptions.get("inventory")       or {}
+        reservation_a    = assumptions.get("reservation")     or {}
+        complaint_a      = assumptions.get("complaint")       or {}
+        market_intel_a   = assumptions.get("market_intel")    or {}
+        dineout_manager_a = assumptions.get("dineout_manager") or {}
 
         # Diff 1 removed: MenuService self-queries InventoryService when inventory_data is None
         # (parallel execution means inventory_output is never in state when menu runs).
@@ -178,6 +180,55 @@ class EvaluationSanityChecker:
                         f"complaint risk that may compound under high occupancy"
                     ),
                 })
+
+        # Diff 5 (P6-S13): market_intel found pricing alerts vs menu_intel planning to push items.
+        # market_intel_node detects our items priced above Swiggy area average. If menu_intel
+        # is simultaneously planning to highlight/push those same items, we risk lower conversion
+        # because customers can find cheaper options nearby on Swiggy.
+        pricing_alerts_count = int(market_intel_a.get("pricing_alerts_count") or 0)
+        items_assumed_available = menu_a.get("items_assumed_available") or []
+        if (
+            market_intel_a.get("swiggy_available") is True
+            and pricing_alerts_count > 0
+            and items_assumed_available
+        ):
+            stale.append({
+                "node": "menu_intelligence",
+                "assumption_key": "items_assumed_available",
+                "assumed_value": items_assumed_available,
+                "actual_value": pricing_alerts_count,
+                "conflict": (
+                    f"menu_intelligence is planning to push {len(items_assumed_available)} item(s) "
+                    f"({', '.join(str(i) for i in items_assumed_available[:3])}) but "
+                    f"market_intel found {pricing_alerts_count} Swiggy pricing alert(s) — "
+                    f"verify that highlighted items are competitively priced vs area average "
+                    f"before driving volume"
+                ),
+            })
+
+        # Diff 6 (P6-S13): dineout_manager flagged own slots low + reservation predicts high occupancy.
+        # When both internal reservations and Dineout bookings signal a near-full house tonight,
+        # the operational risk compounds — one channel being full is manageable, both is a hard cap.
+        dineout_slots_low = dineout_manager_a.get("assumed_dineout_slots_low")
+        peak_occ = reservation_a.get("assumed_peak_occupancy_pct")
+        if (
+            dineout_manager_a.get("own_slots_checked") is True
+            and dineout_slots_low is True
+            and peak_occ is not None
+            and peak_occ > 80
+        ):
+            stale.append({
+                "node": "dineout_manager",
+                "assumption_key": "assumed_dineout_slots_low",
+                "assumed_value": True,
+                "actual_value": peak_occ,
+                "conflict": (
+                    f"dineout_manager found your Dineout slots are nearly full tonight "
+                    f"AND reservation node predicts {peak_occ}% internal occupancy — "
+                    f"compound demand signal: both channels at capacity, ensure full-house "
+                    f"staffing and consider whether to open additional Dineout slots now"
+                ),
+            })
 
         return stale
 

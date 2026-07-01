@@ -33,7 +33,6 @@ from typing import Optional
 from app.infrastructure.swiggy.client import SwiggyMCPClient
 from app.infrastructure.swiggy.enrichers.competitor import CompetitorEnricher
 from app.infrastructure.swiggy.enrichers.occupancy import OccupancyEnricher
-from app.infrastructure.swiggy.enrichers.procurement import ProcurementEnricher
 
 log = logging.getLogger(__name__)
 
@@ -47,9 +46,8 @@ class MarketIntelService:
     """
 
     def __init__(self, client: SwiggyMCPClient) -> None:
-        self._competitor  = CompetitorEnricher(client)
-        self._occupancy   = OccupancyEnricher(client)
-        self._procurement = ProcurementEnricher(client)
+        self._competitor = CompetitorEnricher(client)
+        self._occupancy  = OccupancyEnricher(client)
 
     # ── public ───────────────────────────────────────────────────────────────
 
@@ -78,67 +76,55 @@ class MarketIntelService:
     # ── internal ─────────────────────────────────────────────────────────────
 
     async def _run(self, context: dict) -> dict:
-        competitor_ctx, occupancy_ctx, procurement_ctx = await asyncio.gather(
+        competitor_ctx, occupancy_ctx = await asyncio.gather(
             self._competitor.enrich(context),
             self._occupancy.enrich(context),
-            self._procurement.enrich(context),
             return_exceptions=False,
         )
 
         log.info(
-            "market_intel_service_done competitor=%s occupancy=%s procurement=%s",
+            "market_intel_service_done competitor=%s occupancy=%s",
             competitor_ctx is not None,
             occupancy_ctx is not None,
-            procurement_ctx is not None,
         )
 
-        market_intel_output = self._assemble_market_intel(
-            competitor_ctx, occupancy_ctx, procurement_ctx
-        )
+        market_intel_output = self._assemble_market_intel(competitor_ctx, occupancy_ctx)
 
         return {
-            "swiggy_competitor_context":  competitor_ctx,
-            "swiggy_occupancy_context":   occupancy_ctx,
-            "swiggy_procurement_options": procurement_ctx,
-            "market_intel_output":        market_intel_output,
+            "swiggy_competitor_context": competitor_ctx,
+            "swiggy_occupancy_context":  occupancy_ctx,
+            "market_intel_output":       market_intel_output,
         }
 
     def _assemble_market_intel(
         self,
-        competitor_ctx:  Optional[dict],
-        occupancy_ctx:   Optional[dict],
-        procurement_ctx: Optional[dict],
+        competitor_ctx: Optional[dict],
+        occupancy_ctx:  Optional[dict],
     ) -> dict:
         """Build the market_intel_output dict that market_intel_node writes to state."""
-        pricing_alerts    = competitor_ctx.get("alerts", [])   if competitor_ctx  else []
-        area_avg          = competitor_ctx.get("area_avg")      if competitor_ctx  else None
-        occupancy_signal  = occupancy_ctx.get("occupancy_signal") if occupancy_ctx else None
-        tonight_busy      = occupancy_ctx.get("tonight_busy")     if occupancy_ctx else None
-        proc_options      = (
-            procurement_ctx.get("procurement_options", []) if procurement_ctx else []
-        )
+        pricing_alerts   = competitor_ctx.get("alerts", [])      if competitor_ctx else []
+        area_avg         = competitor_ctx.get("area_avg")         if competitor_ctx else None
+        occupancy_signal = occupancy_ctx.get("occupancy_signal")  if occupancy_ctx  else None
+        tonight_busy     = occupancy_ctx.get("tonight_busy")      if occupancy_ctx  else None
 
         return {
-            "competitor_pricing":  area_avg,
-            "area_occupancy":      occupancy_signal,
-            "pricing_alerts":      pricing_alerts,
-            "tonight_busy":        tonight_busy,
-            "procurement_options": proc_options,
-            "fetched_at":          date.today().isoformat(),
+            "competitor_pricing": area_avg,
+            "area_occupancy":     occupancy_signal,
+            "pricing_alerts":     pricing_alerts,
+            "tonight_busy":       tonight_busy,
+            "fetched_at":         date.today().isoformat(),
         }
 
     @staticmethod
     def _empty_result() -> dict:
         return {
-            "swiggy_competitor_context":  None,
-            "swiggy_occupancy_context":   None,
-            "swiggy_procurement_options": None,
+            "swiggy_competitor_context": None,
+            "swiggy_occupancy_context":  None,
             "market_intel_output": {
-                "competitor_pricing":  None,
-                "area_occupancy":      None,
-                "pricing_alerts":      [],
-                "tonight_busy":        None,
-                "procurement_options": [],
-                "fetched_at":          date.today().isoformat(),
+                "competitor_pricing": None,
+                "area_occupancy":     None,
+                "pricing_alerts":     [],
+                "tonight_busy":       None,
+                "fetched_at":         date.today().isoformat(),
             },
         }

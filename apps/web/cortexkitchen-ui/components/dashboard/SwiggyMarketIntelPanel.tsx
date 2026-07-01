@@ -30,10 +30,18 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
   if (!mi) return null;
 
   const competitorPricing = mi.competitor_pricing as Record<string, number> | null | undefined;
-  const procurement       = mi.procurement_options as Array<Record<string, unknown>> | null | undefined;
-  const occupancy         = (data.swiggy_occupancy_context ?? mi.area_occupancy) as Record<string, unknown> | null | undefined;
   const pricingAlerts     = (mi.pricing_alerts as unknown[]) ?? [];
   const fetchedAt         = mi.fetched_at as string | null;
+
+  // Occupancy: swiggy_occupancy_context has { occupancy_signal, tonight_busy, ... }
+  // mi.area_occupancy is the raw signal string ("HIGH"/"MEDIUM"/"LOW")
+  const occCtx         = data.swiggy_occupancy_context as Record<string, unknown> | null | undefined;
+  const occupancySignal = (occCtx?.occupancy_signal ?? mi.area_occupancy) as string | null | undefined;
+  const tonightBusy    = (occCtx?.tonight_busy ?? mi.tonight_busy) as boolean | null | undefined;
+
+  // Procurement: populated by inventory_node after shortage analysis (correct architecture)
+  const procCtx    = data.swiggy_procurement_options as Record<string, unknown> | null | undefined;
+  const procurement = procCtx?.procurement_options as Array<Record<string, unknown>> | null | undefined;
 
   const stats = competitorPricing ? priceStats(competitorPricing) : null;
   const topDishes = competitorPricing
@@ -42,7 +50,7 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
         .slice(0, 8)
     : [];
 
-  const hasAny = stats || occupancy || (procurement && procurement.length > 0);
+  const hasAny = stats || occupancySignal || (procurement && procurement.length > 0);
   if (!hasAny) return null;
 
   return (
@@ -139,28 +147,30 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
               <p className="text-xs font-mono uppercase tracking-widest text-slate-500">Area Occupancy</p>
               <SwiggyBadge />
             </div>
-            {occupancy ? (
+            {occupancySignal ? (
               <div className="space-y-2">
                 <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-                  occupancy.signal === "HIGH"
+                  occupancySignal === "HIGH"
                     ? "border-rose-500/30 bg-rose-500/10 text-rose-300"
-                    : occupancy.signal === "MEDIUM"
+                    : occupancySignal === "MEDIUM"
                     ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
                     : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
                 }`}>
                   <span className={`h-1.5 w-1.5 rounded-full ${
-                    occupancy.signal === "HIGH" ? "bg-rose-400" : occupancy.signal === "MEDIUM" ? "bg-amber-400" : "bg-emerald-400"
+                    occupancySignal === "HIGH" ? "bg-rose-400" : occupancySignal === "MEDIUM" ? "bg-amber-400" : "bg-emerald-400"
                   }`} />
-                  {String(occupancy.signal)} occupancy area
+                  {occupancySignal} occupancy area
                 </span>
-                <p className="text-xs text-slate-400">
-                  Tonight busy: <span className={occupancy.tonight_busy ? "text-rose-300 font-medium" : "text-emerald-300 font-medium"}>
-                    {occupancy.tonight_busy ? "Yes" : "No"}
-                  </span>
-                </p>
+                {tonightBusy != null && (
+                  <p className="text-xs text-slate-400">
+                    Tonight busy: <span className={tonightBusy ? "text-rose-300 font-medium" : "text-emerald-300 font-medium"}>
+                      {tonightBusy ? "Yes" : "No"}
+                    </span>
+                  </p>
+                )}
               </div>
             ) : (
-              <p className="text-xs text-slate-600 italic">Occupancy data unavailable.</p>
+              <p className="text-xs text-slate-600 italic">Occupancy data unavailable — add a Dineout saved location to your Swiggy account.</p>
             )}
           </div>
 

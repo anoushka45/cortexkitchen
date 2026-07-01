@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -12,6 +12,8 @@ import ManagerActionPanel from "@/components/dashboard/ManagerActionPanel";
 import RagContextDrawer from "@/components/dashboard/RagContextDrawer";
 import WhatIfPanel from "@/components/dashboard/WhatIfPanel";
 import RunHistory from "@/components/dashboard/RunHistory";
+import SwiggyStatusWidget from "@/components/dashboard/SwiggyStatusWidget";
+import SwiggyMarketIntelPanel from "@/components/dashboard/SwiggyMarketIntelPanel";
 import { useAuth } from "@/context/AuthContext";
 import { DashStatus, useDashboardCtx } from "@/context/DashboardContext";
 import { useFridayRush } from "@/hooks/useFridayRush";
@@ -776,6 +778,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-ink-950 text-slate-100">
       <main className="mx-auto w-full max-w-[1520px] px-6 py-8 xl:px-14">
+        <SwiggyStatusWidget />
         <div className="space-y-6">
           {status === "idle" && (
             <IdleState
@@ -983,6 +986,8 @@ export default function DashboardPage() {
                 )}
               </div>
 
+              <SwiggyMarketIntelPanel data={data} />
+
               <RagContextDrawer ragContext={data.rag_context} />
 
               {/* Re-run bar */}
@@ -1110,3 +1115,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+

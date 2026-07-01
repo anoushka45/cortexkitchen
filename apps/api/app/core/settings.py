@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     # Swiggy MCP (dev convenience — production uses connectors table per org)
     swiggy_access_token: str = Field(default="", alias="SWIGGY_ACCESS_TOKEN")
     swiggy_address_id: str = Field(default="", alias="SWIGGY_ADDRESS_ID")
+    swiggy_dineout_restaurant_id: str = Field(default="", alias="SWIGGY_DINEOUT_RESTAURANT_ID")
 
     # LangSmith tracing
     langsmith_tracing: str = Field(default="false", alias="LANGSMITH_TRACING")

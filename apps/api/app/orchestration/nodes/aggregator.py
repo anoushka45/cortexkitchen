@@ -37,7 +37,8 @@ def aggregator_node(state: OrchestratorState) -> OrchestratorState:
             "complaint":    state.get("complaint_assumptions"),
             "market_intel": state.get("market_intel_assumptions"),
         },
-        "market_intel": state.get("market_intel_output"),
+        "market_intel":    state.get("market_intel_output"),
+        "dineout_manager": state.get("dineout_manager_output"),
         "agents": {
             "forecast": {
                 "data": _extract(state.get("forecast_output"), "data"),
@@ -186,6 +187,17 @@ def _build_critic_summary(state: OrchestratorState) -> str:
             mi_parts.append(f"{len(proc_opts)} Instamart procurement option(s) available")
         if mi_parts:
             lines.append("[Market Intel — Swiggy] " + " | ".join(mi_parts))
+
+    # Dineout slot availability (your own restaurant)
+    dineout_out = state.get("dineout_manager_output")
+    if dineout_out:
+        total = dineout_out.get("total_slots_tonight", 0)
+        low   = dineout_out.get("low_availability_slots", 0)
+        flag  = dineout_out.get("open_more_recommended", False)
+        dm_text = f"[Dineout Manager] Your slots tonight: {total} total, {low} low availability."
+        if flag:
+            dm_text += " Action recommended: open more Dineout slots."
+        lines.append(dm_text)
 
     # Append any auto-detected cross-agent contradictions (0 LLM calls)
     contradiction_text = _detect_contradictions(state)

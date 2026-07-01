@@ -1,9 +1,17 @@
 """SwiggyConnector — BaseConnector implementation for Swiggy MCP.
 
-sync()   → orchestrates order sync (P6-S03), feedback sync (P6-S06), and
-           reservation sync (P6-S05). address_id arg takes precedence over settings.
-enrich() → P6-S06 (CompetitorEnricher), P6-S07 (OccupancyEnricher),
-           P6-S08 (ProcurementEnricher)
+IMPORTANT — two distinct modes with different data validity:
+
+sync()   → CONSUMER DATA ONLY (FUTURE USE for restaurant data).
+           Swiggy MCP is consumer-facing — sync pulls personal consumer account data
+           (your own food orders, Dineout bookings), not restaurant business data.
+           Code and infrastructure are correct and reusable. When Swiggy Partner API
+           becomes available, only the endpoint + auth changes; everything else stays.
+
+enrich() → VALID NOW — primary value of Swiggy integration.
+           Uses public consumer-facing tools for market intelligence:
+           CompetitorEnricher (P6-S07), OccupancyEnricher (P6-S08),
+           ProcurementEnricher (P6-S09).
 """
 
 from sqlalchemy.orm import Session

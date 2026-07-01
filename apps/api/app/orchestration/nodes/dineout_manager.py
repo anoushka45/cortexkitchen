@@ -3,20 +3,29 @@
 11th LangGraph node. Runs in parallel with reservation / complaint_intelligence
 / inventory / market_intel in the fan-out from qdrant_enrichment.
 
-Checks YOUR OWN restaurant's Dineout slot availability for tonight so the
-pipeline can assess whether to open more slots. Flow:
+IMPORTANT — Swiggy MCP is 100% consumer-facing (confirmed from Swiggy Builders Club docs).
+This means:
 
+  WHAT WORKS with consumer API:
+  - get_available_slots(restaurantId=OUR_ID) → reads YOUR restaurant's public slot
+    visibility as any consumer would see it. Valid if SWIGGY_DINEOUT_RESTAURANT_ID is set.
+
+  WHAT DOES NOT WORK (needs Swiggy Partner API — not in Builders Club):
+  - Opening / closing your own Dineout slots
+  - Seeing your incoming bookings / guest list
+  - book_table does NOT open slots at your own restaurant — it books a table FOR
+    a consumer AT a restaurant. "Open more slots" via book_table is architecturally wrong.
+
+Current behaviour:
   get_saved_locations() → lat/lng
   get_available_slots(restaurantId=OUR_ID, date=tonight, lat, lng)
-  → assess: total slots tonight, slots with low availability, open_more flag
+  → assess how many dinner slots are visible to consumers tonight
   → write dineout_manager_output + dineout_manager_assumptions to state
 
-The "if reservation predicts high walk-in AND own slots low → book_table" logic
-is deferred to the aggregator cross-check and ActionQueueService (P6-S14).
-This node's job is only to surface the slot state.
+FUTURE USE (needs Swiggy Partner API): actual slot management — open/close slots,
+view incoming reservation list, manage table inventory.
 
-Requires SWIGGY_DINEOUT_RESTAURANT_ID in settings (or restaurant_profile).
-Degrades gracefully to None on any failure or missing config.
+Degrades gracefully to None when SWIGGY_DINEOUT_RESTAURANT_ID not set or any failure.
 """
 
 import asyncio

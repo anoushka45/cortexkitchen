@@ -15,16 +15,30 @@
 
 ## Product vision
 
-CortexKitchen is a **Swiggy-native restaurant operating system**. A restaurant owner
+CortexKitchen is a **market-intelligent restaurant operating system**. A restaurant owner
 wakes up, opens CortexKitchen, and sees:
-- overnight Swiggy performance (orders, delivery times, ratings)
-- what competitors are charging today
+- what competitors are charging today on Swiggy
 - which ingredients are running low AND what they cost on Instamart right now
-- how full nearby restaurants are tonight
-- an action queue: approve an Instamart order, open more Dineout slots
+- how full nearby restaurants are tonight (area demand signal)
+- an action queue: approve an Instamart ingredient order
 
-The system plans, advises, and executes — on the restaurant's behalf, using Swiggy's
-own platform data via MCP.
+The system plans, advises, and executes — using Swiggy's consumer MCP for market
+intelligence and Instamart procurement. Internal ops data (orders, inventory,
+reservations) comes from the restaurant's own systems (POS connector or synthetic
+seed data in demo mode).
+
+**CRITICAL — Swiggy MCP is 100% consumer-facing (confirmed from Swiggy docs):**
+The Swiggy Builders Club MCP authenticates as a consumer (phone + OTP = personal
+Swiggy account). Every tool operates from a consumer's perspective. There is NO
+restaurant-operator/merchant side in this API. Implications:
+- `get_food_orders` → YOUR personal Swiggy orders as a consumer, NOT a restaurant's received orders
+- `book_table` → books a table FOR YOU as a diner, NOT manages your restaurant's Dineout slots
+- `get_available_slots` → slot availability visible to any consumer (competitor occupancy signal ✅)
+- `search_restaurants/menu` → public discovery (competitor pricing ✅)
+- `search_products/checkout` → Instamart as a consumer (restaurant owner orders ingredients ✅)
+
+Restaurant's own order history, ratings, and Dineout slot management require Swiggy
+Partner/Merchant API — a separate product not in Builders Club.
 
 **This product will be demoed to the Swiggy team. Every Swiggy integration point must
 be polished, clearly labelled with Swiggy branding, and the workflow must be
@@ -62,15 +76,15 @@ Without it the server returns 406 Not Acceptable. This header is set in `client.
 ```
 ops_manager
     │
-demand_forecast (Prophet — currently synthetic data, will use real Swiggy orders)
+demand_forecast (Prophet — internal/POS order data; Swiggy consumer orders NOT usable here)
     │
 qdrant_enrichment (shared Qdrant RAG context for all domain nodes — P6-S04)
     │
-    ├── reservation          (ReservationService — synthetic data)
-    ├── complaint_intelligence (ComplaintService + Qdrant RAG)
-    ├── inventory            (InventoryService)
-    ├── market_intel         (MarketIntelService — P6-S11 ✅)
-    ├── dineout_manager      (OccupancyEnricher on OUR slots — P6-S12 ✅)
+    ├── reservation          (ReservationService — internal/POS data)
+    ├── complaint_intelligence (ComplaintService + Qdrant RAG — internal feedback data)
+    ├── inventory            (InventoryService — internal stock data)
+    ├── market_intel         (MarketIntelService — live Swiggy competitor data ✅ P6-S11)
+    ├── dineout_manager      (competitor occupancy signal only — P6-S12 ✅, cannot manage own slots)
     └── [above 5 fan in to]
 menu_intelligence            (MenuService + assumption diffing)
     │
@@ -106,15 +120,20 @@ infrastructure/swiggy/
 │                          graceful degradation (never raises), circuit breaker
 ├── circuit_breaker.py     Redis-backed — 3 failures/5min → open 30min, auto-reset
 ├── base_connector.py      BaseConnector ABC — sync() + enrich() interface
-├── swiggy_connector.py    SwiggyConnector — orchestrates order + feedback + reservation sync
+├── swiggy_connector.py    SwiggyConnector — orchestrates sync flow
 ├── connector_repository.py CRUD for connectors table (per-org token storage)
 ├── provider_registry.py   Routes capabilities to providers (swiggy→zomato fallback)
 ├── enrichers/             CompetitorEnricher, OccupancyEnricher, ProcurementEnricher ✅ (P6-S07-S09)
-├── executor/              EMPTY — ProcurementExecutor etc to be built (P6-S15-S16)
+│                          These use PUBLIC consumer-facing Swiggy tools — valid for market intelligence
+├── executor/              EMPTY — ProcurementExecutor to be built (needs staging creds)
 └── sync/
     ├── order_sync.py      get_food_orders → orders table (P6-S03 ✅)
+    │                      NOTE: syncs PERSONAL consumer orders (your food deliveries),
+    │                      NOT a restaurant's incoming orders. Needs Swiggy Partner API for that.
     ├── feedback_sync.py   track_food_order → feedback table (P6-S06 ✅)
+    │                      NOTE: tracks YOUR personal deliveries as consumer, not restaurant's.
     └── reservation_sync.py get_booking_status → reservations table (P6-S05 ✅ skeleton)
+                           NOTE: syncs YOUR personal Dineout bookings, not restaurant's table bookings.
 ```
 
 Helper script: `scripts/get_swiggy_token.py` — one-command PKCE OAuth flow, saves token + address ID to .env
@@ -178,18 +197,16 @@ Location: check mcp_server.py at repo root or apps/api/
 
 ### Build order — follow this exactly
 
-**STEP 1 — Complete sync layer (needs OAuth token, all read-only)**
+**STEP 1 — Sync layer (built, but NOTE: consumer data only)**
 
-P6-S05  `sync/reservation_sync.py`
-- Tool: get_booking_status (Dineout)
-- Maps to: reservations table, source='dineout', external_booking_id=orderId
+P6-S05  `sync/reservation_sync.py` ✅ Built
+P6-S06  `sync/feedback_sync.py` ✅ Built
 
-P6-S06  `sync/feedback_sync.py`
-- Tool: track_food_order (Food)
-- Maps to: feedback table, source='swiggy_delivery'
-- Fields: delivery_time_actual_mins, delivery_time_promised_mins, was_late
-
-After S05+S06: existing 9-node pipeline runs on REAL Swiggy data for first time.
+IMPORTANT: These sync personal consumer data (your own Swiggy food orders, your own
+Dineout bookings) — NOT a restaurant's business data. The pipeline's ops nodes
+(demand_forecast, complaint_intelligence, reservation) rely on internal/POS data.
+Swiggy consumer sync data is NOT meaningful input to restaurant planning.
+Restaurant's own Swiggy orders require Swiggy Partner API (separate product).
 
 **STEP 2 — Market intelligence enrichers (needs OAuth token, all read-only)**
 
@@ -234,23 +251,23 @@ P6-S11  market_intel_node (10th node, parallel in fan-out)
 - Writes: market_assumptions dict (for assumption diffing)
 - LangGraph: add to parallel fan-out alongside reservation/complaint/inventory
 
-P6-S12  dineout_manager_node (11th node, parallel in fan-out)
-- Checks: your own Dineout slot availability tonight via get_booking_status
-- If reservation node predicts high walk-in AND Dineout slots low → queue book_table action
-- Writes: dineout_assumptions dict
+P6-S12  dineout_manager_node (11th node, parallel in fan-out) ✅ Built
+- NOTE: consumer MCP cannot manage your own restaurant's Dineout slots.
+- Current behaviour: checks COMPETITOR Dineout occupancy as an additional area signal.
+- book_table in consumer API books a table AT another restaurant — not your own slots.
+- Managing your own Dineout presence requires Swiggy Partner API (not available in Builders Club).
+- Writes: dineout_assumptions dict (competitor occupancy context only)
 
 P6-S13  Assumption diffs 5+6 in EvaluationSanityChecker:
 - Diff 5: market_intel assumed_competitor_avg_price vs menu_intel promoted item prices
 - Diff 6: dineout_manager assumed_dineout_slots_low vs reservation assumed_peak_occupancy
 
-**STEP 5 — Add Swiggy tools to chatbot (HIGH PRIORITY FOR DEMO)**
+**STEP 5 — Add Swiggy tools to chatbot (HIGH PRIORITY FOR DEMO)** ✅ Done (P6-S13c)
 
-The chatbot already has Groq function calling (P6-S04). Add these tools:
-- search_menu(query, addressId) → "what's the average biryani price near me?"
-- get_food_orders(addressId) → "what were my top selling items last week on Swiggy?"
-- search_products(query, addressId) → "what does cream cost on Instamart right now?"
-
-This makes the chatbot genuinely Swiggy-aware and is VERY demo-friendly.
+Chatbot tools added (Groq function calling):
+- search_menu(query, addressId) → "what's the average biryani price near me?" ✅
+- get_food_orders(addressId) → returns YOUR personal consumer orders (limited use) ✅
+- search_products(query, addressId) → "what does cream cost on Instamart right now?" ✅
 
 **STEP 6 — Action queue**
 
@@ -353,48 +370,50 @@ SWIGGY_ADDRESS_ID=     # saved address ID from get_addresses
 ## Swiggy workflows — how each integration point works
 
 ### Workflow 1: Morning data sync (nightly job)
+NOTE: Swiggy MCP is consumer-facing. These sync jobs sync YOUR PERSONAL consumer data,
+not a restaurant's business data. In production, restaurant ops data would come from
+a POS connector (Square/Toast — P6-R01). The sync layer exists as infrastructure but
+is NOT meaningful input to restaurant planning nodes.
 ```
 APScheduler 02:00 IST
     → SwiggyOrderSyncService.sync(address_id)
-        → get_food_orders (Food MCP)
-        → upserts to orders table (source=swiggy, channel=delivery)
+        → get_food_orders (Food MCP) → personal consumer orders only
+        → upserts to orders table (source=swiggy) — NOT restaurant's incoming orders
     → SwiggyReservationSyncService.sync()
-        → get_booking_status (Dineout MCP)
-        → upserts to reservations table (source=dineout)
+        → get_booking_status (Dineout MCP) → personal Dineout bookings only
     → SwiggyFeedbackSyncService.sync()
-        → track_food_order (Food MCP)
-        → upserts to feedback table (source=swiggy_delivery)
+        → track_food_order (Food MCP) → personal delivery tracking only
 ```
-Result: By morning, DB has real Swiggy data. Pipeline runs on truth, not synthetic.
+Real restaurant ops data path: POS connector (P6-R01) → orders/feedback/reservations tables.
 
 ### Workflow 2: Planning run with market intelligence
 ```
 Owner triggers planning scenario
     → ops_manager parses scenario
-    → demand_forecast (Prophet on real Swiggy order history)
+    → demand_forecast (Prophet on internal/POS order data)
     → qdrant_enrichment (shared RAG context)
     → PARALLEL FAN-OUT:
-        reservation + OccupancyEnricher
-            → get_saved_locations + search_restaurants_dineout + get_available_slots
-            → competitor occupancy injected into reservation prompt
-        complaint_intelligence (real Swiggy delivery complaints from feedback table)
+        reservation (internal reservation data)
+        complaint_intelligence (internal feedback data)
         inventory + ProcurementEnricher
-            → search_products (per shortage item)
-            → live Instamart prices + spinIds injected into inventory prompt
+            → search_products (per shortage item) — LIVE Instamart prices ✅
+            → live Instamart prices + spinIds injected into inventory prompt (P6-S14 pending)
         menu_intelligence + CompetitorEnricher
-            → search_restaurants + search_menu + get_restaurant_menu
-            → competitor pricing injected into menu prompt
-        market_intel_node (NEW — purely Swiggy-powered)
-            → competitor snapshot: prices, occupancy, trending dishes
-        dineout_manager_node (NEW — your own Dineout presence)
-            → your slot availability tonight
-    → aggregator (internal data + market context combined)
-    → EvaluationSanityChecker (assumption diffs including market diffs)
+            → search_restaurants + search_menu + get_restaurant_menu — LIVE competitor data ✅
+            → competitor pricing injected into menu prompt (P6-S14 pending)
+        market_intel_node — LIVE Swiggy competitor + occupancy data ✅
+            → competitor snapshot: prices, occupancy, pricing alerts
+        dineout_manager_node — competitor Dineout occupancy signal ✅
+            → competitor slot availability (NOT your own restaurant's slots)
+    → aggregator (internal data + market context)
+    → EvaluationSanityChecker (assumption diffs)
     → critic (market-aware scoring)
-    → action_queue (Instamart procurement, Dineout slot actions)
+    → action_queue (Instamart procurement actions — P6-S16 pending)
     → final_assembler → plan API response
 ```
 Result: Plan says "butter chicken ₹40 above area avg. Approve Instamart order for tomatoes?"
+NOTE: Swiggy data enriches market intelligence layer. Ops layer (demand, complaints,
+reservations) uses internal/POS data — not Swiggy consumer orders.
 
 ### Workflow 3: Owner approves action
 ```
@@ -518,12 +537,16 @@ cortexkitchen-dev/
 
 ## What needs OAuth token vs staging creds
 
-**Works with production OAuth token (get via npx mcp-remote):**
-All read-only tools: get_food_orders, track_food_order, get_addresses,
-search_restaurants, search_menu, get_restaurant_menu, get_available_slots,
-get_booking_status, get_saved_locations, search_restaurants_dineout,
-get_restaurant_details, search_products, your_go_to_items, get_orders,
-get_cart, track_order
+**Works with production OAuth token (consumer account):**
+Market intelligence tools (publicly visible data — valid for competitor research):
+  search_restaurants, search_menu, get_restaurant_menu (Food)
+  search_products, your_go_to_items, get_cart, get_orders, track_order (Instamart)
+  get_saved_locations, search_restaurants_dineout, get_restaurant_details,
+  get_available_slots, get_booking_status (Dineout)
+  get_addresses (Food/Instamart)
+
+Consumer data tools (returns YOUR personal account data — limited value for restaurant ops):
+  get_food_orders (YOUR orders as consumer), track_food_order (YOUR delivery tracking)
 
 **Needs staging creds (mcp-staging.swiggy.com) — write tools that cost real money:**
 checkout, place_food_order, book_table, update_cart, clear_cart

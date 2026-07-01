@@ -1,5 +1,18 @@
 """SwiggyFeedbackSyncService — sync delivery timing data from track_food_order into feedback table.
 
+IMPORTANT — CONSUMER DATA ONLY:
+Swiggy MCP is consumer-facing. track_food_order tracks deliveries made TO the
+authenticated consumer, not deliveries sent FROM a restaurant. This syncs YOUR
+personal food delivery experiences (lateness, ETA accuracy), not your restaurant's
+outgoing delivery performance.
+
+FUTURE USE (needs Swiggy Partner API): when Partner API is available, the same
+sync pattern will pull real restaurant delivery performance metrics (avg delivery
+time, late rate, customer-reported issues). The DB schema and dedup logic are ready.
+
+Current state: data synced here is NOT read by complaint_intelligence or any
+planning node. Pipeline uses internal feedback data only.
+
 Pulls recent delivered orders via get_food_orders, then calls track_food_order per
 order to get actual vs promised delivery times. Deduplicates on external_order_id.
 Only processes orders with status == "delivered".

@@ -1,5 +1,18 @@
 """SwiggyOrderSyncService — nightly sync of Swiggy food orders into the orders table.
 
+IMPORTANT — CONSUMER DATA ONLY:
+Swiggy MCP is consumer-facing (confirmed from Swiggy Builders Club docs). get_food_orders
+returns orders placed BY the authenticated Swiggy consumer account (personal food
+deliveries), NOT a restaurant's incoming orders from customers.
+
+This sync is kept as infrastructure because:
+1. The sync pattern, dedup logic, and DB upsert code are correct and reusable.
+2. FUTURE USE: when Swiggy Partner/Merchant API becomes available, the same pattern
+   will sync actual restaurant-received Swiggy orders. Only the API endpoint changes.
+
+Current state: syncs personal consumer order history. This data is NOT used by the
+demand_forecast node or any planning node — pipeline ops nodes rely on internal/POS data.
+
 Calls get_food_orders via SwiggyMCPClient and upserts results into the orders table.
 One Order row is created per item per order (matching the existing data model).
 Items are matched to MenuItems by name (case-insensitive); unmatched items get a

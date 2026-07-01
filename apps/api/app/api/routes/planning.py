@@ -54,6 +54,11 @@ def _build_response(result: dict, meta: dict, fallback_scenario: str) -> FridayR
             },
         ),
         meta=meta,
+        market_intel=result.get("market_intel"),
+        swiggy_competitor_context=result.get("swiggy_competitor_context"),
+        swiggy_occupancy_context=result.get("swiggy_occupancy_context"),
+        swiggy_procurement_options=result.get("swiggy_procurement_options"),
+        dineout_manager=result.get("dineout_manager"),
     )
 
 

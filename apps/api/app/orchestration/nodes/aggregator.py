@@ -31,11 +31,13 @@ def aggregator_node(state: OrchestratorState) -> OrchestratorState:
         "scenario_profile": state.get("scenario_profile"),
         "target_date": state.get("target_date"),
         "assumptions": {
-            "menu":        state.get("menu_assumptions"),
-            "inventory":   state.get("inventory_assumptions"),
-            "reservation": state.get("reservation_assumptions"),
-            "complaint":   state.get("complaint_assumptions"),
+            "menu":         state.get("menu_assumptions"),
+            "inventory":    state.get("inventory_assumptions"),
+            "reservation":  state.get("reservation_assumptions"),
+            "complaint":    state.get("complaint_assumptions"),
+            "market_intel": state.get("market_intel_assumptions"),
         },
+        "market_intel": state.get("market_intel_output"),
         "agents": {
             "forecast": {
                 "data": _extract(state.get("forecast_output"), "data"),
@@ -167,6 +169,23 @@ def _build_critic_summary(state: OrchestratorState) -> str:
                 f"Hard ceiling is {org_capacity} seated at once. "
                 f"Excess demand ({excess}) must go to waitlist or staggered-seating only."
             )
+
+    # Market intelligence (Swiggy) — appended when available
+    market_intel = state.get("market_intel_output")
+    if market_intel:
+        mi_parts = []
+        area_occ = market_intel.get("area_occupancy")
+        if area_occ:
+            busy_flag = " (tonight busy)" if market_intel.get("tonight_busy") else ""
+            mi_parts.append(f"Area occupancy: {area_occ}{busy_flag}")
+        alerts = market_intel.get("pricing_alerts") or []
+        if alerts:
+            mi_parts.append("Pricing alerts: " + "; ".join(alerts[:3]))
+        proc_opts = market_intel.get("procurement_options") or []
+        if proc_opts:
+            mi_parts.append(f"{len(proc_opts)} Instamart procurement option(s) available")
+        if mi_parts:
+            lines.append("[Market Intel — Swiggy] " + " | ".join(mi_parts))
 
     # Append any auto-detected cross-agent contradictions (0 LLM calls)
     contradiction_text = _detect_contradictions(state)

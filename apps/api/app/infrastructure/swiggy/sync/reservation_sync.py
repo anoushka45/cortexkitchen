@@ -1,11 +1,22 @@
 """SwiggyReservationSyncService — sync Dineout booking statuses into the reservations table.
 
+IMPORTANT — CONSUMER DATA ONLY:
+Swiggy MCP is consumer-facing. get_booking_status returns status of bookings made
+BY the authenticated consumer (tables they booked at restaurants), not bookings
+made at your own restaurant by your guests.
+
+FUTURE USE (needs Swiggy Partner API): when Partner API is available, this sync
+will pull actual incoming Dineout reservations at your restaurant (guest name, party
+size, time, special requests). The DB schema, dedup logic, and upsert pattern are
+ready — only the data source changes.
+
+Current state: this sync is a graceful no-op (no dineout_order_ids registered yet
+because book_table is not called in the consumer-side flow). The reservations table
+is populated by internal/POS data only.
+
 Booking order IDs (returned by book_table) are stored in the connector's connector_metadata
 JSONB column under "dineout_order_ids". DineoutExecutor (P6-S16) calls
 register_booking_order_id() after each successful book_table call.
-
-Until book_table is implemented (P6-S16), sync() is a graceful no-op that returns a
-descriptive note so the API consumer knows why nothing was synced.
 """
 
 from datetime import datetime, timezone

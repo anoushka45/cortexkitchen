@@ -166,6 +166,46 @@ export interface RagContext {
   [key: string]: unknown;
 }
 
+export interface SwiggyCompetitorPricing {
+  area_avg_price:    number | null;
+  cheapest_price:    number | null;
+  most_expensive:    number | null;
+  restaurants_found: number;
+  dish_query:        string;
+  fetched_at:        string;
+}
+
+export interface SwiggyPricingAlert {
+  item:         string;
+  your_price:   number;
+  area_avg:     number;
+  diff_pct:     number;
+  direction:    "above" | "below";
+}
+
+export interface SwiggyOccupancyContext {
+  signal:       "HIGH" | "MEDIUM" | "LOW";
+  tonight_busy: boolean;
+  restaurants_found: number;
+  fetched_at:   string;
+}
+
+export interface SwiggyProcurementOption {
+  name:     string;
+  price:    number;
+  unit:     string;
+  in_stock: boolean;
+  spin_id:  string;
+}
+
+export interface MarketIntelOutput {
+  competitor_pricing: SwiggyCompetitorPricing | null;
+  area_occupancy:     SwiggyOccupancyContext | null;
+  pricing_alerts:     SwiggyPricingAlert[];
+  tonight_busy:       boolean | null;
+  fetched_at:         string | null;
+}
+
 export interface FridayRushResponse {
   scenario:        string;
   target_date:     string | null;
@@ -175,6 +215,12 @@ export interface FridayRushResponse {
   rag_context:     RagContext | null;
   critic:          CriticResult;
   meta?:           Record<string, unknown>;
+  // Swiggy enricher outputs (P6-S11/S12)
+  market_intel?:              MarketIntelOutput | null;
+  swiggy_competitor_context?: Record<string, unknown> | null;
+  swiggy_occupancy_context?:  SwiggyOccupancyContext | null;
+  swiggy_procurement_options?: SwiggyProcurementOption[] | null;
+  dineout_manager?:           Record<string, unknown> | null;
 }
 
 export interface FridayRushRequest {

@@ -361,6 +361,51 @@ export async function deleteRestaurantProfile(id: number): Promise<void> {
   if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
 }
 
+// ── Connectors ────────────────────────────────────────────────────────────────
+
+export interface ConnectorStatus {
+  type: string;
+  name: string;
+  logo: string;
+  connected: boolean;
+  last_sync_at: string | null;
+  sync_status: string;
+  orders_synced: number;
+  feedback_synced: number;
+  address_configured: boolean;
+}
+
+export interface ConnectorsStatusResponse {
+  connectors: ConnectorStatus[];
+}
+
+export async function getConnectorsStatus(): Promise<ConnectorsStatusResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/connectors/status`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Connectors status error ${res.status}`);
+  return res.json() as Promise<ConnectorsStatusResponse>;
+}
+
+export interface SyncResult {
+  status: string;
+  message: string;
+  results: Record<string, unknown>;
+}
+
+export async function triggerSwiggySync(): Promise<SyncResult> {
+  const res = await fetch(`${BASE_URL}/api/v1/connectors/swiggy/sync`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({ detail: "Sync failed." }));
+    throw new Error(detail.detail ?? `Sync failed: ${res.status}`);
+  }
+  return res.json() as Promise<SyncResult>;
+}
+
 export async function getDataHealth(): Promise<DataHealth> {
   const res = await fetch(`${BASE_URL}/api/v1/data-health`, {
     headers: authHeaders(),

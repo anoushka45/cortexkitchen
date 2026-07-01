@@ -54,9 +54,9 @@ app = FastAPI(
 )
 
 
-# 3. OpenTelemetry — HTTP-layer tracing (console exporter for dev; swap for OTLP in prod)
+# 3. OpenTelemetry — HTTP-layer tracing (console exporter disabled; use OTLP in prod)
 _tracer_provider = TracerProvider()
-_tracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+# ConsoleSpanExporter floods dev logs — re-enable by adding BatchSpanProcessor(ConsoleSpanExporter())
 FastAPIInstrumentor.instrument_app(app, tracer_provider=_tracer_provider)
 
 # 3b. CORS Middleware

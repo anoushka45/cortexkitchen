@@ -59,6 +59,13 @@ def final_assembler_node(state: OrchestratorState) -> OrchestratorState:
             "inventory": _safe_rec(state.get("inventory_output")),
         },
 
+        # Swiggy market intelligence (P6-S11/S12) — None when token not set
+        "market_intel": state.get("market_intel_output"),
+        "swiggy_competitor_context": state.get("swiggy_competitor_context"),
+        "swiggy_occupancy_context": state.get("swiggy_occupancy_context"),
+        "swiggy_procurement_options": state.get("swiggy_procurement_options"),
+        "dineout_manager": state.get("dineout_manager_output"),
+
         # RAG evidence
         "rag_context": (
             state.get("complaint_output", {}).get("rag_context")

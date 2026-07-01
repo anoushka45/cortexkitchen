@@ -85,9 +85,13 @@ class OrchestratorState(TypedDict):
     shared_context: Annotated[Optional[Dict[str, Any]], keep_last]
 
     # Swiggy enricher outputs — populated by enrichers before/during parallel fan-out (P6-S10)
+    # These use consumer-facing Swiggy MCP tools (public market data) — valid for market intelligence.
     swiggy_competitor_context:  Annotated[Optional[Dict[str, Any]], keep_last]
     swiggy_occupancy_context:   Annotated[Optional[Dict[str, Any]], keep_last]
     swiggy_procurement_options: Annotated[Optional[Dict[str, Any]], keep_last]
+    # FUTURE USE (needs Swiggy Partner API): intended to hold restaurant's own delivery performance
+    # signal from track_food_order. Consumer MCP only returns personal delivery tracking, not
+    # a restaurant's outgoing delivery metrics. Will be populated once Partner API is available.
     swiggy_delivery_signal:     Annotated[Optional[Dict[str, Any]], keep_last]
 
     # Swiggy node outputs — written by market_intel_node (P6-S11) and dineout_manager_node (P6-S12)

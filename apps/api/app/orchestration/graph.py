@@ -522,7 +522,7 @@ _NODE_START_HINTS: dict[str, str] = {
     "inventory":              "Cross-referencing all ingredients against the demand forecast…",
     "menu_intelligence":      "Applying inventory constraints to build menu guidance…",
     "market_intel":           "Pulling live competitor prices and area occupancy from Swiggy…",
-    "dineout_manager":        "Checking your own Dineout slot availability for tonight…",
+    "dineout_manager":        "Checking area Dineout slot availability for tonight…",
     "aggregator":             "Synthesising all agent outputs into one consolidated brief…",
     "critic":                 "Scoring the plan — safety · feasibility · evidence · actionability · clarity…",
     "replan_orchestrator":    "Critic flagged issues — injecting corrective context for retry…",

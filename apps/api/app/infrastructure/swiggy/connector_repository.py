@@ -56,8 +56,9 @@ class ConnectorRepository:
         """Update sync_status and optionally increment error_count + last_error."""
         connector = self.get(org_id, connector_type)
         if connector is None:
-            log.warning("connector_not_found_for_status_update", org_id=org_id, connector_type=connector_type)
-            return
+            connector = Connector(org_id=org_id, connector_type=connector_type)
+            self.db.add(connector)
+            log.info("connector_auto_created", org_id=org_id, connector_type=connector_type)
 
         connector.sync_status = status
         connector.updated_at = datetime.utcnow()

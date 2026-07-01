@@ -5,6 +5,11 @@
 > how Swiggy integrates, and what the demo to the Swiggy team must show.
 > Updated after every PR merge.
 
+## Git rules (non-negotiable)
+
+- **Never** add `Co-Authored-By: Claude` or any Claude authorship line to commit messages.
+- Commit messages are authored by Anoushka only.
+
 ---
 
 ## Product vision

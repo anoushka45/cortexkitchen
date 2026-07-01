@@ -84,6 +84,20 @@ class OrchestratorState(TypedDict):
     # Shared pre-enrichment context from Qdrant, populated before parallel fan-out (P6-S04)
     shared_context: Annotated[Optional[Dict[str, Any]], keep_last]
 
+    # Swiggy enricher outputs — populated by enrichers before/during parallel fan-out (P6-S10)
+    swiggy_competitor_context:  Annotated[Optional[Dict[str, Any]], keep_last]
+    swiggy_occupancy_context:   Annotated[Optional[Dict[str, Any]], keep_last]
+    swiggy_procurement_options: Annotated[Optional[Dict[str, Any]], keep_last]
+    swiggy_delivery_signal:     Annotated[Optional[Dict[str, Any]], keep_last]
+
+    # Swiggy node outputs — written by market_intel_node (P6-S11) and dineout_manager_node (P6-S12)
+    market_intel_output:    Annotated[Optional[Dict[str, Any]], keep_last]
+    dineout_manager_output: Annotated[Optional[Dict[str, Any]], keep_last]
+
+    # Per-node assumption dicts for new nodes — used by assumption diffs 5+6 (P6-S13)
+    market_intel_assumptions:    Annotated[Optional[Dict[str, Any]], keep_last]
+    dineout_manager_assumptions: Annotated[Optional[Dict[str, Any]], keep_last]
+
     # Error handling
     error: Annotated[Optional[str], keep_last]
 
@@ -159,6 +173,20 @@ def make_initial_state(
 
         # Qdrant early enrichment
         shared_context=None,
+
+        # Swiggy enricher outputs (P6-S10)
+        swiggy_competitor_context=None,
+        swiggy_occupancy_context=None,
+        swiggy_procurement_options=None,
+        swiggy_delivery_signal=None,
+
+        # Swiggy node outputs (P6-S11/S12)
+        market_intel_output=None,
+        dineout_manager_output=None,
+
+        # Swiggy node assumption dicts (P6-S13)
+        market_intel_assumptions=None,
+        dineout_manager_assumptions=None,
 
         # Error handling
         error=None,

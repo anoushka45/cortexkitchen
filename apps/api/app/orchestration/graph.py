@@ -30,12 +30,15 @@ from app.orchestration.nodes import (
     complaint_intelligence_node,
     menu_intelligence_node,
     inventory_node,
+    market_intel_node,
+    dineout_manager_node,
     aggregator_node,
     critic_node,
     final_assembler_node,
     qdrant_enrichment_node,
     replan_orchestrator_node,
 )
+from app.infrastructure.swiggy.client import SwiggyMCPClient
 
 
 # ── Node name constants ──────────────────────────────────────────────────────
@@ -46,6 +49,8 @@ QDRANT_ENRICHMENT = "qdrant_enrichment"
 RESERVATION = "reservation"
 COMPLAINT_INTELLIGENCE = "complaint_intelligence"
 INVENTORY = "inventory"
+MARKET_INTEL = "market_intel"
+DINEOUT_MANAGER = "dineout_manager"
 MENU_INTELLIGENCE = "menu_intelligence"
 AGGREGATOR = "aggregator"
 CRITIC = "critic"
@@ -220,6 +225,7 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
     llm             = deps["llm"]
     memory          = deps.get("memory")
     planning_memory = deps.get("planning_memory")
+    swiggy_client   = deps.get("swiggy_client") or SwiggyMCPClient()
     tr              = traces if traces is not None else []
 
     graph = StateGraph(OrchestratorState)
@@ -233,7 +239,9 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
     graph.add_node(RESERVATION,            _inject(reservation_node,            tr, db=db, llm=llm))
     graph.add_node(COMPLAINT_INTELLIGENCE, _inject(complaint_intelligence_node, tr, db=db, llm=llm, memory=memory))
     graph.add_node(INVENTORY,              _inject(inventory_node,              tr, db=db, llm=llm))
-    graph.add_node(MENU_INTELLIGENCE,      _inject(menu_intelligence_node,      tr, db=db, llm=llm))
+    graph.add_node(MARKET_INTEL,    _inject(market_intel_node,    tr, swiggy_client=swiggy_client))
+    graph.add_node(DINEOUT_MANAGER, _inject(dineout_manager_node, tr, swiggy_client=swiggy_client))
+    graph.add_node(MENU_INTELLIGENCE, _inject(menu_intelligence_node, tr, db=db, llm=llm))
 
     graph.add_node(AGGREGATOR,          _log_node(aggregator_node,          tr))
     graph.add_node(CRITIC,              _inject(critic_node,                 tr, db=db, llm=llm))
@@ -256,16 +264,20 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
     # Qdrant pre-enrichment before parallel fan-out
     graph.add_edge(DEMAND_FORECAST, QDRANT_ENRICHMENT)
 
-    # Full parallel fan-out: reservation, complaint, inventory run together
+    # Parallel fan-out: reservation, complaint, inventory, market_intel, dineout_manager
     graph.add_edge(QDRANT_ENRICHMENT, RESERVATION)
     graph.add_edge(QDRANT_ENRICHMENT, COMPLAINT_INTELLIGENCE)
     graph.add_edge(QDRANT_ENRICHMENT, INVENTORY)
+    graph.add_edge(QDRANT_ENRICHMENT, MARKET_INTEL)
+    graph.add_edge(QDRANT_ENRICHMENT, DINEOUT_MANAGER)
 
-    # All three parallel agents must complete before menu starts.
-    # LangGraph fires menu_intelligence once all three fan-in edges resolve.
+    # All five parallel nodes must complete before menu starts.
+    # LangGraph fires menu_intelligence once all five fan-in edges resolve.
     graph.add_edge(RESERVATION,            MENU_INTELLIGENCE)
     graph.add_edge(COMPLAINT_INTELLIGENCE, MENU_INTELLIGENCE)
     graph.add_edge(INVENTORY,              MENU_INTELLIGENCE)
+    graph.add_edge(MARKET_INTEL,           MENU_INTELLIGENCE)
+    graph.add_edge(DINEOUT_MANAGER,        MENU_INTELLIGENCE)
 
     # Single fan-in: aggregator fires exactly once, after menu
     graph.add_edge(MENU_INTELLIGENCE, AGGREGATOR)
@@ -484,6 +496,8 @@ _NODE_SSE_MAP: dict[str, str] = {
     "complaint_intelligence": "complaint",
     "menu_intelligence":      "menu",
     "inventory":              "inventory",
+    "market_intel":           "market_intel",
+    "dineout_manager":        "dineout_manager",
     "aggregator":             "aggregator",
     "critic":                 "critic",
     "replan_orchestrator":    "replan",
@@ -507,6 +521,8 @@ _NODE_START_HINTS: dict[str, str] = {
     "complaint_intelligence": "Analysing 28 days of guest feedback with RAG retrieval…",
     "inventory":              "Cross-referencing all ingredients against the demand forecast…",
     "menu_intelligence":      "Applying inventory constraints to build menu guidance…",
+    "market_intel":           "Pulling live competitor prices and area occupancy from Swiggy…",
+    "dineout_manager":        "Checking your own Dineout slot availability for tonight…",
     "aggregator":             "Synthesising all agent outputs into one consolidated brief…",
     "critic":                 "Scoring the plan — safety · feasibility · evidence · actionability · clarity…",
     "replan_orchestrator":    "Critic flagged issues — injecting corrective context for retry…",
@@ -562,6 +578,30 @@ def _completion_hint(node_name: str, state_update: dict) -> str:
             n_hi = len(rec.get("highlight_items") or [])
             n_bl = len(rec.get("inventory_blockers") or [])
             return f"{n_hi} items to feature · {n_bl} blocked by stock"
+
+        if node_name == "market_intel":
+            intel = state_update.get("market_intel_output") or {}
+            if intel is None:
+                return "Swiggy unavailable — market context skipped"
+            signal   = intel.get("area_occupancy") or "?"
+            n_alerts = len(intel.get("pricing_alerts") or [])
+            n_opts   = len(intel.get("procurement_options") or [])
+            parts = [f"Area occupancy: {signal}"]
+            if n_alerts:
+                parts.append(f"{n_alerts} pricing alert(s)")
+            if n_opts:
+                parts.append(f"{n_opts} procurement option(s)")
+            return " · ".join(parts)
+
+        if node_name == "dineout_manager":
+            out = state_update.get("dineout_manager_output") or {}
+            if out is None:
+                return "Dineout manager skipped (no restaurant ID or Swiggy unavailable)"
+            total  = out.get("total_slots_tonight", 0)
+            low    = out.get("low_availability_slots", 0)
+            flag   = out.get("open_more_recommended", False)
+            suffix = " · open more slots recommended" if flag else ""
+            return f"Your Dineout tonight: {total} slots, {low} low availability{suffix}"
 
         if node_name == "aggregator":
             bundle   = state_update.get("aggregated_recommendation") or {}

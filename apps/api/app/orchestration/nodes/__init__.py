@@ -4,6 +4,8 @@ from app.orchestration.nodes.reservation import reservation_node
 from app.orchestration.nodes.complaint_intelligence import complaint_intelligence_node
 from app.orchestration.nodes.menu_intelligence import menu_intelligence_node
 from app.orchestration.nodes.inventory import inventory_node
+from app.orchestration.nodes.market_intel import market_intel_node
+from app.orchestration.nodes.dineout_manager import dineout_manager_node
 from app.orchestration.nodes.aggregator import aggregator_node
 from app.orchestration.nodes.critic import critic_node
 from app.orchestration.nodes.final_assembler import final_assembler_node
@@ -17,6 +19,8 @@ __all__ = [
     "complaint_intelligence_node",
     "menu_intelligence_node",
     "inventory_node",
+    "market_intel_node",
+    "dineout_manager_node",
     "aggregator_node",
     "critic_node",
     "final_assembler_node",

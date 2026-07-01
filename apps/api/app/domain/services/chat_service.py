@@ -17,6 +17,11 @@ from sqlalchemy.orm import Session
 from app.core.settings import get_settings
 from app.infrastructure.db.models import Feedback, PlanningRun, SentimentType
 from app.infrastructure.llm.prompt_utils import PromptUtils
+from app.infrastructure.swiggy.client import (
+    FOOD_ENDPOINT,
+    INSTAMART_ENDPOINT,
+    SwiggyMCPClient,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +29,8 @@ _MODEL = "llama-3.3-70b-versatile"
 _MAX_TOKENS = 1024
 _MAX_RUNS = 10
 _MAX_TOOL_ITERATIONS = 3
+
+_SWIGGY_TOOL_NAMES = {"swiggy_search_menu", "swiggy_get_food_orders", "swiggy_search_products"}
 
 
 # ── Tool definitions (Groq / OpenAI function calling format) ─────────────────
@@ -112,6 +119,66 @@ _TOOLS = [
             },
         },
     },
+    # ── Swiggy live data tools (P6-S13c) ────────────────────────────────────
+    {
+        "type": "function",
+        "function": {
+            "name": "swiggy_search_menu",
+            "description": (
+                "Search competitor menus on Swiggy to find dishes and their prices near the "
+                "restaurant. Use when the user asks about competitor prices, average dish prices "
+                "in the area, or what competitors are charging for a specific item. "
+                "Returns dish names, prices, and restaurant names from live Swiggy data."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Dish or category to search for (e.g. 'biryani', 'butter chicken')",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "swiggy_get_food_orders",
+            "description": (
+                "Fetch recent food orders from Swiggy for this restaurant. Use when the user "
+                "asks about Swiggy order history, top-selling items, order volume, or past "
+                "Swiggy performance. Returns order list with items, amounts, and timestamps."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "swiggy_search_products",
+            "description": (
+                "Search Swiggy Instamart for ingredient prices and availability. Use when the "
+                "user asks about ingredient costs, procurement options, or what something costs "
+                "on Instamart right now. Returns product name, price, unit, and stock status."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Ingredient or product to search for (e.g. 'tomatoes', 'cream', 'onions')",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
 ]
 
 
@@ -190,6 +257,65 @@ def _run_tool(name: str, args: dict, db: Session, org_id: int) -> str:
         return json.dumps({"error": str(exc)})
 
     return json.dumps({"error": f"Unknown tool: {name}"})
+
+
+# ── Swiggy live tool execution ────────────────────────────────────────────────
+
+async def _run_swiggy_tool(name: str, args: dict) -> str:
+    """Execute a Swiggy MCP tool and return a JSON string result.
+
+    Uses settings.swiggy_address_id as the default addressId for all calls.
+    Returns graceful error JSON if Swiggy is unavailable — never raises.
+    """
+    client = SwiggyMCPClient()
+    if not client.is_available():
+        return json.dumps({
+            "error": "Swiggy not connected",
+            "hint": "Connect your Swiggy account in the /connectors page to use live Swiggy data.",
+        })
+
+    settings = get_settings()
+    address_id = settings.swiggy_address_id or ""
+
+    try:
+        if name == "swiggy_search_menu":
+            result = await client.call_tool(
+                FOOD_ENDPOINT,
+                "search_menu",
+                {"query": args.get("query", ""), "addressId": address_id},
+            )
+            if result is None:
+                return json.dumps({"error": "Swiggy search_menu returned no data"})
+            items = result.get("items") or result.get("restaurants") or []
+            return json.dumps({"source": "Swiggy Food (live)", "results": items[:15]})
+
+        if name == "swiggy_get_food_orders":
+            result = await client.call_tool(
+                FOOD_ENDPOINT,
+                "get_food_orders",
+                {"addressId": address_id},
+            )
+            if result is None:
+                return json.dumps({"error": "Swiggy get_food_orders returned no data"})
+            orders = result.get("orders") or result.get("data") or result
+            return json.dumps({"source": "Swiggy Food (live)", "orders": orders})
+
+        if name == "swiggy_search_products":
+            result = await client.call_tool(
+                INSTAMART_ENDPOINT,
+                "search_products",
+                {"query": args.get("query", ""), "addressId": address_id},
+            )
+            if result is None:
+                return json.dumps({"error": "Swiggy search_products returned no data"})
+            products = result.get("products") or result.get("items") or result
+            return json.dumps({"source": "Swiggy Instamart (live)", "products": products})
+
+    except Exception as exc:
+        logger.warning("Swiggy chatbot tool '%s' failed: %s", name, exc)
+        return json.dumps({"error": str(exc)})
+
+    return json.dumps({"error": f"Unknown Swiggy tool: {name}"})
 
 
 # ── Context formatters ────────────────────────────────────────────────────────
@@ -477,7 +603,10 @@ async def stream_reply(
             except Exception:
                 args = {}
 
-            result = _run_tool(tc.function.name, args, db, org_id)
+            if tc.function.name in _SWIGGY_TOOL_NAMES:
+                result = await _run_swiggy_tool(tc.function.name, args)
+            else:
+                result = _run_tool(tc.function.name, args, db, org_id)
             messages.append({
                 "role":         "tool",
                 "tool_call_id": tc.id,

@@ -128,12 +128,12 @@ class ProcurementEnricher:
             return []
 
         results = []
-        for item in data.get("items") or []:
-            variant = self._best_variant(item.get("variants") or [])
+        for item in data.get("products") or []:
+            variant = self._best_variant(item.get("variations") or [])
             if not variant:
                 continue
             results.append({
-                "name":          str(item.get("name") or ""),
+                "name":          str(item.get("displayName") or item.get("name") or ""),
                 "spinId":        variant["spinId"],
                 "price":         variant["price"],
                 "unit":          variant["unit"],
@@ -170,9 +170,8 @@ class ProcurementEnricher:
             if not products:
                 continue
 
-            # Best match: first product, first variant
             best_product = products[0]
-            variant = self._best_variant(best_product.get("variants") or [])
+            variant = self._best_variant(best_product.get("variations") or [])
             if not variant:
                 continue
 
@@ -194,11 +193,13 @@ class ProcurementEnricher:
             spin_id = v.get("spinId")
             if not spin_id:
                 continue
+            price_obj = v.get("price") or {}
+            price = float(price_obj.get("offerPrice") or price_obj.get("mrp") or 0)
             return {
                 "spinId":  str(spin_id),
-                "price":   float(v.get("price") or 0),
-                "unit":    str(v.get("unit") or ""),
-                "inStock": bool(v.get("inStock", True)),
+                "price":   price,
+                "unit":    str(v.get("quantityDescription") or v.get("unit") or ""),
+                "inStock": bool(v.get("isInStockAndAvailable", v.get("inStock", True))),
             }
         return None
 

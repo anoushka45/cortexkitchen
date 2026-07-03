@@ -6,8 +6,8 @@ import { CriticResult } from "@/types/planning";
 const VERDICT_CONFIG: Record<string, { chipColor: string; chipBg: string; scoreColor: string; gradientStop: string }> = {
   approved: { chipColor: "text-emerald-300", chipBg: "ring-emerald-400/30 bg-emerald-500/[0.08]", scoreColor: "#34d399", gradientStop: "#6ee7b7" },
   rejected:  { chipColor: "text-rose-300",    chipBg: "ring-rose-400/30 bg-rose-500/[0.08]",       scoreColor: "#fb7185", gradientStop: "#fda4af" },
-  revision:  { chipColor: "text-ember-300",   chipBg: "ring-ember-400/30 bg-ember-500/[0.08]",     scoreColor: "#efa345", gradientStop: "#f5be73" },
-  unknown:   { chipColor: "text-slate-400",   chipBg: "ring-white/10 bg-white/[0.04]",             scoreColor: "#94a3b8", gradientStop: "#cbd5e1" },
+  revision:  { chipColor: "text-[var(--color-accent)]",   chipBg: "ring-ember-400/30 bg-ember-500/[0.08]",     scoreColor: "#efa345", gradientStop: "#f5be73" },
+  unknown:   { chipColor: "text-[var(--color-text-soft)]",   chipBg: "ring-[var(--color-border-default)] bg-[var(--color-surface-raised)]",             scoreColor: "#94a3b8", gradientStop: "#cbd5e1" },
 };
 
 const VERDICT_LABEL: Record<string, string> = {
@@ -49,7 +49,7 @@ export default function CriticBanner({ critic, generatedAt, targetDate, actions 
   const runCost = (critic as unknown as Record<string, unknown>).total_cost_usd;
 
   return (
-    <div className="stagger-1 relative overflow-hidden rounded-3xl bg-gradient-to-br from-ink-900 to-ink-850 p-7 ring-1 ring-white/[0.07]">
+    <div className="stagger-1 relative overflow-hidden rounded-3xl bg-gradient-to-br from-ink-900 to-ink-850 p-7 ring-1 ring-[var(--color-border-soft)]">
       {/* Top accent line */}
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent" />
 
@@ -60,12 +60,12 @@ export default function CriticBanner({ critic, generatedAt, targetDate, actions 
           <div className="flex items-center gap-2">
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300/80">Critic verdict</span>
             {critic.decision_log_id && (
-              <span className="font-mono text-[10px] text-white/35">#{critic.decision_log_id}</span>
+              <span className="font-mono text-[10px] text-[var(--color-text-faint)]">#{critic.decision_log_id}</span>
             )}
           </div>
 
           <div className="mt-3 flex items-baseline gap-4">
-            <h1 className="text-[40px] font-semibold leading-none tracking-[-0.015em] text-white">
+            <h1 className="text-[40px] font-semibold leading-none tracking-[-0.015em] text-[var(--color-text-primary)]">
               {VERDICT_LABEL[critic.verdict] ?? "Verdict pending"}
             </h1>
             <span className={`rounded-full px-3 py-1 font-mono text-[11px] uppercase tracking-wider ring-1 chip-dot ${config.chipColor} ${config.chipBg}`}>
@@ -75,12 +75,12 @@ export default function CriticBanner({ critic, generatedAt, targetDate, actions 
 
           {critic.notes && (
             <div className="mt-4 max-w-lg">
-              <p className={`text-[14px] leading-[1.7] text-white/65 ${notesExpanded ? "" : "line-clamp-4"}`}>
+              <p className={`text-[14px] leading-[1.7] text-[var(--color-text-soft)] ${notesExpanded ? "" : "line-clamp-4"}`}>
                 {critic.notes}
               </p>
               <button
                 onClick={() => setNotesExpanded(v => !v)}
-                className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-white/55 ring-1 ring-white/10 transition-all hover:bg-emerald-500/10 hover:text-emerald-300 hover:ring-emerald-400/25"
+                className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-raised)] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-soft)] ring-1 ring-[var(--color-border-default)] transition-all hover:bg-emerald-500/10 hover:text-emerald-300 hover:ring-emerald-400/25"
               >
                 {notesExpanded ? (
                   <><span>Show less</span><span className="text-[8px]">▲</span></>
@@ -91,10 +91,10 @@ export default function CriticBanner({ critic, generatedAt, targetDate, actions 
             </div>
           )}
 
-          <div className="mt-5 flex flex-wrap items-center gap-5 font-mono text-[10px] uppercase tracking-[0.18em] text-white/40">
-            <span>Generated <span className="text-white/75">{formattedTime}</span></span>
-            {targetDate && <span>Target <span className="text-white/75">{targetDate}</span></span>}
-            {typeof runCost === "number" && <span>Run <span className="text-white/75">${runCost.toFixed(3)}</span></span>}
+          <div className="mt-5 flex flex-wrap items-center gap-5 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
+            <span>Generated <span className="text-[var(--color-text-soft)]">{formattedTime}</span></span>
+            {targetDate && <span>Target <span className="text-[var(--color-text-soft)]">{targetDate}</span></span>}
+            {typeof runCost === "number" && <span>Run <span className="text-[var(--color-text-soft)]">${runCost.toFixed(3)}</span></span>}
           </div>
 
           {actions && <div className="mt-5">{actions}</div>}
@@ -102,15 +102,15 @@ export default function CriticBanner({ critic, generatedAt, targetDate, actions 
 
         {/* ── Middle: dimension breakdown ── */}
         <div className="xl:col-span-4">
-          <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.22em] text-white/40">Score breakdown</div>
+          <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">Score breakdown</div>
           <div className="space-y-2.5">
             {DIMENSIONS.map((dim) => {
               const raw = typeof dims[dim] === "number" ? dims[dim] : 0;
               const pct = Math.round(raw * 100);
-              const scoreColor = pct >= 75 ? "text-emerald-300" : pct >= 50 ? "text-ember-300" : "text-rose-300";
+              const scoreColor = pct >= 75 ? "text-emerald-300" : pct >= 50 ? "text-[var(--color-accent)]" : "text-rose-300";
               return (
                 <div key={dim}>
-                  <div className="flex justify-between text-[11px] text-white/60">
+                  <div className="flex justify-between text-[11px] text-[var(--color-text-soft)]">
                     <span className="capitalize">{dim}</span>
                     <span className={`font-mono font-semibold ${scoreColor}`}>{pct}</span>
                   </div>
@@ -156,8 +156,8 @@ export default function CriticBanner({ critic, generatedAt, targetDate, actions 
             </svg>
             <div className="absolute inset-0 grid place-items-center">
               <div className="text-center">
-                <div className="num-display text-5xl leading-none text-white">{(critic.score).toFixed(2)}</div>
-                <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.22em] text-white/45">overall</div>
+                <div className="num-display text-5xl leading-none text-[var(--color-text-primary)]">{(critic.score).toFixed(2)}</div>
+                <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">overall</div>
               </div>
             </div>
           </div>

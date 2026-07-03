@@ -86,88 +86,88 @@ export default function DashboardSummary({ data }: Props) {
     <div className="stagger-2 mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
 
       {/* Forecasted orders */}
-      <article className="rounded-2xl bg-ink-900 p-5 ring-1 ring-white/[0.07]">
-        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ember-300/80">Forecasted orders</div>
+      <article className="rounded-2xl bg-[var(--color-surface)] p-5 ring-1 ring-[var(--color-border-soft)]">
+        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">Forecasted orders</div>
         <div className="mt-2 flex items-baseline gap-2">
-          <div className="num-display text-5xl leading-none text-white">{animatedOrders ?? "--"}</div>
+          <div className="num-display text-5xl leading-none text-[var(--color-text-primary)]">{animatedOrders ?? "--"}</div>
           {orders !== null && data.target_date && (
             <div className="text-xs text-emerald-300/80">target</div>
           )}
         </div>
-        <div className="mt-3 text-[11px] text-white/45">
+        <div className="mt-3 text-[11px] text-[var(--color-text-faint)]">
           {data.target_date
-            ? <>target <span className="font-mono text-white/65">{data.target_date}</span></>
+            ? <>target <span className="font-mono text-[var(--color-text-soft)]">{data.target_date}</span></>
             : "next service window"}
           {rangeText && <>  -  {rangeText}</>}
         </div>
-        <div className="mt-3 h-1.5 rounded bg-white/[0.04] overflow-hidden">
+        <div className="mt-3 h-1.5 rounded bg-[var(--color-surface-raised)] overflow-hidden">
           <div className="h-full bg-gradient-to-r from-ember-400 to-ember-600 transition-all duration-700"
             style={{ width: orders ? `${Math.min(100, Math.round((orders / 150) * 100))}%` : "0%" }} />
         </div>
       </article>
 
       {/* Capacity load */}
-      <article className="rounded-2xl bg-ink-900 p-5 ring-1 ring-white/[0.07]">
+      <article className="rounded-2xl bg-[var(--color-surface)] p-5 ring-1 ring-[var(--color-border-soft)]">
         <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-cyan-300/80">Capacity load</div>
         <div className="mt-2 flex items-baseline gap-2">
-          <div className="num-display text-5xl leading-none text-white">
-            {animatedOccupancy ?? "--"}<span className="text-2xl text-white/40">%</span>
+          <div className="num-display text-5xl leading-none text-[var(--color-text-primary)]">
+            {animatedOccupancy ?? "--"}<span className="text-2xl text-[var(--color-text-faint)]">%</span>
           </div>
         </div>
-        <div className="mt-3 text-[11px] text-white/45">
+        <div className="mt-3 text-[11px] text-[var(--color-text-faint)]">
           reservation pressure
           {bookings !== null && guests !== null && <>  -  {bookings} bookings  -  {guests} guests</>}
         </div>
-        <div className="mt-3 h-1.5 rounded bg-white/[0.04] overflow-hidden">
+        <div className="mt-3 h-1.5 rounded bg-[var(--color-surface-raised)] overflow-hidden">
           <div className="h-full bg-gradient-to-r from-cyan-400 to-cyan-600 transition-all duration-700"
             style={{ width: pct ? `${Math.min(100, Math.round(pct))}%` : "0%" }} />
         </div>
       </article>
 
       {/* Complaint signal */}
-      <article className="rounded-2xl bg-ink-900 p-5 ring-1 ring-white/[0.07]">
+      <article className="rounded-2xl bg-[var(--color-surface)] p-5 ring-1 ring-[var(--color-border-soft)]">
         <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-rose-300/80">Complaint signal</div>
         <div className="mt-2 flex items-baseline gap-2">
-          <div className="num-display text-5xl leading-none text-white">{complaints}</div>
+          <div className="num-display text-5xl leading-none text-[var(--color-text-primary)]">{complaints}</div>
           {complaints > 0 && <div className="text-xs text-rose-300/80">active</div>}
         </div>
-        <div className="mt-3 text-[11px] text-white/45">guest experience watch</div>
+        <div className="mt-3 text-[11px] text-[var(--color-text-faint)]">guest experience watch</div>
         <div className="mt-3 flex gap-1">
           {[...Array(Math.max(3, complaints))].map((_, i) => (
             <div key={i} className={`h-1.5 flex-1 rounded ${
-              i < complaints ? `bg-rose-400/${i === 0 ? "60" : i === 1 ? "40" : "30"}` : "bg-white/[0.04]"
+              i < complaints ? `bg-rose-400/${i === 0 ? "60" : i === 1 ? "40" : "30"}` : "bg-[var(--color-surface-raised)]"
             }`} />
           ))}
         </div>
       </article>
 
       {/* Inventory risk */}
-      <article className="rounded-2xl bg-ink-900 p-5 ring-1 ring-white/[0.07]">
+      <article className="rounded-2xl bg-[var(--color-surface)] p-5 ring-1 ring-[var(--color-border-soft)]">
         <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-emerald-300/80">Inventory risk</div>
         <div className="mt-2 flex items-baseline gap-2">
-          <div className="num-display text-5xl leading-none text-white">{criticalInv}</div>
+          <div className="num-display text-5xl leading-none text-[var(--color-text-primary)]">{criticalInv}</div>
           {criticalInv > 0 && <div className="text-xs text-rose-300/80">critical</div>}
         </div>
-        <div className="mt-3 text-[11px] text-white/45">restock urgency</div>
+        <div className="mt-3 text-[11px] text-[var(--color-text-faint)]">restock urgency</div>
         <div className="mt-3 flex gap-1">
           {[...Array(Math.max(5, criticalInv))].map((_, i) => (
             <div key={i} className={`h-1.5 flex-1 rounded ${
               i < criticalInv
                 ? i < 2 ? "bg-rose-400/60" : i < 4 ? "bg-ember-400/40" : "bg-emerald-400/30"
-                : "bg-white/[0.04]"
+                : "bg-[var(--color-surface-raised)]"
             }`} />
           ))}
         </div>
       </article>
 
       {/* Menu focus */}
-      <article className="rounded-2xl bg-ink-900 p-5 ring-1 ring-white/[0.07]">
+      <article className="rounded-2xl bg-[var(--color-surface)] p-5 ring-1 ring-[var(--color-border-soft)]">
         <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-amber-300/80">Menu focus</div>
         <div className="mt-2 flex items-baseline gap-2">
-          <div className="num-display text-5xl leading-none text-white">{push ? "2" : "0"}</div>
+          <div className="num-display text-5xl leading-none text-[var(--color-text-primary)]">{push ? "2" : "0"}</div>
           <div className="text-xs text-amber-300/80">items tonight</div>
         </div>
-        <div className="mt-3 text-[11px] text-white/45 truncate">
+        <div className="mt-3 text-[11px] text-[var(--color-text-faint)] truncate">
           {push ? `push ${push.slice(0, 18)}` : "service plan guidance"}
         </div>
         <div className="mt-3 flex gap-1.5">
@@ -175,7 +175,7 @@ export default function DashboardSummary({ data }: Props) {
             <span className="rounded bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] text-emerald-300 ring-1 ring-emerald-400/20">PUSH</span>
           )}
           {ease && (
-            <span className="rounded bg-ember-500/10 px-2 py-0.5 font-mono text-[10px] text-ember-300 ring-1 ring-ember-400/20">EASE</span>
+            <span className="rounded bg-ember-500/10 px-2 py-0.5 font-mono text-[10px] text-[var(--color-accent)] ring-1 ring-ember-400/20">EASE</span>
           )}
         </div>
       </article>

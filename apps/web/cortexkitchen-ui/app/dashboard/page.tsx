@@ -78,12 +78,12 @@ function SectionHeader({
     NonNullable<Parameters<typeof SectionHeader>[0]["tone"]>,
     { bar: string; label: string }
   > = {
-    ember: { bar: "bg-ember-400/70", label: "text-ember-300/80" },
+    ember: { bar: "bg-ember-400/70", label: "text-[var(--color-accent)]/80" },
     cyan: { bar: "bg-cyan-300/70", label: "text-cyan-200/80" },
     rose: { bar: "bg-rose-400/70", label: "text-rose-200/80" },
     emerald: { bar: "bg-emerald-300/70", label: "text-emerald-200/80" },
     amber: { bar: "bg-amber-300/70", label: "text-amber-200/80" },
-    default: { bar: "bg-white/10", label: "text-slate-400" },
+    default: { bar: "bg-[var(--color-surface-raised)]", label: "text-[var(--color-text-soft)]" },
   };
   const toneStyle = toneClass[tone] ?? toneClass.default;
 
@@ -97,13 +97,13 @@ function SectionHeader({
         <p className={`text-xs font-mono uppercase tracking-[0.18em] ${toneStyle.label}`}>
           {label}
         </p>
-        <p className="mt-1 text-sm text-slate-400">{description}</p>
+        <p className="mt-1 text-sm text-[var(--color-text-soft)]">{description}</p>
         {!isOpen && cards && cards.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {cards.map((card) => (
               <span
                 key={card}
-                className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[10px] font-mono tracking-wide text-slate-500"
+                className="inline-flex items-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-2.5 py-0.5 text-[10px] font-mono tracking-wide text-[var(--color-text-faint)]"
               >
                 {card}
               </span>
@@ -113,7 +113,7 @@ function SectionHeader({
       </div>
       {onToggle !== undefined && (
         <svg
-          className={`flex-shrink-0 h-4 w-4 text-slate-500 transition-transform duration-200 group-hover:text-slate-300 ${isOpen ? "rotate-0" : "-rotate-90"}`}
+          className={`flex-shrink-0 h-4 w-4 text-[var(--color-text-faint)] transition-transform duration-200 group-hover:text-[var(--color-text-soft)] ${isOpen ? "rotate-0" : "-rotate-90"}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -128,7 +128,7 @@ const AGENT_PIPELINE = [
     label: "Demand Forecast",
     capability: "Predicts how many covers to expect, when your peak hour hits, and how tonight compares to the same day last week",
     iconPath: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-    border: "border-ember-500/20", bg: "bg-ember-500/[0.06]", dot: "bg-ember-400", icon: "text-ember-400",
+    border: "border-ember-500/20", bg: "bg-ember-500/[0.06]", dot: "bg-ember-400", icon: "text-[var(--color-accent)]",
   },
   {
     label: "Reservation Pressure",
@@ -187,7 +187,7 @@ function IdleState({
 
   return (
     <div className="py-6">
-      <div className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(ellipse_at_top_left,rgba(230,137,42,0.12),transparent_55%),rgba(255,255,255,0.015)] px-6 py-10 shadow-[0_32px_120px_rgba(2,8,23,0.5)] md:px-10 md:py-12">
+      <div className="relative overflow-hidden rounded-[34px] border border-[var(--color-border-default)] bg-[radial-gradient(ellipse_at_top_left,rgba(230,137,42,0.12),transparent_55%),rgba(255,255,255,0.015)] px-6 py-10 shadow-[0_32px_120px_rgba(2,8,23,0.5)] md:px-10 md:py-12">
 
         {/* Subtle grid */}
         <div className="pointer-events-none absolute inset-0 opacity-[0.08]" style={{
@@ -209,18 +209,18 @@ function IdleState({
                   <span className="absolute inset-0 animate-ping rounded-full bg-ember-400 opacity-50" />
                   <span className="relative rounded-full bg-ember-400" />
                 </span>
-                <span className="text-[10px] font-mono uppercase tracking-[0.24em] text-ember-300">
+                <span className="text-[10px] font-mono uppercase tracking-[0.24em] text-[var(--color-accent)]">
                   planning console
                 </span>
               </div>
 
-              <h1 className="mt-5 text-4xl font-bold tracking-tight text-white md:text-5xl">
+              <h1 className="mt-5 text-4xl font-bold tracking-tight text-[var(--color-text-primary)] md:text-5xl">
                 Multi-agent intelligence.<br />
                 <span className="bg-gradient-to-r from-ember-400 via-ember-300 to-slate-300 bg-clip-text text-transparent">
                   One coordinated plan.
                 </span>
               </h1>
-              <p className="mt-4 max-w-lg text-[15px] leading-7 text-slate-400">
+              <p className="mt-4 max-w-lg text-[15px] leading-7 text-[var(--color-text-soft)]">
                 Pick a shift. Hit run. Five specialists get to work on your kitchen data, a critic checks the plan, and your brief is ready. Export it, tweak the cover count, or ask the AI a question about last week.
               </p>
             </div>
@@ -228,13 +228,13 @@ function IdleState({
             {/* Restaurant profile selector */}
             {profiles.length > 0 && (
               <div className="stagger-2">
-                <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-slate-600 mb-2">Restaurant profile</p>
+                <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-[var(--color-text-ghost)] mb-2">Restaurant profile</p>
                 {profiles.length === 1 ? (
-                  <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.025] px-3 py-2">
+                  <div className="flex items-center gap-2 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-3 py-2">
                     <span className="h-1.5 w-1.5 rounded-full bg-ember-400 shrink-0" />
-                    <span className="text-sm text-white">{activeProfile?.name}</span>
+                    <span className="text-sm text-[var(--color-text-primary)]">{activeProfile?.name}</span>
                     {activeProfile && (
-                      <span className="ml-auto font-mono text-[10px] text-slate-500">
+                      <span className="ml-auto font-mono text-[10px] text-[var(--color-text-faint)]">
                         {activeProfile.capacity} covers · {activeProfile.peak_hours}
                       </span>
                     )}
@@ -243,7 +243,7 @@ function IdleState({
                   <select
                     value={selectedProfileId ?? ""}
                     onChange={(e) => setSelectedProfileId(Number(e.target.value))}
-                    className="w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-ember-500/50 focus:border-ember-500/60"
+                    className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-ember-500/50 focus:border-ember-500/60"
                   >
                     {profiles.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -257,7 +257,7 @@ function IdleState({
 
             {/* Scenario selection */}
             <div className="stagger-2 space-y-2.5">
-              <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-slate-600">Choose a scenario</p>
+              <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-[var(--color-text-ghost)]">Choose a scenario</p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {SCENARIO_OPTIONS.map((option) => {
                   const active = option.id === selectedScenario;
@@ -269,16 +269,16 @@ function IdleState({
                       className={`rounded-xl border px-4 py-3 text-left transition-all ${
                         active
                           ? "border-ember-400/40 bg-ember-500/10 shadow-[0_0_0_1px_rgba(230,137,42,0.15)]"
-                          : "border-white/10 bg-slate-950/30 hover:border-white/20 hover:bg-white/[0.04]"
+                          : "border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-raised)]"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <p className={`text-sm font-semibold ${active ? "text-ember-100" : "text-slate-200"}`}>
+                        <p className={`text-sm font-semibold ${active ? "text-ember-100" : "text-[var(--color-text-primary)]"}`}>
                           {option.label}
                         </p>
-                        <span className="shrink-0 font-mono text-[10px] text-slate-600">{option.service_window}</span>
+                        <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-ghost)]">{option.service_window}</span>
                       </div>
-                      <p className={`mt-1 text-xs leading-relaxed ${active ? "text-slate-300" : "text-slate-500"}`}>
+                      <p className={`mt-1 text-xs leading-relaxed ${active ? "text-[var(--color-text-soft)]" : "text-[var(--color-text-faint)]"}`}>
                         {option.description}
                       </p>
                     </button>
@@ -296,8 +296,8 @@ function IdleState({
             <div className="stagger-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 {(["Choose scenario", "Run 5 agents", "Review critic-scored plan"] as const).map((label, i) => (
-                  <div key={label} className="flex items-center gap-1.5 text-xs text-slate-600">
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] font-mono text-[10px] text-slate-600">{i + 1}</span>
+                  <div key={label} className="flex items-center gap-1.5 text-xs text-[var(--color-text-ghost)]">
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] font-mono text-[10px] text-[var(--color-text-ghost)]">{i + 1}</span>
                     {label}
                   </div>
                 ))}
@@ -305,7 +305,7 @@ function IdleState({
               {historyCount > 0 && (
                 <button
                   onClick={onShowHistory}
-                  className="flex items-center gap-1.5 text-xs text-slate-500 transition-colors hover:text-slate-300"
+                  className="flex items-center gap-1.5 text-xs text-[var(--color-text-faint)] transition-colors hover:text-[var(--color-text-soft)]"
                 >
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -318,16 +318,16 @@ function IdleState({
 
           {/* ── Right: agent pipeline showcase ── */}
           <div className="stagger-2">
-            <div className="rounded-3xl border border-white/10 bg-[#0d1320]/95 p-6 shadow-[0_24px_80px_rgba(2,8,23,0.4)]">
+            <div className="rounded-3xl border border-[var(--color-border-default)] bg-[var(--color-surface)]/95 p-6 shadow-[0_24px_80px_rgba(2,8,23,0.4)]">
 
               <div className="flex items-start justify-between gap-4 mb-5">
                 <div>
-                  <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-slate-600">Agent pipeline</p>
-                  <p className="mt-1 text-base font-semibold text-white">10-node orchestration</p>
-                  <p className="mt-0.5 text-xs text-slate-500">Enrichment · parallel execution · menu synthesis · critic verification</p>
+                  <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-[var(--color-text-ghost)]">Agent pipeline</p>
+                  <p className="mt-1 text-base font-semibold text-[var(--color-text-primary)]">10-node orchestration</p>
+                  <p className="mt-0.5 text-xs text-[var(--color-text-faint)]">Enrichment · parallel execution · menu synthesis · critic verification</p>
                 </div>
                 <div className="shrink-0 rounded-xl border border-ember-500/20 bg-ember-500/10 px-2.5 py-1">
-                  <p className="font-mono text-xs font-bold text-ember-300">LangGraph</p>
+                  <p className="font-mono text-xs font-bold text-[var(--color-accent)]">LangGraph</p>
                 </div>
               </div>
 
@@ -340,23 +340,23 @@ function IdleState({
                       </svg>
                     </span>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-100">{agent.label}</p>
-                      <p className="mt-0.5 text-xs leading-relaxed text-slate-400">{agent.capability}</p>
+                      <p className="text-sm font-semibold text-[var(--color-text-primary)]">{agent.label}</p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-[var(--color-text-soft)]">{agent.capability}</p>
                     </div>
                   </div>
                 ))}
               </div>
 
               {/* Critic callout */}
-              <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+              <div className="mt-4 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 py-3">
                 <div className="flex items-center gap-2 mb-2">
                   <svg className="h-3.5 w-3.5 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <p className="text-xs font-semibold text-slate-300">Critic-verified output</p>
+                  <p className="text-xs font-semibold text-[var(--color-text-soft)]">Critic-verified output</p>
                 </div>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Every plan is scored across <span className="text-slate-400">safety, feasibility, evidence, actionability, and clarity</span> before reaching you.
+                <p className="text-xs text-[var(--color-text-faint)] leading-relaxed">
+                  Every plan is scored across <span className="text-[var(--color-text-soft)]">safety, feasibility, evidence, actionability, and clarity</span> before reaching you.
                 </p>
               </div>
             </div>
@@ -378,21 +378,21 @@ function GraphNode({
   const ring = isDone    ? "ring-emerald-400/35 bg-emerald-500/[0.05]"
              : isRunning ? (swiggy ? "ring-orange-400/40 bg-orange-500/[0.06]" : "ring-ember-400/35 bg-ember-500/[0.06]")
              : isSkipped ? "ring-amber-500/25 bg-amber-500/[0.04]"
-             :              "ring-white/[0.08] bg-white/[0.02]";
+             :              "ring-[var(--color-border-default)] bg-[var(--color-surface-raised)]";
 
   const statusLabel = isDone ? "done" : isRunning ? "running" : isSkipped ? "skipped" : "waiting";
   const statusColor = isDone    ? "text-emerald-300/70"
-                    : isRunning ? (swiggy ? "text-orange-300/70" : "text-ember-300/70")
+                    : isRunning ? (swiggy ? "text-orange-300/70" : "text-[var(--color-accent)]/70")
                     : isSkipped ? "text-amber-400/60"
-                    :              "text-white/25";
-  const labelColor  = isDone    ? "text-white"
-                    : isRunning ? "text-white/80"
+                    :              "text-[var(--color-text-ghost)]";
+  const labelColor  = isDone    ? "text-[var(--color-text-primary)]"
+                    : isRunning ? "text-[var(--color-text-primary)]"
                     : isSkipped ? "text-amber-200/50"
-                    :              "text-white/25";
-  const subColor    = isDone    ? "text-white/45"
-                    : isRunning ? "text-white/35"
+                    :              "text-[var(--color-text-ghost)]";
+  const subColor    = isDone    ? "text-[var(--color-text-faint)]"
+                    : isRunning ? "text-[var(--color-text-faint)]"
                     : isSkipped ? "text-amber-200/30"
-                    :              "text-white/15";
+                    :              "text-[var(--color-text-ghost)]";
 
   return (
     <div className={`rounded-xl ring-1 px-3 py-2.5 min-w-[118px] transition-all duration-500 ${ring}`}>
@@ -406,7 +406,7 @@ function GraphNode({
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         ) : (
-          <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isRunning ? `${dot} animate-pulse` : "bg-white/15"}`} />
+          <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isRunning ? `${dot} animate-pulse` : "bg-[var(--color-surface-raised)]"}`} />
         )}
         <span className={`font-mono text-[9px] uppercase tracking-wider transition-colors duration-300 ${statusColor}`}>
           {statusLabel}
@@ -419,7 +419,7 @@ function GraphNode({
       <p className={`text-[10px] mt-0.5 leading-snug transition-colors duration-300 ${subColor}`}>{subLabel}</p>
       {hint && (isDone || isRunning) && (
         <p className={`text-[9px] mt-1 leading-snug transition-colors duration-300 line-clamp-2 ${
-          isDone ? "text-emerald-300/50" : (swiggy ? "text-orange-300/50" : "text-ember-300/60")
+          isDone ? "text-emerald-300/50" : (swiggy ? "text-orange-300/50" : "text-[var(--color-accent)]/60")
         }`}>{hint}</p>
       )}
     </div>
@@ -506,26 +506,26 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
             {!criticDone && <span className="absolute inset-0 animate-ping rounded-full bg-ember-400 opacity-50" />}
             <span className={`relative rounded-full ${criticDone ? "bg-emerald-400" : "bg-ember-400"}`} />
           </span>
-          <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-ember-300">
+          <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-accent)]">
             {criticDone ? "Complete" : "Pipeline live"}
           </span>
         </div>
-        <h1 className="text-[30px] font-semibold tracking-[-0.015em] text-white leading-[1.1]">
+        <h1 className="text-[30px] font-semibold tracking-[-0.015em] text-[var(--color-text-primary)] leading-[1.1]">
           {criticDone ? "Your brief is ready." : (
             <>
               Preparing your brief,{" "}
-              <span className="display-it text-ember-300">
+              <span className="display-it text-[var(--color-accent)]">
                 {restaurantName ?? "Chef"}!
               </span>
             </>
           )}
         </h1>
         {!criticDone && scenarioLabel && (
-          <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.24em] text-white/35">
+          <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-text-faint)]">
             for the {scenarioLabel} scenario
           </p>
         )}
-        <p className="mt-3 text-[13px] leading-[1.7] text-white/45 max-w-sm mx-auto">
+        <p className="mt-3 text-[13px] leading-[1.7] text-[var(--color-text-faint)] max-w-sm mx-auto">
           5 specialists analyse your kitchen and market data simultaneously — 3 from your own records, 2 pulling live prices from Swiggy. A critic reviews the plan before you see it.
         </p>
       </div>
@@ -549,7 +549,7 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
       )}
 
       {/* Graph topology — horizontal pipeline */}
-      <div className="rounded-2xl bg-ink-900 ring-1 ring-white/[0.07] px-4 py-6 overflow-x-auto">
+      <div className="rounded-2xl bg-[var(--color-surface)] ring-1 ring-[var(--color-border-soft)] px-4 py-6 overflow-x-auto">
         <div className="flex items-center justify-center gap-0 min-w-max mx-auto">
 
           {/* Ops Manager */}
@@ -557,7 +557,7 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
 
           {/* → */}
           <svg className="shrink-0 w-6 h-4" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1">
-            <path d="M0,8 H18 M12,3 L18,8 L12,13" className={`transition-colors duration-500 ${anyStarted ? "text-emerald-400/50" : "text-white/15"}`} />
+            <path d="M0,8 H18 M12,3 L18,8 L12,13" className={`transition-colors duration-500 ${anyStarted ? "text-emerald-400/50" : "text-[var(--color-text-ghost)]"}`} />
           </svg>
 
           {/* Demand Forecast */}
@@ -565,7 +565,7 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
 
           {/* → */}
           <svg className="shrink-0 w-6 h-4" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1">
-            <path d="M0,8 H18 M12,3 L18,8 L12,13" className={`transition-colors duration-500 ${forecastDone ? "text-ember-400/50" : "text-white/15"}`} />
+            <path d="M0,8 H18 M12,3 L18,8 L12,13" className={`transition-colors duration-500 ${forecastDone ? "text-[var(--color-accent)]/50" : "text-[var(--color-text-ghost)]"}`} />
           </svg>
 
           {/* Context Enrichment */}
@@ -585,7 +585,7 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
                 className={`transition-colors duration-500 ${
                   enrichmentDone
                     ? i >= 3 ? "text-orange-400/35" : "text-violet-400/40"
-                    : "text-white/10"
+                    : "text-[var(--color-text-ghost)]"
                 }`}
               />
             ))}
@@ -620,7 +620,7 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
                 className={`transition-colors duration-500 ${
                   completedNodes.has(parallelAgents[i].key)
                     ? i >= 3 ? "text-orange-400/35" : "text-emerald-400/40"
-                    : "text-white/10"
+                    : "text-[var(--color-text-ghost)]"
                 }`}
               />
             ))}
@@ -631,7 +631,7 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
 
           {/* → */}
           <svg className="shrink-0 w-6 h-4" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1">
-            <path d="M0,8 H18 M12,3 L18,8 L12,13" className={`transition-colors duration-500 ${menuDone ? "text-emerald-400/50" : "text-white/15"}`} />
+            <path d="M0,8 H18 M12,3 L18,8 L12,13" className={`transition-colors duration-500 ${menuDone ? "text-emerald-400/50" : "text-[var(--color-text-ghost)]"}`} />
           </svg>
 
           {/* Aggregator */}
@@ -639,7 +639,7 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
 
           {/* → */}
           <svg className="shrink-0 w-6 h-4" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1">
-            <path d="M0,8 H18 M12,3 L18,8 L12,13" className={`transition-colors duration-500 ${aggDone ? "text-emerald-400/50" : "text-white/15"}`} />
+            <path d="M0,8 H18 M12,3 L18,8 L12,13" className={`transition-colors duration-500 ${aggDone ? "text-emerald-400/50" : "text-[var(--color-text-ghost)]"}`} />
           </svg>
 
           {/* Critic */}
@@ -668,7 +668,7 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
             <p className="text-sm font-semibold text-emerald-300">Plan finalised after {replanCount} replan{replanCount > 1 ? "s" : ""}. Loading your brief...</p>
           </div>
         ) : (
-          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-white/30">{currentAction}</p>
+          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">{currentAction}</p>
         )}
       </div>
     </div>
@@ -792,7 +792,7 @@ export default function DashboardPage() {
   if (authLoading || !user) return null;
 
   return (
-    <div className="min-h-screen bg-ink-950 text-slate-100">
+    <div className="min-h-screen bg-[var(--color-surface-page)] text-[var(--color-text-primary)]">
       <main className="mx-auto w-full max-w-[1520px] px-6 py-8 xl:px-14">
         <SwiggyStatusWidget />
         <div className="space-y-6">
@@ -829,11 +829,11 @@ export default function DashboardPage() {
               {/* ── Breadcrumb + action bar ── */}
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3 text-[13px]">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-white/40">workspace</span>
-                  <span className="text-white/30">/</span>
-                  <span className="text-white capitalize">{data.scenario?.replace(/_/g, " ") ?? "Run"}</span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">workspace</span>
+                  <span className="text-[var(--color-text-faint)]">/</span>
+                  <span className="text-[var(--color-text-primary)] capitalize">{data.scenario?.replace(/_/g, " ") ?? "Run"}</span>
                   {data.target_date && (
-                    <><span className="text-white/30">/</span><span className="font-mono text-white/65">{data.target_date}</span></>
+                    <><span className="text-[var(--color-text-faint)]">/</span><span className="font-mono text-[var(--color-text-soft)]">{data.target_date}</span></>
                   )}
                   <span className="rounded-full bg-emerald-500/[0.08] px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-400/30">
                     Run complete
@@ -842,7 +842,7 @@ export default function DashboardPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => handleRun()}
-                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-white/70 ring-1 ring-white/10 transition-colors hover:text-white"
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-[var(--color-text-soft)] ring-1 ring-[var(--color-border-default)] transition-colors hover:text-[var(--color-text-primary)]"
                   >
                     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -854,25 +854,25 @@ export default function DashboardPage() {
                     <button
                       onClick={() => setExportMenuOpen(v => !v)}
                       disabled={exportingPdf || exportingExcel}
-                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-white/70 ring-1 ring-white/10 transition-colors hover:text-white disabled:opacity-40"
+                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-[var(--color-text-soft)] ring-1 ring-[var(--color-border-default)] transition-colors hover:text-[var(--color-text-primary)] disabled:opacity-40"
                     >
                       <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
                       </svg>
                       {exportingPdf ? "Exporting PDF…" : exportingExcel ? "Exporting Excel…" : "Export"}
-                      <svg className="h-3 w-3 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <svg className="h-3 w-3 text-[var(--color-text-faint)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
                     {exportMenuOpen && (
-                      <div className="absolute left-0 top-full mt-1.5 w-44 rounded-xl border border-white/10 bg-[#0d1724] py-1.5 shadow-xl z-50">
-                        <button onClick={handleExportPdf} className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-slate-300 hover:bg-white/[0.05] hover:text-white transition-colors">
+                      <div className="absolute left-0 top-full mt-1.5 w-44 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] py-1.5 shadow-xl z-50">
+                        <button onClick={handleExportPdf} className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-[var(--color-text-soft)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-primary)] transition-colors">
                           <svg className="h-3.5 w-3.5 text-rose-300/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                           </svg>
                           Chef brief — PDF
                         </button>
-                        <button onClick={handleExportExcel} className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-slate-300 hover:bg-white/[0.05] hover:text-white transition-colors">
+                        <button onClick={handleExportExcel} className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-[var(--color-text-soft)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-primary)] transition-colors">
                           <svg className="h-3.5 w-3.5 text-emerald-300/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
@@ -883,7 +883,7 @@ export default function DashboardPage() {
                   </div>
                   <button
                     onClick={() => setShowWhatIf(true)}
-                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-white/70 ring-1 ring-white/10 transition-colors hover:text-white"
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-[var(--color-text-soft)] ring-1 ring-[var(--color-border-default)] transition-colors hover:text-[var(--color-text-primary)]"
                   >
                     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -915,11 +915,11 @@ export default function DashboardPage() {
                   { label: "Try a different cover count", desc: "Instant what-if, no rerun needed", icon: <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>, action: () => setShowWhatIf(true) },
                   { label: "Ask the AI a question", desc: "Dig into why the plan said what it said", icon: <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>, action: () => window.location.href = "/chat" },
                 ].map(({ label, desc, icon, action }) => (
-                  <button key={label} onClick={action} className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3.5 text-left transition-colors hover:border-ember-500/30 hover:bg-ember-500/[0.04] group">
-                    <span className="mt-0.5 text-white/30 group-hover:text-ember-400 transition-colors">{icon}</span>
+                  <button key={label} onClick={action} className="flex items-start gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 py-3.5 text-left transition-colors hover:border-ember-500/30 hover:bg-ember-500/[0.04] group">
+                    <span className="mt-0.5 text-[var(--color-text-faint)] group-hover:text-[var(--color-accent)] transition-colors">{icon}</span>
                     <div>
-                      <p className="text-[13px] font-medium text-white/80 group-hover:text-white transition-colors">{label}</p>
-                      <p className="text-[11px] text-white/35 mt-0.5">{desc}</p>
+                      <p className="text-[13px] font-medium text-[var(--color-text-primary)] group-hover:text-[var(--color-text-primary)] transition-colors">{label}</p>
+                      <p className="text-[11px] text-[var(--color-text-faint)] mt-0.5">{desc}</p>
                     </div>
                   </button>
                 ))}
@@ -1026,12 +1026,12 @@ export default function DashboardPage() {
               <RagContextDrawer ragContext={data.rag_context} />
 
               {/* Re-run bar */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-xs font-mono uppercase tracking-[0.18em] text-slate-600">Run complete</p>
-                  <p className="mt-0.5 text-sm text-slate-400">
-                    Scenario: <span className="text-slate-200">{data.scenario?.replace(/_/g, " ")}</span>
-                    {data.target_date && <>  -  Target: <span className="text-slate-200">{data.target_date}</span></>}
+                  <p className="text-xs font-mono uppercase tracking-[0.18em] text-[var(--color-text-ghost)]">Run complete</p>
+                  <p className="mt-0.5 text-sm text-[var(--color-text-soft)]">
+                    Scenario: <span className="text-[var(--color-text-primary)]">{data.scenario?.replace(/_/g, " ")}</span>
+                    {data.target_date && <>  -  Target: <span className="text-[var(--color-text-primary)]">{data.target_date}</span></>}
                   </p>
                 </div>
                 <DatePicker onRun={handleRun} loading={false} scenario={SCENARIO_OPTIONS.find((item) => item.id === selectedScenario)} compact />
@@ -1052,17 +1052,17 @@ export default function DashboardPage() {
                     />
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
                       <div
-                        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-ink-900 ring-1 ring-white/[0.08] shadow-[0_40px_80px_rgba(0,0,0,0.6)] pointer-events-auto"
+                        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-[var(--color-surface)] ring-1 ring-[var(--color-border-default)] shadow-[0_40px_80px_rgba(0,0,0,0.6)] pointer-events-auto"
                         style={{ animation: "fadeUp 0.2s ease-out" }}
                       >
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.07]">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border-default)]">
                           <div>
-                            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ember-300/80">Simulator</p>
-                            <h2 className="mt-0.5 text-base font-semibold text-white">What-if Simulator</h2>
+                            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">Simulator</p>
+                            <h2 className="mt-0.5 text-base font-semibold text-[var(--color-text-primary)]">What-if Simulator</h2>
                           </div>
                           <button
                             onClick={() => setShowWhatIf(false)}
-                            className="text-slate-500 hover:text-slate-300 transition-colors"
+                            className="text-[var(--color-text-faint)] hover:text-[var(--color-text-soft)] transition-colors"
                           >
                             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1122,12 +1122,12 @@ export default function DashboardPage() {
             }}
           >
             <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-sm font-mono uppercase tracking-[0.18em] text-slate-400">
+              <h2 className="text-sm font-mono uppercase tracking-[0.18em] text-[var(--color-text-soft)]">
                 Run History
               </h2>
               <button
                 onClick={() => setShowHistoryDrawer(false)}
-                className="text-sm text-slate-500 transition-colors hover:text-slate-300"
+                className="text-sm text-[var(--color-text-faint)] transition-colors hover:text-[var(--color-text-soft)]"
               >
                 close
               </button>

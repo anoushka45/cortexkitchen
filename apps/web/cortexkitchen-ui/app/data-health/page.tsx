@@ -27,20 +27,20 @@ export default function DataHealthPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[#09111f] px-5 py-6 text-slate-100 xl:px-8">
+    <main className="min-h-screen bg-[var(--color-surface)] px-5 py-6 text-[var(--color-text-primary)] xl:px-8">
       <div className="mx-auto max-w-[1520px] space-y-6">
-        <header className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
+        <header className="flex flex-col gap-4 border-b border-[var(--color-border-default)] pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-mono uppercase tracking-[0.22em] text-ember-300">
+            <p className="text-xs font-mono uppercase tracking-[0.22em] text-[var(--color-accent)]">
               source data
             </p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight">Data Health</h1>
-            <p className="mt-1 max-w-2xl text-sm text-slate-400">
+            <p className="mt-1 max-w-2xl text-sm text-[var(--color-text-soft)]">
               Current database coverage used by forecasts, reservations, complaint analysis, menu planning, and inventory checks.
             </p>
           </div>
           <nav className="flex gap-2">
-            <Link className="rounded-lg border border-white/10 px-3 py-2 text-xs font-mono text-slate-300 hover:bg-white/5" href="/">
+            <Link className="rounded-lg border border-[var(--color-border-default)] px-3 py-2 text-xs font-mono text-[var(--color-text-soft)] hover:bg-[var(--color-surface-raised)]" href="/">
               dashboard
             </Link>
             <Link className="rounded-lg border border-ember-400/20 bg-ember-500/10 px-3 py-2 text-xs font-mono text-ember-200" href="/runs">
@@ -58,10 +58,10 @@ export default function DataHealthPage() {
         {!data ? (
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="rounded-lg border border-white/10 bg-white/[0.03] p-5 animate-pulse">
-                <div className="h-2.5 w-20 rounded bg-slate-800 mb-4" />
-                <div className="h-8 w-16 rounded bg-slate-800 mb-3" />
-                <div className="h-2.5 w-32 rounded bg-slate-800" />
+              <div key={i} className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5 animate-pulse">
+                <div className="h-2.5 w-20 rounded bg-[var(--color-surface-sunken)] mb-4" />
+                <div className="h-8 w-16 rounded bg-[var(--color-surface-sunken)] mb-3" />
+                <div className="h-2.5 w-32 rounded bg-[var(--color-surface-sunken)]" />
               </div>
             ))}
           </section>
@@ -76,14 +76,14 @@ export default function DataHealthPage() {
             </section>
 
             <section className="grid grid-cols-1 gap-5 xl:grid-cols-12">
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-5 xl:col-span-7">
+              <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5 xl:col-span-7">
                 <h2 className="text-sm font-semibold">Scenario Coverage</h2>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-[var(--color-text-faint)]">
                   Best upcoming demo dates with reservation pressure already present in the database.
                 </p>
-                <div className="mt-4 overflow-hidden rounded-lg border border-white/10">
+                <div className="mt-4 overflow-hidden rounded-lg border border-[var(--color-border-default)]">
                   <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-950/60 text-xs uppercase tracking-[0.14em] text-slate-500">
+                    <thead className="bg-[var(--color-surface-sunken)] text-xs uppercase tracking-[0.14em] text-[var(--color-text-faint)]">
                       <tr>
                         <th className="px-3 py-3">Scenario</th>
                         <th className="px-3 py-3">Date</th>
@@ -95,14 +95,14 @@ export default function DataHealthPage() {
                     </thead>
                     <tbody className="divide-y divide-white/10">
                       {data.scenario_coverage.map((row) => (
-                        <tr key={`${row.scenario}-${row.date}`} className="hover:bg-white/[0.03] transition-colors duration-150">
+                        <tr key={`${row.scenario}-${row.date}`} className="hover:bg-[var(--color-surface-raised)] transition-colors duration-150">
                           <td className="px-3 py-3">
                             <div className="flex flex-col">
                               <span>{row.label}</span>
-                              <span className="text-xs font-mono text-slate-500">{row.scenario}</span>
+                              <span className="text-xs font-mono text-[var(--color-text-faint)]">{row.scenario}</span>
                             </div>
                           </td>
-                          <td className="px-3 py-3 font-mono text-xs text-slate-300">{row.date}</td>
+                          <td className="px-3 py-3 font-mono text-xs text-[var(--color-text-soft)]">{row.date}</td>
                           <td className="px-3 py-3">{row.reservations}</td>
                           <td className="px-3 py-3">{row.guests}</td>
                           <td className="px-3 py-3">{row.waitlist}</td>
@@ -114,7 +114,7 @@ export default function DataHealthPage() {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-5 xl:col-span-5">
+              <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5 xl:col-span-5">
                 <h2 className="text-sm font-semibold">Operational Signals</h2>
                 <div className="mt-4 space-y-3">
                   <Signal label="Shortage alerts" value={data.inventory.shortage_alerts} />
@@ -131,11 +131,11 @@ export default function DataHealthPage() {
               <section>
                 <div className="mb-4 flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-mono uppercase tracking-[0.22em] text-ember-300">Observability</p>
-                    <h2 className="mt-1 text-base font-semibold text-white">Your last {obs.period_days} days of planning</h2>
+                    <p className="text-xs font-mono uppercase tracking-[0.22em] text-[var(--color-accent)]">Observability</p>
+                    <h2 className="mt-1 text-base font-semibold text-[var(--color-text-primary)]">Your last {obs.period_days} days of planning</h2>
                   </div>
                   {obs.latest_run_at && (
-                    <span className="font-mono text-[10px] text-white/30">
+                    <span className="font-mono text-[10px] text-[var(--color-text-faint)]">
                       latest {new Date(obs.latest_run_at).toLocaleString()}
                     </span>
                   )}
@@ -143,13 +143,13 @@ export default function DataHealthPage() {
 
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-4 mb-4">
                   {[
-                    { label: "Total runs",     value: obs.total_runs,                          color: "text-white"        },
-                    { label: "Success rate",   value: obs.success_rate != null ? `${Math.round(obs.success_rate * 100)}%` : "--", color: obs.success_rate != null && obs.success_rate >= 0.8 ? "text-emerald-300" : "text-ember-300" },
-                    { label: "Avg critic score", value: obs.avg_critic_score != null ? `${Math.round(obs.avg_critic_score * 100)}/100` : "--", color: "text-white" },
-                    { label: "Avg duration",   value: obs.avg_duration_ms != null ? `${(obs.avg_duration_ms / 1000).toFixed(1)}s` : "--", color: "text-white" },
+                    { label: "Total runs",     value: obs.total_runs,                          color: "text-[var(--color-text-primary)]"        },
+                    { label: "Success rate",   value: obs.success_rate != null ? `${Math.round(obs.success_rate * 100)}%` : "--", color: obs.success_rate != null && obs.success_rate >= 0.8 ? "text-emerald-300" : "text-[var(--color-accent)]" },
+                    { label: "Avg critic score", value: obs.avg_critic_score != null ? `${Math.round(obs.avg_critic_score * 100)}/100` : "--", color: "text-[var(--color-text-primary)]" },
+                    { label: "Avg duration",   value: obs.avg_duration_ms != null ? `${(obs.avg_duration_ms / 1000).toFixed(1)}s` : "--", color: "text-[var(--color-text-primary)]" },
                   ].map(({ label, value, color }) => (
-                    <div key={label} className="rounded-lg bg-ink-900 ring-1 ring-white/[0.07] px-4 py-3">
-                      <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/40">{label}</p>
+                    <div key={label} className="rounded-lg bg-[var(--color-surface)] ring-1 ring-[var(--color-border-soft)] px-4 py-3">
+                      <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">{label}</p>
                       <p className={`mt-1 text-2xl font-semibold ${color}`}>{String(value)}</p>
                     </div>
                   ))}
@@ -157,20 +157,20 @@ export default function DataHealthPage() {
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   {/* By verdict */}
-                  <div className="rounded-lg bg-ink-900 ring-1 ring-white/[0.07] p-4">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-white/40 mb-3">Runs by verdict</p>
+                  <div className="rounded-lg bg-[var(--color-surface)] ring-1 ring-[var(--color-border-soft)] p-4">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-3">Runs by verdict</p>
                     <div className="space-y-2">
                       {(["approved", "revision", "rejected", "unknown"] as const).map(v => {
                         const count = obs.by_verdict[v] ?? 0;
                         const pct   = obs.total_runs > 0 ? Math.round((count / obs.total_runs) * 100) : 0;
-                        const color = v === "approved" ? "bg-emerald-400" : v === "rejected" ? "bg-rose-400" : v === "revision" ? "bg-ember-400" : "bg-white/20";
-                        const text  = v === "approved" ? "text-emerald-300" : v === "rejected" ? "text-rose-300" : v === "revision" ? "text-ember-300" : "text-white/40";
+                        const color = v === "approved" ? "bg-emerald-400" : v === "rejected" ? "bg-rose-400" : v === "revision" ? "bg-ember-400" : "bg-[var(--color-surface-raised)]";
+                        const text  = v === "approved" ? "text-emerald-300" : v === "rejected" ? "text-rose-300" : v === "revision" ? "text-[var(--color-accent)]" : "text-[var(--color-text-faint)]";
                         if (count === 0) return null;
                         return (
                           <div key={v}>
-                            <div className="flex justify-between text-[11px] text-white/55 mb-1">
+                            <div className="flex justify-between text-[11px] text-[var(--color-text-soft)] mb-1">
                               <span className={`capitalize font-mono ${text}`}>{v}</span>
-                              <span className="font-mono">{count} <span className="text-white/30">({pct}%)</span></span>
+                              <span className="font-mono">{count} <span className="text-[var(--color-text-faint)]">({pct}%)</span></span>
                             </div>
                             <div className="meter">
                               <span className={color} style={{ width: `${pct}%`, background: undefined }} />
@@ -182,16 +182,16 @@ export default function DataHealthPage() {
                   </div>
 
                   {/* By scenario */}
-                  <div className="rounded-lg bg-ink-900 ring-1 ring-white/[0.07] p-4">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-white/40 mb-3">Runs by scenario</p>
+                  <div className="rounded-lg bg-[var(--color-surface)] ring-1 ring-[var(--color-border-soft)] p-4">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-3">Runs by scenario</p>
                     <div className="space-y-2">
                       {Object.entries(obs.by_scenario).sort((a, b) => b[1] - a[1]).map(([scenario, count]) => {
                         const pct = obs.total_runs > 0 ? Math.round((count / obs.total_runs) * 100) : 0;
                         return (
                           <div key={scenario}>
-                            <div className="flex justify-between text-[11px] text-white/55 mb-1">
+                            <div className="flex justify-between text-[11px] text-[var(--color-text-soft)] mb-1">
                               <span>{SCENARIO_LABELS[scenario] ?? scenario}</span>
-                              <span className="font-mono">{count} <span className="text-white/30">({pct}%)</span></span>
+                              <span className="font-mono">{count} <span className="text-[var(--color-text-faint)]">({pct}%)</span></span>
                             </div>
                             <div className="meter">
                               <span style={{ width: `${pct}%` }} />
@@ -213,19 +213,19 @@ export default function DataHealthPage() {
 
 function HealthCard({ title, value, detail, stagger }: { title: string; value: number; detail: string; stagger: number }) {
   return (
-    <div className={`rounded-lg border border-white/10 bg-white/[0.03] p-5 stagger-${stagger}`}>
-      <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500">{title}</p>
+    <div className={`rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5 stagger-${stagger}`}>
+      <p className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--color-text-faint)]">{title}</p>
       <p className="mt-3 text-3xl font-semibold tabular-nums">{value}</p>
-      <p className="mt-2 text-xs text-slate-400">{detail}</p>
+      <p className="mt-2 text-xs text-[var(--color-text-soft)]">{detail}</p>
     </div>
   );
 }
 
 function Signal({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex items-center justify-between rounded-lg border border-white/10 bg-slate-950/40 px-3 py-3">
-      <span className="text-sm text-slate-400">{label}</span>
-      <span className="font-mono text-sm text-slate-100">{value}</span>
+    <div className="flex items-center justify-between rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-3 py-3">
+      <span className="text-sm text-[var(--color-text-soft)]">{label}</span>
+      <span className="font-mono text-sm text-[var(--color-text-primary)]">{value}</span>
     </div>
   );
 }

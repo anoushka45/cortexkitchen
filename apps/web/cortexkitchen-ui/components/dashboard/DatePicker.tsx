@@ -56,17 +56,17 @@ export default function DatePicker({ onRun, loading, scenario, compact = false }
     onRun(date || undefined);
   };
 
-  const selectCls = "flex-1 min-w-0 text-xs font-mono border border-white/10 text-slate-300 rounded-xl px-3 py-2.5 focus:outline-none focus:border-ember-500/50 disabled:opacity-50 transition-colors hover:border-white/20";
+  const selectCls = "flex-1 min-w-0 text-xs font-mono border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] text-[var(--color-text-soft)] rounded-xl px-3 py-2.5 focus:outline-none focus:border-ember-500/50 disabled:opacity-50 transition-colors hover:border-[var(--color-border-default)]";
 
   return (
     <div className={compact ? "flex items-center gap-2 flex-wrap" : "space-y-3"}>
       {/* Preset / custom toggle */}
-      <div className="inline-flex items-center rounded-full border border-white/10 bg-slate-950/70 p-0.5 shrink-0">
+      <div className="inline-flex items-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] p-0.5 shrink-0">
         <button
           onClick={() => { setCustom(false); setCustomDate(""); }}
           disabled={loading}
           className={`px-3 py-1 rounded-full text-[11px] font-mono transition-colors ${
-            !custom ? "bg-ember-500/20 text-ember-200" : "text-slate-500 hover:text-slate-300"
+            !custom ? "bg-ember-500/20 text-ember-200" : "text-[var(--color-text-faint)] hover:text-[var(--color-text-soft)]"
           }`}
         >
           presets
@@ -75,7 +75,7 @@ export default function DatePicker({ onRun, loading, scenario, compact = false }
           onClick={() => { setCustom(true); setSelected(""); }}
           disabled={loading}
           className={`px-3 py-1 rounded-full text-[11px] font-mono transition-colors ${
-            custom ? "bg-ember-500/20 text-ember-200" : "text-slate-500 hover:text-slate-300"
+            custom ? "bg-ember-500/20 text-ember-200" : "text-[var(--color-text-faint)] hover:text-[var(--color-text-soft)]"
           }`}
         >
           custom
@@ -90,7 +90,6 @@ export default function DatePicker({ onRun, loading, scenario, compact = false }
             onChange={(e) => setSelected(e.target.value)}
             disabled={loading}
             className={selectCls}
-            style={{ background: "#0d1320" }}
           >
             <option value="">{scenarioLabel} -- default date</option>
             {dates.map((opt) => (
@@ -104,7 +103,6 @@ export default function DatePicker({ onRun, loading, scenario, compact = false }
             onChange={(e) => setCustomDate(e.target.value)}
             disabled={loading}
             className={selectCls}
-            style={{ background: "#0d1320", colorScheme: "dark" }}
           />
         )}
 
@@ -114,7 +112,7 @@ export default function DatePicker({ onRun, loading, scenario, compact = false }
           className={`
             inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl
             border border-ember-400/30 bg-gradient-to-b from-ember-500 to-ember-600
-            font-semibold tracking-wide text-white
+            font-semibold tracking-wide text-[var(--color-text-primary)]
             shadow-[0_4px_16px_rgba(230,137,42,0.35)]
             transition-all duration-200
             hover:-translate-y-0.5 hover:from-ember-400 hover:to-ember-600 hover:shadow-[0_6px_22px_rgba(230,137,42,0.45)]

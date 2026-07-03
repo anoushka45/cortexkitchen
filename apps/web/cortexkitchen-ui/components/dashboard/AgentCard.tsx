@@ -19,7 +19,7 @@ const AGENT_ICONS: Record<string, string> = {
 const AGENT_META: Record<string, {
   label: string; iconPath: string; headerBg: string; dotColor: string; iconColor: string; glow: string;
 }> = {
-  forecast:    { label: "Demand Forecast",        iconPath: AGENT_ICONS.forecast,    headerBg: "bg-ember-500/[0.07]  border-b border-ember-500/15",  dotColor: "bg-ember-400",  iconColor: "text-ember-400",  glow: "group-hover:shadow-glow-ember"  },
+  forecast:    { label: "Demand Forecast",        iconPath: AGENT_ICONS.forecast,    headerBg: "bg-ember-500/[0.07]  border-b border-ember-500/15",  dotColor: "bg-ember-400",  iconColor: "text-[var(--color-accent)]",  glow: "group-hover:shadow-glow-ember"  },
   reservation: { label: "Reservation Pressure",   iconPath: AGENT_ICONS.reservation, headerBg: "bg-cyan-500/[0.06]    border-b border-cyan-500/15",    dotColor: "bg-cyan-400",    iconColor: "text-cyan-400",    glow: "group-hover:shadow-glow-ember"  },
   complaint:   { label: "Complaint Intelligence", iconPath: AGENT_ICONS.complaint,   headerBg: "bg-rose-500/[0.06]    border-b border-rose-500/15",    dotColor: "bg-rose-400",    iconColor: "text-rose-400",    glow: "group-hover:shadow-glow-rose"    },
   menu:        { label: "Menu Intelligence",      iconPath: AGENT_ICONS.menu,        headerBg: "bg-amber-500/[0.06]   border-b border-amber-500/15",   dotColor: "bg-amber-400",   iconColor: "text-amber-400",   glow: "group-hover:shadow-glow-amber"   },
@@ -202,30 +202,30 @@ function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
         <div>
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45">Positive</div>
+              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Positive</div>
               <div className="mt-1 flex items-baseline gap-0.5">
                 <span className="text-[26px] font-semibold leading-none text-emerald-300">{positivePct}</span>
                 <span className="text-sm text-emerald-300/60">%</span>
               </div>
             </div>
             <div>
-              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45">Neutral</div>
+              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Neutral</div>
               <div className="mt-1 flex items-baseline gap-0.5">
-                <span className="text-[26px] font-semibold leading-none text-white/75">{neutralPct}</span>
-                <span className="text-sm text-white/40">%</span>
+                <span className="text-[26px] font-semibold leading-none text-[var(--color-text-soft)]">{neutralPct}</span>
+                <span className="text-sm text-[var(--color-text-faint)]">%</span>
               </div>
             </div>
             <div>
-              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45">Negative</div>
+              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Negative</div>
               <div className="mt-1 flex items-baseline gap-0.5">
-                <span className={`text-[26px] font-semibold leading-none ${negativePct > 30 ? "text-rose-300" : negativePct > 15 ? "text-ember-300" : "text-white/75"}`}>{negativePct}</span>
-                <span className={`text-sm opacity-60 ${negativePct > 30 ? "text-rose-300" : negativePct > 15 ? "text-ember-300" : "text-white/75"}`}>%</span>
+                <span className={`text-[26px] font-semibold leading-none ${negativePct > 30 ? "text-rose-300" : negativePct > 15 ? "text-[var(--color-accent)]" : "text-[var(--color-text-soft)]"}`}>{negativePct}</span>
+                <span className={`text-sm opacity-60 ${negativePct > 30 ? "text-rose-300" : negativePct > 15 ? "text-[var(--color-accent)]" : "text-[var(--color-text-soft)]"}`}>%</span>
               </div>
             </div>
           </div>
           <div className="mt-3 h-2 rounded-full overflow-hidden flex">
             <div className="bg-emerald-400/70 transition-all" style={{ width: `${positivePct}%` }} />
-            <div className="bg-white/15 transition-all"       style={{ width: `${neutralPct}%` }} />
+            <div className="bg-[var(--color-surface-raised)] transition-all"       style={{ width: `${neutralPct}%` }} />
             <div className={`transition-all ${negativePct > 30 ? "bg-rose-400/70" : "bg-amber-400/60"}`} style={{ width: `${negativePct}%` }} />
           </div>
         </div>
@@ -233,7 +233,7 @@ function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
 
       {/* Signal counts */}
       {(totalFeedback > 0 || uniqueComplaints.length > 0 || uniquePositives.length > 0) && (
-        <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11px] text-white/40">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11px] text-[var(--color-text-faint)]">
           {totalFeedback > 0    && <span>{totalFeedback} total feedback</span>}
           {uniqueComplaints.length > 0 && <span className="text-rose-400/70">{uniqueComplaints.length} unique complaint{uniqueComplaints.length !== 1 ? "s" : ""}</span>}
           {uniquePositives.length > 0  && <span className="text-emerald-400/70">{uniquePositives.length} positive signal{uniquePositives.length !== 1 ? "s" : ""}</span>}
@@ -242,39 +242,39 @@ function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
 
       {/* Summary */}
       {overallSummary && (
-        <p className="text-[12px] leading-[1.65] text-white/60">{overallSummary}</p>
+        <p className="text-[12px] leading-[1.65] text-[var(--color-text-soft)]">{overallSummary}</p>
       )}
 
       {/* Issues — severity-coded rows */}
       {issues.length > 0 && (
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-white/45 mb-2.5">Recurring issues · RAG-retrieved</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-2.5">Recurring issues · RAG-retrieved</p>
           <div className="space-y-1.5">
             {issues.slice(0, 3).map((issue, i) => {
               const priority = String(issue.priority ?? "");
               const rec = typeof issue.recommendation === "string" ? issue.recommendation : null;
               const rowStyle  = priority === "high"   ? "ring-rose-400/20 bg-rose-500/[0.04]"
                               : priority === "medium" ? "ring-ember-400/20 bg-ember-500/[0.04]"
-                              :                         "ring-white/[0.07] bg-white/[0.025]";
+                              :                         "ring-[var(--color-border-soft)] bg-[var(--color-surface-raised)]";
               const labelColor = priority === "high"   ? "text-rose-300"
-                               : priority === "medium" ? "text-ember-300"
-                               :                         "text-white/55";
+                               : priority === "medium" ? "text-[var(--color-accent)]"
+                               :                         "text-[var(--color-text-soft)]";
               const sevLabel = priority === "high" ? "High" : priority === "medium" ? "Med" : "Low";
               return (
                 <div key={i} className={`rounded-lg ring-1 px-4 py-3 flex items-start justify-between gap-4 ${rowStyle}`}>
                   <div className="min-w-0">
-                    <div className="text-[13px] font-semibold text-white">{String(issue.issue ?? "")}</div>
-                    {rec && <div className="mt-0.5 text-[11px] leading-relaxed text-white/55">{rec}</div>}
+                    <div className="text-[13px] font-semibold text-[var(--color-text-primary)]">{String(issue.issue ?? "")}</div>
+                    {rec && <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--color-text-soft)]">{rec}</div>}
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="font-mono text-[10px] uppercase text-white/35">Severity</div>
+                    <div className="font-mono text-[10px] uppercase text-[var(--color-text-faint)]">Severity</div>
                     <div className={`text-[13px] font-bold ${labelColor}`}>{sevLabel}</div>
                   </div>
                 </div>
               );
             })}
             {issues.length > 3 && (
-              <p className="text-[11px] text-white/30 pl-1">+{issues.length - 3} more in details</p>
+              <p className="text-[11px] text-[var(--color-text-faint)] pl-1">+{issues.length - 3} more in details</p>
             )}
           </div>
         </div>
@@ -283,7 +283,7 @@ function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
       {/* What's working */}
       {uniquePositives.length > 0 && (
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-white/45 mb-2">What&apos;s working</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-2">What&apos;s working</p>
           <div className="space-y-1.5">
             {uniquePositives.slice(0, 2).map((p, i) => (
               <div key={i} className="rounded-lg ring-1 ring-emerald-400/20 bg-emerald-500/[0.04] px-3 py-2 text-[12px] text-emerald-300 leading-snug">
@@ -297,7 +297,7 @@ function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
       {/* Actions */}
       {actionItems.length > 0 && (
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-white/45 mb-2">Actions</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-2">Actions</p>
           <div className="space-y-1.5">
             {actionItems.slice(0, 3).map((action, i) => (
               <div key={i} className="rounded-lg ring-1 ring-cyan-400/20 bg-cyan-500/[0.04] px-3 py-2 text-[12px] text-cyan-200 leading-snug">
@@ -305,7 +305,7 @@ function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
               </div>
             ))}
             {actionItems.length > 3 && (
-              <p className="text-[11px] text-white/30 pl-1">+{actionItems.length - 3} more in details</p>
+              <p className="text-[11px] text-[var(--color-text-faint)] pl-1">+{actionItems.length - 3} more in details</p>
             )}
           </div>
         </div>
@@ -316,7 +316,7 @@ function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
 
 export default function AgentCard({ agentKey, data, index = 0, swiggySignal }: Props) {
   const [detailOpen, setDetailOpen] = useState(false);
-  const meta = AGENT_META[agentKey] ?? { label: agentKey, iconPath: "", headerBg: "bg-slate-500/[0.06] border-b border-slate-500/15", dotColor: "bg-slate-400", iconColor: "text-slate-400", glow: "" };
+  const meta = AGENT_META[agentKey] ?? { label: agentKey, iconPath: "", headerBg: "bg-slate-500/[0.06] border-b border-[var(--color-border-soft)]", dotColor: "bg-slate-400", iconColor: "text-[var(--color-text-soft)]", glow: "" };
 
   const canShowDetails = Boolean(data && !data.error);
 
@@ -333,10 +333,10 @@ export default function AgentCard({ agentKey, data, index = 0, swiggySignal }: P
             </span>
             <div className="flex items-center gap-2">
               <span className={`h-1.5 w-1.5 rounded-full ${meta.dotColor}`} />
-              <span className="text-sm font-semibold text-slate-200">{meta.label}</span>
+              <span className="text-sm font-semibold text-[var(--color-text-primary)]">{meta.label}</span>
             </div>
             {!data && (
-              <span className="text-xs font-mono text-slate-600 bg-slate-800 px-2 py-0.5 rounded">
+              <span className="text-xs font-mono text-[var(--color-text-ghost)] bg-[var(--color-surface-sunken)] px-2 py-0.5 rounded">
                 no data
               </span>
             )}
@@ -350,9 +350,9 @@ export default function AgentCard({ agentKey, data, index = 0, swiggySignal }: P
         </div>
 
         {/* Body */}
-        <div className="flex-1 px-5 pb-5 border-t border-white/5 pt-4 space-y-4">
+        <div className="flex-1 px-5 pb-5 border-t border-[var(--color-border-soft)] pt-4 space-y-4">
           {!data ? (
-            <p className="text-sm text-slate-600 italic">Agent did not return output.</p>
+            <p className="text-sm text-[var(--color-text-ghost)] italic">Agent did not return output.</p>
           ) : data.error ? (
             <p className="text-sm text-rose-400">! {String(data.error)}</p>
           ) : agentKey === "inventory" ? (
@@ -368,10 +368,10 @@ export default function AgentCard({ agentKey, data, index = 0, swiggySignal }: P
           )}
 
           {canShowDetails && (
-            <div className="pt-2 border-t border-white/5 flex justify-end">
+            <div className="pt-2 border-t border-[var(--color-border-soft)] flex justify-end">
               <button
                 onClick={() => setDetailOpen(true)}
-                className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-mono text-slate-300 hover:bg-white/10 transition-colors"
+                className="rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-3 py-1.5 text-xs font-mono text-[var(--color-text-soft)] hover:bg-[var(--color-surface-raised)] transition-colors"
               >
                 view details
               </button>
@@ -414,7 +414,7 @@ function AgentDataRows({ data }: { data: Record<string, unknown> }) {
         if (typeof value === "object" && !Array.isArray(value) && typeof value !== "string") {
           return (
             <div key={key} className="mt-3">
-              <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
+              <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
                 {label}
               </p>
               <div className="pl-3 border-l border-ember-500/20 space-y-1.5">
@@ -441,12 +441,12 @@ function AgentDataRows({ data }: { data: Record<string, unknown> }) {
 
           return (
             <div key={key} className="mt-2">
-              <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
+              <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
                 {label}
               </p>
               <ul className="space-y-1.5">
                 {items.map((item, i) => (
-                  <li key={i} className="text-xs text-slate-300 bg-navy-800 rounded-lg px-3 py-2 border border-white/5 break-words whitespace-normal">
+                  <li key={i} className="text-xs text-[var(--color-text-soft)] bg-navy-800 rounded-lg px-3 py-2 border border-[var(--color-border-soft)] break-words whitespace-normal">
                     {item}
                   </li>
                 ))}
@@ -466,8 +466,8 @@ function Row({ label, value }: { label: string; value: string }) {
   const isNumber = !isNaN(Number(value)) && value !== "";
   return (
     <div className="flex gap-3">
-      <span className="text-xs text-slate-500 shrink-0 w-32 truncate">{label}</span>
-      <span className={`text-sm font-medium break-words whitespace-normal flex-1 ${isNumber ? "font-mono text-gold-400" : "text-slate-200"}`}>
+      <span className="text-xs text-[var(--color-text-faint)] shrink-0 w-32 truncate">{label}</span>
+      <span className={`text-sm font-medium break-words whitespace-normal flex-1 ${isNumber ? "font-mono text-gold-400" : "text-[var(--color-text-primary)]"}`}>
         {value}
       </span>
     </div>

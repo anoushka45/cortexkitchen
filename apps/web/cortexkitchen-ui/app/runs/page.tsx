@@ -66,7 +66,7 @@ function computeSwiggySignal(agentKey: string, finalResponse: FridayRushResponse
 }
 
 function AgentOutputCard({ agentKey, data, swiggySignal }: { agentKey: string; data: unknown; swiggySignal?: string }) {
-  const accent = AGENT_ACCENT[agentKey] ?? { dot: "bg-slate-400", border: "border-white/10", bg: "bg-white/[0.02]" };
+  const accent = AGENT_ACCENT[agentKey] ?? { dot: "bg-slate-400", border: "border-[var(--color-border-default)]", bg: "bg-[var(--color-surface-raised)]" };
   const label  = AGENT_LABELS[agentKey] ?? agentKey.replace(/_/g, " ");
 
   if (!data || typeof data !== "object") return null;
@@ -82,10 +82,10 @@ function AgentOutputCard({ agentKey, data, swiggySignal }: { agentKey: string; d
     <div className={`rounded-lg border ${accent.border} ${accent.bg} p-4`}>
       <div className="flex items-center gap-2 mb-3">
         <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${accent.dot}`} />
-        <p className="text-xs font-mono uppercase tracking-[0.14em] text-slate-400">{label}</p>
+        <p className="text-xs font-mono uppercase tracking-[0.14em] text-[var(--color-text-soft)]">{label}</p>
         <div className="ml-auto flex items-center gap-2">
           {priority && (
-            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase ${PRIORITY_CLS[priority] ?? "text-slate-500 border-white/10 bg-white/5"}`}>
+            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase ${PRIORITY_CLS[priority] ?? "text-[var(--color-text-faint)] border-[var(--color-border-default)] bg-[var(--color-surface-raised)]"}`}>
               {priority}
             </span>
           )}
@@ -93,23 +93,23 @@ function AgentOutputCard({ agentKey, data, swiggySignal }: { agentKey: string; d
         </div>
       </div>
       {mainText && (
-        <p className="text-sm text-slate-300 leading-relaxed">{mainText}</p>
+        <p className="text-sm text-[var(--color-text-soft)] leading-relaxed">{mainText}</p>
       )}
       {listEntry && (
         <ul className="mt-2.5 space-y-1">
           {listEntry.items.slice(0, 3).map((item, i) => (
-            <li key={i} className="flex gap-2 text-xs text-slate-400">
-              <span className="text-slate-600 shrink-0 mt-0.5"> - </span>
+            <li key={i} className="flex gap-2 text-xs text-[var(--color-text-soft)]">
+              <span className="text-[var(--color-text-ghost)] shrink-0 mt-0.5"> - </span>
               <span className="leading-relaxed">{item}</span>
             </li>
           ))}
           {listEntry.items.length > 3 && (
-            <li className="text-[10px] text-slate-600 pl-3">+{listEntry.items.length - 3} more</li>
+            <li className="text-[10px] text-[var(--color-text-ghost)] pl-3">+{listEntry.items.length - 3} more</li>
           )}
         </ul>
       )}
       {!mainText && !listEntry && (
-        <p className="text-xs text-slate-600 italic">No summary available.</p>
+        <p className="text-xs text-[var(--color-text-ghost)] italic">No summary available.</p>
       )}
     </div>
   );
@@ -136,7 +136,7 @@ const VERDICT_STYLE: Record<string, string> = {
   approved: "text-emerald-300 border-emerald-500/30 bg-emerald-500/10",
   rejected: "text-rose-300   border-rose-500/30   bg-rose-500/10",
   revision: "text-amber-300  border-amber-500/30  bg-amber-500/10",
-  unknown:  "text-slate-300  border-slate-600/40  bg-slate-800/50",
+  unknown:  "text-[var(--color-text-soft)]  border-[var(--color-border-default)]  bg-[var(--color-surface-sunken)]",
 };
 
 const VERDICT_DOT: Record<string, string> = {
@@ -162,7 +162,7 @@ function TrendChart({ runs }: { runs: PlanningRunSummary[] }) {
     }));
 
   if (data.length < 2) return (
-    <p className="text-xs text-slate-500 px-1">Need at least 2 runs to show trend.</p>
+    <p className="text-xs text-[var(--color-text-faint)] px-1">Need at least 2 runs to show trend.</p>
   );
 
   return (
@@ -221,34 +221,34 @@ function DiffModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-3xl rounded-xl border border-white/10 bg-[#0b1628] shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+      <div className="w-full max-w-3xl rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between border-b border-[var(--color-border-default)] px-6 py-4">
           <h2 className="text-sm font-semibold">Run Comparison</h2>
-          <button onClick={onClose} className="text-slate-500 hover:text-white text-lg leading-none">✕</button>
+          <button onClick={onClose} className="text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] text-lg leading-none">✕</button>
         </div>
 
         {/* Summary row */}
-        <div className="grid grid-cols-2 gap-px bg-white/5 border-b border-white/10">
+        <div className="grid grid-cols-2 gap-px bg-[var(--color-surface-raised)] border-b border-[var(--color-border-default)]">
           {[runA, runB].map((run, i) => (
-            <div key={i} className="bg-[#0b1628] px-6 py-4">
-              <p className="font-mono text-xs text-slate-500">Run #{run.id}</p>
+            <div key={i} className="bg-[var(--color-surface-raised)] px-6 py-4">
+              <p className="font-mono text-xs text-[var(--color-text-faint)]">Run #{run.id}</p>
               <p className="mt-1 text-sm font-medium">{run.scenario.replace(/_/g, " ")}</p>
               <div className="mt-2 flex items-center gap-3">
                 <span className={`rounded-full border px-2 py-0.5 text-xs ${VERDICT_STYLE[run.critic_verdict ?? "unknown"]}`}>
                   {run.critic_verdict ?? "unknown"}
                 </span>
-                <span className="text-sm font-bold text-white">
+                <span className="text-sm font-bold text-[var(--color-text-primary)]">
                   {run.critic_score != null ? `${Math.round(run.critic_score * 100)}/100` : "--"}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-slate-500">target {run.target_date ?? "-"}</p>
+              <p className="mt-1 text-xs text-[var(--color-text-faint)]">target {run.target_date ?? "-"}</p>
             </div>
           ))}
         </div>
 
         {/* Dimension comparison */}
         <div className="px-6 py-5 space-y-4">
-          <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500">Critic Dimension Scores</p>
+          <p className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--color-text-faint)]">Critic Dimension Scores</p>
           {DIMENSIONS.map(dim => {
             const a = (dimA[dim] ?? 0) * 100;
             const b = (dimB[dim] ?? 0) * 100;
@@ -256,23 +256,23 @@ function DiffModal({
             return (
               <div key={dim} className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="capitalize text-slate-400">{dim}</span>
-                  <span className={`font-mono ${diff > 3 ? "text-emerald-400" : diff < -3 ? "text-rose-400" : "text-slate-500"}`}>
+                  <span className="capitalize text-[var(--color-text-soft)]">{dim}</span>
+                  <span className={`font-mono ${diff > 3 ? "text-emerald-400" : diff < -3 ? "text-rose-400" : "text-[var(--color-text-faint)]"}`}>
                     {diff > 0 ? "+" : ""}{Math.round(diff)}
                   </span>
                 </div>
                 <div className="flex gap-2 items-center">
                   {/* Run A bar */}
-                  <div className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
+                  <div className="flex-1 h-2 rounded-full bg-[var(--color-surface-sunken)] overflow-hidden">
                     <div className="h-full rounded-full bg-ember-500" style={{ width: `${a}%` }} />
                   </div>
                   <div className="w-16 text-center">
-                    <span className="text-xs text-slate-400 font-mono">
-                      {Math.round(a)} <span className="text-slate-600">vs</span> {Math.round(b)}
+                    <span className="text-xs text-[var(--color-text-soft)] font-mono">
+                      {Math.round(a)} <span className="text-[var(--color-text-ghost)]">vs</span> {Math.round(b)}
                     </span>
                   </div>
                   {/* Run B bar */}
-                  <div className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
+                  <div className="flex-1 h-2 rounded-full bg-[var(--color-surface-sunken)] overflow-hidden">
                     <div className="h-full rounded-full bg-cyan-500" style={{ width: `${b}%` }} />
                   </div>
                 </div>
@@ -280,7 +280,7 @@ function DiffModal({
             );
           })}
 
-          <div className="flex items-center gap-4 pt-2 text-xs text-slate-500">
+          <div className="flex items-center gap-4 pt-2 text-xs text-[var(--color-text-faint)]">
             <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded-full bg-ember-500 inline-block" /> Run #{runA.id}</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded-full bg-cyan-500 inline-block" /> Run #{runB.id}</span>
           </div>
@@ -288,10 +288,10 @@ function DiffModal({
 
         {/* Revision reasons diff */}
         {(runA.critic?.revision_reasons?.length || runB.critic?.revision_reasons?.length) ? (
-          <div className="grid grid-cols-2 gap-px bg-white/5 border-t border-white/10">
+          <div className="grid grid-cols-2 gap-px bg-[var(--color-surface-raised)] border-t border-[var(--color-border-default)]">
             {[runA, runB].map((run, i) => (
-              <div key={i} className="bg-[#0b1628] px-6 py-4">
-                <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500 mb-2">Revision reasons</p>
+              <div key={i} className="bg-[var(--color-surface-raised)] px-6 py-4">
+                <p className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--color-text-faint)] mb-2">Revision reasons</p>
                 {run.critic?.revision_reasons?.length ? (
                   <ul className="space-y-1.5">
                     {run.critic.revision_reasons.map((r, j) => (
@@ -299,7 +299,7 @@ function DiffModal({
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-xs text-slate-600">None</p>
+                  <p className="text-xs text-[var(--color-text-ghost)]">None</p>
                 )}
               </div>
             ))}
@@ -428,22 +428,22 @@ export default function RunsPage() {
     }
   }
 
-  const selectEl = "rounded-lg border border-white/10 bg-slate-950/60 px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-ember-500/50";
+  const selectEl = "rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-2.5 py-1.5 text-xs text-[var(--color-text-soft)] focus:outline-none focus:ring-1 focus:ring-ember-500/50";
 
   return (
-    <main className="min-h-screen bg-[#09111f] px-5 py-6 text-slate-100 xl:px-8">
+    <main className="min-h-screen bg-[var(--color-surface)] px-5 py-6 text-[var(--color-text-primary)] xl:px-8">
       <div className="mx-auto max-w-[1520px] space-y-5">
 
         {/* Header */}
-        <header className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
+        <header className="flex flex-col gap-4 border-b border-[var(--color-border-default)] pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-mono uppercase tracking-[0.22em] text-ember-300">history</p>
+            <p className="text-xs font-mono uppercase tracking-[0.22em] text-[var(--color-accent)]">history</p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight">Plan History</h1>
-            <p className="mt-1 max-w-2xl text-sm text-slate-400">
+            <p className="mt-1 max-w-2xl text-sm text-[var(--color-text-soft)]">
               Every plan your kitchen has run — verdict, scores, agent findings, and exports. Select any run to inspect or compare.
             </p>
           </div>
-          <div className="text-sm text-slate-500">
+          <div className="text-sm text-[var(--color-text-faint)]">
             {filteredRuns.length} of {runs.length} runs
           </div>
         </header>
@@ -460,7 +460,7 @@ export default function RunsPage() {
           <select value={filterVerdict} onChange={e => setFilterVerdict(e.target.value)} className={selectEl}>
             {VERDICTS.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
           </select>
-          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+          <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-faint)]">
             <span>from</span>
             <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)}
               className={selectEl + " w-36"} />
@@ -470,24 +470,24 @@ export default function RunsPage() {
           </div>
           {(filterScenario || filterVerdict || filterFrom || filterTo) && (
             <button onClick={() => { setFilterScenario(""); setFilterVerdict(""); setFilterFrom(""); setFilterTo(""); }}
-              className="text-xs text-slate-500 hover:text-white underline">
+              className="text-xs text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] underline">
               clear
             </button>
           )}
           <div className="ml-auto flex items-center gap-2">
             <button onClick={() => setShowChart(v => !v)}
-              className="text-xs border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-400 hover:text-white hover:bg-white/5 transition-colors">
+              className="text-xs border border-[var(--color-border-default)] rounded-lg px-2.5 py-1.5 text-[var(--color-text-soft)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-raised)] transition-colors">
               {showChart ? "Hide" : "Show"} trend
             </button>
             {compareIds.length === 2 && (
               <button onClick={openDiff} disabled={diffLoading}
-                className="text-xs bg-ember-600 hover:bg-ember-500 disabled:opacity-50 rounded-lg px-3 py-1.5 text-white font-medium transition-colors">
+                className="text-xs bg-ember-600 hover:bg-ember-500 disabled:opacity-50 rounded-lg px-3 py-1.5 text-[var(--color-text-primary)] font-medium transition-colors">
                 {diffLoading ? "Loading..." : "Compare (2)"}
               </button>
             )}
             {compareIds.length > 0 && (
               <button onClick={() => setCompareIds([])}
-                className="text-xs text-slate-500 hover:text-white underline">
+                className="text-xs text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] underline">
                 clear selection
               </button>
             )}
@@ -496,10 +496,10 @@ export default function RunsPage() {
 
         {/* Trend chart */}
         {showChart && (
-          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500 mb-3">
+          <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-4">
+            <p className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--color-text-faint)] mb-3">
               Critic Score Trend
-              <span className="ml-3 normal-case text-slate-600">
+              <span className="ml-3 normal-case text-[var(--color-text-ghost)]">
                  -  <span className="text-emerald-400">●</span> approved
                 <span className="text-amber-400"> ●</span> revision
                 <span className="text-rose-400"> ●</span> rejected
@@ -514,25 +514,25 @@ export default function RunsPage() {
 
           {/* Run list */}
           <section className="xl:col-span-4">
-            <div className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.03]">
-              <div className="border-b border-white/10 px-4 py-3 flex items-center justify-between">
+            <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)]">
+              <div className="border-b border-[var(--color-border-default)] px-4 py-3 flex items-center justify-between">
                 <div>
                   <h2 className="text-sm font-semibold">Run History</h2>
-                  <p className="text-xs text-slate-500">Newest first. Check two to compare.</p>
+                  <p className="text-xs text-[var(--color-text-faint)]">Newest first. Check two to compare.</p>
                 </div>
               </div>
               {loading ? (
                 <div className="divide-y divide-white/10">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <div key={i} className="px-4 py-4 space-y-2.5 animate-pulse">
-                      <div className="h-2 w-10 rounded bg-slate-800" />
-                      <div className="h-3.5 w-44 rounded bg-slate-800" />
-                      <div className="h-2 w-28 rounded bg-slate-800" />
+                      <div className="h-2 w-10 rounded bg-[var(--color-surface-sunken)]" />
+                      <div className="h-3.5 w-44 rounded bg-[var(--color-surface-sunken)]" />
+                      <div className="h-2 w-28 rounded bg-[var(--color-surface-sunken)]" />
                     </div>
                   ))}
                 </div>
               ) : filteredRuns.length === 0 ? (
-                <p className="px-4 py-6 text-sm text-slate-500">No runs match the current filters.</p>
+                <p className="px-4 py-6 text-sm text-[var(--color-text-faint)]">No runs match the current filters.</p>
               ) : (
                 <div className="divide-y divide-white/10 max-h-[600px] overflow-y-auto">
                   {filteredRuns.map(run => {
@@ -541,14 +541,14 @@ export default function RunsPage() {
                     const verdict    = run.critic_verdict ?? "unknown";
                     return (
                       <div key={run.id}
-                        className={`flex items-start gap-2 px-3 py-3 transition-colors hover:bg-white/[0.04] ${isActive ? "bg-ember-500/10" : ""}`}>
+                        className={`flex items-start gap-2 px-3 py-3 transition-colors hover:bg-[var(--color-surface-raised)] ${isActive ? "bg-ember-500/10" : ""}`}>
                         {/* Compare checkbox */}
                         <button
                           onClick={() => toggleCompare(run.id)}
                           className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
                             isCompared
-                              ? "bg-ember-500 border-ember-500 text-white"
-                              : "border-slate-700 hover:border-ember-500"
+                              ? "bg-ember-500 border-ember-500 text-[var(--color-text-primary)]"
+                              : "border-[var(--color-border-default)] hover:border-ember-500"
                           }`}
                           title="Select to compare"
                         >
@@ -560,15 +560,15 @@ export default function RunsPage() {
                           className="flex-1 text-left min-w-0">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <p className="font-mono text-xs text-slate-500">#{run.id}</p>
+                              <p className="font-mono text-xs text-[var(--color-text-faint)]">#{run.id}</p>
                               <p className="mt-0.5 text-sm font-medium truncate">{run.scenario.replace(/_/g, " ")}</p>
-                              <p className="text-xs text-slate-400">target {run.target_date ?? "-"}</p>
+                              <p className="text-xs text-[var(--color-text-soft)]">target {run.target_date ?? "-"}</p>
                             </div>
                             <span className={`rounded-full border px-2 py-0.5 text-xs shrink-0 ${VERDICT_STYLE[verdict]}`}>
                               {verdict}
                             </span>
                           </div>
-                          <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                          <div className="mt-2 flex items-center justify-between text-xs text-[var(--color-text-faint)]">
                             <span>{run.status}</span>
                             <span>{run.critic_score == null ? "--" : `${Math.round(run.critic_score * 100)}/100`}</span>
                           </div>
@@ -584,21 +584,21 @@ export default function RunsPage() {
           {/* Run detail */}
           <section className="space-y-5 xl:col-span-8">
             {!selected ? (
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] px-5 py-12 flex flex-col items-center gap-3 text-center">
-                <svg className="h-8 w-8 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
+              <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-5 py-12 flex flex-col items-center gap-3 text-center">
+                <svg className="h-8 w-8 text-[var(--color-text-ghost)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
-                <p className="text-sm text-slate-500">Select a run from the list to see the full breakdown.</p>
-                <p className="text-xs text-slate-700">Critic verdict, quality scores, what each specialist found, and export buttons.</p>
+                <p className="text-sm text-[var(--color-text-faint)]">Select a run from the list to see the full breakdown.</p>
+                <p className="text-xs text-[var(--color-text-ghost)]">Critic verdict, quality scores, what each specialist found, and export buttons.</p>
               </div>
             ) : (
               <>
-                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
+                <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5">
                   <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div>
-                      <p className="font-mono text-xs uppercase tracking-[0.18em] text-slate-500">run #{selected.id}</p>
+                      <p className="font-mono text-xs uppercase tracking-[0.18em] text-[var(--color-text-faint)]">run #{selected.id}</p>
                       <h2 className="mt-2 text-xl font-semibold">{selected.scenario.replace(/_/g, " ")}</h2>
-                      <p className="mt-1 text-sm text-slate-400">
+                      <p className="mt-1 text-sm text-[var(--color-text-soft)]">
                         target {selected.target_date ?? "-"}  -  generated {selected.generated_at?.slice(0, 10) ?? "-"}
                       </p>
                     </div>
@@ -609,7 +609,7 @@ export default function RunsPage() {
                       <button
                         onClick={() => downloadPdf(selected.id, selected.scenario)}
                         disabled={exportingPdf}
-                        className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+                        className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-3 py-1.5 text-xs text-[var(--color-text-soft)] transition-colors hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-primary)] disabled:opacity-50"
                       >
                         <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -619,7 +619,7 @@ export default function RunsPage() {
                       <button
                         onClick={() => downloadExcel(selected.id, selected.scenario)}
                         disabled={exportingExcel}
-                        className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+                        className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-3 py-1.5 text-xs text-[var(--color-text-soft)] transition-colors hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-primary)] disabled:opacity-50"
                       >
                         <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -634,19 +634,19 @@ export default function RunsPage() {
                     <Metric label="run id" value={selected.metadata?.run_id as string ?? "--"} />
                     <Metric label="tokens" value={selected.metadata?.total_tokens as number ?? "--"} />
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--color-text-faint)]">
                     {selected.metadata?.total_cost_usd != null && (
-                      <span>Cost: <span className="text-slate-300">${(selected.metadata.total_cost_usd as number).toFixed(5)}</span></span>
+                      <span>Cost: <span className="text-[var(--color-text-soft)]">${(selected.metadata.total_cost_usd as number).toFixed(5)}</span></span>
                     )}
                     {selected.metadata?.total_duration_ms != null && (
-                      <span>Duration: <span className="text-slate-300">{Math.round(selected.metadata.total_duration_ms as number)}ms</span></span>
+                      <span>Duration: <span className="text-[var(--color-text-soft)]">{Math.round(selected.metadata.total_duration_ms as number)}ms</span></span>
                     )}
                     {!!selected.metadata?.llm_model && (
                       <span className="inline-flex items-center gap-1">
                         <span className="h-1.5 w-1.5 rounded-full bg-ember-400/70" />
-                        <span className="font-mono text-ember-300/80">{selected.metadata.llm_model as string}</span>
+                        <span className="font-mono text-[var(--color-accent)]/80">{selected.metadata.llm_model as string}</span>
                         {!!selected.metadata?.llm_provider && (
-                          <span className="text-slate-600">· {selected.metadata.llm_provider as string}</span>
+                          <span className="text-[var(--color-text-ghost)]">· {selected.metadata.llm_provider as string}</span>
                         )}
                       </span>
                     )}
@@ -658,23 +658,23 @@ export default function RunsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
+                <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5">
                   <h3 className="text-sm font-semibold">Critic Notes</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">{selected.critic?.notes ?? "No critic notes recorded."}</p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--color-text-soft)]">{selected.critic?.notes ?? "No critic notes recorded."}</p>
 
                   {!!Object.keys(selected.critic?.dimension_scores ?? {}).length && (
                     <div className="mt-5 space-y-3">
-                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500">Dimension Scores</p>
+                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--color-text-faint)]">Dimension Scores</p>
                       {DIMENSIONS.map(dim => {
                         const score = ((selected.critic?.dimension_scores ?? {})[dim] ?? 0) * 100;
                         const color = score >= 75 ? "bg-emerald-500" : score >= 50 ? "bg-amber-500" : "bg-rose-500";
                         return (
                           <div key={dim}>
                             <div className="flex justify-between text-xs mb-1">
-                              <span className="capitalize text-slate-400">{dim}</span>
-                              <span className="text-slate-300 font-mono">{Math.round(score)}/100</span>
+                              <span className="capitalize text-[var(--color-text-soft)]">{dim}</span>
+                              <span className="text-[var(--color-text-soft)] font-mono">{Math.round(score)}/100</span>
                             </div>
-                            <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                            <div className="h-1.5 rounded-full bg-[var(--color-surface-sunken)] overflow-hidden">
                               <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${score}%` }} />
                             </div>
                           </div>
@@ -685,10 +685,10 @@ export default function RunsPage() {
 
                   {selected.critic?.revision_reasons?.length ? (
                     <div className="mt-5">
-                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500">Revision Reasons</p>
-                      <ul className="mt-2 space-y-2 text-sm text-slate-300">
+                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--color-text-faint)]">Revision Reasons</p>
+                      <ul className="mt-2 space-y-2 text-sm text-[var(--color-text-soft)]">
                         {selected.critic.revision_reasons.map((r, i) => (
-                          <li key={i} className="rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2">{r}</li>
+                          <li key={i} className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-3 py-2">{r}</li>
                         ))}
                       </ul>
                     </div>
@@ -696,8 +696,8 @@ export default function RunsPage() {
 
                   {selected.critic?.actionable_feedback?.length ? (
                     <div className="mt-5">
-                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500">Actionable Feedback</p>
-                      <ul className="mt-2 space-y-2 text-sm text-slate-300">
+                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--color-text-faint)]">Actionable Feedback</p>
+                      <ul className="mt-2 space-y-2 text-sm text-[var(--color-text-soft)]">
                         {selected.critic.actionable_feedback.map((item, i) => (
                           <li key={i} className="rounded-lg border border-ember-400/10 bg-ember-500/5 px-3 py-2">{item}</li>
                         ))}
@@ -707,7 +707,7 @@ export default function RunsPage() {
 
                   {selected.critic?.cost_analysis && (
                     <div className="mt-5 rounded-lg border border-ember-400/10 bg-ember-500/5 p-4">
-                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-ember-300">Cost-Aware Scoring</p>
+                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--color-accent)]">Cost-Aware Scoring</p>
                       <div className="mt-3 grid grid-cols-3 gap-3">
                         <Metric label="cost pressure" value={`${Math.round(selected.critic.cost_analysis.cost_pressure_score * 100)}/100`} />
                         <Metric label="benefit"       value={`${Math.round(selected.critic.cost_analysis.benefit_score * 100)}/100`} />
@@ -719,7 +719,7 @@ export default function RunsPage() {
 
                 {selectedAgents.length > 0 && (
                   <div>
-                    <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500 mb-3">Agent Outputs</p>
+                    <p className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--color-text-faint)] mb-3">Agent Outputs</p>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                       {selectedAgents.map(([name, value]) => (
                         <AgentOutputCard
@@ -748,9 +748,9 @@ export default function RunsPage() {
 
 function Metric({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-slate-950/40 p-3">
-      <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <p className="mt-1.5 text-xl font-bold tabular-nums text-slate-100 leading-none">{value}</p>
+    <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] p-3">
+      <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-[var(--color-text-faint)]">{label}</p>
+      <p className="mt-1.5 text-xl font-bold tabular-nums text-[var(--color-text-primary)] leading-none">{value}</p>
     </div>
   );
 }

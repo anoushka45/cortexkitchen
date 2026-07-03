@@ -97,6 +97,14 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* Without this, native controls (select, option, scrollbar on some
+   platforms) render using the OS's own dark/light preference regardless
+   of which theme the page itself is showing -- e.g. a <select> with no
+   explicit background looks dark even on a light-themed page if the OS
+   is set to dark mode. */
+:root  { color-scheme: light; }
+.dark  { color-scheme: dark; }
+
 html, body {
   margin: 0;
   padding: 0;

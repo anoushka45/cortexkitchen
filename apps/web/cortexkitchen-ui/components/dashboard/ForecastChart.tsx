@@ -43,7 +43,7 @@ const CONFIDENCE_COLORS: Record<string, string> = {
 
 const METHOD_COLORS: Record<string, string> = {
   prophet: "text-blue-400",
-  baseline: "text-slate-400",
+  baseline: "text-[var(--color-text-soft)]",
 };
 
 const FALLBACK_PROFILES: Record<string, number[]> = {
@@ -242,34 +242,34 @@ export default function ForecastChart({ forecast, scenario }: Props) {
     : null;
 
   return (
-    <div className="rounded-2xl bg-ink-900 p-6 ring-1 ring-white/[0.07] h-full flex flex-col">
+    <div className="rounded-2xl bg-[var(--color-surface)] p-6 ring-1 ring-[var(--color-border-soft)] h-full flex flex-col">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-5">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ember-300/80">Demand forecast</span>
-            <span className={`rounded-full bg-white/[0.04] px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider ${CONFIDENCE_COLORS[confidence]}`}>
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">Demand forecast</span>
+            <span className={`rounded-full bg-[var(--color-surface-raised)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider ${CONFIDENCE_COLORS[confidence]}`}>
               {confidence} confidence
             </span>
           </div>
-          <h3 className="mt-1.5 text-xl font-semibold text-white">
+          <h3 className="mt-1.5 text-xl font-semibold text-[var(--color-text-primary)]">
             {target_date
               ? `${service_day_label ?? "Service"}  -  ${target_date}`
               : "Next planning window"}
           </h3>
-          <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-white/45">
+          <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--color-text-faint)]">
             <span className={`font-mono ${METHOD_COLORS[method]}`}>{method === "prophet" ? "Prophet  -  AI" : "Baseline"}</span>
             {(avg_same_day_orders ?? avg_friday_orders) !== undefined && (
-              <span>Avg last 4 {service_day_label ?? "days"} <b className="text-white/75">{avg_same_day_orders ?? avg_friday_orders}</b></span>
+              <span>Avg last 4 {service_day_label ?? "days"} <b className="text-[var(--color-text-soft)]">{avg_same_day_orders ?? avg_friday_orders}</b></span>
             )}
             {avg_peak_orders !== undefined && (
-              <span>Avg peak <b className="text-white/75">{avg_peak_orders}</b></span>
+              <span>Avg peak <b className="text-[var(--color-text-soft)]">{avg_peak_orders}</b></span>
             )}
           </div>
         </div>
         <div className="text-right shrink-0">
-          <div className="num-display text-5xl leading-none text-white">{roundedOrders}</div>
-          <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.18em] text-white/45">
+          <div className="num-display text-5xl leading-none text-[var(--color-text-primary)]">{roundedOrders}</div>
+          <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
             predicted orders{rangeText ? `  -  ${rangeText}` : ""}
           </div>
         </div>
@@ -280,16 +280,16 @@ export default function ForecastChart({ forecast, scenario }: Props) {
         <div className="mb-5 grid grid-cols-2 gap-2.5">
           {top_items.slice(0, 2).map((item, index) => (
             <div key={`${item.item}-${index}`}
-              className="rounded-lg bg-white/[0.025] px-4 py-3 ring-1 ring-white/[0.07] flex items-center justify-between">
+              className="rounded-lg bg-[var(--color-surface-raised)] px-4 py-3 ring-1 ring-[var(--color-border-soft)] flex items-center justify-between">
               <div>
-                <div className="text-[13px] font-semibold text-white truncate">{item.item}</div>
-                <div className="font-mono text-[10px] uppercase tracking-wider text-white/45">
+                <div className="text-[13px] font-semibold text-[var(--color-text-primary)] truncate">{item.item}</div>
+                <div className="font-mono text-[10px] uppercase tracking-wider text-[var(--color-text-faint)]">
                   {item.category}  -  {item.total_ordered} orders
                 </div>
               </div>
               <span className={`rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ring-1 ${
                 index === 0
-                  ? "bg-ember-500/[0.06] text-ember-300 ring-ember-400/25"
+                  ? "bg-ember-500/[0.06] text-[var(--color-accent)] ring-ember-400/25"
                   : "bg-emerald-500/[0.06] text-emerald-300 ring-emerald-400/25"
               }`}>{index === 0 ? "ease" : "push"}</span>
             </div>
@@ -306,8 +306,8 @@ export default function ForecastChart({ forecast, scenario }: Props) {
               onClick={() => setChartType(type)}
               className={`flex items-center gap-1 rounded-md px-2 py-1 font-mono text-[9px] uppercase tracking-wider transition-colors ${
                 chartType === type
-                  ? "bg-ember-500/15 text-ember-300"
-                  : "text-white/30 hover:text-white/50"
+                  ? "bg-ember-500/15 text-[var(--color-accent)]"
+                  : "text-[var(--color-text-faint)] hover:text-[var(--color-text-faint)]"
               }`}
             >
               {type === "bar" ? (
@@ -384,35 +384,35 @@ export default function ForecastChart({ forecast, scenario }: Props) {
             ? Math.round(((roundedOrders - avg_ref) / avg_ref) * 100)
             : null;
           const direction = vsAvg !== null ? (vsAvg >= 0 ? "↑" : "↓") : null;
-          const vsColor = vsAvg === null ? "text-white/40"
-            : vsAvg >= 10 ? "text-emerald-300" : vsAvg <= -10 ? "text-rose-300" : "text-ember-300";
+          const vsColor = vsAvg === null ? "text-[var(--color-text-faint)]"
+            : vsAvg >= 10 ? "text-emerald-300" : vsAvg <= -10 ? "text-rose-300" : "text-[var(--color-accent)]";
 
           return (
             <>
-              <div className="rounded-lg bg-white/[0.02] px-3 py-2.5 ring-1 ring-white/[0.05]">
-                <div className="font-mono text-[9px] uppercase tracking-wider text-white/30 mb-1">vs your average</div>
+              <div className="rounded-lg bg-[var(--color-surface-raised)] px-3 py-2.5 ring-1 ring-[var(--color-border-soft)]">
+                <div className="font-mono text-[9px] uppercase tracking-wider text-[var(--color-text-faint)] mb-1">vs your average</div>
                 <div className={`text-[15px] font-semibold ${vsColor}`}>
                   {vsAvg !== null ? `${direction} ${Math.abs(vsAvg)}%` : "—"}
                 </div>
-                <div className="font-mono text-[9px] text-white/25 mt-0.5">
+                <div className="font-mono text-[9px] text-[var(--color-text-ghost)] mt-0.5">
                   {avg_ref ? `avg ${avg_ref} orders` : "no baseline yet"}
                 </div>
               </div>
 
-              <div className="rounded-lg bg-white/[0.02] px-3 py-2.5 ring-1 ring-white/[0.05]">
-                <div className="font-mono text-[9px] uppercase tracking-wider text-white/30 mb-1">peak hour</div>
-                <div className="text-[15px] font-semibold text-white">
+              <div className="rounded-lg bg-[var(--color-surface-raised)] px-3 py-2.5 ring-1 ring-[var(--color-border-soft)]">
+                <div className="font-mono text-[9px] uppercase tracking-wider text-[var(--color-text-faint)] mb-1">peak hour</div>
+                <div className="text-[15px] font-semibold text-[var(--color-text-primary)]">
                   {data.find(d => d.covers === peak)?.hour ?? "—"}
                 </div>
-                <div className="font-mono text-[9px] text-white/25 mt-0.5">{peak} covers expected</div>
+                <div className="font-mono text-[9px] text-[var(--color-text-ghost)] mt-0.5">{peak} covers expected</div>
               </div>
 
-              <div className="rounded-lg bg-white/[0.02] px-3 py-2.5 ring-1 ring-white/[0.05]">
-                <div className="font-mono text-[9px] uppercase tracking-wider text-white/30 mb-1">confidence</div>
+              <div className="rounded-lg bg-[var(--color-surface-raised)] px-3 py-2.5 ring-1 ring-[var(--color-border-soft)]">
+                <div className="font-mono text-[9px] uppercase tracking-wider text-[var(--color-text-faint)] mb-1">confidence</div>
                 <div className={`text-[15px] font-semibold ${CONFIDENCE_COLORS[confidence]}`}>
                   {confidence.charAt(0).toUpperCase() + confidence.slice(1)}
                 </div>
-                <div className="font-mono text-[9px] text-white/25 mt-0.5">
+                <div className="font-mono text-[9px] text-[var(--color-text-ghost)] mt-0.5">
                   {method === "prophet" ? "Prophet AI model" : "Baseline estimate"}
                 </div>
               </div>
@@ -422,8 +422,8 @@ export default function ForecastChart({ forecast, scenario }: Props) {
       </div>
 
       {/* Footer */}
-      <div className="mt-3 flex items-center justify-between border-t border-white/[0.05] pt-3 text-[11px] text-white/35">
-        <span>Service window: <span className="font-mono text-ember-300/70">{service_window ?? "18:00-22:00"}</span></span>
+      <div className="mt-3 flex items-center justify-between border-t border-[var(--color-border-soft)] pt-3 text-[11px] text-[var(--color-text-faint)]">
+        <span>Service window: <span className="font-mono text-[var(--color-accent)]/70">{service_window ?? "18:00-22:00"}</span></span>
         {hasRange && <span className="font-mono">Range: {rangeText}</span>}
       </div>
     </div>

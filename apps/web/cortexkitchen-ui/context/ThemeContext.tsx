@@ -17,17 +17,18 @@ function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle("dark", theme === "dark");
 }
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // Initial value only matters for the very first client render before the
-  // inline script in layout.tsx (which runs pre-hydration) has already set
-  // the .dark class -- this just keeps React's state in sync with that.
-  const [theme, setTheme] = useState<Theme>("light");
+function readInitialTheme(): Theme {
+  // Guards SSR (no window) -- the real value is computed again on the
+  // client's hydration pass, where window is genuinely available. Doesn't
+  // risk a hydration mismatch: this state never drives ThemeProvider's own
+  // JSX, only the DOM-mutation effect below (which runs post-hydration).
+  if (typeof window === "undefined") return "light";
+  const stored = window.localStorage.getItem(STORAGE_KEY) as Theme | null;
+  return stored ?? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+}
 
-  useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY) as Theme | null;
-    const initial = stored ?? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-    setTheme(initial);
-  }, []);
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [theme, setTheme] = useState<Theme>(readInitialTheme);
 
   useEffect(() => {
     applyTheme(theme);

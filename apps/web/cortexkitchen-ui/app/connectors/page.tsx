@@ -17,7 +17,7 @@ function formatRelativeTime(isoString: string | null): string {
 }
 
 function freshnessColor(isoString: string | null): string {
-  if (!isoString) return "text-slate-500";
+  if (!isoString) return "text-[var(--color-text-faint)]";
   const diff = Date.now() - new Date(isoString).getTime();
   const hrs = diff / 3_600_000;
   if (hrs < 2) return "text-emerald-400";
@@ -28,7 +28,7 @@ function freshnessColor(isoString: string | null): string {
 function StatusBadge({ connected, syncStatus }: { connected: boolean; syncStatus: string }) {
   if (!connected) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-600/40 bg-slate-800/60 px-2.5 py-1 text-xs font-medium text-slate-400">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-soft)]">
         <span className="h-1.5 w-1.5 rounded-full bg-slate-500" />
         Not connected
       </span>
@@ -80,11 +80,11 @@ function SwiggyCard({ connector }: { connector: ConnectorStatus }) {
   }
 
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6">
+    <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white p-1.5">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border-default)] bg-white p-1.5">
             <Image
               src="/swiggy-logo.png"
               alt="Swiggy"
@@ -95,13 +95,13 @@ function SwiggyCard({ connector }: { connector: ConnectorStatus }) {
           </div>
           <div>
             <div className="flex items-center gap-2.5">
-              <h2 className="text-base font-semibold text-white">Swiggy</h2>
+              <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Swiggy</h2>
               <StatusBadge connected={connector.connected} syncStatus={connector.sync_status} />
             </div>
-            <p className="mt-0.5 text-xs text-slate-400">
+            <p className="mt-0.5 text-xs text-[var(--color-text-soft)]">
               Food Delivery · Instamart · Dineout
             </p>
-            <p className="mt-0.5 text-[10px] font-mono text-slate-600 uppercase tracking-widest">
+            <p className="mt-0.5 text-[10px] font-mono text-[var(--color-text-ghost)] uppercase tracking-widest">
               via Swiggy MCP
             </p>
           </div>
@@ -111,7 +111,7 @@ function SwiggyCard({ connector }: { connector: ConnectorStatus }) {
           <button
             onClick={handleSync}
             disabled={syncing}
-            className="flex shrink-0 items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-white/20 hover:bg-white/[0.07] hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 py-2 text-sm font-medium text-[var(--color-text-soft)] transition-colors hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {syncing ? (
               <>
@@ -146,31 +146,31 @@ function SwiggyCard({ connector }: { connector: ConnectorStatus }) {
 
       {/* Stats row */}
       <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Orders synced</p>
-          <p className="mt-1 text-xl font-bold tabular-nums text-white">
+        <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-4 py-3">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--color-text-faint)]">Orders synced</p>
+          <p className="mt-1 text-xl font-bold tabular-nums text-[var(--color-text-primary)]">
             {connector.orders_synced.toLocaleString()}
           </p>
         </div>
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Feedback synced</p>
-          <p className="mt-1 text-xl font-bold tabular-nums text-white">
+        <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-4 py-3">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--color-text-faint)]">Feedback synced</p>
+          <p className="mt-1 text-xl font-bold tabular-nums text-[var(--color-text-primary)]">
             {connector.feedback_synced.toLocaleString()}
           </p>
         </div>
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Last sync</p>
+        <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-4 py-3">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--color-text-faint)]">Last sync</p>
           <p className={`mt-1 text-sm font-semibold ${freshnessColor(connector.last_sync_at)}`}>
             {formatRelativeTime(connector.last_sync_at)}
           </p>
           {connector.last_sync_at && (
-            <p className="text-[9px] text-slate-600 mt-0.5">
+            <p className="text-[9px] text-[var(--color-text-ghost)] mt-0.5">
               {new Date(connector.last_sync_at).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })}
             </p>
           )}
         </div>
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Address</p>
+        <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-4 py-3">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--color-text-faint)]">Address</p>
           <p className={`mt-1 text-sm font-semibold ${connector.address_configured ? "text-emerald-400" : "text-amber-400"}`}>
             {connector.address_configured ? "Configured" : "Not set"}
           </p>
@@ -197,7 +197,7 @@ function SwiggyCard({ connector }: { connector: ConnectorStatus }) {
           <p className="mt-1 text-xs text-amber-300/70">
             Run the OAuth flow to get your access token and address ID, then add them to your <code className="font-mono text-amber-200">.env</code> file.
           </p>
-          <pre className="mt-3 overflow-x-auto rounded-lg border border-white/10 bg-slate-950/60 p-3 text-[11px] font-mono text-slate-300">
+          <pre className="mt-3 overflow-x-auto rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] p-3 text-[11px] font-mono text-[var(--color-text-soft)]">
 {`npx mcp-remote https://mcp.swiggy.com/food
 # complete phone + OTP in browser
 # copy access_token → SWIGGY_ACCESS_TOKEN in .env
@@ -211,18 +211,18 @@ function SwiggyCard({ connector }: { connector: ConnectorStatus }) {
 
 function ComingSoonCard({ name, description, icon }: { name: string; description: string; icon: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-dashed border-white/[0.07] bg-white/[0.01] p-5 flex items-center gap-4 opacity-60">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-500">
+    <div className="rounded-2xl border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5 flex items-center gap-4 opacity-60">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] text-[var(--color-text-faint)]">
         {icon}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-slate-300">{name}</p>
-          <span className="rounded-full border border-slate-700/50 bg-slate-800/50 px-2 py-0.5 text-[9px] font-mono uppercase tracking-wider text-slate-500">
+          <p className="text-sm font-medium text-[var(--color-text-soft)]">{name}</p>
+          <span className="rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-2 py-0.5 text-[9px] font-mono uppercase tracking-wider text-[var(--color-text-faint)]">
             Coming soon
           </span>
         </div>
-        <p className="mt-0.5 text-xs text-slate-500">{description}</p>
+        <p className="mt-0.5 text-xs text-[var(--color-text-faint)]">{description}</p>
       </div>
     </div>
   );
@@ -243,23 +243,23 @@ export default function ConnectorsPage() {
   const swiggy = data?.connectors.find((c) => c.type === "swiggy");
 
   return (
-    <main className="min-h-screen bg-[#09111f] px-5 py-6 text-slate-100 xl:px-8">
+    <main className="min-h-screen bg-[var(--color-surface)] px-5 py-6 text-[var(--color-text-primary)] xl:px-8">
       <div className="mx-auto max-w-3xl space-y-8">
 
         {/* Page header */}
-        <header className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <header className="flex flex-col gap-4 border-b border-[var(--color-border-default)] pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-mono uppercase tracking-[0.22em] text-ember-300">
+            <p className="text-xs font-mono uppercase tracking-[0.22em] text-[var(--color-accent)]">
               platform integrations
             </p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight">Connectors</h1>
-            <p className="mt-1 max-w-xl text-sm text-slate-400">
+            <p className="mt-1 max-w-xl text-sm text-[var(--color-text-soft)]">
               Live data from Swiggy powers your planning pipeline — real orders, delivery feedback, competitor pricing, and Instamart procurement.
             </p>
           </div>
           <Link
             href="/dashboard"
-            className="shrink-0 rounded-lg border border-white/10 px-3 py-2 text-xs font-mono text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-colors"
+            className="shrink-0 rounded-lg border border-[var(--color-border-default)] px-3 py-2 text-xs font-mono text-[var(--color-text-soft)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-primary)] transition-colors"
           >
             ← dashboard
           </Link>
@@ -274,35 +274,35 @@ export default function ConnectorsPage() {
 
         {/* Active integrations */}
         <section className="space-y-3">
-          <p className="text-xs font-mono uppercase tracking-[0.18em] text-slate-500 px-0.5">
+          <p className="text-xs font-mono uppercase tracking-[0.18em] text-[var(--color-text-faint)] px-0.5">
             Active
           </p>
 
           {loading ? (
-            <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 animate-pulse">
+            <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-6 animate-pulse">
               <div className="flex items-start gap-4">
-                <div className="h-14 w-14 rounded-xl bg-white/5 shrink-0" />
+                <div className="h-14 w-14 rounded-xl bg-[var(--color-surface-raised)] shrink-0" />
                 <div className="flex-1 space-y-2 pt-1">
-                  <div className="h-4 w-32 rounded bg-white/5" />
-                  <div className="h-3 w-56 rounded bg-white/5" />
+                  <div className="h-4 w-32 rounded bg-[var(--color-surface-raised)]" />
+                  <div className="h-3 w-56 rounded bg-[var(--color-surface-raised)]" />
                 </div>
               </div>
               <div className="mt-5 grid grid-cols-4 gap-3">
                 {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-16 rounded-xl bg-white/[0.03]" />
+                  <div key={i} className="h-16 rounded-xl bg-[var(--color-surface-raised)]" />
                 ))}
               </div>
             </div>
           ) : swiggy ? (
             <SwiggyCard connector={swiggy} />
           ) : (
-            <p className="text-sm text-slate-500 px-1">No connectors found.</p>
+            <p className="text-sm text-[var(--color-text-faint)] px-1">No connectors found.</p>
           )}
         </section>
 
         {/* Coming soon */}
         <section className="space-y-3">
-          <p className="text-xs font-mono uppercase tracking-[0.18em] text-slate-500 px-0.5">
+          <p className="text-xs font-mono uppercase tracking-[0.18em] text-[var(--color-text-faint)] px-0.5">
             Coming soon
           </p>
           <div className="space-y-2">
@@ -337,7 +337,7 @@ export default function ConnectorsPage() {
         </section>
 
         {/* Footer note */}
-        <p className="text-center text-[10px] font-mono text-slate-600 uppercase tracking-widest pb-4">
+        <p className="text-center text-[10px] font-mono text-[var(--color-text-ghost)] uppercase tracking-widest pb-4">
           Powered by Swiggy MCP · read-only live data
         </p>
       </div>

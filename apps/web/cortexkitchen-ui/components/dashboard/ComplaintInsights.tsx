@@ -96,12 +96,12 @@ function normalizeComplaint(raw: Record<string, unknown> | null): NormalizedComp
 }
 
 function priorityBadge(priority?: string) {
-  if (!priority) return "border-white/10 bg-white/5 text-slate-300";
+  if (!priority) return "border-[var(--color-border-default)] bg-[var(--color-surface-raised)] text-[var(--color-text-soft)]";
   const key = String(priority).toLowerCase();
   if (key === "high") return "border-rose-500/20 bg-rose-500/10 text-rose-200";
   if (key === "medium") return "border-amber-500/20 bg-amber-500/10 text-amber-200";
   if (key === "low") return "border-emerald-500/20 bg-emerald-500/10 text-emerald-200";
-  return "border-white/10 bg-white/5 text-slate-300";
+  return "border-[var(--color-border-default)] bg-[var(--color-surface-raised)] text-[var(--color-text-soft)]";
 }
 
 export function ComplaintInsightsBody({
@@ -129,12 +129,12 @@ export function ComplaintInsightsBody({
 
   return (
     <div className={compact ? "space-y-4" : "space-y-5"}>
-      <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-slate-500">
+      <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-[var(--color-text-faint)]">
         <span>{normalized.summary.total_feedback ?? 0} feedback</span>
         {typeof negativePct === "number" && (
           <>
             <span> - </span>
-            <span className={negativePct >= 25 ? "text-rose-300" : "text-slate-400"}>
+            <span className={negativePct >= 25 ? "text-rose-300" : "text-[var(--color-text-soft)]"}>
               negative: {negativePct}%
             </span>
           </>
@@ -148,11 +148,11 @@ export function ComplaintInsightsBody({
       </div>
 
       {normalized.recommendation.overall_summary && (
-        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-          <p className="text-xs font-mono uppercase tracking-widest text-slate-500 mb-2">
+        <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 py-3">
+          <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-faint)] mb-2">
             Summary
           </p>
-          <p className={`text-sm text-slate-200 leading-relaxed ${compact ? "line-clamp-3" : ""}`}>
+          <p className={`text-sm text-[var(--color-text-primary)] leading-relaxed ${compact ? "line-clamp-3" : ""}`}>
             {normalized.recommendation.overall_summary}
           </p>
         </div>
@@ -160,17 +160,17 @@ export function ComplaintInsightsBody({
 
       {shownIssues.length > 0 && (
         <div className={compact ? "space-y-2" : "space-y-3"}>
-          <p className="text-xs font-mono uppercase tracking-widest text-slate-600">
+          <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-ghost)]">
             Top Issues
           </p>
           <div className="grid grid-cols-1 gap-2">
             {shownIssues.map((issue, index) => (
               <div
                 key={`${issue.issue}-${index}`}
-                className="rounded-xl border border-white/10 bg-slate-950/40 px-4 py-3"
+                className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-4 py-3"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-slate-200">{issue.issue}</p>
+                  <p className="text-sm font-semibold text-[var(--color-text-primary)]">{issue.issue}</p>
                   {issue.priority && (
                     <span
                       className={`rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.12em] ${priorityBadge(issue.priority)}`}
@@ -180,7 +180,7 @@ export function ComplaintInsightsBody({
                   )}
                 </div>
                 {!compact && issue.recommendation && (
-                  <p className="mt-2 text-sm text-slate-300 leading-relaxed">
+                  <p className="mt-2 text-sm text-[var(--color-text-soft)] leading-relaxed">
                     {issue.recommendation}
                   </p>
                 )}
@@ -188,7 +188,7 @@ export function ComplaintInsightsBody({
             ))}
           </div>
           {compact && issues.length > shownIssues.length && (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[var(--color-text-faint)]">
               {issues.length - shownIssues.length} more issues in details.
             </p>
           )}
@@ -197,21 +197,21 @@ export function ComplaintInsightsBody({
 
       {shownActions.length > 0 && (
         <div className={compact ? "space-y-2" : "space-y-3"}>
-          <p className="text-xs font-mono uppercase tracking-widest text-slate-600">
+          <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-ghost)]">
             Action Items
           </p>
           <ul className="space-y-1.5">
             {shownActions.map((item, index) => (
               <li
                 key={`action-${index}`}
-                className="rounded-lg border border-white/5 bg-slate-900/60 px-3 py-2 text-xs text-slate-200"
+                className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-sunken)] px-3 py-2 text-xs text-[var(--color-text-primary)]"
               >
                 {item}
               </li>
             ))}
           </ul>
           {compact && actionItems.length > shownActions.length && (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[var(--color-text-faint)]">
               {actionItems.length - shownActions.length} more actions in details.
             </p>
           )}
@@ -220,14 +220,14 @@ export function ComplaintInsightsBody({
 
       {!compact && normalized.summary.unique_complaints && normalized.summary.unique_complaints.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-mono uppercase tracking-widest text-slate-600">
+          <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-ghost)]">
             Example Complaints
           </p>
           <ul className="space-y-1.5">
             {takeStrings(normalized.summary.unique_complaints, 5).map((text, index) => (
               <li
                 key={`complaint-${index}`}
-                className="rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs text-slate-300"
+                className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-3 py-2 text-xs text-[var(--color-text-soft)]"
               >
                 {text}
               </li>

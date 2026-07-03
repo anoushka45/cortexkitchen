@@ -82,10 +82,10 @@ export default function ManagerActionPanel({
       <div className="card rounded-2xl p-4 stagger-3">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-mono uppercase tracking-[0.18em] text-slate-500">
+            <p className="text-xs font-mono uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
               Manager Brief
             </p>
-            <p className="text-sm text-slate-300">
+            <p className="text-sm text-[var(--color-text-soft)]">
               {surfacedCount > 0
                 ? `${surfacedCount} actionable signals surfaced across inventory, menu, reservations, and complaints.`
                 : "No urgent action clusters surfaced in the current planning run."}
@@ -104,12 +104,12 @@ export default function ManagerActionPanel({
             {previewItems.slice(0, 3).map(({ label, item }, index) => (
               <div
                 key={`${label}-${index}`}
-                className="rounded-xl border border-white/10 bg-white/5 px-4 py-3"
+                className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 py-3"
               >
-                <p className="text-[11px] font-mono uppercase tracking-[0.14em] text-slate-500 mb-2">
+                <p className="text-[11px] font-mono uppercase tracking-[0.14em] text-[var(--color-text-faint)] mb-2">
                   {label}
                 </p>
-                <p className="text-sm text-slate-200 leading-relaxed"><HighlightSwiggy text={item} /></p>
+                <p className="text-sm text-[var(--color-text-primary)] leading-relaxed"><HighlightSwiggy text={item} /></p>
               </div>
             ))}
           </div>
@@ -121,10 +121,10 @@ export default function ManagerActionPanel({
   return (
     <div className="card rounded-2xl p-5 stagger-3">
       <div className="flex flex-col gap-1 mb-4">
-        <p className="text-xs font-mono uppercase tracking-[0.18em] text-slate-500">
+        <p className="text-xs font-mono uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
           Manager Actions
         </p>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-[var(--color-text-soft)]">
           A synthesized action view pulled from the current planning run
         </p>
       </div>
@@ -159,23 +159,23 @@ function ActionColumn({
       ? "border-amber-500/20 bg-amber-500/5"
       : tone === "risk"
       ? "border-rose-500/20 bg-rose-500/5"
-      : "border-white/5 bg-slate-900/60";
+      : "border-[var(--color-border-soft)] bg-[var(--color-surface-sunken)]";
 
   return (
     <div className={`rounded-xl border p-4 ${toneClass}`}>
-      <p className="text-xs font-mono uppercase tracking-widest text-slate-500 mb-3">
+      <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-faint)] mb-3">
         {title}
       </p>
       {items.length > 0 ? (
         <ul className="space-y-2">
           {items.map((item, index) => (
-            <li key={`${title}-${index}`} className="text-xs text-slate-200 leading-relaxed">
+            <li key={`${title}-${index}`} className="text-xs text-[var(--color-text-primary)] leading-relaxed">
               <HighlightSwiggy text={item} />
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-xs text-slate-500">No urgent items surfaced in this category.</p>
+        <p className="text-xs text-[var(--color-text-faint)]">No urgent items surfaced in this category.</p>
       )}
     </div>
   );

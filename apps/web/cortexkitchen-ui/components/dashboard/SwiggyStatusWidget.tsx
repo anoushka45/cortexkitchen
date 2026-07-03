@@ -52,43 +52,43 @@ export default function SwiggyStatusWidget() {
     <div className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-2.5 text-xs transition-colors ${
       connected
         ? "border-orange-500/20 bg-orange-500/[0.04]"
-        : "border-white/[0.06] bg-white/[0.02]"
+        : "border-[var(--color-border-soft)] bg-[var(--color-surface-raised)]"
     }`}>
       {/* Logo + name */}
       <div className="flex shrink-0 items-center gap-2">
         <div className="flex h-5 w-5 items-center justify-center rounded bg-white p-0.5">
           <Image src="/swiggy-logo.png" alt="Swiggy" width={16} height={16} className="h-full w-full object-contain" />
         </div>
-        <span className="font-medium text-slate-300">Swiggy</span>
+        <span className="font-medium text-[var(--color-text-soft)]">Swiggy</span>
         <span className={`h-1.5 w-1.5 rounded-full ${connected ? (fresh ? "bg-emerald-400" : "bg-amber-400") : "bg-slate-600"}`} />
       </div>
 
       {/* Status text */}
       {connected ? (
         <>
-          <span className="text-slate-500">·</span>
-          <span className="text-slate-400">
+          <span className="text-[var(--color-text-faint)]">·</span>
+          <span className="text-[var(--color-text-soft)]">
             last sync{" "}
             <span className={fresh ? "text-emerald-400" : "text-amber-400"}>
               {formatRelativeTime(connector.last_sync_at)}
             </span>
           </span>
-          <span className="text-slate-500">·</span>
-          <span className="text-slate-400">
-            <span className="font-semibold text-white">{connector.orders_synced.toLocaleString()}</span> orders
+          <span className="text-[var(--color-text-faint)]">·</span>
+          <span className="text-[var(--color-text-soft)]">
+            <span className="font-semibold text-[var(--color-text-primary)]">{connector.orders_synced.toLocaleString()}</span> orders
           </span>
           {connector.feedback_synced > 0 && (
             <>
-              <span className="text-slate-500">·</span>
-              <span className="text-slate-400">
-                <span className="font-semibold text-white">{connector.feedback_synced.toLocaleString()}</span> feedback
+              <span className="text-[var(--color-text-faint)]">·</span>
+              <span className="text-[var(--color-text-soft)]">
+                <span className="font-semibold text-[var(--color-text-primary)]">{connector.feedback_synced.toLocaleString()}</span> feedback
               </span>
             </>
           )}
         </>
       ) : (
         <>
-          <span className="text-slate-500">·</span>
+          <span className="text-[var(--color-text-faint)]">·</span>
           <span className="text-amber-400">Not connected</span>
         </>
       )}
@@ -103,7 +103,7 @@ export default function SwiggyStatusWidget() {
             onClick={handleQuickSync}
             disabled={syncing}
             title="Sync Swiggy data now"
-            className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-mono text-slate-400 transition-colors hover:border-white/20 hover:text-white disabled:opacity-40"
+            className="flex items-center gap-1 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-2.5 py-1 text-[11px] font-mono text-[var(--color-text-soft)] transition-colors hover:border-[var(--color-border-default)] hover:text-[var(--color-text-primary)] disabled:opacity-40"
           >
             {syncing ? (
               <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -124,7 +124,7 @@ export default function SwiggyStatusWidget() {
         )}
         <Link
           href="/connectors"
-          className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-mono text-slate-400 transition-colors hover:border-white/20 hover:text-white"
+          className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-2.5 py-1 text-[11px] font-mono text-[var(--color-text-soft)] transition-colors hover:border-[var(--color-border-default)] hover:text-[var(--color-text-primary)]"
         >
           manage →
         </Link>

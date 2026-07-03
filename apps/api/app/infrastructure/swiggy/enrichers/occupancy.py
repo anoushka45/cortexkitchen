@@ -16,16 +16,17 @@ IMPORTANT: Dineout uses lat/lng from get_saved_locations.
 """
 
 import json
-import logging
 from datetime import date
 from typing import Optional
 
 import redis.asyncio as aioredis
+import structlog
 
 from app.core.settings import get_settings
 from app.infrastructure.swiggy.client import DINEOUT_ENDPOINT, SwiggyMCPClient
 
-log = logging.getLogger(__name__)
+# structlog, not stdlib logging — see procurement.py for why.
+log = structlog.get_logger()
 
 _CACHE_TTL       = 1800  # 30 minutes
 _MAX_SLOT_CALLS  = 3     # hard rate-limit per planning run
@@ -67,7 +68,7 @@ class OccupancyEnricher:
         try:
             return await self._enrich(context)
         except Exception as exc:
-            log.warning("occupancy_enricher_error: %s", exc)
+            log.warning("occupancy_enricher_error", error=str(exc))
             return None
 
     # ── internal ─────────────────────────────────────────────────────────────
@@ -80,7 +81,7 @@ class OccupancyEnricher:
         cache_key = f"enricher:occupancy:{org_id}:{today}"
         cached = await self._cache_get(cache_key)
         if cached is not None:
-            log.info("occupancy_enricher_cache_hit key=%s", cache_key)
+            log.info("occupancy_enricher_cache_hit", cache_key=cache_key)
             return cached
 
         # Step 1 — resolve Dineout location (lat/lng)
@@ -117,8 +118,8 @@ class OccupancyEnricher:
 
         await self._cache_set(cache_key, result)
         log.info(
-            "occupancy_enricher_done signal=%s competitors=%d avg_slots=%.1f",
-            signal, len(availability_counts), avg_count,
+            "occupancy_enricher_done",
+            signal=signal, competitors=len(availability_counts), avg_slots=round(avg_count, 1),
         )
         return result
 
@@ -247,7 +248,7 @@ class OccupancyEnricher:
             raw = await r.get(key)
             return json.loads(raw) if raw else None
         except Exception as exc:
-            log.debug("occupancy_enricher_cache_get_error: %s", exc)
+            log.debug("occupancy_enricher_cache_get_error", error=str(exc))
             return None
 
     async def _cache_set(self, key: str, value: dict) -> None:
@@ -255,4 +256,4 @@ class OccupancyEnricher:
             r = await self._get_redis()
             await r.setex(key, _CACHE_TTL, json.dumps(value, default=str))
         except Exception as exc:
-            log.debug("occupancy_enricher_cache_set_error: %s", exc)
+            log.debug("occupancy_enricher_cache_set_error", error=str(exc))

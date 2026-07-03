@@ -1,6 +1,8 @@
 // components/dashboard/ReservationSummary.tsx
 "use client";
 
+import HighlightSwiggy from "@/components/dashboard/HighlightSwiggy";
+
 interface ReservationData {
   data?: {
     total_reservations?: number;
@@ -120,7 +122,7 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
           {typeof recommendation === "string" && (
             <div className="w-full">
               <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45 mb-1.5">Recommendation</div>
-              <p className="text-[12px] leading-[1.65] text-white/65 break-words whitespace-normal">{recommendation}</p>
+              <p className="text-[12px] leading-[1.65] text-white/65 break-words whitespace-normal"><HighlightSwiggy text={recommendation} /></p>
             </div>
           )}
 
@@ -131,7 +133,7 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
                 <div className="w-full">
                   <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45 mb-1.5">Reasoning</div>
                   <p className="text-[12px] leading-[1.65] text-white/65 break-words whitespace-normal">
-                    {recommendation.reasoning}
+                    <HighlightSwiggy text={recommendation.reasoning} />
                   </p>
                 </div>
               )}
@@ -171,7 +173,7 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
                             return (
                               <li key={i} className="text-[12px] text-white/65 flex gap-2 w-full break-words">
                                 <span className="text-cyan-400/60 shrink-0">·</span>
-                                <span className="whitespace-normal">{itemText}</span>
+                                <span className="whitespace-normal"><HighlightSwiggy text={itemText} /></span>
                               </li>
                             );
                           })}

@@ -39,6 +39,7 @@ from app.orchestration.nodes import (
     replan_orchestrator_node,
 )
 from app.infrastructure.swiggy.client import SwiggyMCPClient
+from app.infrastructure.llm.base import bind_llm_usage_node, reset_llm_usage_node
 
 
 # ── Node name constants ──────────────────────────────────────────────────────
@@ -91,8 +92,12 @@ def _inject(node_fn, traces: list, **deps):
         llm_dep = deps.get("llm")
         registry_providers = list((state.get("llm_registry") or {}).values())
         all_providers = [p for p in [llm_dep] + registry_providers if p is not None]
-        for p in all_providers:
-            p.drain_usage()  # clear slate so only this node's calls are captured
+
+        # Tag this node's LLM calls on the current asyncio task so drain_usage(node=...)
+        # below only picks up records this node made — not a concurrently running
+        # fan-out node's records on a shared provider tier (e.g. reservation and
+        # inventory both use the "fast" tier and can run at the same time).
+        usage_token = bind_llm_usage_node(node)
 
         try:
             result = await node_fn(state, **deps)
@@ -100,7 +105,7 @@ def _inject(node_fn, traces: list, **deps):
 
             node_usage = []
             for p in all_providers:
-                node_usage.extend(p.drain_usage())
+                node_usage.extend(p.drain_usage(node=node))
             node_cost_usd = round(sum(u.get("cost_usd", 0) for u in node_usage), 6)
 
             log.info("node_end", node=node, duration_ms=duration_ms, **_llm_log_fields(deps.get("llm")))
@@ -118,7 +123,7 @@ def _inject(node_fn, traces: list, **deps):
 
             node_usage = []
             for p in all_providers:
-                node_usage.extend(p.drain_usage())
+                node_usage.extend(p.drain_usage(node=node))
             node_cost_usd = round(sum(u.get("cost_usd", 0) for u in node_usage), 6)
 
             log.error(
@@ -142,6 +147,8 @@ def _inject(node_fn, traces: list, **deps):
                 scope.set_extra("duration_ms", duration_ms)
                 sentry_sdk.capture_exception(exc)
             raise
+        finally:
+            reset_llm_usage_node(usage_token)
     return _wrapped
 
 
@@ -225,6 +232,10 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
     llm             = deps["llm"]
     memory          = deps.get("memory")
     planning_memory = deps.get("planning_memory")
+    db_factory      = deps.get("db_factory")
+    if db_factory is None:
+        from app.api.dependencies import get_db_factory
+        db_factory = get_db_factory()
     swiggy_client   = deps.get("swiggy_client") or SwiggyMCPClient()
     tr              = traces if traces is not None else []
 
@@ -236,9 +247,12 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
 
     graph.add_node(DEMAND_FORECAST,        _inject(demand_forecast_node,        tr, db=db, llm=llm))
     graph.add_node(QDRANT_ENRICHMENT,      _inject(qdrant_enrichment_node,      tr, memory=memory, planning_memory=planning_memory))
-    graph.add_node(RESERVATION,            _inject(reservation_node,            tr, db=db, llm=llm))
-    graph.add_node(COMPLAINT_INTELLIGENCE, _inject(complaint_intelligence_node, tr, db=db, llm=llm, memory=memory))
-    graph.add_node(INVENTORY,              _inject(inventory_node,              tr, db=db, llm=llm))
+    # Parallel fan-out nodes use db_factory so each creates its own session.
+    # This allows asyncio.to_thread() in service layer to run sync DB queries
+    # without blocking the event loop or causing session thread-safety issues.
+    graph.add_node(RESERVATION,            _inject(reservation_node,            tr, db_factory=db_factory, llm=llm))
+    graph.add_node(COMPLAINT_INTELLIGENCE, _inject(complaint_intelligence_node, tr, db_factory=db_factory, llm=llm, memory=memory))
+    graph.add_node(INVENTORY,              _inject(inventory_node,              tr, db_factory=db_factory, llm=llm, swiggy_client=swiggy_client))
     graph.add_node(MARKET_INTEL,    _inject(market_intel_node,    tr, swiggy_client=swiggy_client))
     graph.add_node(DINEOUT_MANAGER, _inject(dineout_manager_node, tr, swiggy_client=swiggy_client))
     graph.add_node(MENU_INTELLIGENCE, _inject(menu_intelligence_node, tr, db=db, llm=llm))
@@ -293,8 +307,14 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
         },
     )
 
-    # Replan loop: orchestrator injects context → re-aggregate → re-evaluate
-    graph.add_edge(REPLAN_ORCHESTRATOR, AGGREGATOR)
+    # Replan loop: orchestrator injects feedback → re-run menu_intelligence with it
+    # (not just re-aggregate the same unchanged output) → re-aggregate → re-evaluate.
+    # Safe under LangGraph's join semantics: MENU_INTELLIGENCE already has 5 fan-in
+    # edges from the initial parallel fan-out; this adds a 6th that's only ever
+    # in-flight alone (on replan, none of the other 5 re-fire), mirroring the
+    # already-proven pattern where AGGREGATOR has two edges (MENU_INTELLIGENCE and
+    # REPLAN_ORCHESTRATOR) and already fires correctly off either one alone.
+    graph.add_edge(REPLAN_ORCHESTRATOR, MENU_INTELLIGENCE)
     graph.add_edge(FINAL_ASSEMBLER, END)
 
     return graph.compile()

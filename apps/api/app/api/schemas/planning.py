@@ -200,6 +200,12 @@ class FridayRushResponse(BaseModel):
         default=None,
         description="True if this response was served from cache; False if freshly computed; None for legacy/compat responses",
     )
+    # Swiggy market intelligence outputs (P6-S11/S12)
+    market_intel: Optional[Dict[str, Any]] = None
+    swiggy_competitor_context: Optional[Dict[str, Any]] = None
+    swiggy_occupancy_context: Optional[Dict[str, Any]] = None
+    swiggy_procurement_options: Optional[Dict[str, Any]] = None
+    dineout_manager: Optional[Dict[str, Any]] = None
 
 
 # ── What-if simulator ─────────────────────────────────────────────────────────

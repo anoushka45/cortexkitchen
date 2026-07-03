@@ -103,14 +103,14 @@ class TestDemandForecastNode:
 class TestReservationNode:
 
     @pytest.mark.asyncio
-    async def test_short_circuits_on_error(self, errored_state, mock_db, mock_llm):
+    async def test_short_circuits_on_error(self, errored_state, mock_db_factory, mock_llm):
         from app.orchestration.nodes.reservation import reservation_node
 
-        result = await reservation_node(errored_state, db=mock_db, llm=mock_llm)
+        result = await reservation_node(errored_state, db_factory=mock_db_factory, llm=mock_llm)
         assert result["reservation_output"] is None
 
     @pytest.mark.asyncio
-    async def test_calls_service_with_parsed_date(self, base_state, mock_db, mock_llm):
+    async def test_calls_service_with_parsed_date(self, base_state, mock_db_factory, mock_llm):
         from app.orchestration.nodes.reservation import reservation_node
 
         mock_result = {
@@ -121,7 +121,7 @@ class TestReservationNode:
 
         with patch("app.orchestration.nodes.reservation.ReservationService") as MockService:
             MockService.return_value.analyse_and_recommend = AsyncMock(return_value=mock_result)
-            result = await reservation_node(base_state, db=mock_db, llm=mock_llm)
+            result = await reservation_node(base_state, db_factory=mock_db_factory, llm=mock_llm)
 
             call_kwargs = MockService.return_value.analyse_and_recommend.call_args.kwargs
             assert "target_date" in call_kwargs
@@ -130,14 +130,14 @@ class TestReservationNode:
         assert result["reservation_output"]["service"] == "reservation"
 
     @pytest.mark.asyncio
-    async def test_exception_captured_gracefully(self, base_state, mock_db, mock_llm):
+    async def test_exception_captured_gracefully(self, base_state, mock_db_factory, mock_llm):
         from app.orchestration.nodes.reservation import reservation_node
 
         with patch("app.orchestration.nodes.reservation.ReservationService") as MockService:
             MockService.return_value.analyse_and_recommend = AsyncMock(
                 side_effect=Exception("Connection refused")
             )
-            result = await reservation_node(base_state, db=mock_db, llm=mock_llm)
+            result = await reservation_node(base_state, db_factory=mock_db_factory, llm=mock_llm)
 
         output = result["reservation_output"]
         assert output["service"] == "reservation"
@@ -145,7 +145,7 @@ class TestReservationNode:
         assert output["data"] is None
 
     @pytest.mark.asyncio
-    async def test_none_target_date_falls_back_gracefully(self, mock_db, mock_llm):
+    async def test_none_target_date_falls_back_gracefully(self, mock_db_factory, mock_llm):
         from app.orchestration.nodes.reservation import reservation_node
         from app.orchestration.state import make_initial_state
 
@@ -159,7 +159,7 @@ class TestReservationNode:
 
         with patch("app.orchestration.nodes.reservation.ReservationService") as MockService:
             MockService.return_value.analyse_and_recommend = AsyncMock(return_value=mock_result)
-            result = await reservation_node(state, db=mock_db, llm=mock_llm)
+            result = await reservation_node(state, db_factory=mock_db_factory, llm=mock_llm)
 
         assert result["reservation_output"]["service"] == "reservation"
 
@@ -169,17 +169,21 @@ class TestReservationNode:
 class TestComplaintIntelligenceNode:
 
     @pytest.mark.asyncio
-    async def test_short_circuits_on_error(self, errored_state, mock_db, mock_llm):
+    async def test_short_circuits_on_error(self, errored_state, mock_db_factory, mock_llm):
         from app.orchestration.nodes.complaint_intelligence import complaint_intelligence_node
 
-        result = await complaint_intelligence_node(errored_state, db=mock_db, llm=mock_llm)
+        result = await complaint_intelligence_node(errored_state, db_factory=mock_db_factory, llm=mock_llm)
         assert result["complaint_output"] is None
 
     @pytest.mark.asyncio
     async def test_rag_context_added_when_memory_provided(
-        self, base_state, mock_db, mock_llm, mock_memory
+        self, base_state, mock_db_factory, mock_llm, mock_memory
     ):
         from app.orchestration.nodes.complaint_intelligence import complaint_intelligence_node
+
+        # RAG retrieval requires org_id (multi-tenant scoping) — unset in the
+        # bare base_state fixture, so set it explicitly for this assertion.
+        state = {**base_state, "org_id": 1}
 
         mock_service_result = {
             "service": "complaint",
@@ -199,17 +203,17 @@ class TestComplaintIntelligenceNode:
             }
             MockService.return_value.analyse_and_recommend = AsyncMock(return_value=mock_service_result)
             result = await complaint_intelligence_node(
-                base_state, db=mock_db, llm=mock_llm, memory=mock_memory
+                state, db_factory=mock_db_factory, llm=mock_llm, memory=mock_memory
             )
 
         output = result["complaint_output"]
         assert output["rag_context"]["similar_complaints"] != []
         assert output["rag_context"]["relevant_sops"] != []
-        mock_memory.retrieve_similar_complaints.assert_called_once_with(query="cold pizza", top_k=3)
-        mock_memory.retrieve_relevant_sops.assert_called_once_with(query="cold pizza", top_k=2)
+        mock_memory.retrieve_similar_complaints.assert_called_once_with(query="cold pizza", org_id=1, top_k=3)
+        mock_memory.retrieve_relevant_sops.assert_called_once_with(query="cold pizza", org_id=1, top_k=2)
 
     @pytest.mark.asyncio
-    async def test_rag_context_empty_when_no_memory(self, base_state, mock_db, mock_llm):
+    async def test_rag_context_empty_when_no_memory(self, base_state, mock_db_factory, mock_llm):
         from app.orchestration.nodes.complaint_intelligence import complaint_intelligence_node
 
         mock_service_result = {
@@ -221,7 +225,7 @@ class TestComplaintIntelligenceNode:
         with patch("app.orchestration.nodes.complaint_intelligence.ComplaintService") as MockService:
             MockService.return_value.analyse_and_recommend = AsyncMock(return_value=mock_service_result)
             result = await complaint_intelligence_node(
-                base_state, db=mock_db, llm=mock_llm, memory=None
+                base_state, db_factory=mock_db_factory, llm=mock_llm, memory=None
             )
 
         rag = result["complaint_output"]["rag_context"]
@@ -229,14 +233,14 @@ class TestComplaintIntelligenceNode:
         assert rag["relevant_sops"] == []
 
     @pytest.mark.asyncio
-    async def test_exception_sets_error_in_output(self, base_state, mock_db, mock_llm):
+    async def test_exception_sets_error_in_output(self, base_state, mock_db_factory, mock_llm):
         from app.orchestration.nodes.complaint_intelligence import complaint_intelligence_node
 
         with patch("app.orchestration.nodes.complaint_intelligence.ComplaintService") as MockService:
             MockService.return_value.analyse_and_recommend = AsyncMock(
                 side_effect=Exception("Qdrant unreachable")
             )
-            result = await complaint_intelligence_node(base_state, db=mock_db, llm=mock_llm)
+            result = await complaint_intelligence_node(base_state, db_factory=mock_db_factory, llm=mock_llm)
 
         output = result["complaint_output"]
         assert output["service"] == "complaint"
@@ -301,7 +305,83 @@ class TestMenuIntelligenceNode:
             forecast_data={"predicted_orders": 120},
             complaint_data={"unique_complaints": ["cold pizza"]},
             inventory_data={"shortage_alerts": [{"ingredient": "Mozzarella"}]},
+            competitor_context=None,
+            prior_feedback=None,
+            reservation_data=None,
+            market_intel_data=None,
+            dineout_data=None,
         )
+
+    @pytest.mark.asyncio
+    async def test_passes_reservation_market_dineout_context_to_menu_service(self, base_state, mock_db, mock_llm):
+        """menu_intelligence is the graph's 5-way synthesis point — it must
+        actually thread reservation/market-intel/dineout context through, not
+        just forecast/complaint/inventory (P6 context-sharing gap fix)."""
+        from app.orchestration.nodes.menu_intelligence import menu_intelligence_node
+
+        state = {
+            **base_state,
+            "reservation_output": {"data": {"occupancy_pct": 99.1, "capacity": 70}},
+            "market_intel_output": {"area_occupancy": "HIGH", "tonight_busy": True},
+            "dineout_manager_output": {"low_availability_slots": 4},
+        }
+
+        with patch("app.orchestration.nodes.menu_intelligence.MenuService") as MockService:
+            mock_service = MockService.return_value
+            mock_service.analyse_and_recommend = AsyncMock(
+                return_value={"service": "menu", "data": {"capacity_constrained": True}, "recommendation": {}}
+            )
+            result = await menu_intelligence_node(state, db=mock_db, llm=mock_llm)
+
+        call_kwargs = mock_service.analyse_and_recommend.call_args.kwargs
+        assert call_kwargs["reservation_data"] == {"occupancy_pct": 99.1, "capacity": 70}
+        assert call_kwargs["market_intel_data"] == {"area_occupancy": "HIGH", "tonight_busy": True}
+        assert call_kwargs["dineout_data"] == {"low_availability_slots": 4}
+
+        # The bug that started this: assumed_covers_within_capacity must NOT be
+        # a fixed True — it must reflect the service's genuinely-computed value.
+        assert result["menu_assumptions"]["assumed_covers_within_capacity"] is False
+
+    @pytest.mark.asyncio
+    async def test_assumed_covers_within_capacity_true_when_not_constrained(self, base_state, mock_db, mock_llm):
+        from app.orchestration.nodes.menu_intelligence import menu_intelligence_node
+
+        state = {
+            **base_state,
+            "reservation_output": {"data": {"occupancy_pct": 60.0, "capacity": 70}},
+        }
+
+        with patch("app.orchestration.nodes.menu_intelligence.MenuService") as MockService:
+            MockService.return_value.analyse_and_recommend = AsyncMock(
+                return_value={"service": "menu", "data": {"capacity_constrained": False}, "recommendation": {}}
+            )
+            result = await menu_intelligence_node(state, db=mock_db, llm=mock_llm)
+
+        assert result["menu_assumptions"]["assumed_covers_within_capacity"] is True
+
+    @pytest.mark.asyncio
+    async def test_replan_context_threaded_as_prior_feedback(self, base_state, mock_db, mock_llm):
+        """On a replan pass, state['replan_context'] must reach MenuService as
+        prior_feedback — this is the fix for the replan loop never converging
+        (menu_intelligence previously never re-ran with the critic's feedback)."""
+        from app.orchestration.nodes.menu_intelligence import menu_intelligence_node
+
+        state = {
+            **base_state,
+            "replan_count": 1,
+            "replan_context": "[Replan attempt 1] Critic verdict: revision (score=0.38)\n  Revision reasons: No confirmed go-list of executable menu items.",
+        }
+
+        with patch("app.orchestration.nodes.menu_intelligence.MenuService") as MockService:
+            mock_service = MockService.return_value
+            mock_service.analyse_and_recommend = AsyncMock(
+                return_value={"service": "menu", "data": {}, "recommendation": {}}
+            )
+            await menu_intelligence_node(state, db=mock_db, llm=mock_llm)
+
+        call_kwargs = mock_service.analyse_and_recommend.call_args.kwargs
+        assert call_kwargs["prior_feedback"] == state["replan_context"]
+        assert "No confirmed go-list" in call_kwargs["prior_feedback"]
 
     @pytest.mark.asyncio
     async def test_exception_captured_gracefully(self, base_state, mock_db, mock_llm):
@@ -323,17 +403,19 @@ class TestMenuIntelligenceNode:
 class TestInventoryNode:
 
     @pytest.mark.asyncio
-    async def test_short_circuits_on_error(self, errored_state, mock_db, mock_llm):
+    async def test_short_circuits_on_error(self, errored_state, mock_db_factory, mock_llm):
         from app.orchestration.nodes.inventory import inventory_node
 
-        result = await inventory_node(errored_state, db=mock_db, llm=mock_llm)
+        result = await inventory_node(errored_state, db_factory=mock_db_factory, llm=mock_llm)
         assert result["inventory_output"] is None
 
     @pytest.mark.asyncio
-    async def test_returns_stub_output(self, base_state, mock_db, mock_llm):
+    async def test_returns_stub_output(self, base_state, mock_db, mock_db_factory, mock_llm):
         from app.orchestration.nodes.inventory import inventory_node
 
-        result = await inventory_node(base_state, db=mock_db, llm=mock_llm)
+        mock_db.query.return_value.all.return_value = []
+
+        result = await inventory_node(base_state, db_factory=mock_db_factory, llm=mock_llm)
 
         output = result["inventory_output"]
         assert output["service"] == "inventory"
@@ -342,23 +424,23 @@ class TestInventoryNode:
         assert "recommendation" in output
 
     @pytest.mark.asyncio
-    async def test_llm_called_in_production_mode(self, base_state, mock_db, mock_llm):
+    async def test_llm_called_in_production_mode(self, base_state, mock_db, mock_db_factory, mock_llm):
         """Phase 2: In production mode, inventory node calls LLM for recommendations."""
         from app.orchestration.nodes.inventory import inventory_node
-        
+
         mock_db.query.return_value.all.return_value = []
-        
-        await inventory_node(base_state, db=mock_db, llm=mock_llm)
+
+        await inventory_node(base_state, db_factory=mock_db_factory, llm=mock_llm)
         mock_llm.complete_json.assert_called()
 
     @pytest.mark.asyncio
-    async def test_db_called_in_production_mode(self, base_state, mock_db, mock_llm):
+    async def test_db_called_in_production_mode(self, base_state, mock_db, mock_db_factory, mock_llm):
         """Phase 2: In production mode, inventory node calls DB to query inventory."""
         from app.orchestration.nodes.inventory import inventory_node
-        
+
         mock_db.query.return_value.all.return_value = []
-        
-        await inventory_node(base_state, db=mock_db, llm=mock_llm)
+
+        await inventory_node(base_state, db_factory=mock_db_factory, llm=mock_llm)
         mock_db.query.assert_called()
 
 

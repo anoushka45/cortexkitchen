@@ -1,5 +1,7 @@
 "use client";
 
+import HighlightSwiggy from "@/components/dashboard/HighlightSwiggy";
+
 interface Alert {
   ingredient:        string;
   unit:              string;
@@ -221,7 +223,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
             )}
           </div>
           {recommendation.reasoning && (
-            <p className="text-sm text-slate-200">{recommendation.reasoning}</p>
+            <p className="text-sm text-slate-200"><HighlightSwiggy text={recommendation.reasoning} /></p>
           )}
           {restockPreview.length > 0 && (
             <div>
@@ -231,7 +233,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
               <ul className="space-y-1.5">
                 {restockPreview.map((action, index) => (
                   <li key={`restock-${index}`} className="text-xs text-slate-200 bg-slate-900/60 rounded-lg px-3 py-2 border border-white/5">
-                    {action}
+                    <HighlightSwiggy text={action} />
                   </li>
                 ))}
               </ul>
@@ -250,7 +252,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
               <ul className="space-y-1.5">
                 {wastePreview.map((action, index) => (
                   <li key={`waste-${index}`} className="text-xs text-slate-200 bg-slate-900/60 rounded-lg px-3 py-2 border border-white/5">
-                    {action}
+                    <HighlightSwiggy text={action} />
                   </li>
                 ))}
               </ul>
@@ -269,7 +271,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
               <ul className="space-y-1.5">
                 {riskPreview.map((risk, index) => (
                   <li key={`risk-${index}`} className="text-xs text-rose-300 bg-rose-500/10 rounded-lg px-3 py-2 border border-rose-500/20">
-                    {risk}
+                    <HighlightSwiggy text={risk} />
                   </li>
                 ))}
               </ul>

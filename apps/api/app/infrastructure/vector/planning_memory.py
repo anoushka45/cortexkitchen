@@ -11,18 +11,20 @@ Staleness cutoff : memories older than MAX_MEMORY_AGE_DAYS are skipped.
 """
 
 import math
-import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import structlog
 from qdrant_client import QdrantClient
 from qdrant_client.models import FieldCondition, Filter, MatchValue, PointStruct
 
 from app.infrastructure.vector.qdrant_client import ensure_collection
 from app.infrastructure.vector.embedding_service import EmbeddingService
 
-logger = logging.getLogger(__name__)
+# structlog, not stdlib logging: stdlib .debug() calls are silently dropped
+# in this app (no logging.basicConfig() is ever called).
+logger = structlog.get_logger()
 
 PLANNING_MEMORY_COLLECTION = "planning_memory"
 RECENCY_HALF_LIFE_DAYS     = 14   # score halves every 14 days
@@ -112,9 +114,9 @@ class PlanningMemoryService:
                     },
                 )],
             )
-            logger.debug("planning_memory_stored org=%d scenario=%s", org_id, scenario)
+            logger.debug("planning_memory_stored", org_id=org_id, scenario=scenario)
         except Exception as exc:
-            logger.warning("PlanningMemoryService.store failed: %s", exc)
+            logger.warning("planning_memory_store_failed", error=str(exc))
 
     # ── Retrieve ──────────────────────────────────────────────────────────────
 
@@ -170,5 +172,5 @@ class PlanningMemoryService:
             return decayed[:top_k]
 
         except Exception as exc:
-            logger.warning("PlanningMemoryService.retrieve failed: %s", exc)
+            logger.warning("planning_memory_retrieve_failed", error=str(exc))
             return []

@@ -9,9 +9,9 @@ P5-12 RAG chatbot service — enhanced for P6-S04 with:
 from __future__ import annotations
 
 import json
-import logging
 from typing import AsyncGenerator, Optional
 
+import structlog
 from sqlalchemy.orm import Session
 
 from app.core.settings import get_settings
@@ -23,7 +23,9 @@ from app.infrastructure.swiggy.client import (
     SwiggyMCPClient,
 )
 
-logger = logging.getLogger(__name__)
+# structlog, not stdlib logging: stdlib .info()/.debug() calls are silently
+# dropped in this app (no logging.basicConfig() is ever called).
+logger = structlog.get_logger()
 
 _MODEL = "llama-3.3-70b-versatile"
 _MAX_TOKENS = 1024
@@ -253,7 +255,7 @@ def _run_tool(name: str, args: dict, db: Session, org_id: int) -> str:
             })
 
     except Exception as exc:
-        logger.warning("Tool '%s' failed: %s", name, exc)
+        logger.warning("chat_tool_failed", tool=name, error=str(exc))
         return json.dumps({"error": str(exc)})
 
     return json.dumps({"error": f"Unknown tool: {name}"})
@@ -312,7 +314,7 @@ async def _run_swiggy_tool(name: str, args: dict) -> str:
             return json.dumps({"source": "Swiggy Instamart (live)", "products": products})
 
     except Exception as exc:
-        logger.warning("Swiggy chatbot tool '%s' failed: %s", name, exc)
+        logger.warning("swiggy_chat_tool_failed", tool=name, error=str(exc))
         return json.dumps({"error": str(exc)})
 
     return json.dumps({"error": f"Unknown Swiggy tool: {name}"})

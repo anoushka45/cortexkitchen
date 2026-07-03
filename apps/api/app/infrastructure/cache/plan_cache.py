@@ -8,15 +8,17 @@ planning run still executes; it just won't be cached.
 """
 
 import json
-import logging
 from datetime import date
 from typing import Optional
 
 import redis.asyncio as aioredis
+import structlog
 
 from app.core.settings import get_settings
 
-logger = logging.getLogger(__name__)
+# structlog, not stdlib logging: stdlib .debug() calls are silently dropped
+# in this app (no logging.basicConfig() is ever called).
+logger = structlog.get_logger()
 
 _client: Optional[aioredis.Redis] = None
 
@@ -44,10 +46,10 @@ async def get_cached_plan(key: str) -> Optional[dict]:
         client = await _get_client()
         raw = await client.get(key)
         if raw:
-            logger.debug("Cache hit: %s", key)
+            logger.debug("plan_cache_hit", key=key)
             return json.loads(raw)
     except Exception as exc:
-        logger.warning("Redis get failed (key=%s): %s", key, exc)
+        logger.warning("plan_cache_get_failed", key=key, error=str(exc))
     return None
 
 
@@ -55,6 +57,6 @@ async def cache_plan(key: str, data: dict, ttl: int = PLAN_CACHE_TTL) -> None:
     try:
         client = await _get_client()
         await client.setex(key, ttl, json.dumps(data, default=str))
-        logger.debug("Cached plan: %s (TTL %ds)", key, ttl)
+        logger.debug("plan_cache_set", key=key, ttl_seconds=ttl)
     except Exception as exc:
-        logger.warning("Redis set failed (key=%s): %s", key, exc)
+        logger.warning("plan_cache_set_failed", key=key, error=str(exc))

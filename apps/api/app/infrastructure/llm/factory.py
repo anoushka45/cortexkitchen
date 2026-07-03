@@ -84,11 +84,11 @@ class FallbackLLMProvider(BaseLLMProvider):
             self.last_fallback_used = True
             return result
 
-    def drain_usage(self) -> list[dict]:
+    def drain_usage(self, node: str | None = None) -> list[dict]:
         records = []
-        records.extend(self.primary.drain_usage())
+        records.extend(self.primary.drain_usage(node=node))
         if self.fallback is not None:
-            records.extend(self.fallback.drain_usage())
+            records.extend(self.fallback.drain_usage(node=node))
         return records
 
 

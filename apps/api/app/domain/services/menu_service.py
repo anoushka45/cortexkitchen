@@ -60,6 +60,11 @@ class MenuService:
         forecast_data: dict | None = None,
         complaint_data: dict | None = None,
         inventory_data: dict | None = None,
+        competitor_context: dict | None = None,
+        prior_feedback: str | None = None,
+        reservation_data: dict | None = None,
+        market_intel_data: dict | None = None,
+        dineout_data: dict | None = None,
     ) -> dict:
         top_items = self.get_top_items(target_date)
 
@@ -97,6 +102,13 @@ class MenuService:
         )
         scenario_watchouts = (complaint_data or {}).get("scenario_watchouts") or []
 
+        # Capacity awareness — genuinely computed from reservation's own occupancy
+        # figure (same 90% threshold EvaluationSanityChecker's Diff 2 checks), not
+        # a placeholder. Without this, menu_intelligence has no way to know whether
+        # tonight is near-full-house and always claimed capacity was fine by default.
+        occupancy_pct = (reservation_data or {}).get("occupancy_pct")
+        capacity_constrained = occupancy_pct is not None and occupancy_pct > 90
+
         data = {
             "top_items": top_items,
             "forecast_snapshot": {
@@ -119,6 +131,8 @@ class MenuService:
             "scenario_label": scenario_label,
             "service_window": service_window,
             "scenario_watchouts": scenario_watchouts[:3],
+            "peak_occupancy_pct": occupancy_pct,
+            "capacity_constrained": capacity_constrained,
             "note": "Phase 3 menu insights combine demand, complaints, inventory, and scenario context.",
         }
 
@@ -150,6 +164,23 @@ class MenuService:
         ]
         blocked_lines = "\n".join(f"  - {ing}" for ing in critical_blocked) or "  None"
 
+        market_context = (competitor_context or {}).get("prompt_text") or ""
+
+        capacity_lines = []
+        if occupancy_pct is not None:
+            capacity_lines.append(
+                f"  - Reservation occupancy: {occupancy_pct}% of capacity"
+                f"{' — CONSTRAINED (near-full house, throughput protection required)' if capacity_constrained else ''}"
+            )
+        area_occupancy = (market_intel_data or {}).get("area_occupancy")
+        if area_occupancy:
+            busy_note = " (tonight busy)" if (market_intel_data or {}).get("tonight_busy") else ""
+            capacity_lines.append(f"  - Area occupancy (Swiggy): {area_occupancy}{busy_note}")
+        low_dineout_slots = (dineout_data or {}).get("low_availability_slots")
+        if low_dineout_slots:
+            capacity_lines.append(f"  - Your Dineout slots tonight: {low_dineout_slots} low-availability")
+        capacity_context = "\n".join(capacity_lines)
+
         prompt = PromptUtils.format_menu_prompt(
             scenario_label=scenario_label,
             service_day_label=service_day_label,
@@ -161,6 +192,9 @@ class MenuService:
             shortage_lines=shortage_lines,
             overstock_lines=overstock_lines,
             blocked_lines=blocked_lines,
+            market_context=market_context,
+            prior_feedback=prior_feedback or "",
+            capacity_context=capacity_context,
         )
 
         recommendation = await self.llm.complete_json(

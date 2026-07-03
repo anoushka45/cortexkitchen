@@ -62,9 +62,8 @@ async def market_intel_node(
 
     return {
         **state,
-        "swiggy_competitor_context":  result.get("swiggy_competitor_context"),
-        "swiggy_occupancy_context":   result.get("swiggy_occupancy_context"),
-        "swiggy_procurement_options": result.get("swiggy_procurement_options"),
-        "market_intel_output":        market_intel,
-        "market_intel_assumptions":   assumptions,
+        "swiggy_competitor_context": result.get("swiggy_competitor_context"),
+        "swiggy_occupancy_context":  result.get("swiggy_occupancy_context"),
+        "market_intel_output":       market_intel,
+        "market_intel_assumptions":  assumptions,
     }

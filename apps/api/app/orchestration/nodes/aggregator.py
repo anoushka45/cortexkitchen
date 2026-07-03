@@ -63,15 +63,82 @@ def aggregator_node(state: OrchestratorState) -> OrchestratorState:
                 "recommendation": _extract(state.get("inventory_output")),
             },
         },
-        # Flat summary for the Critic prompt — easier than passing the full nested dict
-        "summary_for_critic": _build_critic_summary(state),
-        "contradictions_detected": bool(_detect_contradictions(state)),
     }
+
+    # Enforce inventory constraints before the critic sees the plan.
+    # If the menu LLM slipped and highlighted a low-stock ingredient's dish,
+    # move it to deprioritize_items here — zero LLM calls, no replan loop needed.
+    bundle, auto_resolved = _enforce_inventory_constraints(bundle, state)
+
+    bundle["summary_for_critic"] = _build_critic_summary(state, auto_resolved)
+    bundle["contradictions_detected"] = bool(_detect_contradictions(state))
+    bundle["auto_resolved"] = auto_resolved
 
     return {**state, "aggregated_recommendation": bundle}
 
 
-def _build_critic_summary(state: OrchestratorState) -> str:
+def _enforce_inventory_constraints(
+    bundle: dict, state: OrchestratorState
+) -> tuple[dict, list[str]]:
+    """
+    Pure Python enforcement pass — zero LLM calls.
+
+    If the menu LLM put a dish in highlight_items whose core ingredient is
+    flagged as low/critical stock, move it to deprioritize_items here so the
+    critic sees a contradiction-free plan and approves on the first pass.
+
+    Returns the patched bundle and a list of item names that were moved.
+    """
+    inv_assumptions = state.get("inventory_assumptions") or {}
+    items_flagged_low = [
+        str(i).lower() for i in (inv_assumptions.get("items_flagged_low") or []) if i
+    ]
+    if not items_flagged_low:
+        return bundle, []
+
+    menu_entry = (bundle.get("agents") or {}).get("menu") or {}
+    rec = menu_entry.get("recommendation") or {}
+    if not isinstance(rec, dict):
+        return bundle, []
+
+    highlight_items    = list(rec.get("highlight_items") or [])
+    deprioritize_items = list(rec.get("deprioritize_items") or [])
+    inventory_blockers = list(rec.get("inventory_blockers") or [])
+
+    kept, moved = [], []
+    for dish in highlight_items:
+        dish_lower = str(dish).lower()
+        conflict = next(
+            (low for low in items_flagged_low if low in dish_lower or dish_lower in low),
+            None,
+        )
+        if conflict:
+            moved.append(dish)
+            if dish not in deprioritize_items:
+                deprioritize_items.append(dish)
+            note = f"{dish} — ingredient '{conflict}' is low stock"
+            if note not in inventory_blockers:
+                inventory_blockers.append(note)
+        else:
+            kept.append(dish)
+
+    if not moved:
+        return bundle, []
+
+    patched_rec = {
+        **rec,
+        "highlight_items":    kept,
+        "deprioritize_items": deprioritize_items,
+        "inventory_blockers": inventory_blockers,
+    }
+    patched_agents = {
+        **(bundle.get("agents") or {}),
+        "menu": {**menu_entry, "recommendation": patched_rec},
+    }
+    return {**bundle, "agents": patched_agents}, moved
+
+
+def _build_critic_summary(state: OrchestratorState, auto_resolved: list[str] | None = None) -> str:
     """
     Build a concise plain-text summary of all agent recommendations
     for the Critic Agent prompt. Omits errored/null agents gracefully.
@@ -172,6 +239,14 @@ def _build_critic_summary(state: OrchestratorState) -> str:
                 f"Excess demand ({excess}) must go to waitlist or staggered-seating only."
             )
 
+    # Reservation occupancy as explicit data, not just inferred from prose —
+    # menu_intelligence now computes capacity_constrained from this same figure
+    # (evaluation_sanity.py Diff 2 checks the two stay consistent).
+    reservation_data = (state.get("reservation_output") or {}).get("data") or {}
+    reservation_occupancy_pct = reservation_data.get("occupancy_pct")
+    if reservation_occupancy_pct is not None:
+        lines.append(f"[Reservation Capacity] Occupancy: {reservation_occupancy_pct}% of capacity.")
+
     # Market intelligence (Swiggy) — appended when available
     market_intel = state.get("market_intel_output")
     if market_intel:
@@ -200,7 +275,16 @@ def _build_critic_summary(state: OrchestratorState) -> str:
             dm_text += " Action recommended: open more Dineout slots."
         lines.append(dm_text)
 
-    # Append any auto-detected cross-agent contradictions (0 LLM calls)
+    # Note items that were auto-resolved before reaching the critic
+    if auto_resolved:
+        lines.append(
+            f"\n[AGGREGATOR AUTO-RESOLVED] The following items were moved from "
+            f"highlight_items to deprioritize_items because their ingredients are "
+            f"low stock (enforced before this evaluation — no revision needed for these): "
+            + ", ".join(auto_resolved)
+        )
+
+    # Append any remaining cross-agent contradictions (0 LLM calls)
     contradiction_text = _detect_contradictions(state)
     if contradiction_text:
         lines.append(contradiction_text)

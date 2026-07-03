@@ -15,18 +15,20 @@ Both caches degrade gracefully — errors return None (cache miss).
 """
 
 import json
-import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import structlog
 from qdrant_client import QdrantClient
 from qdrant_client.models import FieldCondition, Filter, MatchValue, PointStruct
 
 from app.infrastructure.vector.qdrant_client import ensure_collection
 from app.infrastructure.vector.embedding_service import EmbeddingService
 
-logger = logging.getLogger(__name__)
+# structlog, not stdlib logging: stdlib .debug() calls are silently dropped
+# in this app (no logging.basicConfig() is ever called).
+logger = structlog.get_logger()
 
 PLAN_CACHE_COLLECTION = "semantic_cache"
 CHAT_CACHE_COLLECTION = "chat_semantic_cache"
@@ -100,7 +102,7 @@ class SemanticPlanCache:
             return json.loads(raw) if isinstance(raw, str) else raw
 
         except Exception as exc:
-            logger.debug("Semantic plan cache get failed: %s", exc)
+            logger.debug("semantic_plan_cache_get_failed", error=str(exc))
             return None
 
     def set(
@@ -134,7 +136,7 @@ class SemanticPlanCache:
                 )],
             )
         except Exception as exc:
-            logger.debug("Semantic plan cache set failed: %s", exc)
+            logger.debug("semantic_plan_cache_set_failed", error=str(exc))
 
 
 class SemanticChatCache:
@@ -172,7 +174,7 @@ class SemanticChatCache:
             return payload.get("answer")
 
         except Exception as exc:
-            logger.debug("Semantic chat cache get failed: %s", exc)
+            logger.debug("semantic_chat_cache_get_failed", error=str(exc))
             return None
 
     def set(self, org_id: int, question: str, answer: str) -> None:
@@ -193,4 +195,4 @@ class SemanticChatCache:
                 )],
             )
         except Exception as exc:
-            logger.debug("Semantic chat cache set failed: %s", exc)
+            logger.debug("semantic_chat_cache_set_failed", error=str(exc))

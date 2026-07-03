@@ -24,6 +24,6 @@ def ensure_collection(client: QdrantClient, collection_name: str) -> None:
                 distance=Distance.COSINE
             )
         )
-        print(f"  ✔ Created Qdrant collection: {collection_name}")
+        print(f"  [OK] Created Qdrant collection: {collection_name}")
     else:
-        print(f"  ℹ Collection already exists: {collection_name}")
+        print(f"  [INFO] Collection already exists: {collection_name}")

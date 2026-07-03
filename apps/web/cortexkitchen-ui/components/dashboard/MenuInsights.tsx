@@ -1,5 +1,7 @@
 "use client";
 
+import HighlightSwiggy from "@/components/dashboard/HighlightSwiggy";
+
 interface TopItem {
   item: string;
   category?: string;
@@ -58,7 +60,7 @@ function SectionList({
       <ul className="space-y-1.5">
         {items.map((item, index) => (
           <li key={`${title}-${index}`} className={`rounded-lg border px-3 py-2 text-xs ${toneClass}`}>
-            {item}
+            <HighlightSwiggy text={item} />
           </li>
         ))}
       </ul>
@@ -157,7 +159,7 @@ export function MenuInsightsBody({
               </span>
             )}
           </div>
-          <p className="text-sm text-slate-200">{data.reasoning}</p>
+          <p className="text-sm text-slate-200"><HighlightSwiggy text={data.reasoning} /></p>
         </div>
       )}
 

@@ -6,6 +6,7 @@ import DashboardDetailModal from "./DashboardDetailModal";
 import InventoryAlerts from "./InventoryAlerts";
 import MenuInsights, { MenuInsightsBody } from "./MenuInsights";
 import ReservationSummary from "./ReservationSummary";
+import SwiggySignalBadge from "./SwiggySignalBadge";
 
 const AGENT_ICONS: Record<string, string> = {
   forecast:    "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
@@ -26,9 +27,10 @@ const AGENT_META: Record<string, {
 };
 
 interface Props {
-  agentKey: string;
-  data:     Record<string, unknown> | null;
-  index?:   number;
+  agentKey:     string;
+  data:         Record<string, unknown> | null;
+  index?:       number;
+  swiggySignal?: string;
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -312,7 +314,7 @@ function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-export default function AgentCard({ agentKey, data, index = 0 }: Props) {
+export default function AgentCard({ agentKey, data, index = 0, swiggySignal }: Props) {
   const [detailOpen, setDetailOpen] = useState(false);
   const meta = AGENT_META[agentKey] ?? { label: agentKey, iconPath: "", headerBg: "bg-slate-500/[0.06] border-b border-slate-500/15", dotColor: "bg-slate-400", iconColor: "text-slate-400", glow: "" };
 
@@ -344,6 +346,7 @@ export default function AgentCard({ agentKey, data, index = 0 }: Props) {
               </span>
             )}
           </div>
+          {swiggySignal && <SwiggySignalBadge signal={swiggySignal} />}
         </div>
 
         {/* Body */}

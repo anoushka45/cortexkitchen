@@ -10,13 +10,16 @@ On success → DELETE failure counter so the circuit can close faster.
 On Redis down → fail open (let the call through; circuit logic is optional).
 """
 
-import logging
+import structlog
 
 import redis.asyncio as aioredis
 
 from app.core.settings import get_settings
 
-logger = logging.getLogger(__name__)
+# structlog, not stdlib logging: stdlib .info()/.debug() calls are silently
+# dropped in this app (no logging.basicConfig() is ever called, so the root
+# logger's effective level is WARNING and there's no handler attached).
+logger = structlog.get_logger()
 
 FAILURE_THRESHOLD = 3       # failures within WINDOW_SECONDS to open circuit
 WINDOW_SECONDS    = 300     # failure counter TTL (5 min)
@@ -59,11 +62,11 @@ async def record_failure(provider: str, tag: str) -> None:
         if count >= FAILURE_THRESHOLD:
             await redis.setex(open_key, OPEN_SECONDS, "1")
             logger.warning(
-                "circuit_opened provider=%s endpoint=%s failures=%d ttl=%ds",
-                provider, tag, count, OPEN_SECONDS,
+                "circuit_opened",
+                provider=provider, endpoint=tag, failures=count, ttl_seconds=OPEN_SECONDS,
             )
     except Exception as exc:
-        logger.debug("circuit_breaker.record_failure error: %s", exc)
+        logger.debug("circuit_breaker_record_failure_error", error=str(exc))
 
 
 async def record_success(provider: str, tag: str) -> None:

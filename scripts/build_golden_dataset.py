@@ -33,18 +33,22 @@ FIXTURE_PATH     = Path(__file__).parent.parent / "apps" / "api" / "tests" / "fi
 
 
 def _extract_restock_actions(run: PlanningRun) -> list[str]:
+    # final_assembler_node writes final_response["recommendations"][agent], where each
+    # entry is {**recommendation, "data": ...} — NOT under an "agents" key. The old
+    # "agents" path here always KeyError'd and silently returned [], which meant
+    # restock actions were empty for every golden-set row (see _has_shortage_alerts).
     try:
-        inv = run.final_response["agents"]["inventory"]["recommendation"]
+        inv = run.final_response["recommendations"]["inventory"]
         return inv.get("restock_actions", [])
-    except (KeyError, TypeError):
+    except (KeyError, TypeError, AttributeError):
         return []
 
 
 def _has_shortage_alerts(run: PlanningRun) -> bool:
     try:
-        alerts = run.final_response["agents"]["inventory"]["data"]["shortage_alerts"]
+        alerts = run.final_response["recommendations"]["inventory"]["data"]["shortage_alerts"]
         return len(alerts) > 0
-    except (KeyError, TypeError):
+    except (KeyError, TypeError, AttributeError):
         return False
 
 

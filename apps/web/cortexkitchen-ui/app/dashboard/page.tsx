@@ -369,20 +369,20 @@ function IdleState({
 }
 
 function GraphNode({
-  label, subLabel, state, dot, hint,
-}: { label: string; subLabel: string; state: NodeState; dot: string; hint?: string }) {
+  label, subLabel, state, dot, hint, swiggy = false,
+}: { label: string; subLabel: string; state: NodeState; dot: string; hint?: string; swiggy?: boolean }) {
   const isDone    = state === "done";
   const isRunning = state === "running";
   const isSkipped = state === "skipped";
 
   const ring = isDone    ? "ring-emerald-400/35 bg-emerald-500/[0.05]"
-             : isRunning ? "ring-ember-400/35 bg-ember-500/[0.06]"
+             : isRunning ? (swiggy ? "ring-orange-400/40 bg-orange-500/[0.06]" : "ring-ember-400/35 bg-ember-500/[0.06]")
              : isSkipped ? "ring-amber-500/25 bg-amber-500/[0.04]"
              :              "ring-white/[0.08] bg-white/[0.02]";
 
   const statusLabel = isDone ? "done" : isRunning ? "running" : isSkipped ? "skipped" : "waiting";
   const statusColor = isDone    ? "text-emerald-300/70"
-                    : isRunning ? "text-ember-300/70"
+                    : isRunning ? (swiggy ? "text-orange-300/70" : "text-ember-300/70")
                     : isSkipped ? "text-amber-400/60"
                     :              "text-white/25";
   const labelColor  = isDone    ? "text-white"
@@ -395,7 +395,7 @@ function GraphNode({
                     :              "text-white/15";
 
   return (
-    <div className={`rounded-xl ring-1 px-3 py-2.5 min-w-[110px] transition-all duration-500 ${ring}`}>
+    <div className={`rounded-xl ring-1 px-3 py-2.5 min-w-[118px] transition-all duration-500 ${ring}`}>
       <div className="flex items-center gap-1.5 mb-1">
         {isDone ? (
           <svg className="h-3 w-3 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -411,12 +411,15 @@ function GraphNode({
         <span className={`font-mono text-[9px] uppercase tracking-wider transition-colors duration-300 ${statusColor}`}>
           {statusLabel}
         </span>
+        {swiggy && (isDone || isRunning) && (
+          <img src="/swiggy-logo.png" alt="Swiggy" className="h-3 w-3 object-contain opacity-70 ml-auto shrink-0" />
+        )}
       </div>
       <p className={`text-[12px] font-semibold leading-tight transition-colors duration-300 ${labelColor}`}>{label}</p>
       <p className={`text-[10px] mt-0.5 leading-snug transition-colors duration-300 ${subColor}`}>{subLabel}</p>
       {hint && (isDone || isRunning) && (
         <p className={`text-[9px] mt-1 leading-snug transition-colors duration-300 line-clamp-2 ${
-          isDone ? "text-emerald-300/50" : "text-ember-300/60"
+          isDone ? "text-emerald-300/50" : (swiggy ? "text-orange-300/50" : "text-ember-300/60")
         }`}>{hint}</p>
       )}
     </div>
@@ -441,15 +444,16 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
   const anyStarted     = startedNodes.size > 0 || completedNodes.size > 0;
   const forecastDone   = completedNodes.has("forecast");
   const enrichmentDone = completedNodes.has("enrichment");
-  const inventoryDone  = completedNodes.has("inventory");
   const menuDone       = completedNodes.has("menu");
   const menuStarted    = startedNodes.has("menu");
   const aggDone        = completedNodes.has("aggregator");
   const criticDone     = completedNodes.has("critic");
 
-  const phase1Keys    = ["reservation", "complaint", "inventory"] as const;
-  const phase1Done    = phase1Keys.every(k => completedNodes.has(k));
-  const allAgentsDone = phase1Done && menuDone;
+  // All 5 nodes that fan out from qdrant_enrichment and fan into menu_intelligence
+  const parallelKeys = ["reservation", "complaint", "inventory", "market_intel", "dineout_manager"] as const;
+  const parallelDone = parallelKeys.every(k => completedNodes.has(k));
+  const parallelRemaining = parallelKeys.filter(k => !completedNodes.has(k)).length;
+  const allAgentsDone = parallelDone && menuDone;
 
   // If aggregator completed but menu never even started, menu was skipped (node errored silently)
   const menuSkipped = aggDone && !menuDone && !menuStarted;
@@ -461,34 +465,37 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
   const aggState:        NodeState = ns("aggregator");
   const criticState:     NodeState = ns("critic");
 
-  const phase1Agents: { key: typeof phase1Keys[number]; label: string; subLabel: string; dot: string }[] = [
-    { key: "reservation", label: "Reservations", subLabel: "Bookings & occupancy", dot: "bg-cyan-400"    },
-    { key: "complaint",   label: "Complaints",   subLabel: "Feedback & RAG",       dot: "bg-rose-400"    },
-    { key: "inventory",   label: "Inventory",    subLabel: "Shortage detection",   dot: "bg-emerald-400" },
+  // 5 parallel agents — 3 domain (internal DB) + 2 Swiggy market intelligence
+  const parallelAgents: { key: typeof parallelKeys[number]; label: string; subLabel: string; dot: string; swiggy: boolean }[] = [
+    { key: "reservation",     label: "Reservations",     subLabel: "Bookings & capacity",     dot: "bg-cyan-400",    swiggy: false },
+    { key: "complaint",       label: "Guest Feedback",   subLabel: "Complaints & sentiment",  dot: "bg-rose-400",    swiggy: false },
+    { key: "inventory",       label: "Inventory",        subLabel: "Shortage detection",      dot: "bg-emerald-400", swiggy: false },
+    { key: "market_intel",    label: "Competitor Prices",subLabel: "Live Swiggy pricing",     dot: "bg-orange-400",  swiggy: true  },
+    { key: "dineout_manager", label: "Area Demand",      subLabel: "Dineout slot signals",    dot: "bg-orange-400",  swiggy: true  },
   ];
 
-  const phase1Remaining = phase1Keys.filter(k => !completedNodes.has(k)).length;
-  const isReplanning    = replanCount > 0 && !allAgentsDone;
+  const isReplanning = replanCount > 0 && !allAgentsDone;
 
   const currentAction =
-    isReplanning                              ? `Replanning — attempt ${replanCount} of 2 re-evaluating…`
-    : replanCount > 0 && criticDone          ? `Critic re-evaluated after replan ${replanCount} of 2`
-    : criticDone                             ? "Critic has reviewed the plan"
-    : aggDone                                ? "Critic is scoring the plan…"
-    : allAgentsDone                          ? "Aggregating all results…"
-    : menuSkipped                            ? "Menu skipped — aggregating remaining outputs…"
-    : menuDone                               ? "Aggregating…"
-    : menuStarted                            ? "Menu intelligence applying inventory constraints…"
-    : inventoryDone                          ? "Waiting for menu intelligence…"
-    : enrichmentDone && phase1Remaining > 0  ? `${phase1Remaining} agent${phase1Remaining !== 1 ? "s" : ""} still running…`
-    : forecastDone                           ? "Enriching context from memory…"
-    : anyStarted                             ? "Running demand forecast…"
-    :                                          "Sequencing the pipeline…";
+    isReplanning                               ? `Replanning — attempt ${replanCount} of 2…`
+    : replanCount > 0 && criticDone           ? `Critic re-evaluated after replan ${replanCount} of 2`
+    : criticDone                              ? "Critic has approved the plan"
+    : aggDone                                 ? "Critic is scoring the plan…"
+    : allAgentsDone                           ? "Aggregating all results…"
+    : menuSkipped                             ? "Menu skipped — aggregating remaining outputs…"
+    : menuDone                                ? "Aggregating…"
+    : menuStarted                             ? "Menu intelligence applying stock constraints…"
+    : parallelDone                            ? "All agents done — building menu guidance…"
+    : enrichmentDone && parallelRemaining > 0 ? `${parallelRemaining} of 5 agent${parallelRemaining !== 1 ? "s" : ""} still running…`
+    : forecastDone                            ? "Loading context from memory…"
+    : anyStarted                              ? "Running demand forecast…"
+    :                                           "Sequencing the pipeline…";
 
-  // SVG height for 3 parallel nodes: 3×68px nodes + 2×8px gaps = 220px
-  const SVG_H     = 220;
-  const MID       = SVG_H / 2;                        // 110 — center of stack
-  const POSITIONS = [34, 110, 186] as const;           // center-y of each phase-1 node
+  // SVG height for 5 parallel nodes: 5×68px nodes + 4×8px gaps = 372px
+  // Centers: node-height/2 + (node-height + gap) * index = 34 + 76*i
+  const SVG_H     = 372;
+  const MID       = 186;                                    // center of node 3 (index 2)
+  const POSITIONS = [34, 110, 186, 262, 338] as const;     // center-y of each parallel node
 
   return (
     <div className="py-10">
@@ -518,8 +525,8 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
             for the {scenarioLabel} scenario
           </p>
         )}
-        <p className="mt-3 text-[13px] leading-[1.7] text-white/45 max-w-xs mx-auto">
-          Five specialists work through your kitchen data. Inventory runs first, then menu intelligence applies what&rsquo;s in stock. A critic reviews the plan before you see it.
+        <p className="mt-3 text-[13px] leading-[1.7] text-white/45 max-w-sm mx-auto">
+          5 specialists analyse your kitchen and market data simultaneously — 3 from your own records, 2 pulling live prices from Swiggy. A critic reviews the plan before you see it.
         </p>
       </div>
 
@@ -535,7 +542,7 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
               Auto-replan triggered — attempt {replanCount} of 2
             </p>
             <p className="text-[11px] text-amber-300/60 mt-0.5">
-              The critic found issues in the initial plan. Replanning now with corrected constraints — this is automatic, no action needed.
+              The critic found issues in the initial plan. Replanning with corrected constraints — this is automatic, no action needed.
             </p>
           </div>
         </div>
@@ -554,7 +561,7 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
           </svg>
 
           {/* Demand Forecast */}
-          <GraphNode label="Demand Forecast" subLabel="Prophet time-series" state={forecastState} dot="bg-ember-400" hint={nodeHints["forecast"]} />
+          <GraphNode label="Demand Forecast" subLabel="Order history model" state={forecastState} dot="bg-ember-400" hint={nodeHints["forecast"]} />
 
           {/* → */}
           <svg className="shrink-0 w-6 h-4" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1">
@@ -562,27 +569,31 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
           </svg>
 
           {/* Context Enrichment */}
-          <GraphNode label="Enrichment" subLabel="Qdrant context" state={enrichmentState} dot="bg-violet-400" hint={nodeHints["enrichment"]} />
+          <GraphNode label="Memory Lookup" subLabel="Past plans & SOPs" state={enrichmentState} dot="bg-violet-400" hint={nodeHints["enrichment"]} />
 
-          {/* Fan-out SVG — enrichment to 3 parallel agents */}
+          {/* Fan-out SVG — 1 node to 5 parallel agents */}
           <svg
             className="shrink-0 w-8"
             style={{ height: SVG_H }}
             viewBox={`0 0 32 ${SVG_H}`}
             fill="none" stroke="currentColor" strokeWidth="1"
           >
-            {POSITIONS.map((y) => (
+            {POSITIONS.map((y, i) => (
               <path
                 key={y}
                 d={`M0,${MID} H16 V${y} H28 M22,${y - 5} L28,${y} L22,${y + 5}`}
-                className={`transition-colors duration-500 ${enrichmentDone ? "text-violet-400/40" : "text-white/10"}`}
+                className={`transition-colors duration-500 ${
+                  enrichmentDone
+                    ? i >= 3 ? "text-orange-400/35" : "text-violet-400/40"
+                    : "text-white/10"
+                }`}
               />
             ))}
           </svg>
 
-          {/* 3 parallel agents: reservation, complaint, inventory */}
+          {/* 5 parallel agents: 3 domain + 2 Swiggy */}
           <div className="flex flex-col gap-2 shrink-0">
-            {phase1Agents.map((agent) => (
+            {parallelAgents.map((agent) => (
               <GraphNode
                 key={agent.key}
                 label={agent.label}
@@ -590,28 +601,33 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
                 state={ns(agent.key)}
                 dot={agent.dot}
                 hint={nodeHints[agent.key]}
+                swiggy={agent.swiggy}
               />
             ))}
           </div>
 
-          {/* Fan-in SVG — 3 parallel agents converge, then inventory feeds menu */}
+          {/* Fan-in SVG — 5 parallel agents converge to menu */}
           <svg
             className="shrink-0 w-8"
             style={{ height: SVG_H }}
             viewBox={`0 0 32 ${SVG_H}`}
             fill="none" stroke="currentColor" strokeWidth="1"
           >
-            {POSITIONS.map((y) => (
+            {POSITIONS.map((y, i) => (
               <path
                 key={y}
                 d={`M4,${y} H16 V${MID} H28 M22,${MID - 5} L28,${MID} L22,${MID + 5}`}
-                className={`transition-colors duration-500 ${phase1Done ? "text-emerald-400/40" : "text-white/10"}`}
+                className={`transition-colors duration-500 ${
+                  completedNodes.has(parallelAgents[i].key)
+                    ? i >= 3 ? "text-orange-400/35" : "text-emerald-400/40"
+                    : "text-white/10"
+                }`}
               />
             ))}
           </svg>
 
-          {/* Menu (sequential — waits for inventory) */}
-          <GraphNode label="Menu" subLabel="Inventory-aware" state={menuState} dot="bg-amber-400" hint={menuSkipped ? "Skipped — inventory data unavailable" : nodeHints["menu"]} />
+          {/* Menu — waits for all 5 parallel agents */}
+          <GraphNode label="Menu" subLabel="Applies stock limits" state={menuState} dot="bg-amber-400" hint={menuSkipped ? "Skipped — stock data unavailable" : nodeHints["menu"]} />
 
           {/* → */}
           <svg className="shrink-0 w-6 h-4" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1">
@@ -619,7 +635,7 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
           </svg>
 
           {/* Aggregator */}
-          <GraphNode label="Aggregator" subLabel="Synthesises outputs" state={aggState} dot="bg-violet-400" hint={nodeHints["aggregator"]} />
+          <GraphNode label="Synthesis" subLabel="Compiles the brief" state={aggState} dot="bg-violet-400" hint={nodeHints["aggregator"]} />
 
           {/* → */}
           <svg className="shrink-0 w-6 h-4" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1">
@@ -628,7 +644,7 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
 
           {/* Critic */}
           <div className="relative">
-            <GraphNode label="Critic" subLabel="Scores 5 dimensions" state={criticState} dot="bg-emerald-300" hint={nodeHints["critic"]} />
+            <GraphNode label="Critic" subLabel="5-dimension review" state={criticState} dot="bg-emerald-300" hint={nodeHints["critic"]} />
             {replanCount > 0 && (
               <div className="absolute -bottom-5 left-0 right-0 flex justify-center">
                 <span className="font-mono text-[9px] text-amber-400/80 tracking-wide">
@@ -641,7 +657,7 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
         </div>
       </div>
 
-      {/* Footer */}
+      {/* Footer status line */}
       <div className="mt-7 text-center">
         {criticDone && replanCount === 0 ? (
           <div className="rounded-xl bg-emerald-500/[0.06] ring-1 ring-emerald-400/25 px-5 py-3.5">
@@ -933,6 +949,11 @@ export default function DashboardPage() {
                         agentKey="reservation"
                         data={data.recommendations.reservation as Record<string, unknown> | null}
                         index={0}
+                        swiggySignal={(() => {
+                          const occ = data.swiggy_occupancy_context as Record<string, unknown> | null | undefined;
+                          const sig = occ?.occupancy_signal as string | undefined;
+                          return sig ? `area tonight: ${sig}` : undefined;
+                        })()}
                       />
                     </div>
                   </div>
@@ -962,6 +983,11 @@ export default function DashboardPage() {
                         agentKey="inventory"
                         data={data.recommendations.inventory as Record<string, unknown> | null}
                         index={2}
+                        swiggySignal={(() => {
+                          const proc = data.swiggy_procurement_options as Record<string, unknown> | null | undefined;
+                          const opts = proc?.procurement_options as unknown[] | undefined;
+                          return opts && opts.length > 0 ? `${opts.length} Instamart prices live` : undefined;
+                        })()}
                       />
                     </div>
                   </div>
@@ -982,6 +1008,15 @@ export default function DashboardPage() {
                     agentKey="menu"
                     data={data.recommendations.menu as Record<string, unknown> | null}
                     index={3}
+                    swiggySignal={(() => {
+                      const comp = data.swiggy_competitor_context as Record<string, unknown> | null | undefined;
+                      const alerts = comp?.alerts as unknown[] | undefined;
+                      const avgMap = comp?.area_avg as Record<string, number> | undefined;
+                      const dishCount = avgMap ? Object.keys(avgMap).length : 0;
+                      if (alerts && alerts.length > 0) return `${alerts.length} pricing alert${alerts.length !== 1 ? "s" : ""} · ${dishCount} dishes`;
+                      if (dishCount > 0) return `${dishCount} competitor dishes tracked`;
+                      return undefined;
+                    })()}
                   />
                 )}
               </div>

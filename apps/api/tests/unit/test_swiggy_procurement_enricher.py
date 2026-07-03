@@ -11,20 +11,33 @@ from app.infrastructure.swiggy.enrichers.procurement import ProcurementEnricher
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
-VARIANT_IN_STOCK = {"spinId": "spin_42", "price": 45.0, "unit": "1kg", "inStock": True}
-VARIANT_NO_SPIN  = {"price": 20.0, "unit": "500g", "inStock": True}  # no spinId — skip
+# Field names match the live Swiggy MCP response (see commit 82373ef):
+# variations (not variants), price is {offerPrice, mrp} (not a float),
+# quantityDescription (not unit), isInStockAndAvailable (not inStock),
+# displayName (not name), and the products key is 'products' on both endpoints.
+VARIANT_IN_STOCK = {
+    "spinId": "spin_42",
+    "price": {"offerPrice": 45.0, "mrp": 50.0},
+    "quantityDescription": "1kg",
+    "isInStockAndAvailable": True,
+}
+VARIANT_NO_SPIN = {
+    "price": {"offerPrice": 20.0},
+    "quantityDescription": "500g",
+    "isInStockAndAvailable": True,
+}  # no spinId — skip
 
 SEARCH_RESPONSE = {
     "products": [
-        {"id": "prod_1", "name": "Fresh Tomatoes", "category": "Vegetables",
-         "variants": [VARIANT_IN_STOCK]},
+        {"id": "prod_1", "displayName": "Fresh Tomatoes", "category": "Vegetables",
+         "variations": [VARIANT_IN_STOCK]},
     ]
 }
 
 GO_TO_RESPONSE = {
-    "items": [
-        {"productId": "prod_2", "name": "Amul Butter",
-         "variants": [{"spinId": "spin_99", "price": 55.0, "unit": "100g", "inStock": True}],
+    "products": [
+        {"productId": "prod_2", "displayName": "Amul Butter",
+         "variations": [{"spinId": "spin_99", "price": {"offerPrice": 55.0}, "quantityDescription": "100g", "isInStockAndAvailable": True}],
          "lastOrderedAt": "2026-06-20T10:00:00Z"},
     ]
 }
@@ -105,6 +118,7 @@ async def test_go_to_items_populated():
     go_to = result["go_to_items"]
     assert len(go_to) >= 1
     assert go_to[0]["name"] == "Amul Butter"
+    assert go_to[0]["price"] == 55.0
     assert go_to[0]["spinId"] == "spin_99"
     assert go_to[0]["lastOrderedAt"] is not None
 
@@ -112,9 +126,9 @@ async def test_go_to_items_populated():
 @pytest.mark.asyncio
 async def test_variant_without_spinid_is_skipped():
     no_spin_response = {
-        "products": [{"id": "p1", "name": "X", "variants": [VARIANT_NO_SPIN]}]
+        "products": [{"id": "p1", "displayName": "X", "variations": [VARIANT_NO_SPIN]}]
     }
-    enricher = _enricher(_client(search_data=no_spin_response, go_to_data={"items": []}))
+    enricher = _enricher(_client(search_data=no_spin_response, go_to_data={"products": []}))
     result = await enricher.enrich({"org_id": 1, "address_id": "addr_abc", "shortage_items": ["cream"]})
     # No usable variant, no go_to items either → None
     assert result is None
@@ -126,7 +140,7 @@ async def test_max_five_search_calls_enforced():
 
     async def call_tool(endpoint, tool_name, arguments):
         if tool_name == "your_go_to_items":
-            return {"items": []}
+            return {"products": []}
         if tool_name == "search_products":
             call_count["n"] += 1
             return SEARCH_RESPONSE

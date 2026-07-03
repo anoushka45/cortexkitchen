@@ -22,6 +22,13 @@ async def menu_intelligence_node(
 
     llm = (state.get("llm_registry") or {}).get("balanced") or llm
 
+    # Genuinely computed from reservation's own occupancy figure — not a fixed
+    # placeholder. reservation_node has no simulation_mode branch of its own, so
+    # even in simulation_mode this reflects real DB-derived occupancy.
+    reservation_data = (state.get("reservation_output") or {}).get("data") or {}
+    occupancy_pct = reservation_data.get("occupancy_pct")
+    capacity_constrained = occupancy_pct is not None and occupancy_pct > 90
+
     try:
         if state.get("simulation_mode", False):
             sim_output = {
@@ -67,7 +74,7 @@ async def menu_intelligence_node(
                 "menu_output": sim_output,
                 "menu_assumptions": {
                     "items_assumed_available": [n for n in top_item_names if n not in shortage_items],
-                    "assumed_covers_within_capacity": True,
+                    "assumed_covers_within_capacity": not capacity_constrained,
                 },
             }
 
@@ -78,6 +85,10 @@ async def menu_intelligence_node(
             complaint_data=(state.get("complaint_output") or {}).get("data"),
             inventory_data=(state.get("inventory_output") or {}).get("data"),
             competitor_context=state.get("swiggy_competitor_context"),
+            prior_feedback=state.get("replan_context"),
+            reservation_data=reservation_data or None,
+            market_intel_data=state.get("market_intel_output"),
+            dineout_data=state.get("dineout_manager_output"),
         )
         data = result.get("data") or {}
         shortage_items = [s for s in (data.get("shortage_ingredients") or []) if s]
@@ -90,7 +101,7 @@ async def menu_intelligence_node(
             "menu_output": result,
             "menu_assumptions": {
                 "items_assumed_available": [n for n in top_item_names if n not in shortage_items],
-                "assumed_covers_within_capacity": True,
+                "assumed_covers_within_capacity": not data.get("capacity_constrained", False),
             },
         }
 

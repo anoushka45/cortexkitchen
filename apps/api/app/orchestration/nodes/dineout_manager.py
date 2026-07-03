@@ -29,15 +29,17 @@ Degrades gracefully to None when SWIGGY_DINEOUT_RESTAURANT_ID not set or any fai
 """
 
 import asyncio
-import logging
 from datetime import date
 from typing import Optional
+
+import structlog
 
 from app.core.settings import get_settings
 from app.infrastructure.swiggy.client import DINEOUT_ENDPOINT, SwiggyMCPClient
 from app.orchestration.state import OrchestratorState
 
-log = logging.getLogger(__name__)
+# structlog, not stdlib logging — see infrastructure/swiggy/enrichers/procurement.py for why.
+log = structlog.get_logger()
 
 _DINNER_HOURS = {"19:00", "19:30", "20:00", "20:30", "21:00", "21:30"}
 _LOW_SLOT_THRESHOLD = 3   # availabilityCount <= this → slot considered low
@@ -65,7 +67,7 @@ async def dineout_manager_node(
     try:
         result = await _check_own_slots(state, swiggy_client)
     except Exception as exc:
-        log.warning("dineout_manager_node_error: %s", exc)
+        log.warning("dineout_manager_node_error", error=str(exc))
         result = None
 
     if result is None:
@@ -107,7 +109,7 @@ async def _check_own_slots(
         or ""
     )
     if not our_r_id:
-        log.info("dineout_manager_no_restaurant_id: set SWIGGY_DINEOUT_RESTAURANT_ID to enable")
+        log.info("dineout_manager_no_restaurant_id", hint="set SWIGGY_DINEOUT_RESTAURANT_ID to enable")
         return None
 
     # Step 1 — resolve Dineout lat/lng (same pattern as OccupancyEnricher)
@@ -166,8 +168,8 @@ async def _check_own_slots(
     }
 
     log.info(
-        "dineout_manager_done total=%d low=%d open_more=%s",
-        len(dinner_slots), len(low_slots), open_more,
+        "dineout_manager_done",
+        total=len(dinner_slots), low=len(low_slots), open_more=open_more,
     )
     return result
 

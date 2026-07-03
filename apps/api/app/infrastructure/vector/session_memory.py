@@ -10,11 +10,11 @@ Storage format per point:
   payload : {org_id, user_id, summary, created_at, message_count}
 """
 
-import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
+import structlog
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     FieldCondition, Filter, MatchValue, PointStruct
@@ -23,7 +23,9 @@ from qdrant_client.models import (
 from app.infrastructure.vector.qdrant_client import ensure_collection
 from app.infrastructure.vector.embedding_service import EmbeddingService
 
-logger = logging.getLogger(__name__)
+# structlog, not stdlib logging: stdlib .debug() calls are silently dropped
+# in this app (no logging.basicConfig() is ever called).
+logger = structlog.get_logger()
 
 SESSION_COLLECTION = "chat_sessions"
 MAX_SESSIONS_STORED = 20
@@ -68,7 +70,7 @@ class SessionMemoryService:
                 )],
             )
         except Exception as exc:
-            logger.debug("SessionMemory store failed: %s", exc)
+            logger.debug("session_memory_store_failed", error=str(exc))
 
     def get_recent_sessions(
         self,
@@ -100,7 +102,7 @@ class SessionMemoryService:
                 for r in results
             ]
         except Exception as exc:
-            logger.debug("SessionMemory retrieve failed: %s", exc)
+            logger.debug("session_memory_retrieve_failed", error=str(exc))
             return []
 
     @staticmethod

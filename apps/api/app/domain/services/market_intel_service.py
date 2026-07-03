@@ -26,15 +26,18 @@ Returned dict shape:
 """
 
 import asyncio
-import logging
 from datetime import date
 from typing import Optional
 
+import structlog
+
+from app.infrastructure.swiggy.circuit_breaker import get_state
 from app.infrastructure.swiggy.client import SwiggyMCPClient
 from app.infrastructure.swiggy.enrichers.competitor import CompetitorEnricher
 from app.infrastructure.swiggy.enrichers.occupancy import OccupancyEnricher
 
-log = logging.getLogger(__name__)
+# structlog, not stdlib logging — see procurement.py enricher for why.
+log = structlog.get_logger()
 
 
 class MarketIntelService:
@@ -70,7 +73,7 @@ class MarketIntelService:
         try:
             return await self._run(context)
         except Exception as exc:
-            log.warning("market_intel_service_error: %s", exc)
+            log.warning("market_intel_service_error", error=str(exc))
             return self._empty_result()
 
     # ── internal ─────────────────────────────────────────────────────────────
@@ -83,12 +86,14 @@ class MarketIntelService:
         )
 
         log.info(
-            "market_intel_service_done competitor=%s occupancy=%s",
-            competitor_ctx is not None,
-            occupancy_ctx is not None,
+            "market_intel_service_done",
+            competitor=competitor_ctx is not None,
+            occupancy=occupancy_ctx is not None,
         )
 
         market_intel_output = self._assemble_market_intel(competitor_ctx, occupancy_ctx)
+        if competitor_ctx is None:
+            market_intel_output["competitor_status"] = await self._competitor_status()
 
         return {
             "swiggy_competitor_context": competitor_ctx,
@@ -114,6 +119,23 @@ class MarketIntelService:
             "tonight_busy":       tonight_busy,
             "fetched_at":         date.today().isoformat(),
         }
+
+    async def _competitor_status(self) -> dict:
+        """Distinguish "temporarily degraded, will retry" from "no data" when
+        CompetitorEnricher returns None, so the frontend doesn't show the same
+        blank state for both. Never raises — defaults to "no_data" on any error.
+        """
+        try:
+            circuit_state = await get_state("swiggy", "food")
+        except Exception:
+            return {"state": "no_data", "resets_in_seconds": None}
+
+        if circuit_state.get("state") == "open":
+            return {
+                "state": "degraded_circuit_open",
+                "resets_in_seconds": circuit_state.get("resets_in_seconds"),
+            }
+        return {"state": "no_data", "resets_in_seconds": None}
 
     @staticmethod
     def _empty_result() -> dict:

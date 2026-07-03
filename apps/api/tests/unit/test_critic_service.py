@@ -239,3 +239,143 @@ async def test_critic_revises_plan_when_tradeoff_score_is_weak():
     assert result["cost_analysis"]["tradeoff_score"] < 0.2
     assert any("Operational cost and benefit tradeoffs are weak" in reason for reason in result["revision_reasons"])
     assert result["actionable_feedback"]
+
+
+def _clean_bundle_with_assumptions(assumptions: dict) -> dict:
+    """A schema-clean bundle (no sanity-check errors/warnings of its own) so stale-assumption
+    behavior can be tested in isolation from the other override branches."""
+    return {
+        "scenario": "friday_rush",
+        "target_date": "2026-05-08",
+        "summary_for_critic": "Scenario: friday_rush | Date: 2026-05-08",
+        "assumptions": assumptions,
+        "agents": {
+            "forecast":    {"data": {}, "recommendation": {"recommendation": "Prep for demand."}},
+            "reservation": {"data": {}, "recommendation": {"recommendation": "Manage seating carefully."}},
+            "complaint":   {"data": {}, "recommendation": {"action_items": ["Check service timing"]}},
+            "menu":        {"data": {}, "recommendation": {"highlight_items": ["Margherita"]}},
+            "inventory": {
+                "data": {"shortage_alerts": [], "overstock_alerts": []},
+                "recommendation": {"restock_actions": [], "priority": "low"},
+            },
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_critic_stale_assumptions_stay_visible_but_dont_force_downgrade():
+    """Stale assumptions are injected into the critic's own prompt (see
+    format_stale_assumptions) — a capable critic reasons about them and
+    decides for itself whether they're disqualifying. A live run showed a
+    critic that explicitly weighed a stale-assumption conflict, judged it a
+    non-blocking "operational refinement," and approved — but an earlier,
+    blunter version of this code forcibly overrode that verdict to "revision"
+    regardless of the critic's own judgment. Visibility (feedback/notes) must
+    stay; the automatic verdict override must not."""
+    from app.domain.services.critic_service import CriticService
+
+    # Diff 2: menu assumed capacity headroom, but reservation shows >90% occupancy.
+    recommendation = _clean_bundle_with_assumptions({
+        "menu":        {"assumed_covers_within_capacity": True},
+        "reservation": {"assumed_peak_occupancy_pct": 95},
+    })
+
+    db = MagicMock()
+    llm = MagicMock()
+    llm.complete_json = AsyncMock(
+        return_value={
+            "verdict": "approved",
+            "score": 0.9,
+            "notes": "Looks solid.",
+            "dimension_scores": {
+                "safety": 0.9, "feasibility": 0.9, "evidence": 0.9,
+                "actionability": 0.9, "clarity": 0.9,
+            },
+        }
+    )
+
+    service = CriticService(db=db, llm=llm)
+    result = await service.evaluate(
+        agent="ops_manager",
+        recommendation=recommendation,
+        input_summary=recommendation["summary_for_critic"],
+    )
+
+    # Verdict and score are NOT force-overridden — the critic's own judgment stands.
+    assert result["verdict"] == "approved"
+    assert result["score"] == 0.9
+    assert result["dimension_scores"]["evidence"] == 0.9
+
+    # But the conflict stays fully visible for audit/manager attention.
+    assert result["stale_assumptions"], "expected the Diff 2 conflict to be detected"
+    assert any(
+        "menu_intelligence assumed covers within capacity" in fb
+        for fb in result["actionable_feedback"]
+    )
+    assert "Cross-agent assumption conflicts: 1 detected." in result["notes"]
+
+
+@pytest.mark.asyncio
+async def test_critic_leaves_approved_verdict_unchanged_when_no_stale_assumptions():
+    from app.domain.services.critic_service import CriticService
+
+    recommendation = _clean_bundle_with_assumptions({})
+
+    db = MagicMock()
+    llm = MagicMock()
+    llm.complete_json = AsyncMock(
+        return_value={
+            "verdict": "approved",
+            "score": 0.9,
+            "notes": "Looks solid.",
+            "dimension_scores": {
+                "safety": 0.9, "feasibility": 0.9, "evidence": 0.9,
+                "actionability": 0.9, "clarity": 0.9,
+            },
+        }
+    )
+
+    service = CriticService(db=db, llm=llm)
+    result = await service.evaluate(
+        agent="ops_manager",
+        recommendation=recommendation,
+        input_summary=recommendation["summary_for_critic"],
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["score"] == 0.9
+    assert result["dimension_scores"]["evidence"] == 0.9
+    assert result["stale_assumptions"] == []
+    assert "Cross-agent assumption conflicts" not in result["notes"]
+
+
+@pytest.mark.asyncio
+async def test_critic_persists_stale_assumptions_in_decision_log():
+    from app.domain.services.critic_service import CriticService
+
+    recommendation = _clean_bundle_with_assumptions({
+        "menu":        {"assumed_covers_within_capacity": True},
+        "reservation": {"assumed_peak_occupancy_pct": 95},
+    })
+
+    db = MagicMock()
+    llm = MagicMock()
+    llm.complete_json = AsyncMock(
+        return_value={"verdict": "approved", "score": 0.9, "notes": "Looks solid."}
+    )
+
+    def refresh_log(log):
+        log.id = 555
+
+    db.refresh.side_effect = refresh_log
+
+    service = CriticService(db=db, llm=llm)
+    await service.evaluate_and_log(
+        agent="ops_manager",
+        recommendation=recommendation,
+        input_summary=recommendation["summary_for_critic"],
+    )
+
+    log = db.add.call_args.args[0]
+    assert log.metadata_["stale_assumptions"]
+    assert log.metadata_["stale_assumptions"][0]["node"] == "menu_intelligence"

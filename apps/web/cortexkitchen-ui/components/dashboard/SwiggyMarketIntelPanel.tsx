@@ -33,6 +33,15 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
   const pricingAlerts     = (mi.pricing_alerts as unknown[]) ?? [];
   const fetchedAt         = mi.fetched_at as string | null;
 
+  // Set by MarketIntelService when competitor_pricing is null, so the panel can
+  // tell "temporarily degraded — Swiggy's Food API circuit breaker is open,
+  // will retry automatically" apart from "no competitor data exists here."
+  const competitorStatus = mi.competitor_status as { state?: string; resets_in_seconds?: number | null } | null | undefined;
+  const isDegraded = competitorStatus?.state === "degraded_circuit_open";
+  const degradedMinutes = isDegraded && competitorStatus?.resets_in_seconds
+    ? Math.max(1, Math.round(competitorStatus.resets_in_seconds / 60))
+    : null;
+
   // Occupancy: swiggy_occupancy_context has { occupancy_signal, tonight_busy, ... }
   // mi.area_occupancy is the raw signal string ("HIGH"/"MEDIUM"/"LOW")
   const occCtx         = data.swiggy_occupancy_context as Record<string, unknown> | null | undefined;
@@ -50,7 +59,7 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
         .slice(0, 8)
     : [];
 
-  const hasAny = stats || occupancySignal || (procurement && procurement.length > 0);
+  const hasAny = stats || occupancySignal || (procurement && procurement.length > 0) || competitorStatus;
   if (!hasAny) return null;
 
   return (
@@ -133,6 +142,14 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
                 </div>
               )}
             </>
+          ) : isDegraded ? (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2.5">
+              <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400 animate-pulse" />
+              <p className="text-sm text-amber-300/90">
+                Competitor pricing temporarily unavailable — Swiggy is recovering, retrying
+                automatically{degradedMinutes ? ` in ~${degradedMinutes} min` : ""}.
+              </p>
+            </div>
           ) : (
             <p className="text-sm text-slate-600 italic">No competitor pricing data for this area.</p>
           )}
@@ -185,8 +202,8 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
                 {procurement.slice(0, 5).map((item, i) => (
                   <div key={i} className="flex items-center justify-between rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${item.in_stock ? "bg-emerald-400" : "bg-slate-600"}`} />
-                      <span className="text-xs text-slate-300 truncate">{item.name as string}</span>
+                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${item.inStock ? "bg-emerald-400" : "bg-slate-600"}`} />
+                      <span className="text-xs text-slate-300 truncate capitalize">{item.ingredient as string}</span>
                     </div>
                     <span className="font-mono text-xs font-semibold text-white shrink-0">₹{item.price as number}/{item.unit as string}</span>
                   </div>

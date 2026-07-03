@@ -6,6 +6,7 @@ import DashboardDetailModal from "./DashboardDetailModal";
 import InventoryAlerts from "./InventoryAlerts";
 import MenuInsights, { MenuInsightsBody } from "./MenuInsights";
 import ReservationSummary from "./ReservationSummary";
+import SwiggySignalBadge from "./SwiggySignalBadge";
 
 const AGENT_ICONS: Record<string, string> = {
   forecast:    "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
@@ -345,12 +346,7 @@ export default function AgentCard({ agentKey, data, index = 0, swiggySignal }: P
               </span>
             )}
           </div>
-          {swiggySignal && (
-            <div className="flex items-center gap-1.5 rounded-full border border-[#fc8019]/25 bg-[#fc8019]/10 px-2.5 py-1">
-              <img src="/swiggy-logo.png" alt="Swiggy" className="h-3 w-3 rounded-sm object-contain" />
-              <span className="font-mono text-[10px] text-[#fc8019]/90 truncate max-w-[140px]">{swiggySignal}</span>
-            </div>
-          )}
+          {swiggySignal && <SwiggySignalBadge signal={swiggySignal} />}
         </div>
 
         {/* Body */}

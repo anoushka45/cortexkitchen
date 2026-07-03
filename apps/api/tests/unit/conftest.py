@@ -101,6 +101,14 @@ def mock_db():
 
 
 @pytest.fixture
+def mock_db_factory(mock_db):
+    """A db_factory callable — parallel fan-out nodes call this to get their
+    own Session. Returns the same mock_db so assertions like
+    mock_db.query.assert_called() still work."""
+    return MagicMock(return_value=mock_db)
+
+
+@pytest.fixture
 def mock_llm():
     llm = MagicMock()
     llm.complete_json = AsyncMock(return_value={

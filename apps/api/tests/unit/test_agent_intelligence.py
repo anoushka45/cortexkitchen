@@ -220,12 +220,15 @@ class TestReplanOrchestratorNode:
         result = replan_orchestrator_node(state)
         assert result["replan_count"] == 2
 
-    def test_clears_critic_output(self):
-        state = _base_state(
-            critic_output={"verdict": "rejected", "score": 0.1},
-        )
+    def test_does_not_explicitly_clear_critic_output(self):
+        # Every OrchestratorState field uses the keep_last reducer (if new is
+        # None: return current), so an explicit "critic_output": None here would
+        # be a no-op under the real graph anyway — critic_node overwrites it
+        # unconditionally on its next run. The node correctly leaves it alone.
+        critic_output = {"verdict": "rejected", "score": 0.1}
+        state = _base_state(critic_output=critic_output)
         result = replan_orchestrator_node(state)
-        assert result["critic_output"] is None
+        assert result["critic_output"] == critic_output
 
     def test_captures_revision_reasons_in_context(self):
         state = _base_state(

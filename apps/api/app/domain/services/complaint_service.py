@@ -68,8 +68,8 @@ class ComplaintService:
         rag_context: dict | None = None,
     ) -> dict:
         """Analyse complaints and generate recommendation, grounded in RAG context when provided."""
-
-        summary = self.get_complaint_summary(days)
+        import asyncio
+        summary = await asyncio.to_thread(self.get_complaint_summary, days)
         scenario_label = scenario_profile["label"] if scenario_profile else "Friday Rush"
         service_window = scenario_profile["service_window"] if scenario_profile else "18:00-22:00"
         operational_focus = (

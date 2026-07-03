@@ -7,7 +7,8 @@ import {
 } from "recharts";
 import { getPlanningRun, listPlanningRuns } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth-cookies";
-import { PlanningRunDetail, PlanningRunSummary } from "@/types/planning";
+import { FridayRushResponse, PlanningRunDetail, PlanningRunSummary } from "@/types/planning";
+import SwiggySignalBadge from "@/components/dashboard/SwiggySignalBadge";
 
 // ── Agent output display ──────────────────────────────────────────────────────
 
@@ -33,7 +34,38 @@ const PRIORITY_CLS: Record<string, string> = {
   low:    "text-emerald-400 border-emerald-500/20 bg-emerald-500/10",
 };
 
-function AgentOutputCard({ agentKey, data }: { agentKey: string; data: unknown }) {
+// Same field reads as app/dashboard/page.tsx's per-card swiggySignal computation
+// (AgentCard usage) — kept in sync so the /runs history page shows the same
+// "insights also came from Swiggy" attribution the live dashboard already does.
+function computeSwiggySignal(agentKey: string, finalResponse: FridayRushResponse | undefined | null): string | undefined {
+  if (!finalResponse) return undefined;
+
+  if (agentKey === "reservation") {
+    const occ = finalResponse.swiggy_occupancy_context as Record<string, unknown> | null | undefined;
+    const sig = occ?.occupancy_signal as string | undefined;
+    return sig ? `area tonight: ${sig}` : undefined;
+  }
+
+  if (agentKey === "inventory") {
+    const proc = finalResponse.swiggy_procurement_options as Record<string, unknown> | null | undefined;
+    const opts = proc?.procurement_options as unknown[] | undefined;
+    return opts && opts.length > 0 ? `${opts.length} Instamart prices live` : undefined;
+  }
+
+  if (agentKey === "menu") {
+    const comp = finalResponse.swiggy_competitor_context as Record<string, unknown> | null | undefined;
+    const alerts = comp?.alerts as unknown[] | undefined;
+    const avgMap = comp?.area_avg as Record<string, number> | undefined;
+    const dishCount = avgMap ? Object.keys(avgMap).length : 0;
+    if (alerts && alerts.length > 0) return `${alerts.length} pricing alert${alerts.length !== 1 ? "s" : ""} · ${dishCount} dishes`;
+    if (dishCount > 0) return `${dishCount} competitor dishes tracked`;
+    return undefined;
+  }
+
+  return undefined;
+}
+
+function AgentOutputCard({ agentKey, data, swiggySignal }: { agentKey: string; data: unknown; swiggySignal?: string }) {
   const accent = AGENT_ACCENT[agentKey] ?? { dot: "bg-slate-400", border: "border-white/10", bg: "bg-white/[0.02]" };
   const label  = AGENT_LABELS[agentKey] ?? agentKey.replace(/_/g, " ");
 
@@ -51,11 +83,14 @@ function AgentOutputCard({ agentKey, data }: { agentKey: string; data: unknown }
       <div className="flex items-center gap-2 mb-3">
         <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${accent.dot}`} />
         <p className="text-xs font-mono uppercase tracking-[0.14em] text-slate-400">{label}</p>
-        {priority && (
-          <span className={`ml-auto rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase ${PRIORITY_CLS[priority] ?? "text-slate-500 border-white/10 bg-white/5"}`}>
-            {priority}
-          </span>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          {priority && (
+            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase ${PRIORITY_CLS[priority] ?? "text-slate-500 border-white/10 bg-white/5"}`}>
+              {priority}
+            </span>
+          )}
+          {swiggySignal && <SwiggySignalBadge signal={swiggySignal} />}
+        </div>
       </div>
       {mainText && (
         <p className="text-sm text-slate-300 leading-relaxed">{mainText}</p>
@@ -687,7 +722,12 @@ export default function RunsPage() {
                     <p className="text-xs font-mono uppercase tracking-[0.16em] text-slate-500 mb-3">Agent Outputs</p>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                       {selectedAgents.map(([name, value]) => (
-                        <AgentOutputCard key={name} agentKey={name} data={value} />
+                        <AgentOutputCard
+                          key={name}
+                          agentKey={name}
+                          data={value}
+                          swiggySignal={computeSwiggySignal(name, selected?.final_response)}
+                        />
                       ))}
                     </div>
                   </div>

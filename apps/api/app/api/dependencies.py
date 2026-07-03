@@ -16,25 +16,47 @@ from sqlalchemy.orm import Session
 
 _bearer = HTTPBearer(auto_error=False)
 
+# Module-level engine shared across all requests (avoids creating a new pool per call).
+_engine = None
+_SessionLocal = None
+
+
+def _get_shared_engine():
+    global _engine, _SessionLocal
+    if _engine is None:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from app.core.settings import get_settings
+        _engine = create_engine(
+            get_settings().postgres_url,
+            pool_size=10,
+            max_overflow=5,
+        )
+        _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
+    return _engine, _SessionLocal
+
 
 # ── Database ─────────────────────────────────────────────────────────────────
 
 def get_db() -> Generator[Session, None, None]:
     """Yield a SQLAlchemy session and close it when the request is done."""
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-    from app.core.settings import get_settings
-
-    settings = get_settings()
-    engine = create_engine(settings.postgres_url)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
+    _, SessionLocal = _get_shared_engine()
     db = SessionLocal()
-
     try:
         yield db
     finally:
         db.close()
+
+
+def get_db_factory():
+    """Return a sessionmaker so pipeline nodes can create their own isolated sessions.
+
+    Each parallel LangGraph node calls db_factory() to get its own Session.
+    This prevents the shared-session thread-safety issue when sync DB queries
+    run concurrently via asyncio.to_thread().
+    """
+    _, SessionLocal = _get_shared_engine()
+    return SessionLocal
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -128,7 +150,7 @@ def get_orchestration_deps(
     from app.core.settings import get_settings
     from app.infrastructure.llm.factory import create_tiered_llm_providers
 
-    deps = {"db": db, "llm": llm, "memory": memory}
+    deps = {"db": db, "llm": llm, "memory": memory, "db_factory": get_db_factory()}
     settings = get_settings()
     if settings.llm_provider.strip().lower() == "comet" and settings.comet_tiered:
         deps["llm_registry"] = create_tiered_llm_providers(settings)

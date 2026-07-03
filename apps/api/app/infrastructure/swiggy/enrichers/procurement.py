@@ -17,16 +17,21 @@ CRITICAL: spinId (variant-level SKU) must persist in OrchestratorState.
 """
 
 import json
-import logging
 from datetime import date
 from typing import Optional
 
 import redis.asyncio as aioredis
+import structlog
 
 from app.core.settings import get_settings
 from app.infrastructure.swiggy.client import INSTAMART_ENDPOINT, SwiggyMCPClient
 
-log = logging.getLogger(__name__)
+# structlog, not stdlib logging: stdlib .info()/.debug() calls are silently
+# dropped in this app (no logging.basicConfig() is ever called, so the root
+# logger's effective level is WARNING and there's no handler). structlog's
+# get_logger() goes through the configured pipeline (JSON output, run_id/
+# scenario context) so these logs actually surface and correlate to a run.
+log = structlog.get_logger()
 
 _CACHE_TTL        = 1800  # 30 minutes
 _MAX_SEARCH_CALLS = 5     # hard rate-limit: max search_products calls per run
@@ -75,7 +80,7 @@ class ProcurementEnricher:
         try:
             return await self._enrich(context)
         except Exception as exc:
-            log.warning("procurement_enricher_error: %s", exc)
+            log.warning("procurement_enricher_error", error=str(exc))
             return None
 
     # ── internal ─────────────────────────────────────────────────────────────
@@ -92,7 +97,7 @@ class ProcurementEnricher:
         cache_key = f"enricher:procurement:{org_id}:{date.today().isoformat()}"
         cached = await self._cache_get(cache_key)
         if cached is not None:
-            log.info("procurement_enricher_cache_hit key=%s", cache_key)
+            log.info("procurement_enricher_cache_hit", cache_key=cache_key)
             return cached
 
         # Step 1 — frequent reorder candidates (no call limit)
@@ -113,8 +118,8 @@ class ProcurementEnricher:
 
         await self._cache_set(cache_key, result)
         log.info(
-            "procurement_enricher_done options=%d go_to=%d",
-            len(procurement_options), len(go_to_items),
+            "procurement_enricher_done",
+            options=len(procurement_options), go_to=len(go_to_items),
         )
         return result
 
@@ -151,8 +156,8 @@ class ProcurementEnricher:
         for ingredient in shortage_items:
             if calls_made >= _MAX_SEARCH_CALLS:
                 log.info(
-                    "procurement_enricher_rate_limit reached=%d items_skipped=%d",
-                    _MAX_SEARCH_CALLS, len(shortage_items) - calls_made,
+                    "procurement_enricher_rate_limit",
+                    reached=_MAX_SEARCH_CALLS, items_skipped=len(shortage_items) - calls_made,
                 )
                 break
 
@@ -247,7 +252,7 @@ class ProcurementEnricher:
             raw = await r.get(key)
             return json.loads(raw) if raw else None
         except Exception as exc:
-            log.debug("procurement_enricher_cache_get_error: %s", exc)
+            log.debug("procurement_enricher_cache_get_error", error=str(exc))
             return None
 
     async def _cache_set(self, key: str, value: dict) -> None:
@@ -255,4 +260,4 @@ class ProcurementEnricher:
             r = await self._get_redis()
             await r.setex(key, _CACHE_TTL, json.dumps(value, default=str))
         except Exception as exc:
-            log.debug("procurement_enricher_cache_set_error: %s", exc)
+            log.debug("procurement_enricher_cache_set_error", error=str(exc))

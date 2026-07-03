@@ -15,16 +15,17 @@ The returned dict is injected by menu_intelligence node as:
 """
 
 import json
-import logging
 from datetime import date
 from typing import Optional
 
 import redis.asyncio as aioredis
+import structlog
 
 from app.core.settings import get_settings
 from app.infrastructure.swiggy.client import FOOD_ENDPOINT, SwiggyMCPClient
 
-log = logging.getLogger(__name__)
+# structlog, not stdlib logging — see procurement.py for why.
+log = structlog.get_logger()
 
 _CACHE_TTL = 1800        # 30 minutes
 _MAX_MENU_CALLS = 3      # hard rate-limit per planning run
@@ -67,7 +68,7 @@ class CompetitorEnricher:
         try:
             return await self._enrich(context)
         except Exception as exc:
-            log.warning("competitor_enricher_error: %s", exc)
+            log.warning("competitor_enricher_error", error=str(exc))
             return None
 
     # ── internal ─────────────────────────────────────────────────────────────
@@ -85,7 +86,7 @@ class CompetitorEnricher:
         cache_key = f"enricher:competitor:{org_id}:{date.today().isoformat()}"
         cached = await self._cache_get(cache_key)
         if cached is not None:
-            log.info("competitor_enricher_cache_hit key=%s", cache_key)
+            log.info("competitor_enricher_cache_hit", cache_key=cache_key)
             return cached
 
         # Step 1 — find nearby open competitors
@@ -114,8 +115,8 @@ class CompetitorEnricher:
 
         await self._cache_set(cache_key, result)
         log.info(
-            "competitor_enricher_done restaurants=%d dishes=%d alerts=%d",
-            len(restaurant_names), len(area_avg), len(alerts),
+            "competitor_enricher_done",
+            restaurants=len(restaurant_names), dishes=len(area_avg), alerts=len(alerts),
         )
         return result
 
@@ -271,7 +272,7 @@ class CompetitorEnricher:
             raw = await r.get(key)
             return json.loads(raw) if raw else None
         except Exception as exc:
-            log.debug("competitor_enricher_cache_get_error: %s", exc)
+            log.debug("competitor_enricher_cache_get_error", error=str(exc))
             return None
 
     async def _cache_set(self, key: str, value: dict) -> None:
@@ -279,4 +280,4 @@ class CompetitorEnricher:
             r = await self._get_redis()
             await r.setex(key, _CACHE_TTL, json.dumps(value, default=str))
         except Exception as exc:
-            log.debug("competitor_enricher_cache_set_error: %s", exc)
+            log.debug("competitor_enricher_cache_set_error", error=str(exc))

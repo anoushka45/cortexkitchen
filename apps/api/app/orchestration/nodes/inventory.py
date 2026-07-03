@@ -8,7 +8,7 @@ shortage and overstock alerts, then asks the LLM for operational actions.
 Writes to state['inventory_output'].
 """
 
-from sqlalchemy.orm import Session
+from typing import Callable
 
 from app.orchestration.state import OrchestratorState
 from app.domain.services.inventory_service import InventoryService
@@ -19,13 +19,17 @@ from app.infrastructure.swiggy.enrichers.procurement import ProcurementEnricher
 
 async def inventory_node(
     state: OrchestratorState,
-    db: Session,
+    db_factory: Callable,
     llm: BaseLLMProvider,
     swiggy_client: SwiggyMCPClient | None = None,
 ) -> OrchestratorState:
     """
     Detects stock pressure and waste risk using real inventory data.
     Writes to state['inventory_output'].
+
+    Uses db_factory (not a shared Session) so the sync DB query inside
+    InventoryService.compute_shortage_data() runs in asyncio.to_thread()
+    without blocking other parallel fan-out nodes.
     """
     if state.get("error"):
         return state
@@ -35,6 +39,7 @@ async def inventory_node(
     if state.get("debug") and state.get("execution_trace") is not None:
         state["execution_trace"].append("inventory")
 
+    session = db_factory()
     try:
         if state.get("simulation_mode", False):
             sim_output = {
@@ -86,22 +91,23 @@ async def inventory_node(
         if forecast_output and isinstance(forecast_output, dict):
             forecast_data = forecast_output.get("data")
 
-        service = InventoryService(db=db, llm=llm)
-        result  = await service.analyse_and_recommend(
+        service = InventoryService(db=session, llm=llm)
+
+        # Step 1 — compute the real shortage list first, no LLM call yet.
+        shortage_data = await service.compute_shortage_data(
             forecast_data=forecast_data,
             scenario_profile=state.get("scenario_profile"),
-            procurement_context=state.get("swiggy_procurement_options"),
         )
-        data = result.get("data") or {}
-
         shortage_names = [
-            a["ingredient"] for a in (data.get("shortage_alerts") or [])
+            a["ingredient"] for a in shortage_data["actionable_shortages"]
             if isinstance(a, dict) and a.get("ingredient")
         ]
 
-        # Run ProcurementEnricher now that we know the actual shortage items.
-        # Must happen here (post-analysis) — market_intel_node runs in parallel
-        # and doesn't have shortage data yet.
+        # Step 2 — fetch live Instamart prices for exactly those shortages,
+        # BEFORE generating the recommendation. Must happen in this order:
+        # the recommendation prompt is what's supposed to cite these prices
+        # (e.g. "order 5kg tomatoes via Instamart at Rs.24/kg"), so the prices
+        # have to exist before that prompt is built, not after.
         procurement_ctx = None
         if swiggy_client and swiggy_client.is_available() and shortage_names:
             enricher = ProcurementEnricher(swiggy_client)
@@ -109,6 +115,13 @@ async def inventory_node(
                 "org_id":         state.get("org_id") or 0,
                 "shortage_items": shortage_names,
             })
+
+        # Step 3 — now generate the recommendation, with procurement prices in hand.
+        result = await service.generate_recommendation(
+            shortage_data,
+            procurement_context=procurement_ctx,
+        )
+        data = result.get("data") or {}
 
         return {
             **state,
@@ -134,3 +147,5 @@ async def inventory_node(
             },
             "inventory_assumptions": None,
         }
+    finally:
+        session.close()

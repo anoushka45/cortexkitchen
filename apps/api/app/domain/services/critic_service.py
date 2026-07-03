@@ -155,6 +155,15 @@ class CriticService:
                 if issue.get("severity") == "error"
             )
 
+        if stale_assumptions:
+            critic_notes = (
+                f"{critic_notes} Cross-agent assumption conflicts: "
+                f"{len(stale_assumptions)} detected."
+            ).strip()
+            actionable_feedback.extend(
+                item.get("conflict", "") for item in stale_assumptions
+            )
+
         revision_reasons = self._dedupe_preserve_order(revision_reasons)
         actionable_feedback = self._dedupe_preserve_order(actionable_feedback)
 
@@ -206,6 +215,7 @@ class CriticService:
                 "dimension_scores": result.get("dimension_scores"),
                 "revision_reasons": result.get("revision_reasons", []),
                 "actionable_feedback": result.get("actionable_feedback", []),
+                "stale_assumptions": result.get("stale_assumptions", []),
             },
             created_at=datetime.now(timezone.utc),
 

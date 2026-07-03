@@ -239,6 +239,14 @@ def _build_critic_summary(state: OrchestratorState, auto_resolved: list[str] | N
                 f"Excess demand ({excess}) must go to waitlist or staggered-seating only."
             )
 
+    # Reservation occupancy as explicit data, not just inferred from prose —
+    # menu_intelligence now computes capacity_constrained from this same figure
+    # (evaluation_sanity.py Diff 2 checks the two stay consistent).
+    reservation_data = (state.get("reservation_output") or {}).get("data") or {}
+    reservation_occupancy_pct = reservation_data.get("occupancy_pct")
+    if reservation_occupancy_pct is not None:
+        lines.append(f"[Reservation Capacity] Occupancy: {reservation_occupancy_pct}% of capacity.")
+
     # Market intelligence (Swiggy) — appended when available
     market_intel = state.get("market_intel_output")
     if market_intel:

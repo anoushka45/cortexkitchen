@@ -1,6 +1,7 @@
 "use client";
 
 import { FridayRushResponse } from "@/types/planning";
+import HighlightSwiggy from "@/components/dashboard/HighlightSwiggy";
 
 interface Props {
   data: FridayRushResponse;
@@ -108,7 +109,7 @@ export default function ManagerActionPanel({
                 <p className="text-[11px] font-mono uppercase tracking-[0.14em] text-slate-500 mb-2">
                   {label}
                 </p>
-                <p className="text-sm text-slate-200 leading-relaxed">{item}</p>
+                <p className="text-sm text-slate-200 leading-relaxed"><HighlightSwiggy text={item} /></p>
               </div>
             ))}
           </div>
@@ -169,7 +170,7 @@ function ActionColumn({
         <ul className="space-y-2">
           {items.map((item, index) => (
             <li key={`${title}-${index}`} className="text-xs text-slate-200 leading-relaxed">
-              {item}
+              <HighlightSwiggy text={item} />
             </li>
           ))}
         </ul>

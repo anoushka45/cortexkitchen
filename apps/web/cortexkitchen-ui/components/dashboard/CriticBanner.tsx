@@ -49,7 +49,7 @@ export default function CriticBanner({ critic, generatedAt, targetDate, actions 
   const runCost = (critic as unknown as Record<string, unknown>).total_cost_usd;
 
   return (
-    <div className="stagger-1 relative overflow-hidden rounded-3xl bg-gradient-to-br from-ink-900 to-ink-850 p-7 ring-1 ring-[var(--color-border-soft)]">
+    <div className="stagger-1 relative overflow-hidden rounded-3xl bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-surface-raised)] p-7 ring-1 ring-[var(--color-border-soft)]">
       {/* Top accent line */}
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent" />
 

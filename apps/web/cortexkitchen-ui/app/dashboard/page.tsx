@@ -216,7 +216,7 @@ function IdleState({
 
               <h1 className="mt-5 text-4xl font-bold tracking-tight text-[var(--color-text-primary)] md:text-5xl">
                 Multi-agent intelligence.<br />
-                <span className="bg-gradient-to-r from-ember-400 via-ember-300 to-slate-300 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-ember-400 via-ember-300 to-[var(--color-text-primary)] bg-clip-text text-transparent">
                   One coordinated plan.
                 </span>
               </h1>

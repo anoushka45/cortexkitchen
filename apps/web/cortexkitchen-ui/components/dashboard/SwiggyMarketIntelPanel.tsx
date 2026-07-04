@@ -9,7 +9,7 @@ function SwiggyBadge() {
       <div className="flex h-4 w-4 items-center justify-center rounded bg-white p-0.5">
         <Image src="/swiggy-logo.png" alt="Swiggy" width={12} height={12} className="h-full w-full object-contain" />
       </div>
-      <span className="text-[9px] font-mono uppercase tracking-widest text-slate-500">via Swiggy MCP</span>
+      <span className="text-[9px] uppercase tracking-widest text-[var(--color-text-faint)]">via Swiggy MCP</span>
     </div>
   );
 }
@@ -69,13 +69,13 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
         <div className="h-10 w-1 rounded-full flex-shrink-0 bg-orange-400/70" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
-            <p className="text-xs font-mono uppercase tracking-[0.18em] text-orange-300/80">Market Intelligence</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-orange-300/80">Market Intelligence</p>
             <SwiggyBadge />
             {fetchedAt && (
-              <span className="text-[9px] font-mono text-slate-600">fetched {fetchedAt}</span>
+              <span className="text-[9px] font-mono text-[var(--color-text-ghost)]">fetched {fetchedAt}</span>
             )}
           </div>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-[var(--color-text-soft)]">
             Live competitor pricing and area data from Swiggy MCP — used to shape tonight&rsquo;s menu and pricing strategy.
           </p>
         </div>
@@ -84,9 +84,9 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
 
         {/* Competitor Pricing */}
-        <div className="xl:col-span-2 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
+        <div className="xl:col-span-2 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <p className="text-xs font-mono uppercase tracking-widest text-slate-500">Competitor Pricing</p>
+            <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)]">Competitor Pricing</p>
             <SwiggyBadge />
           </div>
 
@@ -95,30 +95,30 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
               {/* Stats row */}
               <div className="grid grid-cols-3 gap-2 mb-4">
                 {[
-                  { label: "Area avg",  value: `₹${stats.avg}`,   color: "text-white" },
+                  { label: "Area avg",  value: `₹${stats.avg}`,   color: "text-[var(--color-text-primary)]" },
                   { label: "Cheapest",  value: `₹${stats.min}`,   color: "text-emerald-400" },
                   { label: "Highest",   value: `₹${stats.max}`,   color: "text-rose-400" },
                 ].map(({ label, value, color }) => (
-                  <div key={label} className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3 text-center">
-                    <p className="text-[9px] font-mono uppercase tracking-widest text-slate-600">{label}</p>
+                  <div key={label} className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3 text-center">
+                    <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">{label}</p>
                     <p className={`mt-1 text-lg font-bold tabular-nums ${color}`}>{value}</p>
                   </div>
                 ))}
               </div>
 
               {/* Top dishes table */}
-              <p className="text-[9px] font-mono uppercase tracking-widest text-slate-600 mb-2">
+              <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
                 Top priced items nearby ({stats.count} dishes tracked)
               </p>
               <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1 scrollbar-thin">
                 {topDishes.map(([dish, price]) => (
-                  <div key={dish} className="flex items-center justify-between rounded-lg border border-white/[0.04] bg-white/[0.02] px-3 py-1.5">
-                    <span className="text-xs text-slate-300 capitalize truncate mr-3">{dish}</span>
-                    <span className="font-mono text-xs font-semibold text-white shrink-0">₹{price}</span>
+                  <div key={dish} className="flex items-center justify-between rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-3 py-1.5">
+                    <span className="text-xs text-[var(--color-text-soft)] capitalize truncate mr-3">{dish}</span>
+                    <span className="font-mono text-xs font-semibold text-[var(--color-text-primary)] shrink-0">₹{price}</span>
                   </div>
                 ))}
                 {Object.keys(competitorPricing!).length > 8 && (
-                  <p className="text-[10px] text-slate-600 text-center py-1">
+                  <p className="text-[10px] text-[var(--color-text-ghost)] text-center py-1">
                     +{Object.keys(competitorPricing!).length - 8} more dishes tracked
                   </p>
                 )}
@@ -126,7 +126,7 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
 
               {pricingAlerts.length > 0 && (
                 <div className="mt-3 space-y-1.5">
-                  <p className="text-[9px] font-mono uppercase tracking-widest text-slate-600">Pricing alerts</p>
+                  <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Pricing alerts</p>
                   {(pricingAlerts as Record<string, unknown>[]).map((a, i) => (
                     <div key={i} className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs ${
                       a.direction === "above"
@@ -151,7 +151,7 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
               </p>
             </div>
           ) : (
-            <p className="text-sm text-slate-600 italic">No competitor pricing data for this area.</p>
+            <p className="text-sm text-[var(--color-text-ghost)] italic">No competitor pricing data for this area.</p>
           )}
         </div>
 
@@ -159,9 +159,9 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
         <div className="space-y-4">
 
           {/* Area Occupancy */}
-          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
+          <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-mono uppercase tracking-widest text-slate-500">Area Occupancy</p>
+              <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)]">Area Occupancy</p>
               <SwiggyBadge />
             </div>
             {occupancySignal ? (
@@ -179,7 +179,7 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
                   {occupancySignal} occupancy area
                 </span>
                 {tonightBusy != null && (
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-[var(--color-text-soft)]">
                     Tonight busy: <span className={tonightBusy ? "text-rose-300 font-medium" : "text-emerald-300 font-medium"}>
                       {tonightBusy ? "Yes" : "No"}
                     </span>
@@ -187,30 +187,30 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
                 )}
               </div>
             ) : (
-              <p className="text-xs text-slate-600 italic">Occupancy data unavailable — add a Dineout saved location to your Swiggy account.</p>
+              <p className="text-xs text-[var(--color-text-ghost)] italic">Occupancy data unavailable — add a Dineout saved location to your Swiggy account.</p>
             )}
           </div>
 
           {/* Instamart Procurement */}
-          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
+          <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-mono uppercase tracking-widest text-slate-500">Instamart Prices</p>
+              <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)]">Instamart Prices</p>
               <SwiggyBadge />
             </div>
             {procurement && procurement.length > 0 ? (
               <div className="space-y-1.5">
                 {procurement.slice(0, 5).map((item, i) => (
-                  <div key={i} className="flex items-center justify-between rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2">
+                  <div key={i} className="flex items-center justify-between rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-3 py-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${item.inStock ? "bg-emerald-400" : "bg-slate-600"}`} />
-                      <span className="text-xs text-slate-300 truncate capitalize">{item.ingredient as string}</span>
+                      <span className="text-xs text-[var(--color-text-soft)] truncate capitalize">{item.ingredient as string}</span>
                     </div>
-                    <span className="font-mono text-xs font-semibold text-white shrink-0">₹{item.price as number}/{item.unit as string}</span>
+                    <span className="font-mono text-xs font-semibold text-[var(--color-text-primary)] shrink-0">₹{item.price as number}/{item.unit as string}</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-slate-600 italic">No shortage items identified yet.</p>
+              <p className="text-xs text-[var(--color-text-ghost)] italic">No shortage items identified yet.</p>
             )}
           </div>
 

@@ -52,11 +52,11 @@ function SectionList({
     tone === "good" ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-200"
     : tone === "warn" ? "border-amber-500/20 bg-amber-500/5 text-amber-200"
     : tone === "risk" ? "border-rose-500/20 bg-rose-500/5 text-rose-200"
-    : "border-white/5 bg-slate-900/60 text-slate-200";
+    : "border-[var(--color-border-soft)] bg-[var(--color-surface-sunken)] text-[var(--color-text-primary)]";
 
   return (
     <div>
-      <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">{title}</p>
+      <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">{title}</p>
       <ul className="space-y-1.5">
         {items.map((item, index) => (
           <li key={`${title}-${index}`} className={`rounded-lg border px-3 py-2 text-xs ${toneClass}`}>
@@ -79,7 +79,7 @@ function MenuColumnCard({
 }) {
   const styles = {
     good: { header: "text-emerald-300/80", ring: "ring-emerald-400/25 bg-emerald-500/[0.04]" },
-    warn: { header: "text-ember-300/80",   ring: "ring-ember-400/25 bg-ember-500/[0.04]"     },
+    warn: { header: "text-[var(--color-accent)]/80",   ring: "ring-ember-400/25 bg-ember-500/[0.04]"     },
     risk: { header: "text-rose-300/80",    ring: "ring-rose-400/25 bg-rose-500/[0.04]"       },
   };
   const s = styles[tone];
@@ -88,17 +88,17 @@ function MenuColumnCard({
 
   return (
     <div>
-      <div className={`font-mono text-[10px] uppercase tracking-[0.22em] mb-2 ${s.header}`}>{label}</div>
+      <div className={`text-[10px] uppercase tracking-[0.22em] mb-2 ${s.header}`}>{label}</div>
       <div className={`rounded-xl ring-1 p-3.5 min-h-[68px] ${s.ring}`}>
         {primary ? (
           <>
-            <div className="text-[13px] font-semibold text-white leading-snug">{primary}</div>
+            <div className="text-[13px] font-semibold text-[var(--color-text-primary)] leading-snug">{primary}</div>
             {rest > 0 && (
-              <p className="mt-1.5 text-[11px] text-white/35">+{rest} more in details</p>
+              <p className="mt-1.5 text-[11px] text-[var(--color-text-faint)]">+{rest} more in details</p>
             )}
           </>
         ) : (
-          <p className="text-[12px] text-white/30 italic">None flagged</p>
+          <p className="text-[12px] text-[var(--color-text-faint)] italic">None flagged</p>
         )}
       </div>
     </div>
@@ -129,52 +129,52 @@ export function MenuInsightsBody({
     <div className="space-y-5">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
-          <p className="text-xs font-mono uppercase tracking-widest text-slate-500 mb-1">Top Items</p>
+          <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)] mb-1">Top Items</p>
           <p className="text-2xl font-semibold text-amber-300">{topItems.length}</p>
-          <p className="text-xs text-slate-500 mt-1">historically strong matching-day sellers</p>
+          <p className="text-xs text-[var(--color-text-faint)] mt-1">historically strong matching-day sellers</p>
         </div>
         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
-          <p className="text-xs font-mono uppercase tracking-widest text-slate-500 mb-1">Highlight Items</p>
+          <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)] mb-1">Highlight Items</p>
           <p className="text-2xl font-semibold text-emerald-300">{data.highlight_items?.length ?? 0}</p>
-          <p className="text-xs text-slate-500 mt-1">recommended to push in {serviceWindow.toLowerCase()}</p>
+          <p className="text-xs text-[var(--color-text-faint)] mt-1">recommended to push in {serviceWindow.toLowerCase()}</p>
         </div>
         <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3">
-          <p className="text-xs font-mono uppercase tracking-widest text-slate-500 mb-1">Watchouts</p>
+          <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)] mb-1">Watchouts</p>
           <p className="text-2xl font-semibold text-rose-300">
             {(data.inventory_blockers?.length ?? 0) + (data.complaint_watchouts?.length ?? 0)}
           </p>
-          <p className="text-xs text-slate-500 mt-1">inventory and complaint-linked blockers</p>
+          <p className="text-xs text-[var(--color-text-faint)] mt-1">inventory and complaint-linked blockers</p>
         </div>
       </div>
 
       {data.reasoning && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-4">
           <div className="flex flex-wrap items-center gap-2 mb-2">
-            <p className="text-xs font-mono uppercase tracking-widest text-slate-600">
+            <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)]">
               Strategy
             </p>
             {data.priority && (
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
                 {data.priority} priority
               </span>
             )}
           </div>
-          <p className="text-sm text-slate-200"><HighlightSwiggy text={data.reasoning} /></p>
+          <p className="text-sm text-[var(--color-text-primary)]"><HighlightSwiggy text={data.reasoning} /></p>
         </div>
       )}
 
       {!compact && topItems.length > 0 && (
         <div>
-          <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
+          <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
             Best Sellers for {scenarioLabel}
           </p>
           <div className="space-y-2">
             {topItems.map((item, index) => (
-              <div key={`top-item-${index}`} className="rounded-xl border border-white/5 bg-slate-900/50 px-4 py-3">
+              <div key={`top-item-${index}`} className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-sunken)] px-4 py-3">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm font-semibold text-slate-200">{item.item}</p>
-                    {item.category && <p className="text-xs text-slate-500">{item.category}</p>}
+                    <p className="text-sm font-semibold text-[var(--color-text-primary)]">{item.item}</p>
+                    {item.category && <p className="text-xs text-[var(--color-text-faint)]">{item.category}</p>}
                   </div>
                   {typeof item.total_ordered === "number" && (
                     <span className="text-xs font-mono text-amber-300">{item.total_ordered} ordered</span>

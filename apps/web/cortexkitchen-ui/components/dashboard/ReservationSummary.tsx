@@ -59,7 +59,7 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
       : null);
 
   if (!dataObj || Object.keys(dataObj).length === 0) {
-    return <p className="text-sm text-slate-600 italic">No reservation data available.</p>;
+    return <p className="text-sm text-[var(--color-text-ghost)] italic">No reservation data available.</p>;
   }
 
   const total_reservations = asNumber(dataObj.total_reservations);
@@ -75,26 +75,26 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
     <div className="space-y-4">
       {/* Main metrics — 2×2 grid */}
       <div className="grid grid-cols-2 gap-2.5">
-        <div className="rounded-lg bg-white/[0.025] ring-1 ring-white/[0.06] p-3">
-          <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45">Reservations</div>
+        <div className="rounded-lg bg-[var(--color-surface-raised)] ring-1 ring-[var(--color-border-soft)] p-3">
+          <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Reservations</div>
           <div className="mt-1 text-3xl font-semibold text-cyan-300">{total_reservations}</div>
-          <div className="text-[10px] text-white/40 mt-0.5">bookings for {date}</div>
+          <div className="text-[10px] text-[var(--color-text-faint)] mt-0.5">bookings for {date}</div>
         </div>
 
-        <div className="rounded-lg bg-white/[0.025] ring-1 ring-white/[0.06] p-3">
-          <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45">Total guests</div>
+        <div className="rounded-lg bg-[var(--color-surface-raised)] ring-1 ring-[var(--color-border-soft)] p-3">
+          <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Total guests</div>
           <div className="mt-1 text-3xl font-semibold text-cyan-300">{total_guests}</div>
-          <div className="text-[10px] text-white/40 mt-0.5">of {capacity} capacity</div>
+          <div className="text-[10px] text-[var(--color-text-faint)] mt-0.5">of {capacity} capacity</div>
         </div>
 
         <div className={`rounded-lg ring-1 p-3 ${
           occupancy_pct > 85 ? "ring-rose-400/25 bg-rose-500/[0.04]"
           : occupancy_pct > 70 ? "ring-ember-400/25 bg-ember-500/[0.04]"
-          : "ring-white/[0.06] bg-white/[0.025]"
+          : "ring-[var(--color-border-soft)] bg-[var(--color-surface-raised)]"
         }`}>
-          <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45">Occupancy</div>
+          <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Occupancy</div>
           <div className={`mt-1 text-3xl font-semibold ${
-            occupancy_pct > 85 ? "text-rose-300" : occupancy_pct > 70 ? "text-ember-300" : "text-emerald-300"
+            occupancy_pct > 85 ? "text-rose-300" : occupancy_pct > 70 ? "text-[var(--color-accent)]" : "text-emerald-300"
           }`}>
             {occupancy_pct}<span className="text-xl opacity-60">%</span>
           </div>
@@ -105,24 +105,24 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
             : null}
         </div>
 
-        <div className="rounded-lg bg-white/[0.025] ring-1 ring-white/[0.06] p-3">
-          <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45">Peak hour</div>
-          <div className="mt-1 text-3xl font-semibold text-ember-300">
+        <div className="rounded-lg bg-[var(--color-surface-raised)] ring-1 ring-[var(--color-border-soft)] p-3">
+          <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Peak hour</div>
+          <div className="mt-1 text-3xl font-semibold text-[var(--color-accent)]">
             {busiest_hour !== null && busiest_hour !== undefined
               ? `${String(busiest_hour).padStart(2, "0")}:00`
               : "--"}
           </div>
-          {waitlist_count > 0 && <div className="text-[10px] text-ember-300/80 mt-0.5">{waitlist_count} on waitlist</div>}
+          {waitlist_count > 0 && <div className="text-[10px] text-[var(--color-accent)]/80 mt-0.5">{waitlist_count} on waitlist</div>}
         </div>
       </div>
 
       {recommendation && (
-        <div className="rounded-lg bg-white/[0.02] ring-1 ring-white/[0.05] p-3.5 space-y-3 w-full">
+        <div className="rounded-lg bg-[var(--color-surface-raised)] ring-1 ring-[var(--color-border-soft)] p-3.5 space-y-3 w-full">
           {/* String recommendation */}
           {typeof recommendation === "string" && (
             <div className="w-full">
-              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45 mb-1.5">Recommendation</div>
-              <p className="text-[12px] leading-[1.65] text-white/65 break-words whitespace-normal"><HighlightSwiggy text={recommendation} /></p>
+              <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">Recommendation</div>
+              <p className="text-[12px] leading-[1.65] text-[var(--color-text-soft)] break-words whitespace-normal"><HighlightSwiggy text={recommendation} /></p>
             </div>
           )}
 
@@ -131,8 +131,8 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
             <>
               {recommendation?.reasoning && typeof recommendation.reasoning === "string" && (
                 <div className="w-full">
-                  <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45 mb-1.5">Reasoning</div>
-                  <p className="text-[12px] leading-[1.65] text-white/65 break-words whitespace-normal">
+                  <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">Reasoning</div>
+                  <p className="text-[12px] leading-[1.65] text-[var(--color-text-soft)] break-words whitespace-normal">
                     <HighlightSwiggy text={recommendation.reasoning} />
                   </p>
                 </div>
@@ -140,10 +140,10 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
 
               {recommendation?.priority && typeof recommendation.priority === "string" && (
                 <div>
-                  <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45 mb-1.5">Priority</div>
-                  <span className={`text-[10px] font-mono px-2.5 py-1 rounded-full inline-block ${
+                  <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">Priority</div>
+                  <span className={`text-[10px] px-2.5 py-1 rounded-full inline-block ${
                     recommendation.priority === "high"   ? "bg-rose-500/15 text-rose-300 ring-1 ring-rose-400/25"
-                    : recommendation.priority === "medium" ? "bg-ember-500/15 text-ember-300 ring-1 ring-ember-400/25"
+                    : recommendation.priority === "medium" ? "bg-ember-500/15 text-[var(--color-accent)] ring-1 ring-ember-400/25"
                     : "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/25"
                   }`}>
                     {recommendation.priority} priority
@@ -162,8 +162,8 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
                     if (allItems.length === 0) return null;
                     const items = compact ? allItems.slice(0, 2) : allItems;
                     return (
-                      <div key={key} className="pt-3 border-t border-white/[0.05] w-full">
-                        <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45 mb-1.5">{label}</div>
+                      <div key={key} className="pt-3 border-t border-[var(--color-border-soft)] w-full">
+                        <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">{label}</div>
                         <ul className="space-y-1 w-full">
                           {items.map((item, i) => {
                             const itemText = typeof item === "string" ? item
@@ -171,7 +171,7 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
                               ? String(Object.values(item).join("  —  "))
                               : String(item);
                             return (
-                              <li key={i} className="text-[12px] text-white/65 flex gap-2 w-full break-words">
+                              <li key={i} className="text-[12px] text-[var(--color-text-soft)] flex gap-2 w-full break-words">
                                 <span className="text-cyan-400/60 shrink-0">·</span>
                                 <span className="whitespace-normal"><HighlightSwiggy text={itemText} /></span>
                               </li>
@@ -179,7 +179,7 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
                           })}
                         </ul>
                         {compact && allItems.length > items.length && (
-                          <p className="text-[11px] text-white/30 mt-1.5">+{allItems.length - items.length} more in details</p>
+                          <p className="text-[11px] text-[var(--color-text-faint)] mt-1.5">+{allItems.length - items.length} more in details</p>
                         )}
                       </div>
                     );
@@ -189,13 +189,13 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
                     const entries = Object.entries(value as Record<string, unknown>).filter(([, v]) => v !== null && v !== undefined);
                     if (entries.length === 0) return null;
                     return (
-                      <div key={key} className="pt-3 border-t border-white/[0.05] w-full">
-                        <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/45 mb-1.5">{label}</div>
+                      <div key={key} className="pt-3 border-t border-[var(--color-border-soft)] w-full">
+                        <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">{label}</div>
                         <div className="space-y-1 w-full">
                           {entries.map(([subKey, subValue]) => (
                             <div key={subKey} className="flex gap-3 w-full">
-                              <span className="text-[11px] text-white/40 w-24 shrink-0">{subKey.replace(/_/g, " ")}</span>
-                              <span className="text-[11px] text-white/65 break-words whitespace-normal flex-1">{String(subValue)}</span>
+                              <span className="text-[11px] text-[var(--color-text-faint)] w-24 shrink-0">{subKey.replace(/_/g, " ")}</span>
+                              <span className="text-[11px] text-[var(--color-text-soft)] break-words whitespace-normal flex-1">{String(subValue)}</span>
                             </div>
                           ))}
                         </div>
@@ -205,8 +205,8 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
 
                   return (
                     <div key={key} className="flex gap-3 w-full">
-                      <span className="text-[11px] text-white/40 w-24 shrink-0">{label}</span>
-                      <span className="text-[11px] text-white/65 break-words whitespace-normal flex-1">{String(value)}</span>
+                      <span className="text-[11px] text-[var(--color-text-faint)] w-24 shrink-0">{label}</span>
+                      <span className="text-[11px] text-[var(--color-text-soft)] break-words whitespace-normal flex-1">{String(value)}</span>
                     </div>
                   );
                 })}

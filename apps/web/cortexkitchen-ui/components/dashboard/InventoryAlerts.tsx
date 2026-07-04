@@ -97,19 +97,19 @@ function CompactAlertRow({ alert }: { alert: Alert }) {
   const sevLabel = sev === "critical" ? "crit" : sev === "warning" ? "low" : "ok";
   const rowStyle  = sev === "critical" ? "ring-rose-400/20 bg-rose-500/[0.04]"
                   : sev === "warning"  ? "ring-ember-400/20 bg-ember-500/[0.04]"
-                  :                      "ring-white/[0.07] bg-white/[0.025]";
+                  :                      "ring-[var(--color-border-soft)] bg-[var(--color-surface-raised)]";
   const barColor  = sev === "critical" ? "bg-rose-400"        : sev === "warning" ? "bg-ember-400"    : "bg-emerald-400/70";
-  const sevColor  = sev === "critical" ? "text-rose-300"      : sev === "warning" ? "text-ember-300"  : "text-emerald-300/80";
+  const sevColor  = sev === "critical" ? "text-rose-300"      : sev === "warning" ? "text-[var(--color-accent)]"  : "text-emerald-300/80";
   const stockPct  = Math.min(100, Math.max(4, (alert.quantity_in_stock / Math.max(alert.reorder_threshold, 0.01)) * 50));
 
   return (
     <li className={`grid grid-cols-12 items-center gap-2 rounded-lg ring-1 px-3 py-2.5 ${rowStyle}`}>
-      <span className="col-span-4 text-[13px] font-semibold text-white truncate">{alert.ingredient}</span>
-      <span className="col-span-2 font-mono text-[10px] text-white/55">{alert.quantity_in_stock}{alert.unit}</span>
-      <div className="col-span-4 h-1.5 rounded bg-white/[0.04] overflow-hidden">
+      <span className="col-span-4 text-[13px] font-semibold text-[var(--color-text-primary)] truncate">{alert.ingredient}</span>
+      <span className="col-span-2 font-mono text-[10px] text-[var(--color-text-soft)]">{alert.quantity_in_stock}{alert.unit}</span>
+      <div className="col-span-4 h-1.5 rounded bg-[var(--color-surface-raised)] overflow-hidden">
         <div className={`h-full ${barColor}`} style={{ width: `${stockPct}%` }} />
       </div>
-      <span className={`col-span-2 text-right font-mono text-[10px] uppercase ${sevColor}`}>{sevLabel}</span>
+      <span className={`col-span-2 text-right text-[10px] uppercase ${sevColor}`}>{sevLabel}</span>
     </li>
   );
 }
@@ -126,20 +126,20 @@ function AlertRow({ alert, type }: { alert: Alert; type: "shortage" | "overstock
               <span className="relative inline-flex h-2 w-2 rounded-full bg-rose-500" />
             </span>
           )}
-          <span className="text-sm font-semibold text-slate-200">{alert.ingredient}</span>
+          <span className="text-sm font-semibold text-[var(--color-text-primary)]">{alert.ingredient}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {alert.spoilage_risk && (
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400">
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400">
               spoilage risk
             </span>
           )}
-          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${SEVERITY_BADGE[sev]}`}>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full ${SEVERITY_BADGE[sev]}`}>
             {sev}
           </span>
         </div>
       </div>
-      <div className="flex gap-4 text-xs text-slate-400 font-mono">
+      <div className="flex gap-4 text-xs text-[var(--color-text-soft)] font-mono">
         <span>stock: {alert.quantity_in_stock} {alert.unit}</span>
         <span>threshold: {alert.reorder_threshold} {alert.unit}</span>
         {type === "shortage"  && alert.shortfall !== undefined && (
@@ -186,14 +186,14 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
   return (
     <div className={compact ? "space-y-4" : "space-y-5"}>
       {/* Summary bar */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-white/40">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--color-text-faint)]">
         <span>{data.total_items_checked} ingredients checked</span>
-        <span className="text-white/20">·</span>
+        <span className="text-[var(--color-text-ghost)]">·</span>
         <span>demand ratio: {data.demand_ratio.toFixed(2)}x</span>
         {data.high_demand_week && (
           <>
-            <span className="text-white/20">·</span>
-            <span className="text-ember-300/80">high demand week</span>
+            <span className="text-[var(--color-text-ghost)]">·</span>
+            <span className="text-[var(--color-accent)]/80">high demand week</span>
           </>
         )}
       </div>
@@ -204,7 +204,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
           <p className="text-sm text-emerald-400 font-medium">
             All stock levels are within safe range.
           </p>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-[var(--color-text-faint)] mt-1">
             No restocking or waste-reduction actions required before {serviceWindow.toLowerCase()}.
           </p>
         </div>
@@ -213,32 +213,32 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
       {recommendation && (
         <div className={`rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-4 ${compact ? "space-y-2" : "space-y-3"}`}>
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-xs font-mono uppercase tracking-widest text-slate-500">
+            <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)]">
               Recommendation
             </p>
             {recommendation.priority && (
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
                 {recommendation.priority} priority
               </span>
             )}
           </div>
           {recommendation.reasoning && (
-            <p className="text-sm text-slate-200"><HighlightSwiggy text={recommendation.reasoning} /></p>
+            <p className="text-sm text-[var(--color-text-primary)]"><HighlightSwiggy text={recommendation.reasoning} /></p>
           )}
           {restockPreview.length > 0 && (
             <div>
-              <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
+              <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
                 Restock Actions
               </p>
               <ul className="space-y-1.5">
                 {restockPreview.map((action, index) => (
-                  <li key={`restock-${index}`} className="text-xs text-slate-200 bg-slate-900/60 rounded-lg px-3 py-2 border border-white/5">
+                  <li key={`restock-${index}`} className="text-xs text-[var(--color-text-primary)] bg-[var(--color-surface-sunken)] rounded-lg px-3 py-2 border border-[var(--color-border-soft)]">
                     <HighlightSwiggy text={action} />
                   </li>
                 ))}
               </ul>
               {compact && recommendation.restock_actions.length > restockPreview.length && (
-                <p className="text-xs text-slate-500 mt-2">
+                <p className="text-xs text-[var(--color-text-faint)] mt-2">
                   {recommendation.restock_actions.length - restockPreview.length} more restock actions in details.
                 </p>
               )}
@@ -246,18 +246,18 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
           )}
           {wastePreview.length > 0 && (
             <div>
-              <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
+              <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
                 Waste Reduction
               </p>
               <ul className="space-y-1.5">
                 {wastePreview.map((action, index) => (
-                  <li key={`waste-${index}`} className="text-xs text-slate-200 bg-slate-900/60 rounded-lg px-3 py-2 border border-white/5">
+                  <li key={`waste-${index}`} className="text-xs text-[var(--color-text-primary)] bg-[var(--color-surface-sunken)] rounded-lg px-3 py-2 border border-[var(--color-border-soft)]">
                     <HighlightSwiggy text={action} />
                   </li>
                 ))}
               </ul>
               {compact && recommendation.waste_reduction_actions.length > wastePreview.length && (
-                <p className="text-xs text-slate-500 mt-2">
+                <p className="text-xs text-[var(--color-text-faint)] mt-2">
                   {recommendation.waste_reduction_actions.length - wastePreview.length} more waste actions in details.
                 </p>
               )}
@@ -265,7 +265,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
           )}
           {riskPreview.length > 0 && (
             <div>
-              <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
+              <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
                 Risks
               </p>
               <ul className="space-y-1.5">
@@ -276,7 +276,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
                 ))}
               </ul>
               {compact && recommendation.risks.length > riskPreview.length && (
-                <p className="text-xs text-slate-500 mt-2">
+                <p className="text-xs text-[var(--color-text-faint)] mt-2">
                   {recommendation.risks.length - riskPreview.length} more risks in details.
                 </p>
               )}
@@ -288,7 +288,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
       {/* Shortage alerts */}
       {hasShortage && (
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-white/45 mb-2.5">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-2.5">
             Restock priority · {data.shortage_alerts.length} alert{data.shortage_alerts.length !== 1 ? "s" : ""}
           </p>
           {compact ? (
@@ -305,7 +305,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
             </div>
           )}
           {compact && data.shortage_alerts.length > shortagePreview.length && (
-            <p className="text-[11px] text-white/30 mt-2">
+            <p className="text-[11px] text-[var(--color-text-faint)] mt-2">
               {data.shortage_alerts.length - shortagePreview.length} more in details.
             </p>
           )}
@@ -315,7 +315,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
       {/* Overstock alerts */}
       {hasOverstock && (
         <div>
-          <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
+          <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
             Overstock alerts -- {data.overstock_alerts.length}
           </p>
           <div className="space-y-2">
@@ -324,7 +324,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
             ))}
           </div>
           {compact && data.overstock_alerts.length > overstockPreview.length && (
-            <p className="text-xs text-slate-500 mt-2">
+            <p className="text-xs text-[var(--color-text-faint)] mt-2">
               {data.overstock_alerts.length - overstockPreview.length} more overstock alerts in details.
             </p>
           )}

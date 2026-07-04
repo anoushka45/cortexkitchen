@@ -126,7 +126,7 @@ export default function ChatPage() {
   const initials = (user.full_name ?? user.email).slice(0, 2).toUpperCase();
 
   return (
-    <main className="flex h-[calc(100vh-56px)] flex-col bg-[#09111f] relative overflow-hidden">
+    <main className="flex h-[calc(100vh-56px)] flex-col bg-[var(--color-surface)] relative overflow-hidden">
 
       {/* Ambient glow */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -148,16 +148,16 @@ export default function ChatPage() {
                     <span className="absolute inset-0 animate-ping rounded-full bg-ember-400 opacity-60" />
                     <span className="relative rounded-full bg-ember-400" />
                   </span>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.26em] text-ember-300">
+                  <span className="text-[10px] uppercase tracking-[0.26em] text-[var(--color-accent)]">
                     Your kitchen assistant
                   </span>
                 </div>
 
-                <h1 className="text-[34px] font-semibold tracking-[-0.02em] text-white leading-[1.05]">
+                <h1 className="text-[34px] font-semibold tracking-[-0.02em] text-[var(--color-text-primary)] leading-[1.05]">
                   Ask about{" "}
-                  <span className="display-it text-ember-300">{user.org_name}</span>
+                  <span className="display-it text-[var(--color-accent)]">{user.org_name}</span>
                 </h1>
-                <p className="mt-3 text-[13px] leading-[1.7] text-white/38 max-w-xs mx-auto">
+                <p className="mt-3 text-[13px] leading-[1.7] text-[var(--color-text-faint)] max-w-xs mx-auto">
                   Answers come from your actual run history, inventory data, and customer feedback. Not generic AI.
                 </p>
               </div>
@@ -168,14 +168,14 @@ export default function ChatPage() {
                   <button
                     key={q}
                     onClick={() => send(q)}
-                    className="group relative flex items-start gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3.5 text-left transition-all duration-200 hover:border-ember-500/30 hover:bg-ember-500/[0.04]"
+                    className="group relative flex items-start gap-3 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 py-3.5 text-left transition-all duration-200 hover:border-ember-500/30 hover:bg-ember-500/[0.04]"
                   >
-                    <span className="mt-0.5 text-[11px] text-ember-400/60 group-hover:text-ember-400 transition-colors">{icon}</span>
+                    <span className="mt-0.5 text-[11px] text-[var(--color-accent)]/60 group-hover:text-[var(--color-accent)] transition-colors">{icon}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/25 mb-1 group-hover:text-ember-400/50 transition-colors">{category}</p>
-                      <p className="text-[13px] text-white/55 leading-snug group-hover:text-white/85 transition-colors">{q}</p>
+                      <p className="text-[9px] uppercase tracking-[0.2em] text-[var(--color-text-ghost)] mb-1 group-hover:text-[var(--color-accent)]/50 transition-colors">{category}</p>
+                      <p className="text-[13px] text-[var(--color-text-soft)] leading-snug group-hover:text-[var(--color-text-primary)] transition-colors">{q}</p>
                     </div>
-                    <svg className="mt-1 h-3.5 w-3.5 shrink-0 text-white/15 group-hover:text-ember-400/50 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <svg className="mt-1 h-3.5 w-3.5 shrink-0 text-[var(--color-text-ghost)] group-hover:text-[var(--color-accent)]/50 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
                     </svg>
                   </button>
@@ -183,7 +183,7 @@ export default function ChatPage() {
               </div>
 
               {/* Model badge */}
-              <p className="mt-6 text-center font-mono text-[9px] uppercase tracking-[0.22em] text-white/18">
+              <p className="mt-6 text-center text-[9px] uppercase tracking-[0.22em] text-[var(--color-text-ghost)]">
                 llama-3.3-70b · RAG over your runs & feedback
               </p>
             </div>
@@ -197,25 +197,25 @@ export default function ChatPage() {
                 {/* Avatar */}
                 {msg.role === "assistant" ? (
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-ember-500/30 to-ember-700/20 ring-1 ring-ember-400/25 mt-0.5">
-                    <span className="font-mono text-[9px] font-bold text-ember-300">CK</span>
+                    <span className="text-[9px] font-bold text-[var(--color-accent)]">CK</span>
                   </div>
                 ) : (
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-violet-600/20 ring-1 ring-violet-500/30 mt-0.5">
-                    <span className="font-mono text-[9px] font-bold text-violet-300">{initials}</span>
+                    <span className="text-[9px] font-bold text-violet-300">{initials}</span>
                   </div>
                 )}
 
                 {/* Bubble */}
                 <div className={`max-w-[82%] rounded-2xl px-4 py-3 text-[13.5px] leading-relaxed ${
                   msg.role === "user"
-                    ? "rounded-tr-sm bg-gradient-to-br from-violet-600/25 to-violet-800/15 ring-1 ring-violet-500/20 text-white/90"
-                    : "rounded-tl-sm bg-white/[0.04] ring-1 ring-white/[0.07] text-white/80"
+                    ? "rounded-tr-sm bg-gradient-to-br from-violet-600/25 to-violet-800/15 ring-1 ring-violet-500/20 text-[var(--color-text-primary)]"
+                    : "rounded-tl-sm bg-[var(--color-surface-raised)] ring-1 ring-[var(--color-border-soft)] text-[var(--color-text-primary)]"
                 }`}>
                   {/* Thinking dots */}
                   {!msg.content && msg.streaming && (
                     <span className="inline-flex gap-1.5 items-center py-0.5">
                       {[0, 150, 300].map(d => (
-                        <span key={d} className="h-1.5 w-1.5 rounded-full bg-white/25 animate-bounce"
+                        <span key={d} className="h-1.5 w-1.5 rounded-full bg-[var(--color-surface-raised)] animate-bounce"
                           style={{ animationDelay: `${d}ms` }} />
                       ))}
                     </span>
@@ -245,11 +245,11 @@ export default function ChatPage() {
       </div>
 
       {/* ── Input bar ───────────────────────────────────────────── */}
-      <div className="relative border-t border-white/[0.06] bg-[#09111f]/95 px-4 pb-5 pt-4 backdrop-blur-md">
+      <div className="relative border-t border-[var(--color-border-soft)] bg-[var(--color-surface)]/95 px-4 pb-5 pt-4 backdrop-blur-md">
         <div className="mx-auto max-w-2xl">
 
           {/* Input card */}
-          <div className="relative rounded-2xl border border-white/10 bg-white/[0.035] transition-all duration-200 focus-within:border-ember-500/35 focus-within:bg-white/[0.05] focus-within:shadow-[0_0_0_3px_rgba(230,137,42,0.06)]">
+          <div className="relative rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] transition-all duration-200 focus-within:border-ember-500/35 focus-within:bg-[var(--color-surface-raised)] focus-within:shadow-[0_0_0_3px_rgba(230,137,42,0.06)]">
             <textarea
               ref={inputRef}
               rows={1}
@@ -262,24 +262,24 @@ export default function ChatPage() {
               onKeyDown={handleKey}
               placeholder="Ask anything about your restaurant's performance…"
               disabled={busy}
-              className="w-full resize-none bg-transparent px-4 pt-3.5 pb-12 text-[13.5px] text-white placeholder-white/22 focus:outline-none disabled:opacity-40"
+              className="w-full resize-none bg-transparent px-4 pt-3.5 pb-12 text-[13.5px] text-[var(--color-text-primary)] placeholder-white/22 focus:outline-none disabled:opacity-40"
               style={{ maxHeight: "120px" }}
             />
 
             {/* Footer row inside card */}
             <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-4 pb-3">
-              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/18">
+              <span className="text-[9px] uppercase tracking-[0.2em] text-[var(--color-text-ghost)]">
                 {busy ? "Thinking…" : "Enter ↵ to send"}
               </span>
               <button
                 onClick={() => send(input)}
                 disabled={busy || !input.trim()}
-                className="flex items-center gap-1.5 rounded-xl bg-ember-500 px-3 py-1.5 text-[11px] font-semibold text-white transition-all hover:bg-ember-400 disabled:opacity-25 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 rounded-xl bg-ember-500 px-3 py-1.5 text-[11px] font-semibold text-[var(--color-text-primary)] transition-all hover:bg-ember-400 disabled:opacity-25 disabled:cursor-not-allowed"
               >
                 {busy ? (
                   <span className="flex gap-1">
                     {[0,100,200].map(d => (
-                      <span key={d} className="h-1 w-1 rounded-full bg-white/60 animate-bounce"
+                      <span key={d} className="h-1 w-1 rounded-full bg-[var(--color-surface-raised)] animate-bounce"
                         style={{ animationDelay: `${d}ms` }} />
                     ))}
                   </span>
@@ -300,7 +300,7 @@ export default function ChatPage() {
             <div className="mt-2.5 flex justify-center">
               <button
                 onClick={() => setMessages([])}
-                className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/20 transition-colors hover:text-white/40"
+                className="text-[9px] uppercase tracking-[0.2em] text-[var(--color-text-ghost)] transition-colors hover:text-[var(--color-text-faint)]"
               >
                 Clear conversation
               </button>

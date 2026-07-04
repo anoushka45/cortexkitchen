@@ -42,23 +42,23 @@ export default function DashboardDetailModal({
         onClick={onClose}
       />
       <div className="absolute inset-x-4 top-6 bottom-6 xl:inset-x-16 2xl:inset-x-28">
-        <div className="card h-full flex flex-col rounded-3xl overflow-hidden border-white/10 shadow-2xl animate-[modalIn_0.2s_ease-out_both]">
-          <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-white/5 bg-white/5">
+        <div className="card h-full flex flex-col rounded-3xl overflow-hidden border-[var(--color-border-default)] shadow-2xl animate-[modalIn_0.2s_ease-out_both]">
+          <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-[var(--color-border-soft)] bg-[var(--color-surface-raised)]">
             <div>
-              <p className="text-xs font-mono uppercase tracking-[0.18em] text-slate-500">
+              <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
                 Agent Detail
               </p>
-              <h2 className="text-xl font-semibold text-slate-100 mt-1">{title}</h2>
-              {subtitle && <p className="text-sm text-slate-400 mt-1">{subtitle}</p>}
+              <h2 className="text-xl font-semibold text-[var(--color-text-primary)] mt-1">{title}</h2>
+              {subtitle && <p className="text-sm text-[var(--color-text-soft)] mt-1">{subtitle}</p>}
               {meta.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-3">
                   {meta.map((item) => (
                     <div
                       key={`${item.label}-${item.value}`}
-                      className="rounded-full border border-white/10 bg-slate-900/70 px-3 py-1 text-[11px] font-mono text-slate-300"
+                      className="rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-3 py-1 text-[11px] font-mono text-[var(--color-text-soft)]"
                     >
-                      <span className="text-slate-500">{item.label}</span>
-                      <span className="mx-1 text-slate-600"> - </span>
+                      <span className="text-[var(--color-text-faint)]">{item.label}</span>
+                      <span className="mx-1 text-[var(--color-text-ghost)]"> - </span>
                       <span>{item.value}</span>
                     </div>
                   ))}
@@ -67,7 +67,7 @@ export default function DashboardDetailModal({
             </div>
             <button
               onClick={onClose}
-              className="rounded-full border border-white/10 bg-slate-900/80 px-3 py-1.5 text-xs font-mono text-slate-300 hover:bg-slate-800 transition-colors"
+              className="rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-3 py-1.5 text-xs text-[var(--color-text-soft)] hover:bg-[var(--color-surface-sunken)] transition-colors"
             >
               close
             </button>
@@ -75,14 +75,14 @@ export default function DashboardDetailModal({
           <div className="flex-1 overflow-y-auto px-6 py-6">
             {highlights.length > 0 && (
               <div className="mb-6">
-                <p className="text-xs font-mono uppercase tracking-[0.18em] text-slate-500 mb-3">
+                <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-3">
                   Key Takeaways
                 </p>
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                   {highlights.map((item, index) => (
                     <div
                       key={`${item}-${index}`}
-                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200"
+                      className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 py-3 text-sm text-[var(--color-text-primary)]"
                     >
                       {item}
                     </div>

@@ -47,19 +47,22 @@
 
   /* ── Theme-aware semantic tokens (light values = default) ───────
      Referenced from components as bg-[var(--surface)] etc. Values
-     are flipped by the .dark class block below -- see P6-F09. */
-  --color-surface-page:    #F5F6FA;
-  --color-surface:         #FFFFFF;
+     are flipped by the .dark class block below -- see P6-F09.
+     Warm stone/parchment neutrals (not cool blue-gray) so light mode
+     reads as considered/warm rather than generic SaaS gray-on-white --
+     matches the ink+ember warmth already established in dark mode. */
+  --color-surface-page:    #F1EDE4;
+  --color-surface:         #FFFEFB;
   --color-surface-raised:  #FFFFFF;
-  --color-surface-sunken:  #EAEDF3;
-  --color-border-default:  #D8DCE8;
-  --color-border-soft:     #E4E7F0;
-  --color-text-primary:    #14151F;
-  --color-text-soft:       #4A4E60;
-  --color-text-faint:      #7B7F92;
-  --color-text-ghost:      #A4A8B8;
-  --color-accent:          #C46E1B;
-  --color-accent-soft:     rgba(196,110,27,0.08);
+  --color-surface-sunken:  #E8E1D2;
+  --color-border-default:  #D9CFB8;
+  --color-border-soft:     #E5DDCA;
+  --color-text-primary:    #1D1810;
+  --color-text-soft:       #5C5340;
+  --color-text-faint:      #8A8069;
+  --color-text-ghost:      #AFA48A;
+  --color-accent:          #B0621A;
+  --color-accent-soft:     rgba(176,98,26,0.10);
 
   /* Semantic severity -- deliberately separate from --color-accent and
      from any agent-category color, so status always reads consistently. */
@@ -282,7 +285,7 @@ body {
   background: var(--color-surface);
   border: 1px solid var(--color-border-default);
   border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(20,21,31,0.03), 0 4px 24px rgba(20,21,31,0.05);
+  box-shadow: 0 1px 2px rgba(60,40,15,0.05), 0 10px 28px -8px rgba(60,40,15,0.14);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
   will-change: transform;
 }
@@ -293,7 +296,7 @@ body {
 
 .card:hover {
   border-color: var(--color-accent);
-  box-shadow: 0 1px 2px rgba(20,21,31,0.04), 0 8px 32px rgba(20,21,31,0.08);
+  box-shadow: 0 1px 2px rgba(60,40,15,0.07), 0 14px 36px -8px rgba(60,40,15,0.20);
   transform: translateY(-3px);
 }
 

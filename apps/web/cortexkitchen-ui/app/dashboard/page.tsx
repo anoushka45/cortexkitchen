@@ -1,23 +1,19 @@
 ﻿"use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import AgentCard from "@/components/dashboard/AgentCard";
 import CriticBanner from "@/components/dashboard/CriticBanner";
 import DashboardDetailModal from "@/components/dashboard/DashboardDetailModal";
 import DashboardSummary from "@/components/dashboard/DashboardSummary";
 import DatePicker from "@/components/dashboard/DatePicker";
-import ForecastChart from "@/components/dashboard/ForecastChart";
 import ManagerActionPanel from "@/components/dashboard/ManagerActionPanel";
-import RagContextDrawer from "@/components/dashboard/RagContextDrawer";
 import WhatIfPanel from "@/components/dashboard/WhatIfPanel";
 import RunHistory from "@/components/dashboard/RunHistory";
-import SwiggyStatusWidget from "@/components/dashboard/SwiggyStatusWidget";
-import SwiggyMarketIntelPanel from "@/components/dashboard/SwiggyMarketIntelPanel";
+import TodayIdleState from "@/components/dashboard/TodayIdleState";
 import { useAuth } from "@/context/AuthContext";
 import { DashStatus, useDashboardCtx } from "@/context/DashboardContext";
 import { useFridayRush } from "@/hooks/useFridayRush";
-import { listRestaurantProfiles, RestaurantProfile } from "@/lib/api";
 import { PlanningScenarioOption, RunHistoryEntry } from "@/types/planning";
 
 const SCENARIO_OPTIONS: PlanningScenarioOption[] = [
@@ -59,307 +55,6 @@ const SCENARIO_OPTIONS: PlanningScenarioOption[] = [
 
 type NodeState = "idle" | "running" | "done" | "skipped";
 
-function SectionHeader({
-  label,
-  description,
-  tone = "default",
-  isOpen,
-  onToggle,
-  cards,
-}: {
-  label: string;
-  description: string;
-  tone?: "ember" | "cyan" | "rose" | "emerald" | "amber" | "default";
-  isOpen?: boolean;
-  onToggle?: () => void;
-  cards?: string[];
-}) {
-  const toneClass: Record<
-    NonNullable<Parameters<typeof SectionHeader>[0]["tone"]>,
-    { bar: string; label: string }
-  > = {
-    ember: { bar: "bg-ember-400/70", label: "text-[var(--color-accent)]/80" },
-    cyan: { bar: "bg-cyan-300/70", label: "text-cyan-200/80" },
-    rose: { bar: "bg-rose-400/70", label: "text-rose-200/80" },
-    emerald: { bar: "bg-emerald-300/70", label: "text-emerald-200/80" },
-    amber: { bar: "bg-amber-300/70", label: "text-amber-200/80" },
-    default: { bar: "bg-[var(--color-surface-raised)]", label: "text-[var(--color-text-soft)]" },
-  };
-  const toneStyle = toneClass[tone] ?? toneClass.default;
-
-  return (
-    <div
-      className={`px-1 flex items-center gap-3 ${onToggle ? "cursor-pointer select-none group" : ""}`}
-      onClick={onToggle}
-    >
-      <div className={`h-10 w-1 rounded-full flex-shrink-0 ${toneStyle.bar}`} />
-      <div className="flex-1 min-w-0">
-        <p className={`text-xs uppercase tracking-[0.18em] ${toneStyle.label}`}>
-          {label}
-        </p>
-        <p className="mt-1 text-sm text-[var(--color-text-soft)]">{description}</p>
-        {!isOpen && cards && cards.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {cards.map((card) => (
-              <span
-                key={card}
-                className="inline-flex items-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-2.5 py-0.5 text-[10px] tracking-wide text-[var(--color-text-faint)]"
-              >
-                {card}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-      {onToggle !== undefined && (
-        <svg
-          className={`flex-shrink-0 h-4 w-4 text-[var(--color-text-faint)] transition-transform duration-200 group-hover:text-[var(--color-text-soft)] ${isOpen ? "rotate-0" : "-rotate-90"}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      )}
-    </div>
-  );
-}
-
-const AGENT_PIPELINE = [
-  {
-    label: "Demand Forecast",
-    capability: "Predicts how many covers to expect, when your peak hour hits, and how tonight compares to the same day last week",
-    iconPath: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-    border: "border-ember-500/20", bg: "bg-ember-500/[0.06]", dot: "bg-ember-400", icon: "text-[var(--color-accent)]",
-  },
-  {
-    label: "Reservation Pressure",
-    capability: "Reads your live booking list, shows how full you'll be, who's on the waitlist, and when you're likely to hit capacity",
-    iconPath: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z",
-    border: "border-cyan-500/20", bg: "bg-cyan-500/[0.06]", dot: "bg-cyan-400", icon: "text-cyan-400",
-  },
-  {
-    label: "Complaint Intelligence",
-    capability: "Scans your customer feedback for recurring complaints and patterns, then surfaces specific fixes for tonight's service",
-    iconPath: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
-    border: "border-rose-500/20", bg: "bg-rose-500/[0.06]", dot: "bg-rose-400", icon: "text-rose-400",
-  },
-  {
-    label: "Inventory Status",
-    capability: "Flags what's running low or overstocked, and tells you exactly what to reorder with specific quantities before the shift starts",
-    iconPath: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
-    border: "border-emerald-500/20", bg: "bg-emerald-500/[0.06]", dot: "bg-emerald-400", icon: "text-emerald-400",
-  },
-  {
-    label: "Menu Intelligence",
-    capability: "Runs after inventory — only recommends dishes that are actually in stock, blocking anything with a critical shortage so contradictions never reach you",
-    iconPath: "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4",
-    border: "border-amber-500/20", bg: "bg-amber-500/[0.06]", dot: "bg-amber-400", icon: "text-amber-400",
-  },
-] as const;
-
-function IdleState({
-  onRun,
-  selectedScenario,
-  onScenarioChange,
-  historyCount,
-  onShowHistory,
-}: {
-  onRun: (date?: string, restaurantName?: string, restaurantId?: number) => void;
-  selectedScenario: PlanningScenarioOption["id"];
-  onScenarioChange: (scenario: PlanningScenarioOption["id"]) => void;
-  historyCount: number;
-  onShowHistory: () => void;
-}) {
-  const scenario = SCENARIO_OPTIONS.find((item) => item.id === selectedScenario) ?? SCENARIO_OPTIONS[0];
-
-  const [profiles,          setProfiles]          = useState<RestaurantProfile[]>([]);
-  const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
-
-  useEffect(() => {
-    listRestaurantProfiles()
-      .then((list) => {
-        setProfiles(list);
-        if (list.length > 0) setSelectedProfileId(list[0].id);
-      })
-      .catch(() => { /* profiles are optional context — don't block the form */ });
-  }, []);
-
-  const activeProfile = profiles.find((p) => p.id === selectedProfileId) ?? profiles[0] ?? null;
-
-  return (
-    <div className="py-6">
-      <div className="relative overflow-hidden rounded-[34px] border border-[var(--color-border-default)] bg-[radial-gradient(ellipse_at_top_left,rgba(230,137,42,0.12),transparent_55%),rgba(255,255,255,0.015)] px-6 py-10 shadow-[0_32px_120px_rgba(2,8,23,0.5)] md:px-10 md:py-12">
-
-        {/* Subtle grid */}
-        <div className="pointer-events-none absolute inset-0 opacity-[0.08]" style={{
-          backgroundImage: "linear-gradient(rgba(148,163,184,0.4) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,0.4) 1px,transparent 1px)",
-          backgroundSize: "44px 44px",
-          maskImage: "radial-gradient(ellipse at 20% 20%,black 0%,transparent 65%)",
-          WebkitMaskImage: "radial-gradient(ellipse at 20% 20%,black 0%,transparent 65%)",
-        }} />
-
-        <div className="relative grid grid-cols-1 gap-10 xl:grid-cols-2 xl:items-start">
-
-          {/* ── Left: action column ── */}
-          <div className="space-y-7">
-
-            {/* Badge + headline */}
-            <div className="stagger-1">
-              <div className="inline-flex items-center gap-2 rounded-full border border-ember-500/20 bg-ember-500/8 px-3 py-1.5">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inset-0 animate-ping rounded-full bg-ember-400 opacity-50" />
-                  <span className="relative rounded-full bg-ember-400" />
-                </span>
-                <span className="text-[10px] uppercase tracking-[0.24em] text-[var(--color-accent)]">
-                  planning console
-                </span>
-              </div>
-
-              <h1 className="mt-5 text-4xl font-bold tracking-tight text-[var(--color-text-primary)] md:text-5xl">
-                Multi-agent intelligence.<br />
-                <span className="display-it text-[var(--color-accent)]">One coordinated plan.</span>
-              </h1>
-              <p className="mt-4 max-w-lg text-[15px] leading-7 text-[var(--color-text-soft)]">
-                Pick a shift. Hit run. Five specialists get to work on your kitchen data, a critic checks the plan, and your brief is ready. Export it, tweak the cover count, or ask the AI a question about last week.
-              </p>
-            </div>
-
-            {/* Restaurant profile selector */}
-            {profiles.length > 0 && (
-              <div className="stagger-2">
-                <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-ghost)] mb-2">Restaurant profile</p>
-                {profiles.length === 1 ? (
-                  <div className="flex items-center gap-2 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-3 py-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-ember-400 shrink-0" />
-                    <span className="text-sm text-[var(--color-text-primary)]">{activeProfile?.name}</span>
-                    {activeProfile && (
-                      <span className="ml-auto font-mono text-[10px] text-[var(--color-text-faint)]">
-                        {activeProfile.capacity} covers · {activeProfile.peak_hours}
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <select
-                    value={selectedProfileId ?? ""}
-                    onChange={(e) => setSelectedProfileId(Number(e.target.value))}
-                    className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-ember-500/50 focus:border-ember-500/60"
-                  >
-                    {profiles.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} — {p.capacity} covers · {p.peak_hours}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            )}
-
-            {/* Scenario selection */}
-            <div className="stagger-2 space-y-2.5">
-              <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-ghost)]">Choose a scenario</p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {SCENARIO_OPTIONS.map((option) => {
-                  const active = option.id === selectedScenario;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => onScenarioChange(option.id)}
-                      className={`rounded-xl border px-4 py-3 text-left transition-all ${
-                        active
-                          ? "border-ember-400/40 bg-ember-500/10 shadow-[0_0_0_1px_rgba(230,137,42,0.15)]"
-                          : "border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-raised)]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className={`text-sm font-semibold ${active ? "text-ember-100" : "text-[var(--color-text-primary)]"}`}>
-                          {option.label}
-                        </p>
-                        <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-ghost)]">{option.service_window}</span>
-                      </div>
-                      <p className={`mt-1 text-xs leading-relaxed ${active ? "text-[var(--color-text-soft)]" : "text-[var(--color-text-faint)]"}`}>
-                        {option.description}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* CTA */}
-            <div className="stagger-3">
-              <DatePicker onRun={(date) => onRun(date, activeProfile?.name ?? undefined, activeProfile?.id ?? undefined)} loading={false} scenario={scenario} />
-            </div>
-
-            {/* Footer row: step chips + history */}
-            <div className="stagger-4 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                {(["Choose scenario", "Run 5 agents", "Review critic-scored plan"] as const).map((label, i) => (
-                  <div key={label} className="flex items-center gap-1.5 text-xs text-[var(--color-text-ghost)]">
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] font-mono text-[10px] text-[var(--color-text-ghost)]">{i + 1}</span>
-                    {label}
-                  </div>
-                ))}
-              </div>
-              {historyCount > 0 && (
-                <button
-                  onClick={onShowHistory}
-                  className="flex items-center gap-1.5 text-xs text-[var(--color-text-faint)] transition-colors hover:text-[var(--color-text-soft)]"
-                >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {historyCount} previous run{historyCount !== 1 ? "s" : ""}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* ── Right: agent pipeline showcase ── */}
-          <div className="stagger-2">
-            <div className="rounded-3xl border border-[var(--color-border-default)] bg-[var(--color-surface)]/95 p-6 shadow-[0_24px_80px_rgba(2,8,23,0.4)]">
-
-              <div className="mb-5">
-                <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-ghost)]">What we check for you</p>
-                <p className="mt-1 text-base font-semibold text-[var(--color-text-primary)]">5 specialists, every night</p>
-                <p className="mt-0.5 text-xs text-[var(--color-text-faint)]">Working through your kitchen and market data before every shift</p>
-              </div>
-
-              <div className="space-y-2">
-                {AGENT_PIPELINE.map((agent) => (
-                  <div key={agent.label} className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${agent.border} ${agent.bg}`}>
-                    <span className={`mt-0.5 shrink-0 ${agent.icon}`}>
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d={agent.iconPath} />
-                      </svg>
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-[var(--color-text-primary)]">{agent.label}</p>
-                      <p className="mt-0.5 text-xs leading-relaxed text-[var(--color-text-soft)]">{agent.capability}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Critic callout */}
-              <div className="mt-4 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 py-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <svg className="h-3.5 w-3.5 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <p className="text-xs font-semibold text-[var(--color-text-soft)]">Critic-verified output</p>
-                </div>
-                <p className="text-xs text-[var(--color-text-faint)] leading-relaxed">
-                  Every plan is scored across <span className="text-[var(--color-text-soft)]">safety, feasibility, evidence, actionability, and clarity</span> before reaching you.
-                </p>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function StepRow({
   label, hint, state, swiggy = false,
@@ -634,9 +329,7 @@ export default function DashboardPage() {
     finally { setExportingExcel(false); }
   }
   const [runMeta, setRunMeta] = useState<{ scenarioLabel: string; restaurantName: string | null }>({ scenarioLabel: "", restaurantName: null });
-  const [servicePlanningOpen, setServicePlanningOpen] = useState(true);
-  const [operationalRiskOpen, setOperationalRiskOpen] = useState(true);
-  const [menuDirectionOpen, setMenuDirectionOpen] = useState(true);
+  const [justTriggered, setJustTriggered] = useState(false);
 
   // Auth guard
   useEffect(() => {
@@ -668,6 +361,7 @@ export default function DashboardPage() {
   const setSelectedScenario = (s: PlanningScenarioOption["id"]) => dashCtx?.setSelectedScenario(s as typeof dashCtx.selectedScenario);
 
   const handleHistorySelect = async (entry: RunHistoryEntry) => {
+    setJustTriggered(false);
     setActiveHistoryId(entry.id);
     await loadFromHistory(entry);
     setShowHistoryDrawer(false);
@@ -675,6 +369,7 @@ export default function DashboardPage() {
 
   const handleRun = (date?: string, restaurantName?: string, restaurantId?: number) => {
     setActiveHistoryId(undefined);
+    setJustTriggered(true);
     setRunMeta({
       scenarioLabel: SCENARIO_OPTIONS.find(s => s.id === selectedScenario)?.label ?? selectedScenario,
       restaurantName: restaurantName ?? user?.org_name ?? null,
@@ -682,15 +377,25 @@ export default function DashboardPage() {
     trigger(date, selectedScenario, restaurantId);
   };
 
+  // A plan just finished from a fresh trigger (not from re-viewing history) --
+  // hand off to the Operations page where the agent cards/insights live,
+  // instead of showing results inline on the Today page.
+  useEffect(() => {
+    if (status === "success" && justTriggered && data) {
+      setJustTriggered(false);
+      const runId = data?.meta?.planning_run_id as number | undefined;
+      router.push(`/operations${runId ? `?run=${runId}` : ""}`);
+    }
+  }, [status, justTriggered, data, router]);
+
   if (authLoading || !user) return null;
 
   return (
     <div className="min-h-screen bg-[var(--color-surface-page)] text-[var(--color-text-primary)]">
       <main className="mx-auto w-full max-w-[1520px] px-6 py-8 xl:px-14">
-        <SwiggyStatusWidget />
         <div className="space-y-6">
           {status === "idle" && (
-            <IdleState
+            <TodayIdleState
               onRun={handleRun}
               selectedScenario={selectedScenario}
               onScenarioChange={setSelectedScenario}
@@ -717,7 +422,17 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {status === "success" && data && (
+          {status === "success" && data && justTriggered && (
+            <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
+              <span className="relative flex h-3 w-3">
+                <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400 opacity-60" />
+                <span className="relative h-3 w-3 rounded-full bg-emerald-400" />
+              </span>
+              <p className="text-sm font-semibold text-emerald-400">Plan approved — opening Operations…</p>
+            </div>
+          )}
+
+          {status === "success" && data && !justTriggered && (
             <>
               {/* ── Breadcrumb + action bar ── */}
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -820,103 +535,35 @@ export default function DashboardPage() {
 
               <DashboardSummary data={data} />
 
-              <div className="mt-10 space-y-4">
-                <SectionHeader
-                  label="Service Planning"
-                  description="Demand pacing and reservation pressure for the current run."
-                  tone="ember"
-                  isOpen={servicePlanningOpen}
-                  onToggle={() => setServicePlanningOpen((v) => !v)}
-                  cards={["Demand Forecast", "Reservation Pressure"]}
-                />
-                {servicePlanningOpen && (
-                  <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
-                    <div className="xl:col-span-8">
-                      <ForecastChart
-                        forecast={data.recommendations.forecast}
-                        scenario={data.scenario}
-                      />
-                    </div>
-                    <div className="xl:col-span-4">
-                      <AgentCard
-                        agentKey="reservation"
-                        data={data.recommendations.reservation as Record<string, unknown> | null}
-                        index={0}
-                        swiggySignal={(() => {
-                          const occ = data.swiggy_occupancy_context as Record<string, unknown> | null | undefined;
-                          const sig = occ?.occupancy_signal as string | undefined;
-                          return sig ? `area tonight: ${sig}` : undefined;
-                        })()}
-                      />
-                    </div>
+              {/* Deep-dive links — full agent detail lives on their own pages now */}
+              <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Link
+                  href={`/operations${data.meta?.planning_run_id ? `?run=${data.meta.planning_run_id}` : ""}`}
+                  className="group flex items-center justify-between gap-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-5 py-4 transition-colors hover:border-ember-500/30 hover:bg-ember-500/[0.04]"
+                >
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-faint)]">The 5 specialists</p>
+                    <p className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">See full operations detail</p>
+                    <p className="mt-0.5 text-xs text-[var(--color-text-faint)]">Forecast, reservations, complaints, inventory, menu</p>
                   </div>
-                )}
-              </div>
-
-              <div className="mt-10 space-y-4">
-                <SectionHeader
-                  label="Operational Risk"
-                  description="Customer sentiment and stock pressure shaping service execution."
-                  tone="rose"
-                  isOpen={operationalRiskOpen}
-                  onToggle={() => setOperationalRiskOpen((v) => !v)}
-                  cards={["Complaint Intelligence", "Inventory Status"]}
-                />
-                {operationalRiskOpen && (
-                  <div className="grid grid-cols-1 items-stretch gap-5 xl:grid-cols-12">
-                    <div className="xl:col-span-7">
-                      <AgentCard
-                        agentKey="complaint"
-                        data={data.recommendations.complaint as Record<string, unknown> | null}
-                        index={1}
-                      />
-                    </div>
-                    <div className="xl:col-span-5">
-                      <AgentCard
-                        agentKey="inventory"
-                        data={data.recommendations.inventory as Record<string, unknown> | null}
-                        index={2}
-                        swiggySignal={(() => {
-                          const proc = data.swiggy_procurement_options as Record<string, unknown> | null | undefined;
-                          const opts = proc?.procurement_options as unknown[] | undefined;
-                          return opts && opts.length > 0 ? `${opts.length} Instamart prices live` : undefined;
-                        })()}
-                      />
-                    </div>
+                  <svg className="h-4 w-4 shrink-0 text-[var(--color-text-faint)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--color-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+                <Link
+                  href={`/market${data.meta?.planning_run_id ? `?run=${data.meta.planning_run_id}` : ""}`}
+                  className="group flex items-center justify-between gap-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-5 py-4 transition-colors hover:border-[#fc8019]/30 hover:bg-[#fc8019]/[0.04]"
+                >
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Via Swiggy MCP</p>
+                    <p className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">See market intelligence</p>
+                    <p className="mt-0.5 text-xs text-[var(--color-text-faint)]">Competitor pricing, area demand, Instamart prices</p>
                   </div>
-                )}
+                  <svg className="h-4 w-4 shrink-0 text-[var(--color-text-faint)] transition-transform group-hover:translate-x-0.5 group-hover:text-[#fc8019]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
               </div>
-
-              <div className="mt-10 space-y-4">
-                <SectionHeader
-                  label="Menu Direction"
-                  description="Commercial and operational guidance synthesised for this planning window."
-                  tone="amber"
-                  isOpen={menuDirectionOpen}
-                  onToggle={() => setMenuDirectionOpen((v) => !v)}
-                  cards={["Menu Intelligence"]}
-                />
-                {menuDirectionOpen && (
-                  <AgentCard
-                    agentKey="menu"
-                    data={data.recommendations.menu as Record<string, unknown> | null}
-                    index={3}
-                    swiggySignal={(() => {
-                      const comp = data.swiggy_competitor_context as Record<string, unknown> | null | undefined;
-                      const alerts = comp?.alerts as unknown[] | undefined;
-                      const avgMap = comp?.area_avg as Record<string, number> | undefined;
-                      const dishCount = avgMap ? Object.keys(avgMap).length : 0;
-                      if (alerts && alerts.length > 0) return `${alerts.length} pricing alert${alerts.length !== 1 ? "s" : ""} · ${dishCount} dishes`;
-                      if (dishCount > 0) return `${dishCount} competitor dishes tracked`;
-                      return undefined;
-                    })()}
-                  />
-                )}
-              </div>
-
-              <SwiggyMarketIntelPanel data={data} />
-
-              <RagContextDrawer ragContext={data.rag_context} />
 
               {/* Re-run bar */}
               <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

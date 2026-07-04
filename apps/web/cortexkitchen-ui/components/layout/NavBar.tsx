@@ -8,15 +8,10 @@ import { useAuth } from "@/context/AuthContext";
 import { useDashboardCtx } from "@/context/DashboardContext";
 import { useTheme } from "@/context/ThemeContext";
 
-const SCENARIO_OPTIONS = [
-  { id: "friday_rush",        label: "Friday Rush"        },
-  { id: "weekday_lunch",      label: "Weekday Lunch"      },
-  { id: "holiday_spike",      label: "Holiday Spike"      },
-  { id: "low_stock_weekend",  label: "Low-Stock Weekend"  },
-] as const;
-
 const NAV_LINKS = [
-  { href: "/dashboard",   label: "Plan",        icon: <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg> },
+  { href: "/dashboard",   label: "Today",       icon: <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg> },
+  { href: "/operations",  label: "Operations",  icon: <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 12h6M9 16h6" /></svg> },
+  { href: "/market",      label: "Market",      icon: <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3 17l6-6 4 4 8-8m0 0h-5m5 0v5" /></svg> },
   { href: "/runs",        label: "Runs",        icon: <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg> },
   { href: "/data-health", label: "Data",        icon: <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg> },
   { href: "/chat",        label: "Ask AI",      icon: <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg> },
@@ -78,7 +73,7 @@ export default function NavBar() {
   const onDashboard = pathname === "/dashboard";
 
   return (
-    <header className="sticky top-0 z-40 border-b border-[var(--color-border-default)] bg-[var(--color-surface)]/90 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-[var(--color-border-default)] bg-[var(--color-surface-raised)]/95 backdrop-blur-md shadow-[0_1px_0_rgba(176,98,26,0.08),0_4px_20px_-8px_rgba(60,40,15,0.18)]">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4 sm:px-6">
 
         {/* Brand */}
@@ -87,13 +82,13 @@ export default function NavBar() {
           onClick={() => { if (onDashboard) dashCtx?.doReset(); }}
           className="flex shrink-0 items-center gap-2.5"
         >
-          <div className="grid h-8 w-8 place-items-center overflow-hidden rounded-lg bg-black ring-1 ring-[var(--color-border-default)]">
+          <div className="grid h-8 w-8 place-items-center overflow-hidden rounded-lg shadow-[0_4px_12px_-3px_rgba(176,98,26,0.5)]" style={{ background: "linear-gradient(155deg, var(--color-accent), #7a4212)" }}>
             <Image src="/ck-logo.png" alt="CortexKitchen" width={28} height={28} className="h-7 w-7 object-contain" priority />
           </div>
           <div className="leading-tight hidden sm:block">
             <div className="text-[14px] font-bold tracking-tight text-[var(--color-text-primary)]">CortexKitchen</div>
             {user.org_name && (
-              <div className="text-[9px] uppercase tracking-[0.24em] text-ember-500 dark:text-ember-300/70">{user.org_name}</div>
+              <div className="text-[9px] uppercase tracking-[0.24em] text-[var(--color-accent)]">{user.org_name}</div>
             )}
           </div>
         </Link>
@@ -106,14 +101,14 @@ export default function NavBar() {
               <Link
                 key={href}
                 href={href}
-                className={`relative flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors ${
+                className={`relative flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors ${
                   active
-                    ? "bg-[var(--color-surface-sunken)] text-[var(--color-text-primary)]"
+                    ? "bg-[var(--color-accent-soft)] text-[var(--color-accent)]"
                     : "text-[var(--color-text-faint)] hover:bg-[var(--color-surface-sunken)] hover:text-[var(--color-text-primary)]"
                 }`}
               >
                 {active
-                  ? <span className="h-1.5 w-1.5 rounded-full bg-ember-400 shrink-0" />
+                  ? <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent)] shrink-0" />
                   : <span className="text-[var(--color-text-ghost)] hidden sm:block">{icon}</span>
                 }
                 <span className="hidden sm:block">{label}</span>
@@ -126,20 +121,6 @@ export default function NavBar() {
         {/* Dashboard-specific controls */}
         {onDashboard && dashCtx && (
           <div className="hidden sm:flex items-center gap-2 shrink-0">
-            <div className="relative">
-              <select
-                value={dashCtx.selectedScenario}
-                onChange={(e) => dashCtx.setSelectedScenario(e.target.value as typeof dashCtx.selectedScenario)}
-                className="appearance-none cursor-pointer rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] pl-3 pr-7 py-1.5 text-xs text-[var(--color-text-soft)] focus:outline-none focus:ring-1 focus:ring-ember-500/50 transition-colors hover:border-[var(--color-accent)]"
-              >
-                {SCENARIO_OPTIONS.map((s) => (
-                  <option key={s.id} value={s.id}>{s.label}</option>
-                ))}
-              </select>
-              <svg className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--color-text-ghost)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
             {dashCtx.dashStatus !== "idle" && (
               <button
                 onClick={dashCtx.doReset}

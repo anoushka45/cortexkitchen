@@ -25,7 +25,7 @@ export default function HomeNav() {
           </span>
           <div className="leading-tight">
             <div className="text-[15px] font-bold tracking-tight text-[var(--color-text-primary)]">CortexKitchen</div>
-            <div className="font-mono text-[9px] uppercase tracking-[0.24em] text-[var(--color-accent)]/70">ops intelligence</div>
+            <div className="text-[9px] uppercase tracking-[0.24em] text-[var(--color-accent)]/70">ops intelligence</div>
           </div>
         </Link>
 

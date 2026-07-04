@@ -76,13 +76,13 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
       {/* Main metrics — 2×2 grid */}
       <div className="grid grid-cols-2 gap-2.5">
         <div className="rounded-lg bg-[var(--color-surface-raised)] ring-1 ring-[var(--color-border-soft)] p-3">
-          <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Reservations</div>
+          <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Reservations</div>
           <div className="mt-1 text-3xl font-semibold text-cyan-300">{total_reservations}</div>
           <div className="text-[10px] text-[var(--color-text-faint)] mt-0.5">bookings for {date}</div>
         </div>
 
         <div className="rounded-lg bg-[var(--color-surface-raised)] ring-1 ring-[var(--color-border-soft)] p-3">
-          <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Total guests</div>
+          <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Total guests</div>
           <div className="mt-1 text-3xl font-semibold text-cyan-300">{total_guests}</div>
           <div className="text-[10px] text-[var(--color-text-faint)] mt-0.5">of {capacity} capacity</div>
         </div>
@@ -92,7 +92,7 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
           : occupancy_pct > 70 ? "ring-ember-400/25 bg-ember-500/[0.04]"
           : "ring-[var(--color-border-soft)] bg-[var(--color-surface-raised)]"
         }`}>
-          <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Occupancy</div>
+          <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Occupancy</div>
           <div className={`mt-1 text-3xl font-semibold ${
             occupancy_pct > 85 ? "text-rose-300" : occupancy_pct > 70 ? "text-[var(--color-accent)]" : "text-emerald-300"
           }`}>
@@ -106,7 +106,7 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
         </div>
 
         <div className="rounded-lg bg-[var(--color-surface-raised)] ring-1 ring-[var(--color-border-soft)] p-3">
-          <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Peak hour</div>
+          <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Peak hour</div>
           <div className="mt-1 text-3xl font-semibold text-[var(--color-accent)]">
             {busiest_hour !== null && busiest_hour !== undefined
               ? `${String(busiest_hour).padStart(2, "0")}:00`
@@ -121,7 +121,7 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
           {/* String recommendation */}
           {typeof recommendation === "string" && (
             <div className="w-full">
-              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">Recommendation</div>
+              <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">Recommendation</div>
               <p className="text-[12px] leading-[1.65] text-[var(--color-text-soft)] break-words whitespace-normal"><HighlightSwiggy text={recommendation} /></p>
             </div>
           )}
@@ -131,7 +131,7 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
             <>
               {recommendation?.reasoning && typeof recommendation.reasoning === "string" && (
                 <div className="w-full">
-                  <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">Reasoning</div>
+                  <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">Reasoning</div>
                   <p className="text-[12px] leading-[1.65] text-[var(--color-text-soft)] break-words whitespace-normal">
                     <HighlightSwiggy text={recommendation.reasoning} />
                   </p>
@@ -140,7 +140,7 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
 
               {recommendation?.priority && typeof recommendation.priority === "string" && (
                 <div>
-                  <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">Priority</div>
+                  <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">Priority</div>
                   <span className={`text-[10px] font-mono px-2.5 py-1 rounded-full inline-block ${
                     recommendation.priority === "high"   ? "bg-rose-500/15 text-rose-300 ring-1 ring-rose-400/25"
                     : recommendation.priority === "medium" ? "bg-ember-500/15 text-[var(--color-accent)] ring-1 ring-ember-400/25"
@@ -163,7 +163,7 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
                     const items = compact ? allItems.slice(0, 2) : allItems;
                     return (
                       <div key={key} className="pt-3 border-t border-[var(--color-border-soft)] w-full">
-                        <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">{label}</div>
+                        <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">{label}</div>
                         <ul className="space-y-1 w-full">
                           {items.map((item, i) => {
                             const itemText = typeof item === "string" ? item
@@ -190,7 +190,7 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
                     if (entries.length === 0) return null;
                     return (
                       <div key={key} className="pt-3 border-t border-[var(--color-border-soft)] w-full">
-                        <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">{label}</div>
+                        <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">{label}</div>
                         <div className="space-y-1 w-full">
                           {entries.map(([subKey, subValue]) => (
                             <div key={subKey} className="flex gap-3 w-full">

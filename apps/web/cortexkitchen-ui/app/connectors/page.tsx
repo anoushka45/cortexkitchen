@@ -101,7 +101,7 @@ function SwiggyCard({ connector }: { connector: ConnectorStatus }) {
             <p className="mt-0.5 text-xs text-[var(--color-text-soft)]">
               Food Delivery · Instamart · Dineout
             </p>
-            <p className="mt-0.5 text-[10px] font-mono text-[var(--color-text-ghost)] uppercase tracking-widest">
+            <p className="mt-0.5 text-[10px] text-[var(--color-text-ghost)] uppercase tracking-widest">
               via Swiggy MCP
             </p>
           </div>
@@ -147,19 +147,19 @@ function SwiggyCard({ connector }: { connector: ConnectorStatus }) {
       {/* Stats row */}
       <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-4 py-3">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--color-text-faint)]">Orders synced</p>
+          <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-faint)]">Orders synced</p>
           <p className="mt-1 text-xl font-bold tabular-nums text-[var(--color-text-primary)]">
             {connector.orders_synced.toLocaleString()}
           </p>
         </div>
         <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-4 py-3">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--color-text-faint)]">Feedback synced</p>
+          <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-faint)]">Feedback synced</p>
           <p className="mt-1 text-xl font-bold tabular-nums text-[var(--color-text-primary)]">
             {connector.feedback_synced.toLocaleString()}
           </p>
         </div>
         <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-4 py-3">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--color-text-faint)]">Last sync</p>
+          <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-faint)]">Last sync</p>
           <p className={`mt-1 text-sm font-semibold ${freshnessColor(connector.last_sync_at)}`}>
             {formatRelativeTime(connector.last_sync_at)}
           </p>
@@ -170,7 +170,7 @@ function SwiggyCard({ connector }: { connector: ConnectorStatus }) {
           )}
         </div>
         <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-4 py-3">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--color-text-faint)]">Address</p>
+          <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-faint)]">Address</p>
           <p className={`mt-1 text-sm font-semibold ${connector.address_configured ? "text-emerald-400" : "text-amber-400"}`}>
             {connector.address_configured ? "Configured" : "Not set"}
           </p>
@@ -218,7 +218,7 @@ function ComingSoonCard({ name, description, icon }: { name: string; description
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <p className="text-sm font-medium text-[var(--color-text-soft)]">{name}</p>
-          <span className="rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-2 py-0.5 text-[9px] font-mono uppercase tracking-wider text-[var(--color-text-faint)]">
+          <span className="rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-2 py-0.5 text-[9px] uppercase tracking-wider text-[var(--color-text-faint)]">
             Coming soon
           </span>
         </div>
@@ -249,7 +249,7 @@ export default function ConnectorsPage() {
         {/* Page header */}
         <header className="flex flex-col gap-4 border-b border-[var(--color-border-default)] pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-mono uppercase tracking-[0.22em] text-[var(--color-accent)]">
+            <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-accent)]">
               platform integrations
             </p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight">Connectors</h1>
@@ -274,7 +274,7 @@ export default function ConnectorsPage() {
 
         {/* Active integrations */}
         <section className="space-y-3">
-          <p className="text-xs font-mono uppercase tracking-[0.18em] text-[var(--color-text-faint)] px-0.5">
+          <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-faint)] px-0.5">
             Active
           </p>
 
@@ -302,7 +302,7 @@ export default function ConnectorsPage() {
 
         {/* Coming soon */}
         <section className="space-y-3">
-          <p className="text-xs font-mono uppercase tracking-[0.18em] text-[var(--color-text-faint)] px-0.5">
+          <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-faint)] px-0.5">
             Coming soon
           </p>
           <div className="space-y-2">
@@ -337,7 +337,7 @@ export default function ConnectorsPage() {
         </section>
 
         {/* Footer note */}
-        <p className="text-center text-[10px] font-mono text-[var(--color-text-ghost)] uppercase tracking-widest pb-4">
+        <p className="text-center text-[10px] text-[var(--color-text-ghost)] uppercase tracking-widest pb-4">
           Powered by Swiggy MCP · read-only live data
         </p>
       </div>

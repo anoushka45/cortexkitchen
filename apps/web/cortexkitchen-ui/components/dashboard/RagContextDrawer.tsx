@@ -65,7 +65,7 @@ function Section({
 
   return (
     <div className="pt-4 first:pt-0">
-      <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-faint)] mb-3">
+      <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)] mb-3">
         {title}
       </p>
       <ul className="space-y-2">

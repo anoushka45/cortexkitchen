@@ -149,7 +149,7 @@ export function ComplaintInsightsBody({
 
       {normalized.recommendation.overall_summary && (
         <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 py-3">
-          <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-faint)] mb-2">
+          <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)] mb-2">
             Summary
           </p>
           <p className={`text-sm text-[var(--color-text-primary)] leading-relaxed ${compact ? "line-clamp-3" : ""}`}>
@@ -160,7 +160,7 @@ export function ComplaintInsightsBody({
 
       {shownIssues.length > 0 && (
         <div className={compact ? "space-y-2" : "space-y-3"}>
-          <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-ghost)]">
+          <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)]">
             Top Issues
           </p>
           <div className="grid grid-cols-1 gap-2">
@@ -173,7 +173,7 @@ export function ComplaintInsightsBody({
                   <p className="text-sm font-semibold text-[var(--color-text-primary)]">{issue.issue}</p>
                   {issue.priority && (
                     <span
-                      className={`rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.12em] ${priorityBadge(issue.priority)}`}
+                      className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] ${priorityBadge(issue.priority)}`}
                     >
                       {issue.priority}
                     </span>
@@ -197,7 +197,7 @@ export function ComplaintInsightsBody({
 
       {shownActions.length > 0 && (
         <div className={compact ? "space-y-2" : "space-y-3"}>
-          <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-ghost)]">
+          <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)]">
             Action Items
           </p>
           <ul className="space-y-1.5">
@@ -220,7 +220,7 @@ export function ComplaintInsightsBody({
 
       {!compact && normalized.summary.unique_complaints && normalized.summary.unique_complaints.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-ghost)]">
+          <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)]">
             Example Complaints
           </p>
           <ul className="space-y-1.5">

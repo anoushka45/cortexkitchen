@@ -95,7 +95,7 @@ export default function WhatIfPanel({ baseCovers, avgCovers, scenario, serviceWi
           {/* Slider */}
           <div className="pt-4">
             <div className="flex items-baseline justify-between mb-3">
-              <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-[var(--color-text-faint)]">Predicted covers</p>
+              <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">Predicted covers</p>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-semibold text-[var(--color-text-primary)] leading-none">{covers}</span>
                 <span className={`text-[11px] font-mono ${diffColor}`}>{diffLabel}</span>
@@ -135,7 +135,7 @@ export default function WhatIfPanel({ baseCovers, avgCovers, scenario, serviceWi
                   { label: "Tradeoff",      value: result.tradeoff_score,      color: result.tradeoff_score >= 0.75 ? "text-emerald-300" : result.tradeoff_score >= 0.5 ? "text-[var(--color-accent)]" : "text-rose-300" },
                 ].map(({ label, value, color }) => (
                   <div key={label} className="rounded-lg bg-[var(--color-surface-raised)] ring-1 ring-[var(--color-border-soft)] px-3 py-2.5">
-                    <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">{label}</div>
+                    <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">{label}</div>
                     <div className={`mt-1 text-[22px] font-semibold leading-none ${color}`}>{Math.round(value * 100)}</div>
                   </div>
                 ))}
@@ -143,7 +143,7 @@ export default function WhatIfPanel({ baseCovers, avgCovers, scenario, serviceWi
 
               {/* Demand ratio */}
               <div className="flex items-center gap-3 rounded-lg bg-[var(--color-surface-raised)] ring-1 ring-[var(--color-border-soft)] px-4 py-2.5">
-                <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Demand ratio</span>
+                <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Demand ratio</span>
                 <span className={`ml-auto font-mono text-sm font-semibold ${result.demand_ratio >= 1.2 ? "text-[var(--color-accent)]" : result.demand_ratio >= 0.8 ? "text-[var(--color-text-primary)]" : "text-cyan-300"}`}>
                   {result.demand_ratio.toFixed(2)}×
                 </span>
@@ -165,7 +165,7 @@ export default function WhatIfPanel({ baseCovers, avgCovers, scenario, serviceWi
               {/* Focus notes */}
               {result.recommended_focus.length > 0 && (
                 <div className="space-y-1.5">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">Focus for {covers} covers</p>
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">Focus for {covers} covers</p>
                   {result.recommended_focus.map((note, i) => (
                     <div key={i} className="rounded-lg ring-1 ring-ember-400/20 bg-ember-500/[0.04] px-3 py-2 text-[12px] text-[var(--color-text-soft)] leading-snug">
                       {note}

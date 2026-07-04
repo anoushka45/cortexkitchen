@@ -148,7 +148,7 @@ export default function ChatPage() {
                     <span className="absolute inset-0 animate-ping rounded-full bg-ember-400 opacity-60" />
                     <span className="relative rounded-full bg-ember-400" />
                   </span>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.26em] text-[var(--color-accent)]">
+                  <span className="text-[10px] uppercase tracking-[0.26em] text-[var(--color-accent)]">
                     Your kitchen assistant
                   </span>
                 </div>
@@ -172,7 +172,7 @@ export default function ChatPage() {
                   >
                     <span className="mt-0.5 text-[11px] text-[var(--color-accent)]/60 group-hover:text-[var(--color-accent)] transition-colors">{icon}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--color-text-ghost)] mb-1 group-hover:text-[var(--color-accent)]/50 transition-colors">{category}</p>
+                      <p className="text-[9px] uppercase tracking-[0.2em] text-[var(--color-text-ghost)] mb-1 group-hover:text-[var(--color-accent)]/50 transition-colors">{category}</p>
                       <p className="text-[13px] text-[var(--color-text-soft)] leading-snug group-hover:text-[var(--color-text-primary)] transition-colors">{q}</p>
                     </div>
                     <svg className="mt-1 h-3.5 w-3.5 shrink-0 text-[var(--color-text-ghost)] group-hover:text-[var(--color-accent)]/50 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -183,7 +183,7 @@ export default function ChatPage() {
               </div>
 
               {/* Model badge */}
-              <p className="mt-6 text-center font-mono text-[9px] uppercase tracking-[0.22em] text-[var(--color-text-ghost)]">
+              <p className="mt-6 text-center text-[9px] uppercase tracking-[0.22em] text-[var(--color-text-ghost)]">
                 llama-3.3-70b · RAG over your runs & feedback
               </p>
             </div>
@@ -268,7 +268,7 @@ export default function ChatPage() {
 
             {/* Footer row inside card */}
             <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-4 pb-3">
-              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--color-text-ghost)]">
+              <span className="text-[9px] uppercase tracking-[0.2em] text-[var(--color-text-ghost)]">
                 {busy ? "Thinking…" : "Enter ↵ to send"}
               </span>
               <button
@@ -300,7 +300,7 @@ export default function ChatPage() {
             <div className="mt-2.5 flex justify-center">
               <button
                 onClick={() => setMessages([])}
-                className="font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--color-text-ghost)] transition-colors hover:text-[var(--color-text-faint)]"
+                className="text-[9px] uppercase tracking-[0.2em] text-[var(--color-text-ghost)] transition-colors hover:text-[var(--color-text-faint)]"
               >
                 Clear conversation
               </button>

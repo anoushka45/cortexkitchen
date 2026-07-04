@@ -16,8 +16,7 @@ export default function RunButton({ onRun, onReset, loading, hasData }: Props) {
       <button
         onClick={() => onRun()}
         disabled={loading}
-        className="
-          inline-flex items-center gap-2 px-5 py-2.5
+        className="inline-flex items-center gap-2 px-5 py-2.5
           bg-ember-600 hover:bg-ember-500
           disabled:opacity-50 disabled:cursor-not-allowed
           text-[var(--color-text-primary)] text-sm font-semibold rounded-xl

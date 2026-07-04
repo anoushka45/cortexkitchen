@@ -94,7 +94,7 @@ function SectionHeader({
     >
       <div className={`h-10 w-1 rounded-full flex-shrink-0 ${toneStyle.bar}`} />
       <div className="flex-1 min-w-0">
-        <p className={`text-xs font-mono uppercase tracking-[0.18em] ${toneStyle.label}`}>
+        <p className={`text-xs uppercase tracking-[0.18em] ${toneStyle.label}`}>
           {label}
         </p>
         <p className="mt-1 text-sm text-[var(--color-text-soft)]">{description}</p>
@@ -209,7 +209,7 @@ function IdleState({
                   <span className="absolute inset-0 animate-ping rounded-full bg-ember-400 opacity-50" />
                   <span className="relative rounded-full bg-ember-400" />
                 </span>
-                <span className="text-[10px] font-mono uppercase tracking-[0.24em] text-[var(--color-accent)]">
+                <span className="text-[10px] uppercase tracking-[0.24em] text-[var(--color-accent)]">
                   planning console
                 </span>
               </div>
@@ -228,7 +228,7 @@ function IdleState({
             {/* Restaurant profile selector */}
             {profiles.length > 0 && (
               <div className="stagger-2">
-                <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-[var(--color-text-ghost)] mb-2">Restaurant profile</p>
+                <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-ghost)] mb-2">Restaurant profile</p>
                 {profiles.length === 1 ? (
                   <div className="flex items-center gap-2 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-3 py-2">
                     <span className="h-1.5 w-1.5 rounded-full bg-ember-400 shrink-0" />
@@ -257,7 +257,7 @@ function IdleState({
 
             {/* Scenario selection */}
             <div className="stagger-2 space-y-2.5">
-              <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-[var(--color-text-ghost)]">Choose a scenario</p>
+              <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-ghost)]">Choose a scenario</p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {SCENARIO_OPTIONS.map((option) => {
                   const active = option.id === selectedScenario;
@@ -322,7 +322,7 @@ function IdleState({
 
               <div className="flex items-start justify-between gap-4 mb-5">
                 <div>
-                  <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-[var(--color-text-ghost)]">Agent pipeline</p>
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-ghost)]">Agent pipeline</p>
                   <p className="mt-1 text-base font-semibold text-[var(--color-text-primary)]">10-node orchestration</p>
                   <p className="mt-0.5 text-xs text-[var(--color-text-faint)]">Enrichment · parallel execution · menu synthesis · critic verification</p>
                 </div>
@@ -408,7 +408,7 @@ function GraphNode({
         ) : (
           <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isRunning ? `${dot} animate-pulse` : "bg-[var(--color-surface-raised)]"}`} />
         )}
-        <span className={`font-mono text-[9px] uppercase tracking-wider transition-colors duration-300 ${statusColor}`}>
+        <span className={`text-[9px] uppercase tracking-wider transition-colors duration-300 ${statusColor}`}>
           {statusLabel}
         </span>
         {swiggy && (isDone || isRunning) && (
@@ -506,7 +506,7 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
             {!criticDone && <span className="absolute inset-0 animate-ping rounded-full bg-ember-400 opacity-50" />}
             <span className={`relative rounded-full ${criticDone ? "bg-emerald-400" : "bg-ember-400"}`} />
           </span>
-          <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-accent)]">
+          <span className="text-[10px] uppercase tracking-[0.24em] text-[var(--color-accent)]">
             {criticDone ? "Complete" : "Pipeline live"}
           </span>
         </div>
@@ -521,7 +521,7 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
           )}
         </h1>
         {!criticDone && scenarioLabel && (
-          <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-text-faint)]">
+          <p className="mt-2 text-[10px] uppercase tracking-[0.24em] text-[var(--color-text-faint)]">
             for the {scenarioLabel} scenario
           </p>
         )}
@@ -668,7 +668,7 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
             <p className="text-sm font-semibold text-emerald-300">Plan finalised after {replanCount} replan{replanCount > 1 ? "s" : ""}. Loading your brief...</p>
           </div>
         ) : (
-          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">{currentAction}</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">{currentAction}</p>
         )}
       </div>
     </div>
@@ -829,13 +829,13 @@ export default function DashboardPage() {
               {/* ── Breadcrumb + action bar ── */}
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3 text-[13px]">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">workspace</span>
+                  <span className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">workspace</span>
                   <span className="text-[var(--color-text-faint)]">/</span>
                   <span className="text-[var(--color-text-primary)] capitalize">{data.scenario?.replace(/_/g, " ") ?? "Run"}</span>
                   {data.target_date && (
                     <><span className="text-[var(--color-text-faint)]">/</span><span className="font-mono text-[var(--color-text-soft)]">{data.target_date}</span></>
                   )}
-                  <span className="rounded-full bg-emerald-500/[0.08] px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-400/30">
+                  <span className="rounded-full bg-emerald-500/[0.08] px-2.5 py-0.5 text-[10px] uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-400/30">
                     Run complete
                   </span>
                 </div>
@@ -1028,7 +1028,7 @@ export default function DashboardPage() {
               {/* Re-run bar */}
               <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-xs font-mono uppercase tracking-[0.18em] text-[var(--color-text-ghost)]">Run complete</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-ghost)]">Run complete</p>
                   <p className="mt-0.5 text-sm text-[var(--color-text-soft)]">
                     Scenario: <span className="text-[var(--color-text-primary)]">{data.scenario?.replace(/_/g, " ")}</span>
                     {data.target_date && <>  -  Target: <span className="text-[var(--color-text-primary)]">{data.target_date}</span></>}
@@ -1057,7 +1057,7 @@ export default function DashboardPage() {
                       >
                         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border-default)]">
                           <div>
-                            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">Simulator</p>
+                            <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">Simulator</p>
                             <h2 className="mt-0.5 text-base font-semibold text-[var(--color-text-primary)]">What-if Simulator</h2>
                           </div>
                           <button
@@ -1122,7 +1122,7 @@ export default function DashboardPage() {
             }}
           >
             <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-sm font-mono uppercase tracking-[0.18em] text-[var(--color-text-soft)]">
+              <h2 className="text-sm uppercase tracking-[0.18em] text-[var(--color-text-soft)]">
                 Run History
               </h2>
               <button

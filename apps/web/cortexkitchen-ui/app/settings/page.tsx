@@ -96,7 +96,7 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-[var(--color-surface)] px-4 py-10 text-[var(--color-text-primary)]">
       <div className="max-w-2xl mx-auto">
         <div className="mb-8 stagger-1">
-          <p className="text-xs font-mono uppercase tracking-[0.22em] text-[var(--color-accent)]">configuration</p>
+          <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-accent)]">configuration</p>
           <h1 className="mt-2 text-xl font-bold text-[var(--color-text-primary)]">Workspace Settings</h1>
           <p className="text-[var(--color-text-faint)] text-sm mt-1">{user?.org_name}  -  {user?.role}</p>
         </div>
@@ -104,7 +104,7 @@ export default function SettingsPage() {
         <form onSubmit={handleSave} className="space-y-6">
           {FIELD_CONFIG.map(({ section, fields }, si) => (
             <div key={section} className={`bg-[var(--color-surface)] border border-[var(--color-border-default)] rounded-xl p-6 transition-all hover:border-[var(--color-border-default)] stagger-${si + 2}`}>
-              <h2 className="text-xs font-mono uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-5">{section}</h2>
+              <h2 className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-5">{section}</h2>
               <div className="space-y-4">
                 {fields.map(({ key, label, type, hint, min, max }) => (
                   <div key={key}>

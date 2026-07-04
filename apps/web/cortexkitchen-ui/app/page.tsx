@@ -23,7 +23,7 @@ export default function HomePage() {
           <div className="xl:col-span-7">
             <div className="inline-flex items-center gap-2 rounded-full bg-ember-500/[0.08] px-3 py-1.5 ring-1 ring-ember-500/25">
               <span className="pulse flex h-1.5 w-1.5 rounded-full bg-ember-400 text-[var(--color-accent)]" />
-              <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-ember-200">Pre-shift intelligence platform</span>
+              <span className="text-[10px] uppercase tracking-[0.28em] text-ember-200">Pre-shift intelligence platform</span>
             </div>
 
             <h1 className="mt-7 text-[42px] leading-[0.96] tracking-[-0.025em] text-[var(--color-text-primary)] sm:text-[56px] md:text-[78px]">
@@ -80,7 +80,7 @@ export default function HomePage() {
                     <span className="h-2.5 w-2.5 rounded-full bg-rose-400/70" />
                     <span className="h-2.5 w-2.5 rounded-full bg-ember-300/70" />
                     <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/70" />
-                    <span className="ml-3 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-faint)]">cortexkitchen.app/dashboard</span>
+                    <span className="ml-3 text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-faint)]">cortexkitchen.app/dashboard</span>
                   </div>
                   <span className="font-mono text-[10px] text-[var(--color-text-faint)]">friday  -  4:42 pm</span>
                 </div>
@@ -88,13 +88,13 @@ export default function HomePage() {
                 {/* Verdict */}
                 <div className="mt-4 flex items-start justify-between gap-3">
                   <div>
-                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300">Critic verdict</div>
+                    <div className="text-[10px] uppercase tracking-[0.22em] text-emerald-300">Critic verdict</div>
                     <div className="mt-1.5 text-2xl font-semibold text-[var(--color-text-primary)]">Plan approved</div>
                     <div className="mt-1 text-xs text-[var(--color-text-soft)]">Friday rush  -  18:00-22:00  -  8 staff on floor</div>
                   </div>
                   <div className="text-right">
                     <div className="num-display text-5xl leading-none text-emerald-300">0.91</div>
-                    <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--color-text-faint)]">score / 1.0</div>
+                    <div className="mt-1 text-[9px] uppercase tracking-[0.2em] text-[var(--color-text-faint)]">score / 1.0</div>
                   </div>
                 </div>
 
@@ -106,7 +106,7 @@ export default function HomePage() {
                     { label: "Inventory risk",    value: <span className="text-rose-300">10</span>, sub: "critical items",  subColor: "text-rose-300/80" },
                   ].map(({ label, value, sub, subColor }) => (
                     <div key={label} className="rounded-xl bg-[var(--color-surface-raised)] px-3 py-3 ring-1 ring-[var(--color-border-soft)]">
-                      <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">{label}</div>
+                      <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">{label}</div>
                       <div className="mt-1 num-display text-2xl text-[var(--color-text-primary)]">{value}</div>
                       <div className={`text-[10px] ${subColor}`}>{sub}</div>
                     </div>
@@ -116,7 +116,7 @@ export default function HomePage() {
                 {/* Sparkline */}
                 <div className="mt-4 rounded-xl bg-[var(--color-surface-raised)] px-3 py-3 ring-1 ring-[var(--color-border-soft)]">
                   <div className="flex items-baseline justify-between">
-                    <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-faint)]">Demand forecast  -  12-23h</div>
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-faint)]">Demand forecast  -  12-23h</div>
                     <div className="text-[10px] text-[var(--color-text-faint)]">peak <span className="font-mono text-[var(--color-text-primary)]">19:00</span></div>
                   </div>
                   <svg viewBox="0 0 320 70" className="mt-2 h-[70px] w-full">
@@ -142,7 +142,7 @@ export default function HomePage() {
                     { label: "complaints !",  color: "text-[var(--color-accent)]" },
                     { label: "stock !",   color: "text-rose-300" },
                   ].map(({ label, color }) => (
-                    <div key={label} className={`rounded-md bg-[var(--color-surface-raised)] px-2 py-1.5 text-center font-mono text-[9px] uppercase tracking-wider ${color}`}>
+                    <div key={label} className={`rounded-md bg-[var(--color-surface-raised)] px-2 py-1.5 text-center text-[9px] uppercase tracking-wider ${color}`}>
                       {label}
                     </div>
                   ))}
@@ -156,7 +156,7 @@ export default function HomePage() {
       {/* ── Tech stack marquee ── */}
       <section className="overflow-hidden border-y border-[var(--color-border-soft)] bg-[var(--color-surface-raised)]">
         <div className="mx-auto flex max-w-[1280px] items-center gap-10 px-8 py-7">
-          <div className="font-mono text-[10px] uppercase leading-relaxed tracking-[0.22em] text-[var(--color-text-faint)] max-w-[160px] shrink-0">
+          <div className="text-[10px] uppercase leading-relaxed tracking-[0.22em] text-[var(--color-text-faint)] max-w-[160px] shrink-0">
             Built on<br />production stack
           </div>
           <div className="relative flex-1 overflow-hidden">
@@ -174,7 +174,7 @@ export default function HomePage() {
       <section className="px-8 py-28">
         <div className="mx-auto grid max-w-[1280px] grid-cols-1 gap-12 xl:grid-cols-12 xl:items-start">
           <div className="xl:col-span-5">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">The shift before the shift</div>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">The shift before the shift</div>
             <h2 className="mt-3 text-[40px] leading-[1.02] tracking-[-0.02em] text-[var(--color-text-primary)] md:text-[54px]">
               Most kitchens run<br />service <span className="display-it text-[var(--color-accent)]">half-blind.</span>
             </h2>
@@ -188,11 +188,11 @@ export default function HomePage() {
             </p>
             <div className="grid grid-cols-2 gap-x-8 gap-y-5 pt-2">
               <div className="border-t border-[var(--color-border-default)] pt-4">
-                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Before</div>
+                <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Before</div>
                 <div className="mt-1 text-[var(--color-text-primary)]">4 dashboards, 1 spreadsheet, group chat</div>
               </div>
               <div className="border-t border-ember-400/30 pt-4">
-                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-accent)]">After</div>
+                <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-accent)]">After</div>
                 <div className="mt-1 text-[var(--color-text-primary)]">1 brief, 1 verdict, &lt;90 seconds to read</div>
               </div>
             </div>
@@ -205,12 +205,12 @@ export default function HomePage() {
         <div className="mx-auto max-w-[1280px]">
           <div className="flex items-end justify-between gap-10">
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">How it works</div>
+              <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">How it works</div>
               <h2 className="mt-3 text-[40px] leading-[1.02] tracking-[-0.02em] text-[var(--color-text-primary)] md:text-[52px]">
                 From data to <span className="display-it text-[var(--color-accent)]">brief</span> in 90 seconds.
               </h2>
             </div>
-            <Link href="#" className="hidden font-mono text-[11px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] transition-colors hover:text-[var(--color-text-primary)] md:block">
+            <Link href="#" className="hidden text-[11px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] transition-colors hover:text-[var(--color-text-primary)] md:block">
               See architecture -&gt;
             </Link>
           </div>
@@ -221,7 +221,7 @@ export default function HomePage() {
                 num: "01", label: "Frame the service", title: "Pick the shift you're planning.",
                 body: "Pick a shift type: Friday rush, weekday lunch, holiday spike, or low-stock weekend. Or set a custom date. Each one primes the specialists for the right kind of service pressure.",
                 extra: (
-                  <div className="mt-6 grid grid-cols-2 gap-2 font-mono text-[10px] uppercase tracking-wider">
+                  <div className="mt-6 grid grid-cols-2 gap-2 text-[10px] uppercase tracking-wider">
                     {["Friday rush", "Weekday lunch", "Holiday spike", "Low-stock"].map(s => (
                       <div key={s} className="rounded-md px-2 py-1.5 text-[var(--color-text-soft)] ring-1 ring-[var(--color-border-default)]">{s}</div>
                     ))}
@@ -241,7 +241,7 @@ export default function HomePage() {
                     ].map(({ dot, text }) => (
                       <div key={text} className="flex items-center gap-2">
                         <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
-                        <span className="font-mono text-[11px] uppercase tracking-wider text-[var(--color-text-soft)]">{text}</span>
+                        <span className="text-[11px] uppercase tracking-wider text-[var(--color-text-soft)]">{text}</span>
                       </div>
                     ))}
                   </div>
@@ -251,7 +251,7 @@ export default function HomePage() {
                 num: "03", label: "Act on it", title: "Brief, export, simulate, ask.",
                 body: "The plan is scored and ready. Hand the chef a PDF, send the owner an Excel sheet, or just read the summary yourself. Change a number with the what-if tool. Ask the AI what went wrong last week. Everything stays in the run history.",
                 extra: (
-                  <div className="mt-6 flex flex-wrap gap-2 font-mono text-[10px] uppercase tracking-wider">
+                  <div className="mt-6 flex flex-wrap gap-2 text-[10px] uppercase tracking-wider">
                     {["PDF", "Excel", "What-if", "Ask AI", "Audit trail"].map((s) => (
                       <span key={s} className="rounded-md px-2 py-1 text-[var(--color-text-soft)] ring-1 ring-[var(--color-border-default)]">{s}</span>
                     ))}
@@ -261,7 +261,7 @@ export default function HomePage() {
             ].map(({ num, label, title, body, extra }) => (
               <article key={num} className="relative overflow-hidden rounded-2xl bg-[var(--color-surface)] p-7 ring-1 ring-[var(--color-border-soft)]">
                 <div className="absolute -right-4 -top-4 num-display text-[140px] leading-none text-[var(--color-text-ghost)]">{num}</div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">{label}</div>
+                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">{label}</div>
                 <h3 className="mt-4 text-2xl font-semibold text-[var(--color-text-primary)]">{title}</h3>
                 <p className="mt-2.5 text-sm leading-[1.7] text-[var(--color-text-soft)]">{body}</p>
                 {extra}
@@ -277,7 +277,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-[1280px]">
           <div className="mb-16 grid grid-cols-1 items-end gap-8 xl:grid-cols-12">
             <div className="xl:col-span-7">
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">The pipeline</div>
+              <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">The pipeline</div>
               <h2 className="mt-3 text-[40px] leading-[1.02] tracking-[-0.02em] text-[var(--color-text-primary)] md:text-[58px]">
                 Five specialists.<br /><span className="display-it text-[var(--color-accent)]">One</span> coherent verdict.
               </h2>
@@ -292,11 +292,11 @@ export default function HomePage() {
 
               {/* Orchestrator */}
               <div className="col-span-2 flex flex-col gap-2.5 justify-center">
-                <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">Orchestrator</div>
+                <div className="text-[9px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">Orchestrator</div>
                 <div className="rounded-2xl bg-[var(--color-surface-raised)] p-5 ring-1 ring-[var(--color-border-default)]">
                   <div className="text-[14px] font-semibold text-[var(--color-text-primary)]">Ops Manager</div>
                   <div className="mt-2 text-[11px] leading-relaxed text-[var(--color-text-faint)]">Kicks off the run, assigns each specialist their task, and keeps everything in sync.</div>
-                  <span className="mt-4 inline-block rounded-md bg-ember-500/[0.10] px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[var(--color-accent)]/80 ring-1 ring-ember-400/20">LangGraph</span>
+                  <span className="mt-4 inline-block rounded-md bg-ember-500/[0.10] px-2 py-0.5 text-[9px] uppercase tracking-wider text-[var(--color-accent)]/80 ring-1 ring-ember-400/20">LangGraph</span>
                 </div>
               </div>
 
@@ -310,11 +310,11 @@ export default function HomePage() {
 
               {/* Demand Gate */}
               <div className="col-span-2 flex flex-col gap-2.5 justify-center">
-                <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[var(--color-accent)]/70">Gate</div>
+                <div className="text-[9px] uppercase tracking-[0.22em] text-[var(--color-accent)]/70">Gate</div>
                 <div className="rounded-2xl bg-ember-500/[0.07] p-5 ring-1 ring-ember-400/25">
                   <div className="text-[14px] font-semibold text-[var(--color-text-primary)]">Demand Forecast</div>
                   <div className="mt-2 text-[11px] leading-relaxed text-[var(--color-text-soft)]">Predicts how busy the shift will be — expected covers, when it peaks, and how confident the model is.</div>
-                  <span className="mt-4 inline-block rounded-md bg-[var(--color-surface-raised)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[var(--color-text-faint)] ring-1 ring-[var(--color-border-default)]">Prophet</span>
+                  <span className="mt-4 inline-block rounded-md bg-[var(--color-surface-raised)] px-2 py-0.5 text-[9px] uppercase tracking-wider text-[var(--color-text-faint)] ring-1 ring-[var(--color-border-default)]">Prophet</span>
                 </div>
               </div>
 
@@ -368,11 +368,11 @@ export default function HomePage() {
 
               {/* Critic */}
               <div className="col-span-2 flex flex-col gap-2.5 justify-center">
-                <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-emerald-300/70">Verify</div>
+                <div className="text-[9px] uppercase tracking-[0.22em] text-emerald-300/70">Verify</div>
                 <div className="rounded-2xl bg-emerald-500/[0.07] p-5 ring-1 ring-emerald-400/25">
                   <div className="text-[14px] font-semibold text-[var(--color-text-primary)]">Quality Check</div>
                   <div className="mt-2 text-[11px] leading-relaxed text-[var(--color-text-soft)]">Reviews the full plan before you see it. If anything looks unsafe or unrealistic, it blocks the plan and explains why.</div>
-                  <span className="mt-4 inline-block rounded-md bg-emerald-500/[0.10] px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-emerald-300/70 ring-1 ring-emerald-400/20">Auto-review</span>
+                  <span className="mt-4 inline-block rounded-md bg-emerald-500/[0.10] px-2 py-0.5 text-[9px] uppercase tracking-wider text-emerald-300/70 ring-1 ring-emerald-400/20">Auto-review</span>
                 </div>
               </div>
 
@@ -380,7 +380,7 @@ export default function HomePage() {
 
             {/* Quality check dimensions */}
             <div className="mt-8 flex items-center justify-between border-t border-[var(--color-border-soft)] pt-6">
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">What the quality check looks for</div>
+              <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">What the quality check looks for</div>
               <div className="flex flex-wrap items-center gap-2">
                 {["Is it safe?", "Is it realistic?", "Is it backed by data?", "Can staff act on it?", "Is it clear?"].map((d) => (
                   <span key={d} className="rounded-full bg-emerald-500/[0.07] px-3.5 py-1 font-mono text-[11px] text-emerald-200 ring-1 ring-emerald-400/30">{d}</span>
@@ -395,7 +395,7 @@ export default function HomePage() {
       <section id="features" className="border-t border-[var(--color-border-soft)] px-8 py-24">
         <div className="mx-auto max-w-[1280px]">
           <div className="mb-12 text-center">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">Platform capabilities</div>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">Platform capabilities</div>
             <h2 className="mt-3 text-[38px] leading-[1.05] tracking-[-0.02em] text-[var(--color-text-primary)] md:text-[50px]">
               More than a <span className="display-it text-[var(--color-accent)]">plan generator.</span>
             </h2>
@@ -459,7 +459,7 @@ export default function HomePage() {
                 <div className="text-lg text-[var(--color-text-faint)] mb-3">{icon}</div>
                 <div className="text-[15px] font-semibold text-[var(--color-text-primary)]">{title}</div>
                 <p className="mt-2 text-[13px] leading-[1.7] text-[var(--color-text-soft)]">{desc}</p>
-                <div className={`mt-4 font-mono text-[10px] uppercase tracking-[0.18em] ${tagColor}`}>{tag}</div>
+                <div className={`mt-4 text-[10px] uppercase tracking-[0.18em] ${tagColor}`}>{tag}</div>
               </div>
             ))}
           </div>
@@ -469,7 +469,7 @@ export default function HomePage() {
       {/* ── Pull quote ── */}
       <section className="bg-gradient-to-b from-transparent via-ember-500/[0.04] to-transparent px-8 py-28">
         <div className="mx-auto max-w-[1100px] text-center">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">What this replaces</div>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">What this replaces</div>
           <blockquote className="mt-6 text-[36px] leading-[1.15] tracking-[-0.015em] text-[var(--color-text-primary)] md:text-[44px]">
             &ldquo;The pre-shift brief used to take forty minutes across four tabs.<br />
             <span className="display-it text-ember-200">CortexKitchen produces it</span> in under a minute — critic-verified.&rdquo;
@@ -488,7 +488,7 @@ export default function HomePage() {
       <section className="border-t border-[var(--color-border-soft)] px-8 py-28">
         <div className="mx-auto grid max-w-[1280px] grid-cols-1 gap-12 xl:grid-cols-12 xl:items-center">
           <div className="xl:col-span-5">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">The output</div>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">The output</div>
             <h2 className="mt-3 text-[40px] leading-[1.02] tracking-[-0.02em] text-[var(--color-text-primary)] md:text-[52px]">
               A brief the<br /><span className="display-it text-[var(--color-accent)]">floor</span> actually reads.
             </h2>
@@ -526,11 +526,11 @@ export default function HomePage() {
                     </span>
                     <div className="leading-tight">
                       <div className="text-[13px] font-bold tracking-tight text-[#070a12]">Casa Mia · Chef Brief</div>
-                      <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#070a12]/50">Fri 1 May · Friday Rush · 18:00-22:00</div>
+                      <div className="text-[9px] uppercase tracking-[0.18em] text-[#070a12]/50">Fri 1 May · Friday Rush · 18:00-22:00</div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#070a12]/45">Critic verdict</div>
+                    <div className="text-[9px] uppercase tracking-[0.2em] text-[#070a12]/45">Critic verdict</div>
                     <div className="text-[15px] font-bold text-emerald-700">Approved · 0.91</div>
                   </div>
                 </div>
@@ -543,7 +543,7 @@ export default function HomePage() {
                     { label: "Stock risk", value: "2",   sub: "critical items",  vc: "text-rose-700" },
                   ].map(({ label, value, sub, vc }) => (
                     <div key={label} className="rounded-lg bg-[#0b1020]/[0.05] p-3">
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-[#070a12]/45">{label}</div>
+                      <div className="text-[9px] uppercase tracking-wider text-[#070a12]/45">{label}</div>
                       <div className={`num-display text-3xl ${vc}`}>{value}</div>
                       <div className="text-[10px] text-[#070a12]/50">{sub}</div>
                     </div>
@@ -552,7 +552,7 @@ export default function HomePage() {
 
                 {/* Priority actions */}
                 <div className="mt-5">
-                  <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#070a12]/45 mb-2.5">Tonight, in priority</div>
+                  <div className="text-[9px] uppercase tracking-[0.18em] text-[#070a12]/45 mb-2.5">Tonight, in priority</div>
                   <ol className="space-y-2.5 text-[13px] text-[#070a12]/80">
                     {[
                       { n: "1.", text: <><b className="font-semibold text-[#070a12]">Push the Margherita.</b> Tikka outsells but only 4 doughs left vs forecast 7. Last week&apos;s complaint: &ldquo;too long for the pizza.&rdquo;</> },
@@ -568,7 +568,7 @@ export default function HomePage() {
                 </div>
 
                 {/* Footer */}
-                <div className="mt-5 flex items-center justify-between border-t border-[#0b1020]/10 pt-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[#070a12]/40">
+                <div className="mt-5 flex items-center justify-between border-t border-[#0b1020]/10 pt-3 text-[10px] uppercase tracking-[0.16em] text-[#070a12]/40">
                   <span>Generated 16:42 · 1.4s · $0.03</span>
                   <span>plan-019965ce</span>
                 </div>
@@ -583,10 +583,10 @@ export default function HomePage() {
         <div className="mx-auto max-w-[1280px]">
           <div className="mb-10 flex items-end justify-between">
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">Built on serious infrastructure</div>
+              <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">Built on serious infrastructure</div>
               <h2 className="mt-2 text-3xl font-semibold tracking-tight text-[var(--color-text-primary)]">Production-grade from day one.</h2>
             </div>
-            <Link href="#" className="hidden font-mono text-[11px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] transition-colors hover:text-[var(--color-text-primary)] md:block">
+            <Link href="#" className="hidden text-[11px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] transition-colors hover:text-[var(--color-text-primary)] md:block">
               Read the architecture -&gt;
             </Link>
           </div>
@@ -623,7 +623,7 @@ export default function HomePage() {
         <div className="relative mx-auto max-w-[920px] text-center">
           <div className="inline-flex items-center gap-2 rounded-full bg-ember-500/[0.08] px-3 py-1.5 ring-1 ring-ember-500/25">
             <span className="pulse flex h-1.5 w-1.5 rounded-full bg-ember-400 text-[var(--color-accent)]" />
-            <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-ember-200">14-day trial  -  no card</span>
+            <span className="text-[10px] uppercase tracking-[0.28em] text-ember-200">14-day trial  -  no card</span>
           </div>
           <h2 className="mt-7 text-[48px] leading-[1.02] tracking-[-0.02em] text-[var(--color-text-primary)] md:text-[64px]">
             Brief your next shift<br /><span className="display-it text-[var(--color-accent)]">before</span> it starts.

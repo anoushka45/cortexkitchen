@@ -247,8 +247,8 @@ export default function ForecastChart({ forecast, scenario }: Props) {
       <div className="flex items-start justify-between gap-4 mb-5">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">Demand forecast</span>
-            <span className={`rounded-full bg-[var(--color-surface-raised)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider ${CONFIDENCE_COLORS[confidence]}`}>
+            <span className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">Demand forecast</span>
+            <span className={`rounded-full bg-[var(--color-surface-raised)] px-2 py-0.5 text-[9px] uppercase tracking-wider ${CONFIDENCE_COLORS[confidence]}`}>
               {confidence} confidence
             </span>
           </div>
@@ -269,7 +269,7 @@ export default function ForecastChart({ forecast, scenario }: Props) {
         </div>
         <div className="text-right shrink-0">
           <div className="num-display text-5xl leading-none text-[var(--color-text-primary)]">{roundedOrders}</div>
-          <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
+          <div className="mt-1 text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
             predicted orders{rangeText ? `  -  ${rangeText}` : ""}
           </div>
         </div>
@@ -283,15 +283,11 @@ export default function ForecastChart({ forecast, scenario }: Props) {
               className="rounded-lg bg-[var(--color-surface-raised)] px-4 py-3 ring-1 ring-[var(--color-border-soft)] flex items-center justify-between">
               <div>
                 <div className="text-[13px] font-semibold text-[var(--color-text-primary)] truncate">{item.item}</div>
-                <div className="font-mono text-[10px] uppercase tracking-wider text-[var(--color-text-faint)]">
+                <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-faint)]">
                   {item.category}  -  {item.total_ordered} orders
                 </div>
               </div>
-              <span className={`rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ring-1 ${
-                index === 0
-                  ? "bg-ember-500/[0.06] text-[var(--color-accent)] ring-ember-400/25"
-                  : "bg-emerald-500/[0.06] text-emerald-300 ring-emerald-400/25"
-              }`}>{index === 0 ? "ease" : "push"}</span>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ring-1 ${ index === 0 ? "bg-ember-500/[0.06] text-[var(--color-accent)] ring-ember-400/25" : "bg-emerald-500/[0.06] text-emerald-300 ring-emerald-400/25" }`}>{index === 0 ? "ease" : "push"}</span>
             </div>
           ))}
         </div>
@@ -304,11 +300,7 @@ export default function ForecastChart({ forecast, scenario }: Props) {
             <button
               key={type}
               onClick={() => setChartType(type)}
-              className={`flex items-center gap-1 rounded-md px-2 py-1 font-mono text-[9px] uppercase tracking-wider transition-colors ${
-                chartType === type
-                  ? "bg-ember-500/15 text-[var(--color-accent)]"
-                  : "text-[var(--color-text-faint)] hover:text-[var(--color-text-faint)]"
-              }`}
+              className={`flex items-center gap-1 rounded-md px-2 py-1 text-[9px] uppercase tracking-wider transition-colors ${ chartType === type ? "bg-ember-500/15 text-[var(--color-accent)]" : "text-[var(--color-text-faint)] hover:text-[var(--color-text-faint)]" }`}
             >
               {type === "bar" ? (
                 <svg className="h-3 w-3" viewBox="0 0 12 12" fill="currentColor">
@@ -390,7 +382,7 @@ export default function ForecastChart({ forecast, scenario }: Props) {
           return (
             <>
               <div className="rounded-lg bg-[var(--color-surface-raised)] px-3 py-2.5 ring-1 ring-[var(--color-border-soft)]">
-                <div className="font-mono text-[9px] uppercase tracking-wider text-[var(--color-text-faint)] mb-1">vs your average</div>
+                <div className="text-[9px] uppercase tracking-wider text-[var(--color-text-faint)] mb-1">vs your average</div>
                 <div className={`text-[15px] font-semibold ${vsColor}`}>
                   {vsAvg !== null ? `${direction} ${Math.abs(vsAvg)}%` : "—"}
                 </div>
@@ -400,7 +392,7 @@ export default function ForecastChart({ forecast, scenario }: Props) {
               </div>
 
               <div className="rounded-lg bg-[var(--color-surface-raised)] px-3 py-2.5 ring-1 ring-[var(--color-border-soft)]">
-                <div className="font-mono text-[9px] uppercase tracking-wider text-[var(--color-text-faint)] mb-1">peak hour</div>
+                <div className="text-[9px] uppercase tracking-wider text-[var(--color-text-faint)] mb-1">peak hour</div>
                 <div className="text-[15px] font-semibold text-[var(--color-text-primary)]">
                   {data.find(d => d.covers === peak)?.hour ?? "—"}
                 </div>
@@ -408,7 +400,7 @@ export default function ForecastChart({ forecast, scenario }: Props) {
               </div>
 
               <div className="rounded-lg bg-[var(--color-surface-raised)] px-3 py-2.5 ring-1 ring-[var(--color-border-soft)]">
-                <div className="font-mono text-[9px] uppercase tracking-wider text-[var(--color-text-faint)] mb-1">confidence</div>
+                <div className="text-[9px] uppercase tracking-wider text-[var(--color-text-faint)] mb-1">confidence</div>
                 <div className={`text-[15px] font-semibold ${CONFIDENCE_COLORS[confidence]}`}>
                   {confidence.charAt(0).toUpperCase() + confidence.slice(1)}
                 </div>

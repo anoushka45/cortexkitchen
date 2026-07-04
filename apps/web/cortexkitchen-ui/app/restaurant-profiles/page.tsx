@@ -101,7 +101,7 @@ export default function RestaurantProfilesPage() {
       <div className="max-w-3xl mx-auto">
         <div className="mb-8 flex items-center justify-between stagger-1">
           <div>
-            <p className="text-xs font-mono uppercase tracking-[0.22em] text-[var(--color-accent)]">configuration</p>
+            <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-accent)]">configuration</p>
             <h1 className="mt-2 text-xl font-bold text-[var(--color-text-primary)]">Restaurant Profiles</h1>
             <p className="text-[var(--color-text-faint)] text-sm mt-1">
               Named profiles override org-level capacity and peak hours for a planning run.

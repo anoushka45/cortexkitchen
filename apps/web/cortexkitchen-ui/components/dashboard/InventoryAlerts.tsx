@@ -213,7 +213,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
       {recommendation && (
         <div className={`rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-4 ${compact ? "space-y-2" : "space-y-3"}`}>
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-faint)]">
+            <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)]">
               Recommendation
             </p>
             {recommendation.priority && (
@@ -227,7 +227,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
           )}
           {restockPreview.length > 0 && (
             <div>
-              <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
+              <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
                 Restock Actions
               </p>
               <ul className="space-y-1.5">
@@ -246,7 +246,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
           )}
           {wastePreview.length > 0 && (
             <div>
-              <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
+              <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
                 Waste Reduction
               </p>
               <ul className="space-y-1.5">
@@ -265,7 +265,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
           )}
           {riskPreview.length > 0 && (
             <div>
-              <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
+              <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
                 Risks
               </p>
               <ul className="space-y-1.5">
@@ -288,7 +288,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
       {/* Shortage alerts */}
       {hasShortage && (
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-2.5">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-2.5">
             Restock priority · {data.shortage_alerts.length} alert{data.shortage_alerts.length !== 1 ? "s" : ""}
           </p>
           {compact ? (
@@ -315,7 +315,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
       {/* Overstock alerts */}
       {hasOverstock && (
         <div>
-          <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
+          <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
             Overstock alerts -- {data.overstock_alerts.length}
           </p>
           <div className="space-y-2">

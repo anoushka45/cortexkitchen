@@ -58,7 +58,7 @@ export default function CriticBanner({ critic, generatedAt, targetDate, actions 
         {/* ── Left: verdict ── */}
         <div className="xl:col-span-5">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300/80">Critic verdict</span>
+            <span className="text-[10px] uppercase tracking-[0.22em] text-emerald-300/80">Critic verdict</span>
             {critic.decision_log_id && (
               <span className="font-mono text-[10px] text-[var(--color-text-faint)]">#{critic.decision_log_id}</span>
             )}
@@ -68,7 +68,7 @@ export default function CriticBanner({ critic, generatedAt, targetDate, actions 
             <h1 className="text-[40px] font-semibold leading-none tracking-[-0.015em] text-[var(--color-text-primary)]">
               {VERDICT_LABEL[critic.verdict] ?? "Verdict pending"}
             </h1>
-            <span className={`rounded-full px-3 py-1 font-mono text-[11px] uppercase tracking-wider ring-1 chip-dot ${config.chipColor} ${config.chipBg}`}>
+            <span className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-wider ring-1 chip-dot ${config.chipColor} ${config.chipBg}`}>
               {CHIP_LABEL[critic.verdict] ?? "pending"}
             </span>
           </div>
@@ -80,7 +80,7 @@ export default function CriticBanner({ critic, generatedAt, targetDate, actions 
               </p>
               <button
                 onClick={() => setNotesExpanded(v => !v)}
-                className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-raised)] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-soft)] ring-1 ring-[var(--color-border-default)] transition-all hover:bg-emerald-500/10 hover:text-emerald-300 hover:ring-emerald-400/25"
+                className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-raised)] px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-soft)] ring-1 ring-[var(--color-border-default)] transition-all hover:bg-emerald-500/10 hover:text-emerald-300 hover:ring-emerald-400/25"
               >
                 {notesExpanded ? (
                   <><span>Show less</span><span className="text-[8px]">▲</span></>
@@ -91,7 +91,7 @@ export default function CriticBanner({ critic, generatedAt, targetDate, actions 
             </div>
           )}
 
-          <div className="mt-5 flex flex-wrap items-center gap-5 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
+          <div className="mt-5 flex flex-wrap items-center gap-5 text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
             <span>Generated <span className="text-[var(--color-text-soft)]">{formattedTime}</span></span>
             {targetDate && <span>Target <span className="text-[var(--color-text-soft)]">{targetDate}</span></span>}
             {typeof runCost === "number" && <span>Run <span className="text-[var(--color-text-soft)]">${runCost.toFixed(3)}</span></span>}
@@ -102,7 +102,7 @@ export default function CriticBanner({ critic, generatedAt, targetDate, actions 
 
         {/* ── Middle: dimension breakdown ── */}
         <div className="xl:col-span-4">
-          <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">Score breakdown</div>
+          <div className="mb-3 text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">Score breakdown</div>
           <div className="space-y-2.5">
             {DIMENSIONS.map((dim) => {
               const raw = typeof dims[dim] === "number" ? dims[dim] : 0;
@@ -157,11 +157,11 @@ export default function CriticBanner({ critic, generatedAt, targetDate, actions 
             <div className="absolute inset-0 grid place-items-center">
               <div className="text-center">
                 <div className="num-display text-5xl leading-none text-[var(--color-text-primary)]">{(critic.score).toFixed(2)}</div>
-                <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">overall</div>
+                <div className="mt-1 text-[9px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">overall</div>
               </div>
             </div>
           </div>
-          <a href="#" className="mt-3 font-mono text-[10px] uppercase tracking-[0.18em] text-emerald-300/80 transition-colors hover:text-emerald-200">
+          <a href="#" className="mt-3 text-[10px] uppercase tracking-[0.18em] text-emerald-300/80 transition-colors hover:text-emerald-200">
             View reasoning -&gt;
           </a>
         </div>

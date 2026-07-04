@@ -31,7 +31,7 @@ export default function DataHealthPage() {
       <div className="mx-auto max-w-[1520px] space-y-6">
         <header className="flex flex-col gap-4 border-b border-[var(--color-border-default)] pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-mono uppercase tracking-[0.22em] text-[var(--color-accent)]">
+            <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-accent)]">
               source data
             </p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight">Data Health</h1>
@@ -131,7 +131,7 @@ export default function DataHealthPage() {
               <section>
                 <div className="mb-4 flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-mono uppercase tracking-[0.22em] text-[var(--color-accent)]">Observability</p>
+                    <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-accent)]">Observability</p>
                     <h2 className="mt-1 text-base font-semibold text-[var(--color-text-primary)]">Your last {obs.period_days} days of planning</h2>
                   </div>
                   {obs.latest_run_at && (
@@ -149,7 +149,7 @@ export default function DataHealthPage() {
                     { label: "Avg duration",   value: obs.avg_duration_ms != null ? `${(obs.avg_duration_ms / 1000).toFixed(1)}s` : "--", color: "text-[var(--color-text-primary)]" },
                   ].map(({ label, value, color }) => (
                     <div key={label} className="rounded-lg bg-[var(--color-surface)] ring-1 ring-[var(--color-border-soft)] px-4 py-3">
-                      <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">{label}</p>
+                      <p className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">{label}</p>
                       <p className={`mt-1 text-2xl font-semibold ${color}`}>{String(value)}</p>
                     </div>
                   ))}
@@ -158,7 +158,7 @@ export default function DataHealthPage() {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   {/* By verdict */}
                   <div className="rounded-lg bg-[var(--color-surface)] ring-1 ring-[var(--color-border-soft)] p-4">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-3">Runs by verdict</p>
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-3">Runs by verdict</p>
                     <div className="space-y-2">
                       {(["approved", "revision", "rejected", "unknown"] as const).map(v => {
                         const count = obs.by_verdict[v] ?? 0;
@@ -183,7 +183,7 @@ export default function DataHealthPage() {
 
                   {/* By scenario */}
                   <div className="rounded-lg bg-[var(--color-surface)] ring-1 ring-[var(--color-border-soft)] p-4">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-3">Runs by scenario</p>
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-3">Runs by scenario</p>
                     <div className="space-y-2">
                       {Object.entries(obs.by_scenario).sort((a, b) => b[1] - a[1]).map(([scenario, count]) => {
                         const pct = obs.total_runs > 0 ? Math.round((count / obs.total_runs) * 100) : 0;
@@ -214,7 +214,7 @@ export default function DataHealthPage() {
 function HealthCard({ title, value, detail, stagger }: { title: string; value: number; detail: string; stagger: number }) {
   return (
     <div className={`rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5 stagger-${stagger}`}>
-      <p className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--color-text-faint)]">{title}</p>
+      <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-text-faint)]">{title}</p>
       <p className="mt-3 text-3xl font-semibold tabular-nums">{value}</p>
       <p className="mt-2 text-xs text-[var(--color-text-soft)]">{detail}</p>
     </div>

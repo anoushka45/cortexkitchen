@@ -82,7 +82,7 @@ function AgentOutputCard({ agentKey, data, swiggySignal }: { agentKey: string; d
     <div className={`rounded-lg border ${accent.border} ${accent.bg} p-4`}>
       <div className="flex items-center gap-2 mb-3">
         <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${accent.dot}`} />
-        <p className="text-xs font-mono uppercase tracking-[0.14em] text-[var(--color-text-soft)]">{label}</p>
+        <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-text-soft)]">{label}</p>
         <div className="ml-auto flex items-center gap-2">
           {priority && (
             <span className={`rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase ${PRIORITY_CLS[priority] ?? "text-[var(--color-text-faint)] border-[var(--color-border-default)] bg-[var(--color-surface-raised)]"}`}>
@@ -248,7 +248,7 @@ function DiffModal({
 
         {/* Dimension comparison */}
         <div className="px-6 py-5 space-y-4">
-          <p className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--color-text-faint)]">Critic Dimension Scores</p>
+          <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-text-faint)]">Critic Dimension Scores</p>
           {DIMENSIONS.map(dim => {
             const a = (dimA[dim] ?? 0) * 100;
             const b = (dimB[dim] ?? 0) * 100;
@@ -291,7 +291,7 @@ function DiffModal({
           <div className="grid grid-cols-2 gap-px bg-[var(--color-surface-raised)] border-t border-[var(--color-border-default)]">
             {[runA, runB].map((run, i) => (
               <div key={i} className="bg-[var(--color-surface-raised)] px-6 py-4">
-                <p className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--color-text-faint)] mb-2">Revision reasons</p>
+                <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-text-faint)] mb-2">Revision reasons</p>
                 {run.critic?.revision_reasons?.length ? (
                   <ul className="space-y-1.5">
                     {run.critic.revision_reasons.map((r, j) => (
@@ -437,7 +437,7 @@ export default function RunsPage() {
         {/* Header */}
         <header className="flex flex-col gap-4 border-b border-[var(--color-border-default)] pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-mono uppercase tracking-[0.22em] text-[var(--color-accent)]">history</p>
+            <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-accent)]">history</p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight">Plan History</h1>
             <p className="mt-1 max-w-2xl text-sm text-[var(--color-text-soft)]">
               Every plan your kitchen has run — verdict, scores, agent findings, and exports. Select any run to inspect or compare.
@@ -497,7 +497,7 @@ export default function RunsPage() {
         {/* Trend chart */}
         {showChart && (
           <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-4">
-            <p className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--color-text-faint)] mb-3">
+            <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-text-faint)] mb-3">
               Critic Score Trend
               <span className="ml-3 normal-case text-[var(--color-text-ghost)]">
                  -  <span className="text-emerald-400">●</span> approved
@@ -596,7 +596,7 @@ export default function RunsPage() {
                 <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5">
                   <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div>
-                      <p className="font-mono text-xs uppercase tracking-[0.18em] text-[var(--color-text-faint)]">run #{selected.id}</p>
+                      <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-faint)]">run #{selected.id}</p>
                       <h2 className="mt-2 text-xl font-semibold">{selected.scenario.replace(/_/g, " ")}</h2>
                       <p className="mt-1 text-sm text-[var(--color-text-soft)]">
                         target {selected.target_date ?? "-"}  -  generated {selected.generated_at?.slice(0, 10) ?? "-"}
@@ -651,7 +651,7 @@ export default function RunsPage() {
                       </span>
                     )}
                     {selected.metadata?.cache_hit === true && (
-                      <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-cyan-300/80 ring-1 ring-cyan-400/20">
+                      <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-cyan-300/80 ring-1 ring-cyan-400/20">
                         cached
                       </span>
                     )}
@@ -664,7 +664,7 @@ export default function RunsPage() {
 
                   {!!Object.keys(selected.critic?.dimension_scores ?? {}).length && (
                     <div className="mt-5 space-y-3">
-                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--color-text-faint)]">Dimension Scores</p>
+                      <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-text-faint)]">Dimension Scores</p>
                       {DIMENSIONS.map(dim => {
                         const score = ((selected.critic?.dimension_scores ?? {})[dim] ?? 0) * 100;
                         const color = score >= 75 ? "bg-emerald-500" : score >= 50 ? "bg-amber-500" : "bg-rose-500";
@@ -685,7 +685,7 @@ export default function RunsPage() {
 
                   {selected.critic?.revision_reasons?.length ? (
                     <div className="mt-5">
-                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--color-text-faint)]">Revision Reasons</p>
+                      <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-text-faint)]">Revision Reasons</p>
                       <ul className="mt-2 space-y-2 text-sm text-[var(--color-text-soft)]">
                         {selected.critic.revision_reasons.map((r, i) => (
                           <li key={i} className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-3 py-2">{r}</li>
@@ -696,7 +696,7 @@ export default function RunsPage() {
 
                   {selected.critic?.actionable_feedback?.length ? (
                     <div className="mt-5">
-                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--color-text-faint)]">Actionable Feedback</p>
+                      <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-text-faint)]">Actionable Feedback</p>
                       <ul className="mt-2 space-y-2 text-sm text-[var(--color-text-soft)]">
                         {selected.critic.actionable_feedback.map((item, i) => (
                           <li key={i} className="rounded-lg border border-ember-400/10 bg-ember-500/5 px-3 py-2">{item}</li>
@@ -707,7 +707,7 @@ export default function RunsPage() {
 
                   {selected.critic?.cost_analysis && (
                     <div className="mt-5 rounded-lg border border-ember-400/10 bg-ember-500/5 p-4">
-                      <p className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--color-accent)]">Cost-Aware Scoring</p>
+                      <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-accent)]">Cost-Aware Scoring</p>
                       <div className="mt-3 grid grid-cols-3 gap-3">
                         <Metric label="cost pressure" value={`${Math.round(selected.critic.cost_analysis.cost_pressure_score * 100)}/100`} />
                         <Metric label="benefit"       value={`${Math.round(selected.critic.cost_analysis.benefit_score * 100)}/100`} />
@@ -719,7 +719,7 @@ export default function RunsPage() {
 
                 {selectedAgents.length > 0 && (
                   <div>
-                    <p className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--color-text-faint)] mb-3">Agent Outputs</p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-text-faint)] mb-3">Agent Outputs</p>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                       {selectedAgents.map(([name, value]) => (
                         <AgentOutputCard
@@ -749,7 +749,7 @@ export default function RunsPage() {
 function Metric({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] p-3">
-      <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-[var(--color-text-faint)]">{label}</p>
+      <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-faint)]">{label}</p>
       <p className="mt-1.5 text-xl font-bold tabular-nums text-[var(--color-text-primary)] leading-none">{value}</p>
     </div>
   );

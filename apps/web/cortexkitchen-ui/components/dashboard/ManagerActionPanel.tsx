@@ -82,7 +82,7 @@ export default function ManagerActionPanel({
       <div className="card rounded-2xl p-4 stagger-3">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-mono uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
               Manager Brief
             </p>
             <p className="text-sm text-[var(--color-text-soft)]">
@@ -93,7 +93,7 @@ export default function ManagerActionPanel({
           </div>
           <button
             onClick={onOpenDetail}
-            className="rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-2 text-xs font-mono uppercase tracking-[0.16em] text-cyan-200 transition-colors hover:bg-cyan-500/15"
+            className="rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-2 text-xs uppercase tracking-[0.16em] text-cyan-200 transition-colors hover:bg-cyan-500/15"
           >
             open manager brief
           </button>
@@ -106,7 +106,7 @@ export default function ManagerActionPanel({
                 key={`${label}-${index}`}
                 className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 py-3"
               >
-                <p className="text-[11px] font-mono uppercase tracking-[0.14em] text-[var(--color-text-faint)] mb-2">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--color-text-faint)] mb-2">
                   {label}
                 </p>
                 <p className="text-sm text-[var(--color-text-primary)] leading-relaxed"><HighlightSwiggy text={item} /></p>
@@ -121,7 +121,7 @@ export default function ManagerActionPanel({
   return (
     <div className="card rounded-2xl p-5 stagger-3">
       <div className="flex flex-col gap-1 mb-4">
-        <p className="text-xs font-mono uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
+        <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
           Manager Actions
         </p>
         <p className="text-sm text-[var(--color-text-soft)]">
@@ -163,7 +163,7 @@ function ActionColumn({
 
   return (
     <div className={`rounded-xl border p-4 ${toneClass}`}>
-      <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-faint)] mb-3">
+      <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)] mb-3">
         {title}
       </p>
       {items.length > 0 ? (

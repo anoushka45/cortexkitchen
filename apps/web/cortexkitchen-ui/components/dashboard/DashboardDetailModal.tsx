@@ -45,7 +45,7 @@ export default function DashboardDetailModal({
         <div className="card h-full flex flex-col rounded-3xl overflow-hidden border-[var(--color-border-default)] shadow-2xl animate-[modalIn_0.2s_ease-out_both]">
           <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-[var(--color-border-soft)] bg-[var(--color-surface-raised)]">
             <div>
-              <p className="text-xs font-mono uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
+              <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
                 Agent Detail
               </p>
               <h2 className="text-xl font-semibold text-[var(--color-text-primary)] mt-1">{title}</h2>
@@ -75,7 +75,7 @@ export default function DashboardDetailModal({
           <div className="flex-1 overflow-y-auto px-6 py-6">
             {highlights.length > 0 && (
               <div className="mb-6">
-                <p className="text-xs font-mono uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-3">
+                <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-3">
                   Key Takeaways
                 </p>
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">

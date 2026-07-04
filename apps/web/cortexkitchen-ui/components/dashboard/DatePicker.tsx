@@ -109,8 +109,7 @@ export default function DatePicker({ onRun, loading, scenario, compact = false }
         <button
           onClick={handleRun}
           disabled={loading || (custom && !customDate)}
-          className={`
-            inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl
+          className={`inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl
             border border-ember-400/30 bg-gradient-to-b from-ember-500 to-ember-600
             font-semibold tracking-wide text-[var(--color-text-primary)]
             shadow-[0_4px_16px_rgba(230,137,42,0.35)]

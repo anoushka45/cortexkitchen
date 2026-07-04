@@ -87,7 +87,7 @@ export default function DashboardSummary({ data }: Props) {
 
       {/* Forecasted orders */}
       <article className="rounded-2xl bg-[var(--color-surface)] p-5 ring-1 ring-[var(--color-border-soft)]">
-        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">Forecasted orders</div>
+        <div className="text-[9px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">Forecasted orders</div>
         <div className="mt-2 flex items-baseline gap-2">
           <div className="num-display text-5xl leading-none text-[var(--color-text-primary)]">{animatedOrders ?? "--"}</div>
           {orders !== null && data.target_date && (
@@ -108,7 +108,7 @@ export default function DashboardSummary({ data }: Props) {
 
       {/* Capacity load */}
       <article className="rounded-2xl bg-[var(--color-surface)] p-5 ring-1 ring-[var(--color-border-soft)]">
-        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-cyan-300/80">Capacity load</div>
+        <div className="text-[9px] uppercase tracking-[0.22em] text-cyan-300/80">Capacity load</div>
         <div className="mt-2 flex items-baseline gap-2">
           <div className="num-display text-5xl leading-none text-[var(--color-text-primary)]">
             {animatedOccupancy ?? "--"}<span className="text-2xl text-[var(--color-text-faint)]">%</span>
@@ -126,7 +126,7 @@ export default function DashboardSummary({ data }: Props) {
 
       {/* Complaint signal */}
       <article className="rounded-2xl bg-[var(--color-surface)] p-5 ring-1 ring-[var(--color-border-soft)]">
-        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-rose-300/80">Complaint signal</div>
+        <div className="text-[9px] uppercase tracking-[0.22em] text-rose-300/80">Complaint signal</div>
         <div className="mt-2 flex items-baseline gap-2">
           <div className="num-display text-5xl leading-none text-[var(--color-text-primary)]">{complaints}</div>
           {complaints > 0 && <div className="text-xs text-rose-300/80">active</div>}
@@ -143,7 +143,7 @@ export default function DashboardSummary({ data }: Props) {
 
       {/* Inventory risk */}
       <article className="rounded-2xl bg-[var(--color-surface)] p-5 ring-1 ring-[var(--color-border-soft)]">
-        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-emerald-300/80">Inventory risk</div>
+        <div className="text-[9px] uppercase tracking-[0.22em] text-emerald-300/80">Inventory risk</div>
         <div className="mt-2 flex items-baseline gap-2">
           <div className="num-display text-5xl leading-none text-[var(--color-text-primary)]">{criticalInv}</div>
           {criticalInv > 0 && <div className="text-xs text-rose-300/80">critical</div>}
@@ -162,7 +162,7 @@ export default function DashboardSummary({ data }: Props) {
 
       {/* Menu focus */}
       <article className="rounded-2xl bg-[var(--color-surface)] p-5 ring-1 ring-[var(--color-border-soft)]">
-        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-amber-300/80">Menu focus</div>
+        <div className="text-[9px] uppercase tracking-[0.22em] text-amber-300/80">Menu focus</div>
         <div className="mt-2 flex items-baseline gap-2">
           <div className="num-display text-5xl leading-none text-[var(--color-text-primary)]">{push ? "2" : "0"}</div>
           <div className="text-xs text-amber-300/80">items tonight</div>

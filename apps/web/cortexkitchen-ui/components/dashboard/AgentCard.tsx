@@ -202,21 +202,21 @@ function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
         <div>
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Positive</div>
+              <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Positive</div>
               <div className="mt-1 flex items-baseline gap-0.5">
                 <span className="text-[26px] font-semibold leading-none text-emerald-300">{positivePct}</span>
                 <span className="text-sm text-emerald-300/60">%</span>
               </div>
             </div>
             <div>
-              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Neutral</div>
+              <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Neutral</div>
               <div className="mt-1 flex items-baseline gap-0.5">
                 <span className="text-[26px] font-semibold leading-none text-[var(--color-text-soft)]">{neutralPct}</span>
                 <span className="text-sm text-[var(--color-text-faint)]">%</span>
               </div>
             </div>
             <div>
-              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Negative</div>
+              <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Negative</div>
               <div className="mt-1 flex items-baseline gap-0.5">
                 <span className={`text-[26px] font-semibold leading-none ${negativePct > 30 ? "text-rose-300" : negativePct > 15 ? "text-[var(--color-accent)]" : "text-[var(--color-text-soft)]"}`}>{negativePct}</span>
                 <span className={`text-sm opacity-60 ${negativePct > 30 ? "text-rose-300" : negativePct > 15 ? "text-[var(--color-accent)]" : "text-[var(--color-text-soft)]"}`}>%</span>
@@ -248,7 +248,7 @@ function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
       {/* Issues — severity-coded rows */}
       {issues.length > 0 && (
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-2.5">Recurring issues · RAG-retrieved</p>
+          <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-2.5">Recurring issues · RAG-retrieved</p>
           <div className="space-y-1.5">
             {issues.slice(0, 3).map((issue, i) => {
               const priority = String(issue.priority ?? "");
@@ -283,7 +283,7 @@ function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
       {/* What's working */}
       {uniquePositives.length > 0 && (
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-2">What&apos;s working</p>
+          <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-2">What&apos;s working</p>
           <div className="space-y-1.5">
             {uniquePositives.slice(0, 2).map((p, i) => (
               <div key={i} className="rounded-lg ring-1 ring-emerald-400/20 bg-emerald-500/[0.04] px-3 py-2 text-[12px] text-emerald-300 leading-snug">
@@ -297,7 +297,7 @@ function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
       {/* Actions */}
       {actionItems.length > 0 && (
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-2">Actions</p>
+          <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-2">Actions</p>
           <div className="space-y-1.5">
             {actionItems.slice(0, 3).map((action, i) => (
               <div key={i} className="rounded-lg ring-1 ring-cyan-400/20 bg-cyan-500/[0.04] px-3 py-2 text-[12px] text-cyan-200 leading-snug">
@@ -414,7 +414,7 @@ function AgentDataRows({ data }: { data: Record<string, unknown> }) {
         if (typeof value === "object" && !Array.isArray(value) && typeof value !== "string") {
           return (
             <div key={key} className="mt-3">
-              <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
+              <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
                 {label}
               </p>
               <div className="pl-3 border-l border-ember-500/20 space-y-1.5">
@@ -441,7 +441,7 @@ function AgentDataRows({ data }: { data: Record<string, unknown> }) {
 
           return (
             <div key={key} className="mt-2">
-              <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
+              <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
                 {label}
               </p>
               <ul className="space-y-1.5">

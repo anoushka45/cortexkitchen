@@ -38,7 +38,7 @@ export default function RegisterPage() {
           <div className="mx-auto mb-4 grid h-12 w-12 place-items-center overflow-hidden rounded-xl bg-black ring-1 ring-[var(--color-border-default)]">
             <Image src="/ck-logo.png" alt="CortexKitchen" width={40} height={40} className="h-10 w-10 object-contain" priority />
           </div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-accent)]/70">ops intelligence</p>
+          <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--color-accent)]/70">ops intelligence</p>
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-[var(--color-text-primary)]">CortexKitchen</h1>
           <p className="mt-1 text-sm text-[var(--color-text-faint)]">Create your restaurant workspace</p>
         </div>

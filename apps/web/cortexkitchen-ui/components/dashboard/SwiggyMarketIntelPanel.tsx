@@ -9,7 +9,7 @@ function SwiggyBadge() {
       <div className="flex h-4 w-4 items-center justify-center rounded bg-white p-0.5">
         <Image src="/swiggy-logo.png" alt="Swiggy" width={12} height={12} className="h-full w-full object-contain" />
       </div>
-      <span className="text-[9px] font-mono uppercase tracking-widest text-[var(--color-text-faint)]">via Swiggy MCP</span>
+      <span className="text-[9px] uppercase tracking-widest text-[var(--color-text-faint)]">via Swiggy MCP</span>
     </div>
   );
 }
@@ -69,7 +69,7 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
         <div className="h-10 w-1 rounded-full flex-shrink-0 bg-orange-400/70" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
-            <p className="text-xs font-mono uppercase tracking-[0.18em] text-orange-300/80">Market Intelligence</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-orange-300/80">Market Intelligence</p>
             <SwiggyBadge />
             {fetchedAt && (
               <span className="text-[9px] font-mono text-[var(--color-text-ghost)]">fetched {fetchedAt}</span>
@@ -86,7 +86,7 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
         {/* Competitor Pricing */}
         <div className="xl:col-span-2 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-faint)]">Competitor Pricing</p>
+            <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)]">Competitor Pricing</p>
             <SwiggyBadge />
           </div>
 
@@ -100,14 +100,14 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
                   { label: "Highest",   value: `₹${stats.max}`,   color: "text-rose-400" },
                 ].map(({ label, value, color }) => (
                   <div key={label} className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3 text-center">
-                    <p className="text-[9px] font-mono uppercase tracking-widest text-[var(--color-text-ghost)]">{label}</p>
+                    <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">{label}</p>
                     <p className={`mt-1 text-lg font-bold tabular-nums ${color}`}>{value}</p>
                   </div>
                 ))}
               </div>
 
               {/* Top dishes table */}
-              <p className="text-[9px] font-mono uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
+              <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
                 Top priced items nearby ({stats.count} dishes tracked)
               </p>
               <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1 scrollbar-thin">
@@ -126,7 +126,7 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
 
               {pricingAlerts.length > 0 && (
                 <div className="mt-3 space-y-1.5">
-                  <p className="text-[9px] font-mono uppercase tracking-widest text-[var(--color-text-ghost)]">Pricing alerts</p>
+                  <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Pricing alerts</p>
                   {(pricingAlerts as Record<string, unknown>[]).map((a, i) => (
                     <div key={i} className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs ${
                       a.direction === "above"
@@ -161,7 +161,7 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
           {/* Area Occupancy */}
           <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-faint)]">Area Occupancy</p>
+              <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)]">Area Occupancy</p>
               <SwiggyBadge />
             </div>
             {occupancySignal ? (
@@ -194,7 +194,7 @@ export default function SwiggyMarketIntelPanel({ data }: { data: FridayRushRespo
           {/* Instamart Procurement */}
           <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-faint)]">Instamart Prices</p>
+              <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)]">Instamart Prices</p>
               <SwiggyBadge />
             </div>
             {procurement && procurement.length > 0 ? (

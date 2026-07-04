@@ -56,7 +56,7 @@ function SectionList({
 
   return (
     <div>
-      <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">{title}</p>
+      <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">{title}</p>
       <ul className="space-y-1.5">
         {items.map((item, index) => (
           <li key={`${title}-${index}`} className={`rounded-lg border px-3 py-2 text-xs ${toneClass}`}>
@@ -88,7 +88,7 @@ function MenuColumnCard({
 
   return (
     <div>
-      <div className={`font-mono text-[10px] uppercase tracking-[0.22em] mb-2 ${s.header}`}>{label}</div>
+      <div className={`text-[10px] uppercase tracking-[0.22em] mb-2 ${s.header}`}>{label}</div>
       <div className={`rounded-xl ring-1 p-3.5 min-h-[68px] ${s.ring}`}>
         {primary ? (
           <>
@@ -129,17 +129,17 @@ export function MenuInsightsBody({
     <div className="space-y-5">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
-          <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-faint)] mb-1">Top Items</p>
+          <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)] mb-1">Top Items</p>
           <p className="text-2xl font-semibold text-amber-300">{topItems.length}</p>
           <p className="text-xs text-[var(--color-text-faint)] mt-1">historically strong matching-day sellers</p>
         </div>
         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
-          <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-faint)] mb-1">Highlight Items</p>
+          <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)] mb-1">Highlight Items</p>
           <p className="text-2xl font-semibold text-emerald-300">{data.highlight_items?.length ?? 0}</p>
           <p className="text-xs text-[var(--color-text-faint)] mt-1">recommended to push in {serviceWindow.toLowerCase()}</p>
         </div>
         <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3">
-          <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-faint)] mb-1">Watchouts</p>
+          <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)] mb-1">Watchouts</p>
           <p className="text-2xl font-semibold text-rose-300">
             {(data.inventory_blockers?.length ?? 0) + (data.complaint_watchouts?.length ?? 0)}
           </p>
@@ -150,7 +150,7 @@ export function MenuInsightsBody({
       {data.reasoning && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-4">
           <div className="flex flex-wrap items-center gap-2 mb-2">
-            <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-ghost)]">
+            <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)]">
               Strategy
             </p>
             {data.priority && (
@@ -165,7 +165,7 @@ export function MenuInsightsBody({
 
       {!compact && topItems.length > 0 && (
         <div>
-          <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
+          <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)] mb-2">
             Best Sellers for {scenarioLabel}
           </p>
           <div className="space-y-2">

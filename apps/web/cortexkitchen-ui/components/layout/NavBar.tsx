@@ -93,7 +93,7 @@ export default function NavBar() {
           <div className="leading-tight hidden sm:block">
             <div className="text-[14px] font-bold tracking-tight text-[var(--color-text-primary)]">CortexKitchen</div>
             {user.org_name && (
-              <div className="font-mono text-[9px] uppercase tracking-[0.24em] text-ember-500 dark:text-ember-300/70">{user.org_name}</div>
+              <div className="text-[9px] uppercase tracking-[0.24em] text-ember-500 dark:text-ember-300/70">{user.org_name}</div>
             )}
           </div>
         </Link>
@@ -157,7 +157,7 @@ export default function NavBar() {
         {/* History */}
         <button
           onClick={handleHistory}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface)] px-2.5 py-1.5 text-xs font-mono uppercase tracking-wider text-[var(--color-text-faint)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-text-primary)]"
+          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface)] px-2.5 py-1.5 text-xs uppercase tracking-wider text-[var(--color-text-faint)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-text-primary)]"
         >
           <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />

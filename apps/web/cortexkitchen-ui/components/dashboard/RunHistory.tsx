@@ -32,7 +32,7 @@ export default function RunHistory({ history, activeId, onSelect }: Props) {
 
   return (
     <div className="w-56 shrink-0">
-      <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-ghost)] mb-3 px-1">
+      <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)] mb-3 px-1">
         Run History
       </p>
       <div className="relative">
@@ -50,8 +50,7 @@ export default function RunHistory({ history, activeId, onSelect }: Props) {
             <li key={entry.id} className={STAGGER[Math.min(idx, 4)]}>
               <button
                 onClick={() => onSelect(entry)}
-                className={`
-                  w-full text-left rounded-xl border px-3 py-3
+                className={`w-full text-left rounded-xl border px-3 py-3
                   transition-all duration-200
                   ${isActive
                     ? "border-ember-500/50 bg-ember-500/10"

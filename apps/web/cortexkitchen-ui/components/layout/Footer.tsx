@@ -109,7 +109,7 @@ export default function Footer() {
           {/* Link columns */}
           {FOOTER_LINKS.map((col) => (
             <div key={col.heading}>
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-faint)] mb-3">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-faint)] mb-3">
                 {col.heading}
               </p>
               <ul className="space-y-2.5">

@@ -141,7 +141,7 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
               {recommendation?.priority && typeof recommendation.priority === "string" && (
                 <div>
                   <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">Priority</div>
-                  <span className={`text-[10px] font-mono px-2.5 py-1 rounded-full inline-block ${
+                  <span className={`text-[10px] px-2.5 py-1 rounded-full inline-block ${
                     recommendation.priority === "high"   ? "bg-rose-500/15 text-rose-300 ring-1 ring-rose-400/25"
                     : recommendation.priority === "medium" ? "bg-ember-500/15 text-[var(--color-accent)] ring-1 ring-ember-400/25"
                     : "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/25"

@@ -67,7 +67,7 @@ export default function DashboardDetailModal({
             </div>
             <button
               onClick={onClose}
-              className="rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-3 py-1.5 text-xs font-mono text-[var(--color-text-soft)] hover:bg-[var(--color-surface-sunken)] transition-colors"
+              className="rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-3 py-1.5 text-xs text-[var(--color-text-soft)] hover:bg-[var(--color-surface-sunken)] transition-colors"
             >
               close
             </button>

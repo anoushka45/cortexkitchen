@@ -103,7 +103,7 @@ export default function SwiggyStatusWidget() {
             onClick={handleQuickSync}
             disabled={syncing}
             title="Sync Swiggy data now"
-            className="flex items-center gap-1 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-2.5 py-1 text-[11px] font-mono text-[var(--color-text-soft)] transition-colors hover:border-[var(--color-border-default)] hover:text-[var(--color-text-primary)] disabled:opacity-40"
+            className="flex items-center gap-1 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-2.5 py-1 text-[11px] text-[var(--color-text-soft)] transition-colors hover:border-[var(--color-border-default)] hover:text-[var(--color-text-primary)] disabled:opacity-40"
           >
             {syncing ? (
               <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -124,7 +124,7 @@ export default function SwiggyStatusWidget() {
         )}
         <Link
           href="/connectors"
-          className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-2.5 py-1 text-[11px] font-mono text-[var(--color-text-soft)] transition-colors hover:border-[var(--color-border-default)] hover:text-[var(--color-text-primary)]"
+          className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-2.5 py-1 text-[11px] text-[var(--color-text-soft)] transition-colors hover:border-[var(--color-border-default)] hover:text-[var(--color-text-primary)]"
         >
           manage →
         </Link>

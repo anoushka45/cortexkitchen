@@ -54,7 +54,7 @@ export default function RunHistory({ history, activeId, onSelect }: Props) {
                   transition-all duration-200
                   ${isActive
                     ? "border-ember-500/50 bg-ember-500/10"
-                    : "border-[var(--color-border-soft)] bg-navy-900 hover:border-ember-500/20 hover:bg-navy-800"
+                    : "border-[var(--color-border-soft)] bg-[var(--color-surface)] hover:border-ember-500/20 hover:bg-[var(--color-surface-raised)]"
                   }
                 `}
               >

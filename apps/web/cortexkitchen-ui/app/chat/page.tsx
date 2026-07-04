@@ -197,11 +197,11 @@ export default function ChatPage() {
                 {/* Avatar */}
                 {msg.role === "assistant" ? (
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-ember-500/30 to-ember-700/20 ring-1 ring-ember-400/25 mt-0.5">
-                    <span className="font-mono text-[9px] font-bold text-[var(--color-accent)]">CK</span>
+                    <span className="text-[9px] font-bold text-[var(--color-accent)]">CK</span>
                   </div>
                 ) : (
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-violet-600/20 ring-1 ring-violet-500/30 mt-0.5">
-                    <span className="font-mono text-[9px] font-bold text-violet-300">{initials}</span>
+                    <span className="text-[9px] font-bold text-violet-300">{initials}</span>
                   </div>
                 )}
 

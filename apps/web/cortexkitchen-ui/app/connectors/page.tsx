@@ -184,7 +184,7 @@ function SwiggyCard({ connector }: { connector: ConnectorStatus }) {
           { label: "Instamart", color: "text-emerald-300 border-emerald-500/30 bg-emerald-500/10" },
           { label: "Dineout", color: "text-sky-300 border-sky-500/30 bg-sky-500/10" },
         ].map(({ label, color }) => (
-          <span key={label} className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-mono tracking-wide ${color}`}>
+          <span key={label} className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] tracking-wide ${color}`}>
             {label}
           </span>
         ))}
@@ -259,7 +259,7 @@ export default function ConnectorsPage() {
           </div>
           <Link
             href="/dashboard"
-            className="shrink-0 rounded-lg border border-[var(--color-border-default)] px-3 py-2 text-xs font-mono text-[var(--color-text-soft)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-primary)] transition-colors"
+            className="shrink-0 rounded-lg border border-[var(--color-border-default)] px-3 py-2 text-xs text-[var(--color-text-soft)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-primary)] transition-colors"
           >
             ← dashboard
           </Link>

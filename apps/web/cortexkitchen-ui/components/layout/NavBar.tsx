@@ -130,7 +130,7 @@ export default function NavBar() {
               <select
                 value={dashCtx.selectedScenario}
                 onChange={(e) => dashCtx.setSelectedScenario(e.target.value as typeof dashCtx.selectedScenario)}
-                className="appearance-none cursor-pointer rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] pl-3 pr-7 py-1.5 text-xs font-mono text-[var(--color-text-soft)] focus:outline-none focus:ring-1 focus:ring-ember-500/50 transition-colors hover:border-[var(--color-accent)]"
+                className="appearance-none cursor-pointer rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] pl-3 pr-7 py-1.5 text-xs text-[var(--color-text-soft)] focus:outline-none focus:ring-1 focus:ring-ember-500/50 transition-colors hover:border-[var(--color-accent)]"
               >
                 {SCENARIO_OPTIONS.map((s) => (
                   <option key={s.id} value={s.id}>{s.label}</option>

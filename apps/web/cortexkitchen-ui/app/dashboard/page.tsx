@@ -103,7 +103,7 @@ function SectionHeader({
             {cards.map((card) => (
               <span
                 key={card}
-                className="inline-flex items-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-2.5 py-0.5 text-[10px] font-mono tracking-wide text-[var(--color-text-faint)]"
+                className="inline-flex items-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-2.5 py-0.5 text-[10px] tracking-wide text-[var(--color-text-faint)]"
               >
                 {card}
               </span>
@@ -814,10 +814,10 @@ export default function DashboardPage() {
               style={{ background: "rgba(244,63,94,0.06)" }}
             >
               <p className="text-sm font-semibold text-rose-400">Pipeline error</p>
-              <p className="mt-1 text-xs font-mono text-rose-300/80">{error}</p>
+              <p className="mt-1 text-xs text-rose-300/80">{error}</p>
               <button
                 onClick={() => trigger()}
-                className="mt-4 text-xs font-mono text-rose-300 underline underline-offset-4"
+                className="mt-4 text-xs text-rose-300 underline underline-offset-4"
               >
                 retry
               </button>

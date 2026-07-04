@@ -258,7 +258,7 @@ export default function ForecastChart({ forecast, scenario }: Props) {
               : "Next planning window"}
           </h3>
           <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--color-text-faint)]">
-            <span className={`font-mono ${METHOD_COLORS[method]}`}>{method === "prophet" ? "Prophet  -  AI" : "Baseline"}</span>
+            <span className={METHOD_COLORS[method]}>{method === "prophet" ? "Prophet  -  AI" : "Baseline"}</span>
             {(avg_same_day_orders ?? avg_friday_orders) !== undefined && (
               <span>Avg last 4 {service_day_label ?? "days"} <b className="text-[var(--color-text-soft)]">{avg_same_day_orders ?? avg_friday_orders}</b></span>
             )}

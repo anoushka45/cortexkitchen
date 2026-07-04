@@ -130,12 +130,12 @@ export default function Footer() {
 
         {/* Bottom bar */}
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-[var(--color-border-soft)] pt-6 sm:flex-row">
-          <p className="font-mono text-[11px] text-[var(--color-text-ghost)]">
+          <p className="text-[11px] text-[var(--color-text-ghost)]">
             © {year} CortexKitchen, Inc. All rights reserved.
           </p>
           <div className="flex items-center gap-1.5">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-mono text-[11px] text-[var(--color-text-ghost)]">All systems operational</span>
+            <span className="text-[11px] text-[var(--color-text-ghost)]">All systems operational</span>
           </div>
         </div>
 

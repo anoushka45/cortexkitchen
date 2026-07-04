@@ -154,7 +154,7 @@ export function MenuInsightsBody({
               Strategy
             </p>
             {data.priority && (
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
                 {data.priority} priority
               </span>
             )}

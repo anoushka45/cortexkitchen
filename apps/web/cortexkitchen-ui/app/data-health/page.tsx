@@ -40,10 +40,10 @@ export default function DataHealthPage() {
             </p>
           </div>
           <nav className="flex gap-2">
-            <Link className="rounded-lg border border-[var(--color-border-default)] px-3 py-2 text-xs font-mono text-[var(--color-text-soft)] hover:bg-[var(--color-surface-raised)]" href="/">
+            <Link className="rounded-lg border border-[var(--color-border-default)] px-3 py-2 text-xs text-[var(--color-text-soft)] hover:bg-[var(--color-surface-raised)]" href="/">
               dashboard
             </Link>
-            <Link className="rounded-lg border border-ember-400/20 bg-ember-500/10 px-3 py-2 text-xs font-mono text-ember-200" href="/runs">
+            <Link className="rounded-lg border border-ember-400/20 bg-ember-500/10 px-3 py-2 text-xs text-ember-200" href="/runs">
               runs
             </Link>
           </nav>

@@ -109,7 +109,7 @@ function CompactAlertRow({ alert }: { alert: Alert }) {
       <div className="col-span-4 h-1.5 rounded bg-[var(--color-surface-raised)] overflow-hidden">
         <div className={`h-full ${barColor}`} style={{ width: `${stockPct}%` }} />
       </div>
-      <span className={`col-span-2 text-right font-mono text-[10px] uppercase ${sevColor}`}>{sevLabel}</span>
+      <span className={`col-span-2 text-right text-[10px] uppercase ${sevColor}`}>{sevLabel}</span>
     </li>
   );
 }
@@ -130,11 +130,11 @@ function AlertRow({ alert, type }: { alert: Alert; type: "shortage" | "overstock
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {alert.spoilage_risk && (
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400">
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400">
               spoilage risk
             </span>
           )}
-          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${SEVERITY_BADGE[sev]}`}>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full ${SEVERITY_BADGE[sev]}`}>
             {sev}
           </span>
         </div>
@@ -186,7 +186,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
   return (
     <div className={compact ? "space-y-4" : "space-y-5"}>
       {/* Summary bar */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-[var(--color-text-faint)]">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--color-text-faint)]">
         <span>{data.total_items_checked} ingredients checked</span>
         <span className="text-[var(--color-text-ghost)]">·</span>
         <span>demand ratio: {data.demand_ratio.toFixed(2)}x</span>
@@ -217,7 +217,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
               Recommendation
             </p>
             {recommendation.priority && (
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
                 {recommendation.priority} priority
               </span>
             )}

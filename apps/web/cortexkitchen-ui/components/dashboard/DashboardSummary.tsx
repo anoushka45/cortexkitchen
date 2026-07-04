@@ -172,10 +172,10 @@ export default function DashboardSummary({ data }: Props) {
         </div>
         <div className="mt-3 flex gap-1.5">
           {push && (
-            <span className="rounded bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] text-emerald-300 ring-1 ring-emerald-400/20">PUSH</span>
+            <span className="rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300 ring-1 ring-emerald-400/20">PUSH</span>
           )}
           {ease && (
-            <span className="rounded bg-ember-500/10 px-2 py-0.5 font-mono text-[10px] text-[var(--color-accent)] ring-1 ring-ember-400/20">EASE</span>
+            <span className="rounded bg-ember-500/10 px-2 py-0.5 text-[10px] text-[var(--color-accent)] ring-1 ring-ember-400/20">EASE</span>
           )}
         </div>
       </article>

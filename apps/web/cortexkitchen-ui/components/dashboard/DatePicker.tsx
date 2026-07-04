@@ -65,7 +65,7 @@ export default function DatePicker({ onRun, loading, scenario, compact = false }
         <button
           onClick={() => { setCustom(false); setCustomDate(""); }}
           disabled={loading}
-          className={`px-3 py-1 rounded-full text-[11px] font-mono transition-colors ${
+          className={`px-3 py-1 rounded-full text-[11px] transition-colors ${
             !custom ? "bg-ember-500/20 text-ember-200" : "text-[var(--color-text-faint)] hover:text-[var(--color-text-soft)]"
           }`}
         >
@@ -74,7 +74,7 @@ export default function DatePicker({ onRun, loading, scenario, compact = false }
         <button
           onClick={() => { setCustom(true); setSelected(""); }}
           disabled={loading}
-          className={`px-3 py-1 rounded-full text-[11px] font-mono transition-colors ${
+          className={`px-3 py-1 rounded-full text-[11px] transition-colors ${
             custom ? "bg-ember-500/20 text-ember-200" : "text-[var(--color-text-faint)] hover:text-[var(--color-text-soft)]"
           }`}
         >

@@ -129,7 +129,7 @@ export function ComplaintInsightsBody({
 
   return (
     <div className={compact ? "space-y-4" : "space-y-5"}>
-      <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-[var(--color-text-faint)]">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-faint)]">
         <span>{normalized.summary.total_feedback ?? 0} feedback</span>
         {typeof negativePct === "number" && (
           <>

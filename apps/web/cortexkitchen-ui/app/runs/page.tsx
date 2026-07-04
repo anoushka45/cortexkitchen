@@ -85,7 +85,7 @@ function AgentOutputCard({ agentKey, data, swiggySignal }: { agentKey: string; d
         <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-text-soft)]">{label}</p>
         <div className="ml-auto flex items-center gap-2">
           {priority && (
-            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase ${PRIORITY_CLS[priority] ?? "text-[var(--color-text-faint)] border-[var(--color-border-default)] bg-[var(--color-surface-raised)]"}`}>
+            <span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase ${PRIORITY_CLS[priority] ?? "text-[var(--color-text-faint)] border-[var(--color-border-default)] bg-[var(--color-surface-raised)]"}`}>
               {priority}
             </span>
           )}

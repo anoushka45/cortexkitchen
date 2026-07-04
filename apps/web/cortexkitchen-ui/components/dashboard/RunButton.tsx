@@ -28,7 +28,7 @@ export default function RunButton({ onRun, onReset, loading, hasData }: Props) {
         {loading ? (
           <>
             <Spinner size={15} />
-            <span className="font-mono text-xs tracking-wide">Running pipeline...</span>
+            <span className="text-xs tracking-wide">Running pipeline...</span>
           </>
         ) : (
           <>
@@ -41,7 +41,7 @@ export default function RunButton({ onRun, onReset, loading, hasData }: Props) {
       {hasData && !loading && onReset && (
         <button
           onClick={() => onReset()}
-          className="text-xs font-mono text-[var(--color-text-ghost)] hover:text-[var(--color-text-soft)] transition-colors"
+          className="text-xs text-[var(--color-text-ghost)] hover:text-[var(--color-text-soft)] transition-colors"
         >
           reset
         </button>

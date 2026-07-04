@@ -46,7 +46,7 @@ immediately legible to someone who knows the Swiggy platform.**
 
 ---
 
-## Current system state (as of last merge: P6-F14/F15/F16/F16b/F17)
+## Current system state (as of last merge: P6-F09-F12/F16 — theme system + Today dashboard redesign + market/business analytics)
 
 ### CRITICAL — Swiggy MCP actual response format (discovered via live test)
 
@@ -169,6 +169,12 @@ GET  /api/v1/restaurant-profiles   restaurant profile management
 GET  /api/v1/settings              org settings
 POST /api/v1/connectors/swiggy/sync  trigger live Swiggy MCP sync (P6-S05/S06 ✅)
 GET  /api/v1/connectors/status       connector health + sync counts
+GET  /api/v1/market/pulse            live Swiggy market data (competitor pricing, area
+                                      occupancy, Instamart procurement), independent of
+                                      any planning run — calls the enrichers directly ✅ P6-F16
+GET  /api/v1/business/performance    revenue/profit (via MenuItem.cost_price), daily trend,
+                                      top/bottom dishes, channel split, complaints by
+                                      category, peak-hours demand ✅ P6-F16
 ```
 
 **Frontend — existing pages**
@@ -177,10 +183,16 @@ GET  /api/v1/connectors/status       connector health + sync counts
 /                    landing page
 /login               auth
 /register            auth
-/dashboard           main ops dashboard (ForecastChart, AgentCard, CriticBanner,
-                     ManagerActionPanel, ReservationSummary, InventoryAlerts,
-                     MenuInsights, ComplaintInsights, RunHistory, WhatIfPanel,
-                     SwiggyStatusWidget ✅ P6-F15, SwiggyMarketIntelPanel ✅ P6-F17)
+/dashboard           "Today" page — idle state redesigned around live business KPIs,
+                     market intel, and ops signals, independent of running a plan
+                     (TodayIdleState ✅ P6-F11/F12). "Plan your next shift" opens
+                     PlanShiftModal instead of running inline; a fresh trigger
+                     auto-redirects to /operations?run={id} on completion.
+/operations          agent-card detail for a run (ForecastChart, AgentCard ×4,
+                     CriticBanner, ManagerActionPanel) — split out of /dashboard
+                     ✅ P6-F11. Reads ?run={id} via useSelectedRun, falls back to
+                     the most recent completed run.
+/market              full market intelligence page — split out of /dashboard ✅ P6-F11
 /connectors          data source management — Swiggy card + coming-soon Zomato/POS ✅ P6-F14
 /runs                planning run history
 /chat                agentic chatbot
@@ -188,6 +200,12 @@ GET  /api/v1/connectors/status       connector health + sync counts
 /restaurant-profiles restaurant profile management
 /data-health         data health monitoring
 ```
+
+**Frontend — theming**
+Light/dark theme token system in `globals.css` (`@theme` custom properties, `.dark`
+class toggle, not `prefers-color-scheme`) ✅ P6-F09. Light-mode palette rebuilt around
+a warm stone/parchment look (not cool blue-gray) ✅ P6-F12. Instrument Serif display
+font used for page headers and hero text ✅ P6-F10.
 
 **MCP server (CortexKitchen exposes itself as MCP)**
 Tools: run_planning_scenario, get_run_history
@@ -357,6 +375,17 @@ P6-S19  3 new CortexKitchen MCP server tools
   settings is dev-only convenience.
 - Rate limits: max 3 get_restaurant_menu calls, max 3 get_available_slots calls,
   max 5 search_products calls per planning run.
+- **Dev token expiry + circuit breaker interaction**: `SWIGGY_ACCESS_TOKEN` (personal
+  consumer OAuth, dev-only) expires after a few hours. Once expired, every call 401s
+  → `client.is_available()` still returns True (it only checks the token is *set*,
+  not valid), so `/market/pulse` reports `swiggy_connected: true` with empty data —
+  looks like a bug, isn't one. Worse: 3 failures in 5 min trips the circuit breaker
+  open for a full 30 min (`circuit:open:swiggy:{food,im,dineout}` in Redis), and
+  refreshing the token mid-window does NOT clear it — calls stay short-circuited to
+  None until the TTL expires or the Redis key is deleted manually. If live market
+  data looks stuck/empty, check backend logs for `swiggy_token_expired` /
+  `circuit_opened` before assuming a code bug — re-run `scripts/get_swiggy_token.py`
+  and either wait out the 30 min or flush the `circuit:open:swiggy:*` keys.
 
 **ENV VARS (Swiggy):**
 ```

@@ -419,3 +419,123 @@ export async function getDataHealth(): Promise<DataHealth> {
 
   return res.json() as Promise<DataHealth>;
 }
+
+// ── Business performance (revenue, profit, complaints) ─────────────────────────
+
+export interface BusinessDailyPoint {
+  date: string;
+  revenue: number;
+  profit: number;
+  orders: number;
+}
+
+export interface BusinessDaySnapshot {
+  date: string;
+  revenue: number;
+  profit: number;
+  margin_pct: number | null;
+  orders: number;
+  avg_order_value: number;
+}
+
+export interface BusinessDishPerformance {
+  name: string;
+  category: string;
+  revenue: number;
+  quantity: number;
+  margin_pct: number | null;
+}
+
+export interface BusinessChannelSplit {
+  dine_in_revenue: number;
+  delivery_revenue: number;
+  dine_in_orders: number;
+  delivery_orders: number;
+}
+
+export interface BusinessComplaintCategory {
+  category: string;
+  count: number;
+}
+
+export interface BusinessHourlyDemand {
+  hour: number;
+  avg_orders: number;
+}
+
+export interface BusinessPerformanceResponse {
+  period_days: number;
+  yesterday: BusinessDaySnapshot | null;
+  today_so_far: BusinessDaySnapshot | null;
+  trend: BusinessDailyPoint[];
+  top_dishes: BusinessDishPerformance[];
+  bottom_dishes: BusinessDishPerformance[];
+  channel_split: BusinessChannelSplit;
+  complaints_by_category: BusinessComplaintCategory[];
+  peak_hours: BusinessHourlyDemand[];
+}
+
+export async function getBusinessPerformance(days = 14): Promise<BusinessPerformanceResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/business/performance?days=${days}`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Business performance API error ${res.status}: ${detail}`);
+  }
+
+  return res.json() as Promise<BusinessPerformanceResponse>;
+}
+
+// ── Market pulse (live, independent of any planning run) ──────────────────────
+
+export interface MarketPricingComparison {
+  item: string;
+  your_price: number;
+  area_avg: number;
+  diff_pct: number;
+  direction: "above" | "below";
+}
+
+export interface MarketCompetitorPricing {
+  restaurants_checked: string[];
+  comparisons: MarketPricingComparison[];
+  fetched_at: string | null;
+}
+
+export interface MarketAreaOccupancy {
+  signal: "HIGH" | "MEDIUM" | "LOW" | null;
+  tonight_busy: boolean | null;
+  competitors_checked: number;
+  fetched_at: string | null;
+}
+
+export interface MarketProcurementItem {
+  name: string;
+  price: number;
+  unit: string;
+  in_stock: boolean;
+}
+
+export interface MarketPulseResponse {
+  swiggy_connected: boolean;
+  competitor_pricing: MarketCompetitorPricing | null;
+  area_occupancy: MarketAreaOccupancy | null;
+  procurement: MarketProcurementItem[];
+}
+
+export async function getMarketPulse(): Promise<MarketPulseResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/market/pulse`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Market pulse API error ${res.status}: ${detail}`);
+  }
+
+  return res.json() as Promise<MarketPulseResponse>;
+}

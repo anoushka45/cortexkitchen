@@ -115,6 +115,7 @@ class MenuItem(Base):
     name         = Column(String(100), nullable=False)
     category     = Column(String(50), nullable=False)   # e.g. pizza, beverage, dessert
     price        = Column(Float, nullable=False)
+    cost_price   = Column(Float, nullable=True)   # estimated cost to produce one unit -- COGS/profit basis
     is_available = Column(Boolean, default=True)
     created_at   = Column(DateTime, default=datetime.utcnow)
 

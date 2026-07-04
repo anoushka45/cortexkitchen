@@ -93,15 +93,10 @@ export default function DataHealthPage() {
                         <th className="px-3 py-3">Load</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/10">
+                    <tbody className="divide-y divide-[var(--color-border-soft)]">
                       {data.scenario_coverage.map((row) => (
                         <tr key={`${row.scenario}-${row.date}`} className="hover:bg-[var(--color-surface-raised)] transition-colors duration-150">
-                          <td className="px-3 py-3">
-                            <div className="flex flex-col">
-                              <span>{row.label}</span>
-                              <span className="text-xs font-mono text-[var(--color-text-faint)]">{row.scenario}</span>
-                            </div>
-                          </td>
+                          <td className="px-3 py-3">{row.label}</td>
                           <td className="px-3 py-3 font-mono text-xs text-[var(--color-text-soft)]">{row.date}</td>
                           <td className="px-3 py-3">{row.reservations}</td>
                           <td className="px-3 py-3">{row.guests}</td>
@@ -159,47 +154,55 @@ export default function DataHealthPage() {
                   {/* By verdict */}
                   <div className="rounded-lg bg-[var(--color-surface)] ring-1 ring-[var(--color-border-soft)] p-4">
                     <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-3">Runs by verdict</p>
-                    <div className="space-y-2">
-                      {(["approved", "revision", "rejected", "unknown"] as const).map(v => {
-                        const count = obs.by_verdict[v] ?? 0;
-                        const pct   = obs.total_runs > 0 ? Math.round((count / obs.total_runs) * 100) : 0;
-                        const color = v === "approved" ? "bg-emerald-400" : v === "rejected" ? "bg-rose-400" : v === "revision" ? "bg-ember-400" : "bg-[var(--color-surface-raised)]";
-                        const text  = v === "approved" ? "text-emerald-300" : v === "rejected" ? "text-rose-300" : v === "revision" ? "text-[var(--color-accent)]" : "text-[var(--color-text-faint)]";
-                        if (count === 0) return null;
-                        return (
-                          <div key={v}>
-                            <div className="flex justify-between text-[11px] text-[var(--color-text-soft)] mb-1">
-                              <span className={`capitalize font-mono ${text}`}>{v}</span>
-                              <span className="font-mono">{count} <span className="text-[var(--color-text-faint)]">({pct}%)</span></span>
+                    {obs.total_runs === 0 ? (
+                      <p className="text-xs text-[var(--color-text-faint)] italic">No runs yet -- run a plan to see verdict breakdown here.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {(["approved", "revision", "rejected", "unknown"] as const).map(v => {
+                          const count = obs.by_verdict[v] ?? 0;
+                          const pct   = Math.round((count / obs.total_runs) * 100);
+                          const color = v === "approved" ? "bg-emerald-400" : v === "rejected" ? "bg-rose-400" : v === "revision" ? "bg-ember-400" : "bg-[var(--color-surface-raised)]";
+                          const text  = v === "approved" ? "text-emerald-300" : v === "rejected" ? "text-rose-300" : v === "revision" ? "text-[var(--color-accent)]" : "text-[var(--color-text-faint)]";
+                          if (count === 0) return null;
+                          return (
+                            <div key={v}>
+                              <div className="flex justify-between text-[11px] text-[var(--color-text-soft)] mb-1">
+                                <span className={`capitalize ${text}`}>{v}</span>
+                                <span className="font-mono">{count} <span className="text-[var(--color-text-faint)]">({pct}%)</span></span>
+                              </div>
+                              <div className="meter">
+                                <span className={color} style={{ width: `${pct}%` }} />
+                              </div>
                             </div>
-                            <div className="meter">
-                              <span className={color} style={{ width: `${pct}%`, background: undefined }} />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* By scenario */}
                   <div className="rounded-lg bg-[var(--color-surface)] ring-1 ring-[var(--color-border-soft)] p-4">
                     <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-3">Runs by scenario</p>
-                    <div className="space-y-2">
-                      {Object.entries(obs.by_scenario).sort((a, b) => b[1] - a[1]).map(([scenario, count]) => {
-                        const pct = obs.total_runs > 0 ? Math.round((count / obs.total_runs) * 100) : 0;
-                        return (
-                          <div key={scenario}>
-                            <div className="flex justify-between text-[11px] text-[var(--color-text-soft)] mb-1">
-                              <span>{SCENARIO_LABELS[scenario] ?? scenario}</span>
-                              <span className="font-mono">{count} <span className="text-[var(--color-text-faint)]">({pct}%)</span></span>
+                    {obs.total_runs === 0 ? (
+                      <p className="text-xs text-[var(--color-text-faint)] italic">No runs yet -- run a plan to see scenario breakdown here.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {Object.entries(obs.by_scenario).sort((a, b) => b[1] - a[1]).map(([scenario, count]) => {
+                          const pct = Math.round((count / obs.total_runs) * 100);
+                          return (
+                            <div key={scenario}>
+                              <div className="flex justify-between text-[11px] text-[var(--color-text-soft)] mb-1">
+                                <span>{SCENARIO_LABELS[scenario] ?? scenario}</span>
+                                <span className="font-mono">{count} <span className="text-[var(--color-text-faint)]">({pct}%)</span></span>
+                              </div>
+                              <div className="meter">
+                                <span style={{ width: `${pct}%` }} />
+                              </div>
                             </div>
-                            <div className="meter">
-                              <span style={{ width: `${pct}%` }} />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
               </section>

@@ -522,7 +522,7 @@ export default function RunsPage() {
                 </div>
               </div>
               {loading ? (
-                <div className="divide-y divide-white/10">
+                <div className="divide-y divide-[var(--color-border-soft)]">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <div key={i} className="px-4 py-4 space-y-2.5 animate-pulse">
                       <div className="h-2 w-10 rounded bg-[var(--color-surface-sunken)]" />
@@ -534,7 +534,7 @@ export default function RunsPage() {
               ) : filteredRuns.length === 0 ? (
                 <p className="px-4 py-6 text-sm text-[var(--color-text-faint)]">No runs match the current filters.</p>
               ) : (
-                <div className="divide-y divide-white/10 max-h-[600px] overflow-y-auto">
+                <div className="divide-y divide-[var(--color-border-soft)] max-h-[600px] overflow-y-auto">
                   {filteredRuns.map(run => {
                     const isActive   = selected?.id === run.id;
                     const isCompared = compareIds.includes(run.id);

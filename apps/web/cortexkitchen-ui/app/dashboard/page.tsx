@@ -318,15 +318,10 @@ function IdleState({
           <div className="stagger-2">
             <div className="rounded-3xl border border-[var(--color-border-default)] bg-[var(--color-surface)]/95 p-6 shadow-[0_24px_80px_rgba(2,8,23,0.4)]">
 
-              <div className="flex items-start justify-between gap-4 mb-5">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-ghost)]">Agent pipeline</p>
-                  <p className="mt-1 text-base font-semibold text-[var(--color-text-primary)]">10-node orchestration</p>
-                  <p className="mt-0.5 text-xs text-[var(--color-text-faint)]">Enrichment · parallel execution · menu synthesis · critic verification</p>
-                </div>
-                <div className="shrink-0 rounded-xl border border-ember-500/20 bg-ember-500/10 px-2.5 py-1">
-                  <p className="font-mono text-xs font-bold text-[var(--color-accent)]">LangGraph</p>
-                </div>
+              <div className="mb-5">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-ghost)]">What we check for you</p>
+                <p className="mt-1 text-base font-semibold text-[var(--color-text-primary)]">5 specialists, every night</p>
+                <p className="mt-0.5 text-xs text-[var(--color-text-faint)]">Working through your kitchen and market data before every shift</p>
               </div>
 
               <div className="space-y-2">
@@ -366,60 +361,54 @@ function IdleState({
   );
 }
 
-function GraphNode({
-  label, subLabel, state, dot, hint, swiggy = false,
-}: { label: string; subLabel: string; state: NodeState; dot: string; hint?: string; swiggy?: boolean }) {
+function StepRow({
+  label, hint, state, swiggy = false,
+}: { label: string; hint?: string; state: NodeState; swiggy?: boolean }) {
   const isDone    = state === "done";
   const isRunning = state === "running";
   const isSkipped = state === "skipped";
 
-  const ring = isDone    ? "ring-emerald-400/35 bg-emerald-500/[0.05]"
-             : isRunning ? (swiggy ? "ring-orange-400/40 bg-orange-500/[0.06]" : "ring-ember-400/35 bg-ember-500/[0.06]")
-             : isSkipped ? "ring-amber-500/25 bg-amber-500/[0.04]"
-             :              "ring-[var(--color-border-default)] bg-[var(--color-surface-raised)]";
-
-  const statusLabel = isDone ? "done" : isRunning ? "running" : isSkipped ? "skipped" : "waiting";
-  const statusColor = isDone    ? "text-emerald-300/70"
+  const labelColor = isDone || isRunning ? "text-[var(--color-text-primary)]"
+                    : isSkipped          ? "text-amber-300/70"
+                    :                       "text-[var(--color-text-ghost)]";
+  const hintColor  = isDone    ? "text-[var(--color-text-faint)]"
                     : isRunning ? (swiggy ? "text-orange-300/70" : "text-[var(--color-accent)]/70")
-                    : isSkipped ? "text-amber-400/60"
-                    :              "text-[var(--color-text-ghost)]";
-  const labelColor  = isDone    ? "text-[var(--color-text-primary)]"
-                    : isRunning ? "text-[var(--color-text-primary)]"
-                    : isSkipped ? "text-amber-200/50"
-                    :              "text-[var(--color-text-ghost)]";
-  const subColor    = isDone    ? "text-[var(--color-text-faint)]"
-                    : isRunning ? "text-[var(--color-text-faint)]"
-                    : isSkipped ? "text-amber-200/30"
-                    :              "text-[var(--color-text-ghost)]";
+                    :             "text-[var(--color-text-ghost)]";
 
   return (
-    <div className={`rounded-xl ring-1 px-3 py-2.5 min-w-[118px] transition-all duration-500 ${ring}`}>
-      <div className="flex items-center gap-1.5 mb-1">
+    <div className="flex items-start gap-3 py-2">
+      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
         {isDone ? (
-          <svg className="h-3 w-3 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <svg className="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         ) : isSkipped ? (
-          <svg className="h-3 w-3 text-amber-400/60 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <svg className="h-4 w-4 text-amber-400/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
+        ) : isRunning ? (
+          <span className="relative flex h-2.5 w-2.5">
+            <span className={`absolute inset-0 animate-ping rounded-full opacity-60 ${swiggy ? "bg-orange-400" : "bg-ember-400"}`} />
+            <span className={`relative h-2.5 w-2.5 rounded-full ${swiggy ? "bg-orange-400" : "bg-ember-400"}`} />
+          </span>
         ) : (
-          <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isRunning ? `${dot} animate-pulse` : "bg-[var(--color-surface-raised)]"}`} />
+          <span className="h-2 w-2 rounded-full bg-[var(--color-border-default)]" />
         )}
-        <span className={`text-[9px] uppercase tracking-wider transition-colors duration-300 ${statusColor}`}>
-          {statusLabel}
-        </span>
-        {swiggy && (isDone || isRunning) && (
-          <img src="/swiggy-logo.png" alt="Swiggy" className="h-3 w-3 object-contain opacity-70 ml-auto shrink-0" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className={`text-[13px] font-medium transition-colors duration-300 ${labelColor}`}>{label}</p>
+          {swiggy && (isDone || isRunning) && (
+            <img src="/swiggy-logo.png" alt="Swiggy" className="h-3 w-3 object-contain opacity-70 shrink-0" />
+          )}
+        </div>
+        {hint && (isDone || isRunning) && (
+          <p className={`text-[11px] mt-0.5 leading-snug transition-colors duration-300 ${hintColor}`}>{hint}</p>
+        )}
+        {isSkipped && (
+          <p className="text-[11px] mt-0.5 text-amber-300/50">Skipped — stock data unavailable</p>
         )}
       </div>
-      <p className={`text-[12px] font-semibold leading-tight transition-colors duration-300 ${labelColor}`}>{label}</p>
-      <p className={`text-[10px] mt-0.5 leading-snug transition-colors duration-300 ${subColor}`}>{subLabel}</p>
-      {hint && (isDone || isRunning) && (
-        <p className={`text-[9px] mt-1 leading-snug transition-colors duration-300 line-clamp-2 ${
-          isDone ? "text-emerald-300/50" : (swiggy ? "text-orange-300/50" : "text-[var(--color-accent)]/60")
-        }`}>{hint}</p>
-      )}
     </div>
   );
 }
@@ -456,7 +445,6 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
   // If aggregator completed but menu never even started, menu was skipped (node errored silently)
   const menuSkipped = aggDone && !menuDone && !menuStarted;
 
-  const opsState:        NodeState = anyStarted     ? "done" : "running";
   const forecastState:   NodeState = ns("forecast");
   const enrichmentState: NodeState = ns("enrichment");
   const menuState:       NodeState = menuSkipped ? "skipped" : ns("menu");
@@ -475,25 +463,19 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
   const isReplanning = replanCount > 0 && !allAgentsDone;
 
   const currentAction =
-    isReplanning                               ? `Replanning — attempt ${replanCount} of 2…`
-    : replanCount > 0 && criticDone           ? `Critic re-evaluated after replan ${replanCount} of 2`
-    : criticDone                              ? "Critic has approved the plan"
-    : aggDone                                 ? "Critic is scoring the plan…"
-    : allAgentsDone                           ? "Aggregating all results…"
-    : menuSkipped                             ? "Menu skipped — aggregating remaining outputs…"
-    : menuDone                                ? "Aggregating…"
-    : menuStarted                             ? "Menu intelligence applying stock constraints…"
-    : parallelDone                            ? "All agents done — building menu guidance…"
-    : enrichmentDone && parallelRemaining > 0 ? `${parallelRemaining} of 5 agent${parallelRemaining !== 1 ? "s" : ""} still running…`
-    : forecastDone                            ? "Loading context from memory…"
-    : anyStarted                              ? "Running demand forecast…"
-    :                                           "Sequencing the pipeline…";
-
-  // SVG height for 5 parallel nodes: 5×68px nodes + 4×8px gaps = 372px
-  // Centers: node-height/2 + (node-height + gap) * index = 34 + 76*i
-  const SVG_H     = 372;
-  const MID       = 186;                                    // center of node 3 (index 2)
-  const POSITIONS = [34, 110, 186, 262, 338] as const;     // center-y of each parallel node
+    isReplanning                               ? `Fixing a few things — attempt ${replanCount} of 2…`
+    : replanCount > 0 && criticDone           ? `Re-checked after fixing, attempt ${replanCount} of 2`
+    : criticDone                              ? "Plan approved"
+    : aggDone                                 ? "Reviewing the plan for mistakes…"
+    : allAgentsDone                           ? "Putting your brief together…"
+    : menuSkipped                             ? "Finishing up without menu guidance…"
+    : menuDone                                ? "Putting your brief together…"
+    : menuStarted                             ? "Building your menu guidance…"
+    : parallelDone                            ? "Building your menu guidance…"
+    : enrichmentDone && parallelRemaining > 0 ? `${parallelRemaining} of 5 checks still running…`
+    : forecastDone                            ? "Loading context from past plans…"
+    : anyStarted                              ? "Checking tonight's demand…"
+    :                                           "Getting started…";
 
   return (
     <div className="py-10">
@@ -505,7 +487,7 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
             <span className={`relative rounded-full ${criticDone ? "bg-emerald-400" : "bg-ember-400"}`} />
           </span>
           <span className="text-[10px] uppercase tracking-[0.24em] text-[var(--color-accent)]">
-            {criticDone ? "Complete" : "Pipeline live"}
+            {criticDone ? "Complete" : "Working"}
           </span>
         </div>
         <h1 className="text-[30px] font-semibold tracking-[-0.015em] text-[var(--color-text-primary)] leading-[1.1]">
@@ -546,113 +528,26 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
         </div>
       )}
 
-      {/* Graph topology — horizontal pipeline */}
-      <div className="rounded-2xl bg-[var(--color-surface)] ring-1 ring-[var(--color-border-soft)] px-4 py-6 overflow-x-auto">
-        <div className="flex items-center justify-center gap-0 min-w-max mx-auto">
-
-          {/* Ops Manager */}
-          <GraphNode label="Ops Manager" subLabel="Sequences pipeline" state={opsState} dot="bg-slate-400" />
-
-          {/* → */}
-          <svg className="shrink-0 w-6 h-4" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1">
-            <path d="M0,8 H18 M12,3 L18,8 L12,13" className={`transition-colors duration-500 ${anyStarted ? "text-emerald-400/50" : "text-[var(--color-text-ghost)]"}`} />
-          </svg>
-
-          {/* Demand Forecast */}
-          <GraphNode label="Demand Forecast" subLabel="Order history model" state={forecastState} dot="bg-ember-400" hint={nodeHints["forecast"]} />
-
-          {/* → */}
-          <svg className="shrink-0 w-6 h-4" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1">
-            <path d="M0,8 H18 M12,3 L18,8 L12,13" className={`transition-colors duration-500 ${forecastDone ? "text-[var(--color-accent)]/50" : "text-[var(--color-text-ghost)]"}`} />
-          </svg>
-
-          {/* Context Enrichment */}
-          <GraphNode label="Memory Lookup" subLabel="Past plans & SOPs" state={enrichmentState} dot="bg-violet-400" hint={nodeHints["enrichment"]} />
-
-          {/* Fan-out SVG — 1 node to 5 parallel agents */}
-          <svg
-            className="shrink-0 w-8"
-            style={{ height: SVG_H }}
-            viewBox={`0 0 32 ${SVG_H}`}
-            fill="none" stroke="currentColor" strokeWidth="1"
-          >
-            {POSITIONS.map((y, i) => (
-              <path
-                key={y}
-                d={`M0,${MID} H16 V${y} H28 M22,${y - 5} L28,${y} L22,${y + 5}`}
-                className={`transition-colors duration-500 ${
-                  enrichmentDone
-                    ? i >= 3 ? "text-orange-400/35" : "text-violet-400/40"
-                    : "text-[var(--color-text-ghost)]"
-                }`}
-              />
-            ))}
-          </svg>
-
-          {/* 5 parallel agents: 3 domain + 2 Swiggy */}
-          <div className="flex flex-col gap-2 shrink-0">
-            {parallelAgents.map((agent) => (
-              <GraphNode
-                key={agent.key}
-                label={agent.label}
-                subLabel={agent.subLabel}
-                state={ns(agent.key)}
-                dot={agent.dot}
-                hint={nodeHints[agent.key]}
-                swiggy={agent.swiggy}
-              />
-            ))}
-          </div>
-
-          {/* Fan-in SVG — 5 parallel agents converge to menu */}
-          <svg
-            className="shrink-0 w-8"
-            style={{ height: SVG_H }}
-            viewBox={`0 0 32 ${SVG_H}`}
-            fill="none" stroke="currentColor" strokeWidth="1"
-          >
-            {POSITIONS.map((y, i) => (
-              <path
-                key={y}
-                d={`M4,${y} H16 V${MID} H28 M22,${MID - 5} L28,${MID} L22,${MID + 5}`}
-                className={`transition-colors duration-500 ${
-                  completedNodes.has(parallelAgents[i].key)
-                    ? i >= 3 ? "text-orange-400/35" : "text-emerald-400/40"
-                    : "text-[var(--color-text-ghost)]"
-                }`}
-              />
-            ))}
-          </svg>
-
-          {/* Menu — waits for all 5 parallel agents */}
-          <GraphNode label="Menu" subLabel="Applies stock limits" state={menuState} dot="bg-amber-400" hint={menuSkipped ? "Skipped — stock data unavailable" : nodeHints["menu"]} />
-
-          {/* → */}
-          <svg className="shrink-0 w-6 h-4" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1">
-            <path d="M0,8 H18 M12,3 L18,8 L12,13" className={`transition-colors duration-500 ${menuDone ? "text-emerald-400/50" : "text-[var(--color-text-ghost)]"}`} />
-          </svg>
-
-          {/* Aggregator */}
-          <GraphNode label="Synthesis" subLabel="Compiles the brief" state={aggState} dot="bg-violet-400" hint={nodeHints["aggregator"]} />
-
-          {/* → */}
-          <svg className="shrink-0 w-6 h-4" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1">
-            <path d="M0,8 H18 M12,3 L18,8 L12,13" className={`transition-colors duration-500 ${aggDone ? "text-emerald-400/50" : "text-[var(--color-text-ghost)]"}`} />
-          </svg>
-
-          {/* Critic */}
-          <div className="relative">
-            <GraphNode label="Critic" subLabel="5-dimension review" state={criticState} dot="bg-emerald-300" hint={nodeHints["critic"]} />
-            {replanCount > 0 && (
-              <div className="absolute -bottom-5 left-0 right-0 flex justify-center">
-                <span className="font-mono text-[9px] text-amber-400/80 tracking-wide">
-                  retry {replanCount}/2
-                </span>
-              </div>
-            )}
-          </div>
-
-        </div>
+      {/* Progress list — plain-language steps, not a pipeline diagram */}
+      <div className="mx-auto max-w-[480px] rounded-2xl bg-[var(--color-surface)] ring-1 ring-[var(--color-border-soft)] px-5 py-4 divide-y divide-[var(--color-border-soft)]">
+        <StepRow label="Checking tonight's demand" hint={nodeHints["forecast"]} state={forecastState} />
+        <StepRow label="Loading context from past plans" hint={nodeHints["enrichment"]} state={enrichmentState} />
+        {parallelAgents.map((agent) => (
+          <StepRow
+            key={agent.key}
+            label={agent.label}
+            hint={nodeHints[agent.key]}
+            state={ns(agent.key)}
+            swiggy={agent.swiggy}
+          />
+        ))}
+        <StepRow label="Building your menu guidance" hint={nodeHints["menu"]} state={menuState} />
+        <StepRow label="Compiling your brief" hint={nodeHints["aggregator"]} state={aggState} />
+        <StepRow
+          label="Reviewing the plan for mistakes"
+          hint={replanCount > 0 ? `Retry ${replanCount} of 2` : nodeHints["critic"]}
+          state={criticState}
+        />
       </div>
 
       {/* Footer status line */}
@@ -811,7 +706,7 @@ export default function DashboardPage() {
               className="rounded-3xl border border-rose-500/20 px-6 py-5"
               style={{ background: "rgba(244,63,94,0.06)" }}
             >
-              <p className="text-sm font-semibold text-rose-400">Pipeline error</p>
+              <p className="text-sm font-semibold text-rose-400">Something went wrong</p>
               <p className="mt-1 text-xs text-rose-300/80">{error}</p>
               <button
                 onClick={() => trigger()}
@@ -1112,12 +1007,8 @@ export default function DashboardPage() {
             onClick={() => setShowHistoryDrawer(false)}
           />
           <div
-            className="fixed left-0 top-0 z-50 h-screen w-72 overflow-y-auto border-r p-6"
-            style={{
-              background: "#0d1320",
-              borderColor: "rgba(148,163,184,0.12)",
-              animation: "slideIn 0.25s ease-out",
-            }}
+            className="fixed left-0 top-0 z-50 h-screen w-72 overflow-y-auto border-r border-[var(--color-border-default)] bg-[var(--color-surface)] p-6"
+            style={{ animation: "slideIn 0.25s ease-out" }}
           >
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-sm uppercase tracking-[0.18em] text-[var(--color-text-soft)]">

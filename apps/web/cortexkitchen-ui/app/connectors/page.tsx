@@ -148,13 +148,13 @@ function SwiggyCard({ connector }: { connector: ConnectorStatus }) {
       <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-4 py-3">
           <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-faint)]">Orders synced</p>
-          <p className="mt-1 text-xl font-bold tabular-nums text-[var(--color-text-primary)]">
+          <p className="num-display mt-1 text-2xl text-[var(--color-text-primary)]">
             {connector.orders_synced.toLocaleString()}
           </p>
         </div>
         <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-4 py-3">
           <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-faint)]">Feedback synced</p>
-          <p className="mt-1 text-xl font-bold tabular-nums text-[var(--color-text-primary)]">
+          <p className="num-display mt-1 text-2xl text-[var(--color-text-primary)]">
             {connector.feedback_synced.toLocaleString()}
           </p>
         </div>
@@ -252,7 +252,7 @@ export default function ConnectorsPage() {
             <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-accent)]">
               platform integrations
             </p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight">Connectors</h1>
+            <h1 className="display mt-2 text-[32px] text-[var(--color-text-primary)]">Connectors</h1>
             <p className="mt-1 max-w-xl text-sm text-[var(--color-text-soft)]">
               Live data from Swiggy powers your planning pipeline — real orders, delivery feedback, competitor pricing, and Instamart procurement.
             </p>

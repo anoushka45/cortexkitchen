@@ -216,9 +216,7 @@ function IdleState({
 
               <h1 className="mt-5 text-4xl font-bold tracking-tight text-[var(--color-text-primary)] md:text-5xl">
                 Multi-agent intelligence.<br />
-                <span className="bg-gradient-to-r from-ember-400 via-ember-300 to-[var(--color-text-primary)] bg-clip-text text-transparent">
-                  One coordinated plan.
-                </span>
+                <span className="display-it text-[var(--color-accent)]">One coordinated plan.</span>
               </h1>
               <p className="mt-4 max-w-lg text-[15px] leading-7 text-[var(--color-text-soft)]">
                 Pick a shift. Hit run. Five specialists get to work on your kitchen data, a critic checks the plan, and your brief is ready. Export it, tweak the cover count, or ask the AI a question about last week.

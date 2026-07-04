@@ -34,7 +34,7 @@ export default function DataHealthPage() {
             <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-accent)]">
               source data
             </p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight">Data Health</h1>
+            <h1 className="display mt-2 text-[32px] text-[var(--color-text-primary)]">Data Health</h1>
             <p className="mt-1 max-w-2xl text-sm text-[var(--color-text-soft)]">
               Current database coverage used by forecasts, reservations, complaint analysis, menu planning, and inventory checks.
             </p>

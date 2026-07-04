@@ -97,7 +97,7 @@ export default function SettingsPage() {
       <div className="max-w-2xl mx-auto">
         <div className="mb-8 stagger-1">
           <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-accent)]">configuration</p>
-          <h1 className="mt-2 text-xl font-bold text-[var(--color-text-primary)]">Workspace Settings</h1>
+          <h1 className="display mt-2 text-[28px] text-[var(--color-text-primary)]">Workspace Settings</h1>
           <p className="text-[var(--color-text-faint)] text-sm mt-1">{user?.org_name}  -  {user?.role}</p>
         </div>
 

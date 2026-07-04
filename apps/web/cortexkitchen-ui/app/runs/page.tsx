@@ -438,7 +438,7 @@ export default function RunsPage() {
         <header className="flex flex-col gap-4 border-b border-[var(--color-border-default)] pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-accent)]">history</p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight">Plan History</h1>
+            <h1 className="display mt-2 text-[32px] text-[var(--color-text-primary)]">Plan History</h1>
             <p className="mt-1 max-w-2xl text-sm text-[var(--color-text-soft)]">
               Every plan your kitchen has run — verdict, scores, agent findings, and exports. Select any run to inspect or compare.
             </p>
@@ -750,7 +750,7 @@ function Metric({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] p-3">
       <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-faint)]">{label}</p>
-      <p className="mt-1.5 text-xl font-bold tabular-nums text-[var(--color-text-primary)] leading-none">{value}</p>
+      <p className="num-display mt-1.5 text-2xl text-[var(--color-text-primary)] leading-none">{value}</p>
     </div>
   );
 }

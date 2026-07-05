@@ -1006,6 +1006,46 @@ CortexKitchen use: extract `name` + `price` per item to build competitor pricing
 Key fields: `data.items[]`, each has `name`, `restaurantName`, `price`, `hasVariants`
 CRITICAL: item has EITHER `variations` OR `variantsV2`, never both. Check which exists.
 
+CortexKitchen use (P6-MI05): `CompetitorEnricher._search_dish_prices()` calls this once per
+our top dish (max 5/run) to get dish-level competitor prices across ALL nearby restaurants —
+more precise than the category-level averages from `get_restaurant_menu`.
+
+---
+
+**`fetch_food_coupons`**
+
+Request parameters: `restaurantId` (required, competitor's restaurant ID), `addressId` (required),
+`couponCode` (optional — omit to get all available coupons for that restaurant).
+
+```json
+{
+  "bestCoupons": [
+    {
+      "code": "SAVE20",
+      "title": "20% off above Rs.300",
+      "discountAmount": 20,
+      "requiresOnlinePayment": false
+    }
+  ],
+  "moreOffers": [
+    {
+      "code": "FLAT15",
+      "title": "15% off, no minimum",
+      "discountAmount": 15,
+      "requiresOnlinePayment": false
+    }
+  ]
+}
+```
+Key fields: `bestCoupons[]` + `moreOffers[]` (combine both), each has `code`, `title`,
+`discountAmount` (or `discountPercentage`), `requiresOnlinePayment`.
+CRITICAL: filter to `requiresOnlinePayment=false` only — Builders Club v1 supports COD checkout only.
+Returns PUBLIC promotional data regardless of the calling account's activity — safe to call for
+any competitor's restaurantId.
+
+CortexKitchen use (P6-MI06): `CompetitorEnricher._fetch_competitor_deals()` calls this for up to
+3 competitor restaurants per run and surfaces live promotional deals in the Market Context prompt.
+
 ---
 
 ### Instamart MCP response schemas
@@ -1292,14 +1332,15 @@ CortexKitchen mapping:
 | `track_food_order` | Food | feedback sync | `feedback` (source=swiggy_delivery) |
 | `get_booking_status` | Dineout | reservation sync | `reservations` (source=dineout) |
 | `search_restaurants` | Food | CompetitorEnricher | `swiggy_competitor_context` state |
-| `search_menu` | Food | CompetitorEnricher | `swiggy_competitor_context` state |
+| `search_menu` | Food | CompetitorEnricher | `swiggy_competitor_context.dish_prices` (P6-MI05) |
+| `fetch_food_coupons` | Food | CompetitorEnricher | `swiggy_competitor_context.competitor_deals` (P6-MI06) |
 | `get_restaurant_menu` | Food | CompetitorEnricher | `swiggy_competitor_context` state |
 | `search_products` | Instamart | ProcurementEnricher | `swiggy_procurement_options` state |
 | `your_go_to_items` | Instamart | ProcurementEnricher | `swiggy_procurement_options` state |
 | `get_saved_locations` | Dineout | OccupancyEnricher | `swiggy_occupancy_context` state |
 | `search_restaurants_dineout` | Dineout | OccupancyEnricher | `swiggy_occupancy_context` state |
-| `get_restaurant_details` | Dineout | OccupancyEnricher | `swiggy_occupancy_context` state |
-| `get_available_slots` | Dineout | OccupancyEnricher | `swiggy_occupancy_context` state |
+| `get_restaurant_details` | Dineout | OccupancyEnricher | `swiggy_occupancy_context.competitor_dineout_deals` (P6-MI07) |
+| `get_available_slots` | Dineout | OccupancyEnricher | `swiggy_occupancy_context` state + `.slot_deals_found` parsed from `deals[]` (P6-MI07) |
 | `update_cart` | Instamart | ProcurementExecutor | `action_queue` table |
 | `get_cart` | Instamart | ProcurementExecutor | verify before checkout |
 | `clear_cart` | Instamart | ProcurementExecutor | before building new cart |

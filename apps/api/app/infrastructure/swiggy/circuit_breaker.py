@@ -21,9 +21,16 @@ from app.core.settings import get_settings
 # logger's effective level is WARNING and there's no handler attached).
 logger = structlog.get_logger()
 
-FAILURE_THRESHOLD = 3       # failures within WINDOW_SECONDS to open circuit
+FAILURE_THRESHOLD = 5       # failures within WINDOW_SECONDS to open circuit
 WINDOW_SECONDS    = 300     # failure counter TTL (5 min)
-OPEN_SECONDS      = 1800    # open circuit duration (30 min)
+OPEN_SECONDS      = 600     # open circuit duration (10 min)
+
+# Widened from (3 failures / 30 min open) after repeated trips during heavy market-page
+# development: CompetitorEnricher now makes more Food MCP calls per run (pagination +
+# fetch_food_coupons + get_restaurant_menu), so occasional transient blips hit the old
+# threshold too easily. Higher threshold tolerates blips better; shorter open window
+# means a real outage still degrades gracefully but recovers faster instead of blocking
+# the whole /market page for 30 minutes over 3 flaky calls.
 
 _redis_client: aioredis.Redis | None = None
 

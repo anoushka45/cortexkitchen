@@ -493,22 +493,124 @@ export async function getBusinessPerformance(days = 14): Promise<BusinessPerform
 
 export interface MarketPricingComparison {
   item: string;
-  your_price: number;
+  area_avg: number;
+  your_price: number | null;
+  diff_pct: number | null;
+  direction: "above" | "below" | null;
+}
+
+export interface MarketCompetitorDeal {
+  restaurant: string;
+  deal_title: string;
+  discount: number;
+  code: string;
+}
+
+export interface MarketPricingImpactItem {
+  item: string;
+  our_price: number;
+  area_avg: number;
+  gap_pct: number;
+  direction: "above" | "below";
+  volume_change_pct: number;
+  weekly_revenue_impact_inr: number;
+}
+
+export interface MarketNamedDish {
+  name: string;
+  price: number;
+  restaurant: string;
+}
+
+export interface MarketCategoryPricing {
+  category: string;
+  your_avg: number;
   area_avg: number;
   diff_pct: number;
-  direction: "above" | "below";
+  verdict: "above" | "below" | "in line";
+  competitor_dishes_sampled: number;
+  cheapest_dish: MarketNamedDish;
+  priciest_dish: MarketNamedDish;
+}
+
+export interface MarketCompetitorLandscapeEntry {
+  name: string;
+  rating: number;
+  total_ratings: string;
+  cost_for_two: number;
+  distance_km: number;
+  delivery_time_range: string;
+  cuisines: string[];
+  offer: string;
+  veg: boolean;
+}
+
+export interface MarketPositioningInsight {
+  your_cost_for_two_estimate: number;
+  rank: number;
+  total: number;
+  cheaper_than_count: number;
+  pricier_than_count: number;
+}
+
+export interface MarketMenuBreadth {
+  your_item_count: number;
+  competitor_avg_item_count: number;
+  competitors_sampled: number;
+}
+
+export interface MarketCuisineCrowding {
+  cuisine: string;
+  matching_count: number;
+  total_checked: number;
+}
+
+export interface MarketVegMix {
+  veg_count: number;
+  total: number;
 }
 
 export interface MarketCompetitorPricing {
   restaurants_checked: string[];
   comparisons: MarketPricingComparison[];
+  competitor_deals: MarketCompetitorDeal[];
+  pricing_impact: MarketPricingImpactItem[];
+  category_pricing: MarketCategoryPricing[];
+  competitor_landscape: MarketCompetitorLandscapeEntry[];
+  positioning: MarketPositioningInsight | null;
+  menu_breadth: MarketMenuBreadth | null;
+  cuisine_crowding: MarketCuisineCrowding | null;
+  veg_mix: MarketVegMix | null;
   fetched_at: string | null;
+}
+
+export interface MarketCompetitorDineoutDeal {
+  name: string;
+  deals: Array<{ title: string; discount_pct: number; is_free: boolean }>;
+  amenities: string[];
+  timings: string;
+}
+
+export interface MarketSlotDeal {
+  time: string;
+  deal_title: string;
+  discount_pct: number;
+  is_free: boolean;
+}
+
+export interface MarketSlotAvailability {
+  time: string;
+  avg_availability: number;
+  signal: "HIGH" | "MEDIUM" | "LOW";
 }
 
 export interface MarketAreaOccupancy {
   signal: "HIGH" | "MEDIUM" | "LOW" | null;
   tonight_busy: boolean | null;
   competitors_checked: number;
+  competitor_dineout_deals: MarketCompetitorDineoutDeal[];
+  slot_deals_found: MarketSlotDeal[];
+  slot_availability_by_time: MarketSlotAvailability[];
   fetched_at: string | null;
 }
 
@@ -538,4 +640,67 @@ export async function getMarketPulse(): Promise<MarketPulseResponse> {
   }
 
   return res.json() as Promise<MarketPulseResponse>;
+}
+
+// ── Live ingredient price lookup (on-demand, not tied to shortages) ───────────
+
+export interface IngredientSearchResult {
+  name: string;
+  category: string;
+  price: number;
+  unit: string;
+  in_stock: boolean;
+}
+
+export interface IngredientSearchResponse {
+  swiggy_connected: boolean;
+  query: string;
+  results: IngredientSearchResult[];
+}
+
+export async function searchIngredient(query: string): Promise<IngredientSearchResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/market/ingredient-search?query=${encodeURIComponent(query)}`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Ingredient search API error ${res.status}: ${detail}`);
+  }
+
+  return res.json() as Promise<IngredientSearchResponse>;
+}
+
+// ── Market trends (P6-MI11) — pricing/occupancy history across past runs ─────
+
+export interface MarketPricePoint {
+  date: string;
+  area_avg: number;
+}
+
+export interface MarketOccupancyPoint {
+  date: string;
+  signal: "HIGH" | "MEDIUM" | "LOW";
+}
+
+export interface MarketTrendsResponse {
+  price_trends: Record<string, MarketPricePoint[]>;
+  occupancy_trend: MarketOccupancyPoint[];
+  days_returned: number;
+  note: string | null;
+}
+
+export async function getMarketTrends(days = 7): Promise<MarketTrendsResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/market/trends?days=${days}`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Market trends API error ${res.status}: ${detail}`);
+  }
+
+  return res.json() as Promise<MarketTrendsResponse>;
 }

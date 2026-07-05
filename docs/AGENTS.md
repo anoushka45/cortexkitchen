@@ -214,6 +214,15 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 **Dependencies:** `db`, `llm`  
 **Model tier:** `strong` (`claude-sonnet-4-6` when `COMET_TIERED=true`) — the highest-capability model is reserved for the node that gates every plan
 
+**Diff 7 (P6-MI08 — added this phase):** `EvaluationSanityChecker._diff_assumptions()` cross-checks
+`market_intel_assumptions.tonight_busy` against `market_intel_assumptions.dineout_deals_count`
+(sum of `competitor_dineout_deals` from `get_restaurant_details` + `slot_deals_found` parsed from
+`get_available_slots`, both populated by `OccupancyEnricher`). If `tonight_busy=True` and 2+
+competitor Dineout deals are live, the diff fires: the area occupancy signal may overstate real
+walk-in demand at our own restaurant, since some of that "full" demand is being captured by
+competitors' promotional bookings rather than organic overflow. Same shape as Diffs 5/6 — no
+hardcoded pair, derived from each node's own computed assumptions.
+
 ---
 
 ### `final_assembler`
@@ -266,7 +275,7 @@ The shared state type is `OrchestratorState` (TypedDict) in `app/orchestration/s
 
 - Scenario metadata, runtime flags (`simulation_mode`, `debug`), and `org_id` (Phase 5)
 - Per-node output fields written progressively as nodes execute
-- Per-node assumption dicts (`menu_assumptions`, `inventory_assumptions`, `reservation_assumptions`, `complaint_assumptions`) — each domain node writes one after its service call completes; used by `EvaluationSanityChecker` for cross-agent assumption diffing (see D-017)
+- Per-node assumption dicts (`menu_assumptions`, `inventory_assumptions`, `reservation_assumptions`, `complaint_assumptions`, `market_intel_assumptions`, `dineout_manager_assumptions`) — each domain node writes one after its service call completes; used by `EvaluationSanityChecker` for cross-agent assumption diffing (see D-017)
 - `shared_context["past_plans"]` — list of similar past plan snippets from `PlanningMemoryService`, injected by `qdrant_enrichment`; available to all downstream nodes
 - `replan_context` — structured critic feedback injected by `replan_orchestrator` when a revision cycle is in progress; consumed by domain nodes on replan
 - `error` field checked by the conditional edge after `ops_manager`

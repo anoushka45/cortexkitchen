@@ -1,6 +1,10 @@
 """Unit tests for ProcurementEnricher (P6-S09).
 
 All Swiggy Instamart API calls and Redis are mocked — no live token needed.
+
+your_go_to_items is deliberately NOT used anywhere in this enricher (it returns the
+personal Swiggy consumer account's own purchase history, not restaurant procurement
+data) -- there is no test coverage for it here on purpose.
 """
 
 import pytest
@@ -34,14 +38,6 @@ SEARCH_RESPONSE = {
     ]
 }
 
-GO_TO_RESPONSE = {
-    "products": [
-        {"productId": "prod_2", "displayName": "Amul Butter",
-         "variations": [{"spinId": "spin_99", "price": {"offerPrice": 55.0}, "quantityDescription": "100g", "isInStockAndAvailable": True}],
-         "lastOrderedAt": "2026-06-20T10:00:00Z"},
-    ]
-}
-
 CONTEXT = {
     "org_id": 1,
     "address_id": "addr_abc",
@@ -52,12 +48,11 @@ CONTEXT = {
 _UNSET = object()
 
 
-def _client(search_data=_UNSET, go_to_data=_UNSET):
+def _client(search_data=_UNSET):
     c = MagicMock()
 
     async def call_tool(endpoint, tool_name, arguments):
-        if tool_name == "your_go_to_items":
-            return GO_TO_RESPONSE if go_to_data is _UNSET else go_to_data
+        assert tool_name != "your_go_to_items", "your_go_to_items must never be called"
         if tool_name == "search_products":
             return SEARCH_RESPONSE if search_data is _UNSET else search_data
         return None
@@ -92,8 +87,17 @@ async def test_returns_none_when_no_address_id():
 
 @pytest.mark.asyncio
 async def test_returns_none_when_all_calls_return_nothing():
-    enricher = _enricher(_client(search_data=None, go_to_data=None))
+    enricher = _enricher(_client(search_data=None))
     result = await enricher.enrich(CONTEXT)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_returns_none_when_no_shortage_items_given():
+    """No go_to_items fallback anymore -- with nothing to search for, there's
+    nothing to return."""
+    enricher = _enricher(_client())
+    result = await enricher.enrich({"org_id": 1, "address_id": "addr_abc", "shortage_items": []})
     assert result is None
 
 
@@ -108,19 +112,7 @@ async def test_procurement_options_populated_with_spinid():
     assert opts[0]["spinId"] == "spin_42"
     assert opts[0]["price"] == 45.0
     assert opts[0]["inStock"] is True
-
-
-@pytest.mark.asyncio
-async def test_go_to_items_populated():
-    enricher = _enricher(_client())
-    result = await enricher.enrich(CONTEXT)
-    assert result is not None
-    go_to = result["go_to_items"]
-    assert len(go_to) >= 1
-    assert go_to[0]["name"] == "Amul Butter"
-    assert go_to[0]["price"] == 55.0
-    assert go_to[0]["spinId"] == "spin_99"
-    assert go_to[0]["lastOrderedAt"] is not None
+    assert "go_to_items" not in result
 
 
 @pytest.mark.asyncio
@@ -128,9 +120,9 @@ async def test_variant_without_spinid_is_skipped():
     no_spin_response = {
         "products": [{"id": "p1", "displayName": "X", "variations": [VARIANT_NO_SPIN]}]
     }
-    enricher = _enricher(_client(search_data=no_spin_response, go_to_data={"products": []}))
+    enricher = _enricher(_client(search_data=no_spin_response))
     result = await enricher.enrich({"org_id": 1, "address_id": "addr_abc", "shortage_items": ["cream"]})
-    # No usable variant, no go_to items either → None
+    # No usable variant -> None
     assert result is None
 
 
@@ -139,8 +131,7 @@ async def test_max_five_search_calls_enforced():
     call_count = {"n": 0}
 
     async def call_tool(endpoint, tool_name, arguments):
-        if tool_name == "your_go_to_items":
-            return {"products": []}
+        assert tool_name != "your_go_to_items"
         if tool_name == "search_products":
             call_count["n"] += 1
             return SEARCH_RESPONSE
@@ -162,6 +153,7 @@ async def test_prompt_text_contains_section_header():
     assert result is not None
     assert "## Live Procurement Options" in result["prompt_text"]
     assert "tomatoes" in result["prompt_text"].lower()
+    assert "frequent reorder" not in result["prompt_text"].lower()
 
 
 @pytest.mark.asyncio
@@ -178,16 +170,6 @@ async def test_cache_written_after_successful_fetch():
     result = await enricher.enrich(CONTEXT)
     assert result is not None
     enricher._cache_set.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_works_with_only_go_to_items_no_shortage():
-    """No shortage items — should still return go_to_items."""
-    enricher = _enricher(_client())
-    result = await enricher.enrich({"org_id": 1, "address_id": "addr_abc", "shortage_items": []})
-    assert result is not None
-    assert len(result["go_to_items"]) >= 1
-    assert result["procurement_options"] == []
 
 
 @pytest.mark.asyncio

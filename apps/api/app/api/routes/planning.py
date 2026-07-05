@@ -3,17 +3,18 @@
 import json as _json
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 
 from sqlalchemy.orm import Session
-from app.api.dependencies import get_current_user, get_db, get_orchestration_deps
+from app.api.dependencies import get_current_user, get_db, get_llm, get_orchestration_deps
 from app.infrastructure.db.models import Organization, RestaurantProfile
 from app.api.schemas.planning import (
     FridayRushRequest,
     FridayRushResponse,
     PlanningRunRequest,
     PlanningScenarioListResponse,
+    ScenarioRecommendationResponse,
     WhatIfRequest,
     WhatIfResponse,
 )
@@ -21,7 +22,9 @@ from app.core.exceptions import AppError
 from app.domain.scenarios import list_scenarios
 from app.domain.services.cost_aware_scoring import CostAwareScoringService
 from app.domain.services.run_service import RunService
+from app.domain.services.scenario_recommender import ScenarioRecommender
 from app.infrastructure.cache.plan_cache import build_cache_key, cache_plan, get_cached_plan
+from app.infrastructure.swiggy.client import SwiggyMCPClient
 from app.orchestration import run_friday_rush, run_planning_scenario, stream_planning_scenario
 
 router = APIRouter(prefix="/planning", tags=["planning"])
@@ -352,6 +355,29 @@ def whatif_planning(
         tradeoff_notes=result["tradeoff_notes"],
         recommended_focus=result["recommended_focus"],
     )
+
+
+@router.get(
+    "/recommend",
+    response_model=ScenarioRecommendationResponse,
+    summary="Recommend a planning scenario for a target date",
+    description=(
+        "Suggests which scenario preset (friday_rush / weekday_lunch / holiday_spike / "
+        "low_stock_weekend) best fits the target date, using recent run history, live "
+        "Swiggy market signals, calendar context (weekend/holiday), and current inventory "
+        "shortage pressure. Used by the dashboard to show a suggestion before the owner "
+        "manually picks a scenario."
+    ),
+)
+async def recommend_scenario(
+    target_date: str = Query(..., description="ISO date string, e.g. 2026-07-05"),
+    db: Session = Depends(get_db),
+    llm=Depends(get_llm),
+    current_user: dict = Depends(get_current_user),
+) -> ScenarioRecommendationResponse:
+    recommender = ScenarioRecommender(db=db, swiggy_client=SwiggyMCPClient(), llm=llm)
+    result = await recommender.recommend(org_id=current_user["org_id"], target_date=target_date)
+    return ScenarioRecommendationResponse(**result)
 
 
 @router.post(

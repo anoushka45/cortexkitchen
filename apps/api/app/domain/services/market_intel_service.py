@@ -112,12 +112,42 @@ class MarketIntelService:
         occupancy_signal = occupancy_ctx.get("occupancy_signal")  if occupancy_ctx  else None
         tonight_busy     = occupancy_ctx.get("tonight_busy")      if occupancy_ctx  else None
 
+        # P6-MI06/MI09: competitor Swiggy deals, pricing impact model (bonus, exact-match only)
+        competitor_deals = competitor_ctx.get("competitor_deals") if competitor_ctx else None
+        pricing_impact   = competitor_ctx.get("pricing_impact")   if competitor_ctx else None
+        # Category-level pricing (dish-name-independent) — the primary market intel signal
+        category_pricing = competitor_ctx.get("category_pricing") if competitor_ctx else None
+        # Competitor landscape (rating/cost-for-two/distance) + synthesized market ranking
+        competitor_landscape = competitor_ctx.get("competitor_landscape") if competitor_ctx else None
+        positioning          = competitor_ctx.get("positioning")          if competitor_ctx else None
+        # Market context signals: menu breadth, cuisine crowding, veg mix
+        menu_breadth     = competitor_ctx.get("menu_breadth")     if competitor_ctx else None
+        cuisine_crowding = competitor_ctx.get("cuisine_crowding") if competitor_ctx else None
+        veg_mix          = competitor_ctx.get("veg_mix")          if competitor_ctx else None
+
+        # P6-MI07: Dineout competitor deals — from get_restaurant_details + parsed slot deals[]
+        competitor_dineout_deals = occupancy_ctx.get("competitor_dineout_deals") if occupancy_ctx else None
+        slot_deals_found         = occupancy_ctx.get("slot_deals_found")         if occupancy_ctx else None
+        # Occupancy-by-time-slot chart data
+        slot_availability_by_time = occupancy_ctx.get("slot_availability_by_time") if occupancy_ctx else None
+
         return {
-            "competitor_pricing": area_avg,
-            "area_occupancy":     occupancy_signal,
-            "pricing_alerts":     pricing_alerts,
-            "tonight_busy":       tonight_busy,
-            "fetched_at":         date.today().isoformat(),
+            "competitor_pricing":         area_avg,
+            "area_occupancy":             occupancy_signal,
+            "pricing_alerts":             pricing_alerts,
+            "tonight_busy":               tonight_busy,
+            "competitor_deals":           competitor_deals,
+            "pricing_impact":             pricing_impact,
+            "category_pricing":           category_pricing,
+            "competitor_landscape":       competitor_landscape,
+            "positioning":                positioning,
+            "menu_breadth":               menu_breadth,
+            "cuisine_crowding":           cuisine_crowding,
+            "veg_mix":                    veg_mix,
+            "competitor_dineout_deals":   competitor_dineout_deals,
+            "slot_deals_found":           slot_deals_found,
+            "slot_availability_by_time":  slot_availability_by_time,
+            "fetched_at":                 date.today().isoformat(),
         }
 
     async def _competitor_status(self) -> dict:
@@ -143,10 +173,21 @@ class MarketIntelService:
             "swiggy_competitor_context": None,
             "swiggy_occupancy_context":  None,
             "market_intel_output": {
-                "competitor_pricing": None,
-                "area_occupancy":     None,
-                "pricing_alerts":     [],
-                "tonight_busy":       None,
-                "fetched_at":         date.today().isoformat(),
+                "competitor_pricing":       None,
+                "area_occupancy":           None,
+                "pricing_alerts":           [],
+                "tonight_busy":             None,
+                "competitor_deals":         None,
+                "pricing_impact":           None,
+                "category_pricing":         None,
+                "competitor_landscape":     None,
+                "positioning":              None,
+                "menu_breadth":             None,
+                "cuisine_crowding":         None,
+                "veg_mix":                  None,
+                "competitor_dineout_deals": None,
+                "slot_deals_found":         None,
+                "slot_availability_by_time": None,
+                "fetched_at":               date.today().isoformat(),
             },
         }

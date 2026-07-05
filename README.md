@@ -385,10 +385,18 @@ python ..\..\scripts\seed_qdrant_memory.py
 ### 4. Start the backend
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --reload-exclude "tests/*" --reload-exclude ".pytest_cache/*" --reload-exclude "*.pyc" --reload-exclude ".coverage*" --reload-exclude "htmlcov/*"
 ```
 
 API at `http://localhost:8000` · Swagger at `http://localhost:8000/docs`
+
+> Some Swiggy-backed endpoints (e.g. `/market/pulse`) take up to ~15s on a cold
+> cache — running the test suite or editing backend files during that window
+> used to kill in-flight requests via `--reload`, which the browser reports as
+> a misleading CORS error (`net::ERR_FAILED`, "no Access-Control-Allow-Origin
+> header") even though CORS is configured correctly. The `--reload-exclude`
+> flags above stop the test suite from triggering that; still avoid saving
+> backend source files while a slow request is in flight.
 
 ### 5. Start the frontend
 

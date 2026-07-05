@@ -230,6 +230,27 @@ class EvaluationSanityChecker:
                 ),
             })
 
+        # Diff 7 (P6-MI08): competitor Dineout deals may absorb demand flagged as HIGH occupancy.
+        # tonight_busy comes from OUR area occupancy signal (competitors nearly full). But if those
+        # same competitors are running deals/promos tonight, some of that "full" demand is being
+        # captured by discounted bookings rather than organic overflow — the walk-in surge implied
+        # by tonight_busy=True may not materialise at our door the way a plan built on it assumes.
+        tonight_busy = market_intel_a.get("tonight_busy")
+        dineout_deals_count = int(market_intel_a.get("dineout_deals_count") or 0)
+        if tonight_busy is True and dineout_deals_count >= 2:
+            stale.append({
+                "node": "market_intel",
+                "assumption_key": "tonight_busy",
+                "assumed_value": True,
+                "actual_value": dineout_deals_count,
+                "conflict": (
+                    f"market_intel flagged tonight_busy=True (HIGH area occupancy), but "
+                    f"{dineout_deals_count} competitor Dineout deal(s)/promo(s) are live tonight — "
+                    f"demand may be absorbed by competitor bookings before reaching your restaurant. "
+                    f"Revise walk-in overflow estimate down 15-20%."
+                ),
+            })
+
         return stale
 
     def _check_top_level_schema(self, bundle: dict[str, Any]) -> list[SanityIssue]:

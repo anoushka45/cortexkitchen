@@ -8,6 +8,7 @@ P5-12 RAG chatbot service — enhanced for P6-S04 with:
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import AsyncGenerator, Optional
 
@@ -22,6 +23,8 @@ from app.infrastructure.swiggy.client import (
     INSTAMART_ENDPOINT,
     SwiggyMCPClient,
 )
+from app.infrastructure.swiggy.enrichers.competitor import CompetitorEnricher
+from app.infrastructure.swiggy.enrichers.occupancy import OccupancyEnricher
 
 # structlog, not stdlib logging: stdlib .info()/.debug() calls are silently
 # dropped in this app (no logging.basicConfig() is ever called).
@@ -32,7 +35,10 @@ _MAX_TOKENS = 1024
 _MAX_RUNS = 10
 _MAX_TOOL_ITERATIONS = 3
 
-_SWIGGY_TOOL_NAMES = {"swiggy_search_menu", "swiggy_get_food_orders", "swiggy_search_products"}
+_SWIGGY_TOOL_NAMES = {
+    "swiggy_search_menu", "swiggy_get_food_orders", "swiggy_search_products",
+    "swiggy_get_competitor_deals", "swiggy_get_area_occupancy", "swiggy_get_common_dishes",
+}
 
 
 # ── Tool definitions (Groq / OpenAI function calling format) ─────────────────
@@ -181,6 +187,72 @@ _TOOLS = [
             },
         },
     },
+    # ── Swiggy Dineout competitive-intelligence tools (P6-MI04) ─────────────
+    {
+        "type": "function",
+        "function": {
+            "name": "swiggy_get_competitor_deals",
+            "description": (
+                "Get live promotional deals competitors are running right now, combining Swiggy "
+                "Food coupons and Dineout pre-booking offers. Use when the user asks what deals "
+                "or offers competitors have tonight, or whether anyone nearby is discounting."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "cuisine": {
+                        "type": "string",
+                        "description": "Cuisine or restaurant type to search nearby (e.g. 'North Indian', 'Biryani'). Defaults to a broad search if omitted.",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "swiggy_get_area_occupancy",
+            "description": (
+                "Get how full nearby competitor restaurants are right now, based on live Swiggy "
+                "Dineout table availability. Use when the user asks how busy the area is, whether "
+                "competitors are full, or what tonight's demand signal looks like."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "cuisine": {
+                        "type": "string",
+                        "description": "Cuisine or restaurant type to search nearby (e.g. 'North Indian'). Defaults to a broad search if omitted.",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "swiggy_get_common_dishes",
+            "description": (
+                "Get dishes that commonly appear across nearby competitor menus on Swiggy, with "
+                "area-average pricing for each. NOTE: this reflects menu presence, not order "
+                "volume or popularity — Swiggy's consumer API does not expose competitor sales "
+                "data. Use when the user asks what dishes competitors are commonly offering or "
+                "what's typically priced around a certain range nearby."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "cuisine": {
+                        "type": "string",
+                        "description": "Cuisine or restaurant type to search nearby (e.g. 'North Indian'). Defaults to a broad search if omitted.",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
 ]
 
 
@@ -263,7 +335,7 @@ def _run_tool(name: str, args: dict, db: Session, org_id: int) -> str:
 
 # ── Swiggy live tool execution ────────────────────────────────────────────────
 
-async def _run_swiggy_tool(name: str, args: dict) -> str:
+async def _run_swiggy_tool(name: str, args: dict, org_id: int = 0) -> str:
     """Execute a Swiggy MCP tool and return a JSON string result.
 
     Uses settings.swiggy_address_id as the default addressId for all calls.
@@ -312,6 +384,57 @@ async def _run_swiggy_tool(name: str, args: dict) -> str:
                 return json.dumps({"error": "Swiggy search_products returned no data"})
             products = result.get("products") or result.get("items") or result
             return json.dumps({"source": "Swiggy Instamart (live)", "products": products})
+
+        # ── Dineout competitive-intelligence tools (P6-MI04) ────────────────
+        # Reuse the same enrichers the planning pipeline uses, so the chatbot's
+        # answer is always consistent with what a plan run would see — and
+        # benefits from the same 30-min Redis cache (no extra Swiggy load).
+        if name == "swiggy_get_competitor_deals":
+            cuisine = args.get("cuisine") or "restaurant"
+            context = {"org_id": org_id, "cuisine": cuisine}
+            competitor_ctx, occupancy_ctx = await asyncio.gather(
+                CompetitorEnricher(client).enrich(context),
+                OccupancyEnricher(client).enrich(context),
+            )
+            food_deals = (competitor_ctx or {}).get("competitor_deals") or []
+            dineout_deals = (occupancy_ctx or {}).get("competitor_dineout_deals") or []
+            slot_deals = (occupancy_ctx or {}).get("slot_deals_found") or []
+            if not food_deals and not dineout_deals and not slot_deals:
+                return json.dumps({"error": "No competitor deal data available right now"})
+            return json.dumps({
+                "source": "Swiggy Food + Dineout (live)",
+                "food_swiggy_deals": food_deals,
+                "dineout_prebooking_deals": dineout_deals,
+                "dineout_slot_deals_tonight": slot_deals,
+            })
+
+        if name == "swiggy_get_area_occupancy":
+            cuisine = args.get("cuisine") or "restaurant"
+            occupancy_ctx = await OccupancyEnricher(client).enrich({"org_id": org_id, "cuisine": cuisine})
+            if not occupancy_ctx:
+                return json.dumps({"error": "No area occupancy data available right now"})
+            return json.dumps({
+                "source": "Swiggy Dineout (live)",
+                "occupancy_signal": occupancy_ctx.get("occupancy_signal"),
+                "tonight_busy": occupancy_ctx.get("tonight_busy"),
+                "competitors_checked": occupancy_ctx.get("competitors_checked"),
+            })
+
+        if name == "swiggy_get_common_dishes":
+            cuisine = args.get("cuisine") or "restaurant"
+            competitor_ctx = await CompetitorEnricher(client).enrich({"org_id": org_id, "cuisine": cuisine})
+            if not competitor_ctx or not competitor_ctx.get("area_avg"):
+                return json.dumps({"error": "No competitor menu data available right now"})
+            dishes = [
+                {"dish": dish, "area_avg_price": price}
+                for dish, price in sorted(competitor_ctx["area_avg"].items())
+            ]
+            return json.dumps({
+                "source": "Swiggy Food (live)",
+                "dishes": dishes[:20],
+                "note": "Reflects dishes found across nearby competitor menus, not order-volume "
+                        "popularity — Swiggy's consumer API doesn't expose competitor sales data.",
+            })
 
     except Exception as exc:
         logger.warning("swiggy_chat_tool_failed", tool=name, error=str(exc))
@@ -606,7 +729,7 @@ async def stream_reply(
                 args = {}
 
             if tc.function.name in _SWIGGY_TOOL_NAMES:
-                result = await _run_swiggy_tool(tc.function.name, args)
+                result = await _run_swiggy_tool(tc.function.name, args, org_id or 0)
             else:
                 result = _run_tool(tc.function.name, args, db, org_id)
             messages.append({

@@ -4,12 +4,17 @@ Fetches live Instamart prices and spinIds for shortage ingredients at planning t
 Injects a Live Procurement Options section into the inventory node prompt.
 
 Flow:
-  your_go_to_items(addressId) → frequent reorder candidates (spinId + price)
-  → search_products(query=ingredient, addressId) for each shortage item
+  search_products(query=ingredient, addressId) for each shortage item
     (max MAX_SEARCH_CALLS total — enforced across all items)
   → build procurement_options list with spinId, price, unit, inStock per ingredient
   → cache Redis 30 min (key: enricher:procurement:{org_id}:{date})
   → return dict or None on any failure
+
+NOTE: your_go_to_items is deliberately NOT used anywhere in this enricher. It returns
+the PERSONAL Swiggy consumer account's own purchase history (confirmed live: pet food,
+personal groceries), not restaurant procurement data — it has no place in a prompt an
+LLM reasons over as if it were business intelligence. See CLAUDE.md's Swiggy MCP
+consumer-data warning.
 
 CRITICAL: spinId (variant-level SKU) must persist in OrchestratorState.
           ProcurementExecutor (P6-S15) uses spinIds for update_cart.
@@ -66,12 +71,6 @@ class ProcurementEnricher:
                "price": 45.0, "unit": "1kg", "inStock": True},
               ...
             ],
-            "go_to_items": [
-              {"name": "Amul Butter", "spinId": "spin_99",
-               "price": 55.0, "unit": "100g", "inStock": True,
-               "lastOrderedAt": "2026-06-20T10:00:00Z"},
-              ...
-            ],
             "prompt_text": "## Live Procurement Options\\n...",
             "fetched_at": "2026-06-30",
           }
@@ -81,6 +80,44 @@ class ProcurementEnricher:
             return await self._enrich(context)
         except Exception as exc:
             log.warning("procurement_enricher_error", error=str(exc))
+            return None
+
+    async def search_live(self, address_id: str, query: str) -> Optional[list[dict]]:
+        """On-demand ingredient search for the /market page's live lookup card.
+
+        Unlike enrich(), this is user-triggered (owner types an ingredient and hits
+        search) rather than planning-time — so it's NOT Redis-cached (freshness over
+        speed for an explicit one-off query) and returns the top few product matches
+        with their best variant each, not just a single best pick per ingredient.
+        Returns None on any failure — never raises.
+        """
+        try:
+            if not address_id or not query.strip():
+                return None
+            data = await self._client.call_tool(
+                INSTAMART_ENDPOINT,
+                "search_products",
+                {"addressId": address_id, "query": query.strip()},
+            )
+            if not data:
+                return None
+
+            results = []
+            for product in (data.get("products") or [])[:5]:
+                variant = self._best_variant(product.get("variations") or [])
+                if not variant:
+                    continue
+                results.append({
+                    "name":     str(product.get("name") or ""),
+                    "category": str(product.get("category") or ""),
+                    "spinId":   variant["spinId"],
+                    "price":    variant["price"],
+                    "unit":     variant["unit"],
+                    "inStock":  variant["inStock"],
+                })
+            return results or None
+        except Exception as exc:
+            log.warning("procurement_enricher_search_live_error", error=str(exc))
             return None
 
     # ── internal ─────────────────────────────────────────────────────────────
@@ -100,52 +137,21 @@ class ProcurementEnricher:
             log.info("procurement_enricher_cache_hit", cache_key=cache_key)
             return cached
 
-        # Step 1 — frequent reorder candidates (no call limit)
-        go_to_items = await self._fetch_go_to_items(address_id)
-
-        # Step 2 — search for each shortage ingredient (capped at MAX_SEARCH_CALLS)
+        # Search for each shortage ingredient (capped at MAX_SEARCH_CALLS)
         procurement_options = await self._search_shortage_items(address_id, shortage_items)
 
-        if not procurement_options and not go_to_items:
+        if not procurement_options:
             return None
 
         result = {
             "procurement_options": procurement_options,
-            "go_to_items":         go_to_items,
-            "prompt_text":         self._build_prompt(procurement_options, go_to_items),
+            "prompt_text":         self._build_prompt(procurement_options),
             "fetched_at":          date.today().isoformat(),
         }
 
         await self._cache_set(cache_key, result)
-        log.info(
-            "procurement_enricher_done",
-            options=len(procurement_options), go_to=len(go_to_items),
-        )
+        log.info("procurement_enricher_done", options=len(procurement_options))
         return result
-
-    async def _fetch_go_to_items(self, address_id: str) -> list[dict]:
-        data = await self._client.call_tool(
-            INSTAMART_ENDPOINT,
-            "your_go_to_items",
-            {"addressId": address_id},
-        )
-        if not data:
-            return []
-
-        results = []
-        for item in data.get("products") or []:
-            variant = self._best_variant(item.get("variations") or [])
-            if not variant:
-                continue
-            results.append({
-                "name":          str(item.get("displayName") or item.get("name") or ""),
-                "spinId":        variant["spinId"],
-                "price":         variant["price"],
-                "unit":          variant["unit"],
-                "inStock":       variant["inStock"],
-                "lastOrderedAt": item.get("lastOrderedAt"),
-            })
-        return results
 
     async def _search_shortage_items(
         self, address_id: str, shortage_items: list[str]
@@ -208,7 +214,7 @@ class ProcurementEnricher:
             }
         return None
 
-    def _build_prompt(self, options: list[dict], go_to_items: list[dict]) -> str:
+    def _build_prompt(self, options: list[dict]) -> str:
         lines = ["## Live Procurement Options (Instamart)"]
 
         if options:
@@ -220,17 +226,7 @@ class ProcurementEnricher:
                     f"- {opt['ingredient'].title()}: Rs.{opt['price']:.0f}/{opt['unit']} "
                     f"({status})"
                 )
-
-        if go_to_items:
-            lines.append("")
-            lines.append("**Frequent reorder items:**")
-            for item in go_to_items[:5]:  # cap at 5 in prompt
-                status = "in stock" if item["inStock"] else "OUT OF STOCK"
-                lines.append(
-                    f"- {item['name']}: Rs.{item['price']:.0f}/{item['unit']} ({status})"
-                )
-
-        if not options and not go_to_items:
+        else:
             lines.append("No procurement data available.")
 
         return "\n".join(lines)

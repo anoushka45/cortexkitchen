@@ -1,15 +1,12 @@
 "use client";
 
-import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import SwiggyMarketIntelPanel from "@/components/dashboard/SwiggyMarketIntelPanel";
+import MarketTrendChart from "@/components/dashboard/MarketTrendChart";
+import SwiggyLiveMarketPanel from "@/components/dashboard/SwiggyLiveMarketPanel";
 import SwiggyStatusWidget from "@/components/dashboard/SwiggyStatusWidget";
-import { useSelectedRun } from "@/hooks/useSelectedRun";
 
-function MarketContent() {
-  const { data, status, error } = useSelectedRun();
-
+export default function MarketPage() {
   return (
     <div className="min-h-screen bg-[var(--color-surface-page)] text-[var(--color-text-primary)]">
       <main className="mx-auto w-full max-w-[1520px] px-6 py-8 xl:px-14">
@@ -23,7 +20,8 @@ function MarketContent() {
               <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-accent)]">via swiggy mcp</p>
               <h1 className="display mt-2 text-[32px] text-[var(--color-text-primary)]">Market Intelligence</h1>
               <p className="mt-1 max-w-2xl text-sm text-[var(--color-text-soft)]">
-                Live competitor pricing, area demand, and Instamart procurement from Swiggy — used to shape tonight&apos;s menu and pricing strategy.
+                Always-on competitor pricing, deals, area demand, and Instamart procurement from Swiggy —
+                available anytime, independent of running a plan. This is the signal your next plan run injects.
               </p>
             </div>
           </div>
@@ -37,37 +35,13 @@ function MarketContent() {
         </div>
 
         <div className="mt-6">
-          {status === "loading" && (
-            <p className="text-sm text-[var(--color-text-faint)]">Loading the last plan…</p>
-          )}
+          <SwiggyLiveMarketPanel />
+        </div>
 
-          {status === "empty" && (
-            <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-6 py-10 text-center">
-              <p className="text-sm font-medium text-[var(--color-text-primary)]">No plans yet</p>
-              <p className="mt-1 text-sm text-[var(--color-text-faint)]">
-                Run your first plan from the dashboard to see live competitor and Instamart data here.
-              </p>
-              <Link href="/dashboard" className="mt-4 inline-block text-sm text-[var(--color-accent)] underline underline-offset-4">
-                Go to dashboard
-              </Link>
-            </div>
-          )}
-
-          {status === "error" && (
-            <p className="text-sm text-rose-400">{error ?? "Could not load this run."}</p>
-          )}
-
-          {status === "success" && data && <SwiggyMarketIntelPanel data={data} />}
+        <div className="mt-6">
+          <MarketTrendChart />
         </div>
       </main>
     </div>
-  );
-}
-
-export default function MarketPage() {
-  return (
-    <Suspense fallback={null}>
-      <MarketContent />
-    </Suspense>
   );
 }

@@ -188,7 +188,12 @@ export default function TodayIdleState({
   const positivePct = feedback && feedback.count > 0 ? Math.round((feedback.positive / feedback.count) * 100) : null;
 
   const occupancy = marketPulse?.area_occupancy ?? null;
-  const pricingAlerts = marketPulse?.competitor_pricing?.comparisons ?? [];
+  // Only dishes that actually matched one of our own menu items have a real comparison --
+  // /market/pulse now also returns unmatched competitor dishes (diff_pct/direction null)
+  // for market-awareness display, which don't belong in this "pricing alert" insight.
+  const pricingAlerts = (marketPulse?.competitor_pricing?.comparisons ?? []).filter(
+    (a): a is typeof a & { diff_pct: number; direction: "above" | "below" } => a.your_price != null
+  );
   const abovePricingCount = pricingAlerts.filter((a) => a.direction === "above").length;
   const procurement = marketPulse?.procurement ?? [];
   const cheapestProcurement = procurement.length > 0

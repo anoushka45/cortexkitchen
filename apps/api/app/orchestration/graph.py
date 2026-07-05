@@ -253,7 +253,7 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
     graph.add_node(RESERVATION,            _inject(reservation_node,            tr, db_factory=db_factory, llm=llm))
     graph.add_node(COMPLAINT_INTELLIGENCE, _inject(complaint_intelligence_node, tr, db_factory=db_factory, llm=llm, memory=memory))
     graph.add_node(INVENTORY,              _inject(inventory_node,              tr, db_factory=db_factory, llm=llm, swiggy_client=swiggy_client))
-    graph.add_node(MARKET_INTEL,    _inject(market_intel_node,    tr, swiggy_client=swiggy_client))
+    graph.add_node(MARKET_INTEL,    _inject(market_intel_node,    tr, db_factory=db_factory, swiggy_client=swiggy_client))
     graph.add_node(DINEOUT_MANAGER, _inject(dineout_manager_node, tr, swiggy_client=swiggy_client))
     graph.add_node(MENU_INTELLIGENCE, _inject(menu_intelligence_node, tr, db=db, llm=llm))
 

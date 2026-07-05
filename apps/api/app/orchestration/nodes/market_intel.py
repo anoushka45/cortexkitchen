@@ -10,21 +10,34 @@ ProcurementEnricher concurrently. All three outputs are written to state so:
   - menu_intelligence can read swiggy_competitor_context for the Market Context
     section it injects into its LLM prompt
   - reservation can read swiggy_occupancy_context for the Occupancy Signal section
-  - swiggy_procurement_options provides go_to_items context (shortage-specific
-    options come from inventory_node calling ProcurementEnricher with actual
-    shortage_items after its own analysis completes)
+  - swiggy_procurement_options is populated by inventory_node itself, which calls
+    ProcurementEnricher directly with actual shortage_items after its own analysis
+    completes (not by this node, and not from your_go_to_items — see procurement.py's
+    module docstring for why that tool is deliberately unused)
 
 Fails open: returns state unchanged (no market context) if Swiggy is unavailable.
 """
+
+import asyncio
+from typing import Callable
 
 from app.orchestration.state import OrchestratorState
 from app.domain.services.market_intel_service import MarketIntelService
 from app.infrastructure.swiggy.client import SwiggyMCPClient
 
 
+def _load_our_items(session) -> list[dict]:
+    """Sync DB query — run via asyncio.to_thread so it doesn't block the parallel fan-out."""
+    from app.infrastructure.db.models import MenuItem
+
+    items = session.query(MenuItem).filter(MenuItem.is_available.is_(True)).all()
+    return [{"name": i.name, "price": i.price, "category": i.category} for i in items]
+
+
 async def market_intel_node(
     state: OrchestratorState,
     swiggy_client: SwiggyMCPClient,
+    db_factory: Callable,
 ) -> OrchestratorState:
     """
     Fetches live Swiggy market intelligence and writes it to state.
@@ -41,9 +54,20 @@ async def market_intel_node(
         }
 
     scenario_profile = state.get("scenario_profile") or {}
+
+    # Load our own menu (name/price/category) so CompetitorEnricher can compute
+    # pricing alerts, dish-level comparisons, and category pricing during a real
+    # planning run — not just via the standalone /market/pulse endpoint.
+    session = db_factory()
+    try:
+        our_items = await asyncio.to_thread(_load_our_items, session)
+    finally:
+        session.close()
+
     context = {
-        "org_id":  state.get("org_id") or 0,
-        "cuisine": scenario_profile.get("cuisine") or "restaurant",
+        "org_id":    state.get("org_id") or 0,
+        "cuisine":   scenario_profile.get("cuisine") or "restaurant",
+        "our_items": our_items,
         # address_id falls back to settings.swiggy_address_id inside each enricher
     }
 
@@ -51,12 +75,20 @@ async def market_intel_node(
     result  = await service.run(context)
 
     market_intel = result.get("market_intel_output") or {}
+    dineout_deals_count = (
+        len(market_intel.get("competitor_dineout_deals") or [])
+        + len(market_intel.get("slot_deals_found") or [])
+    )
     assumptions = {
         "swiggy_available":             True,
         "assumed_competitor_avg_price": market_intel.get("competitor_pricing"),
         "assumed_area_occupancy":       market_intel.get("area_occupancy"),
         "pricing_alerts_count":         len(market_intel.get("pricing_alerts") or []),
         "tonight_busy":                 market_intel.get("tonight_busy"),
+        # P6-MI08 (Diff 7): count of live competitor Dineout deals/promos tonight —
+        # used to catch tonight_busy=True occupancy signals that may be inflated
+        # because competitors are actively absorbing demand with promotions.
+        "dineout_deals_count":          dineout_deals_count,
         "fetched_at":                   market_intel.get("fetched_at"),
     }
 

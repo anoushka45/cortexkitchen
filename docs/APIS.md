@@ -372,6 +372,40 @@ What-if demand simulator. Recalculates cost/benefit scoring for a user-supplied 
 
 ---
 
+### `GET /api/v1/planning/recommend`
+
+P6-MI10. Suggests which scenario preset to run next, before the owner manually picks one.
+Combines recent run history, live Swiggy market signals (if connected), calendar context
+(weekend/holiday), and current inventory shortage pressure into a single LLM call. Falls back to a
+deterministic rule-based pick if the LLM call fails — this endpoint never errors out.
+
+**Auth:** JWT required.
+
+**Query parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `target_date` | string | Yes | ISO date string, e.g. `"2026-07-05"` |
+
+**Response `200`**
+
+```json
+{
+  "recommended_scenario": "holiday_spike",
+  "reason": "Tomorrow is Diwali and area Dineout occupancy is HIGH. Expect 40-60% demand surge.",
+  "confidence": "high",
+  "signals_used": ["recent_approved_runs: 3", "holiday_detected", "occupancy_HIGH"]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `recommended_scenario` | One of `friday_rush`, `weekday_lunch`, `holiday_spike`, `low_stock_weekend` |
+| `confidence` | `high`, `medium`, or `low` — `low` when the deterministic fallback was used |
+| `signals_used` | Which signals informed the recommendation (for UI transparency) |
+
+---
+
 ## Runs
 
 ### `GET /api/v1/runs`
@@ -446,6 +480,89 @@ Sheets:
 - **Summary** — scenario, date, verdict, critic score
 - **Inventory & Staffing** — shortage alerts, overstock alerts, restock actions (chef view)
 - **Cost Breakdown** — LLM usage, critic dimension scores, cost-aware analysis (owner view)
+
+---
+
+## Market
+
+Live Swiggy market intelligence, independent of any planning run. Each enricher caches its own
+result in Redis for 30 minutes (keyed by `org_id` + date), so repeated calls (e.g. every dashboard
+load) don't re-hit the Swiggy MCP server each time.
+
+### `GET /api/v1/market/pulse`
+
+Fetches current competitor pricing, area occupancy, and Instamart procurement directly via the
+planning-pipeline enrichers, without requiring a plan to be run first.
+
+**Auth:** JWT required.
+
+**Response `200`**
+
+```json
+{
+  "swiggy_connected": true,
+  "competitor_pricing": {
+    "restaurants_checked": ["Biryani House", "Paradise", "Punjab Grill"],
+    "comparisons": [
+      { "item": "Butter Chicken", "your_price": 320.0, "area_avg": 265.0, "diff_pct": 20.8, "direction": "above" }
+    ],
+    "competitor_deals": [
+      { "restaurant": "Biryani House", "deal_title": "20% off above Rs.300", "discount": 20, "code": "SAVE20" }
+    ],
+    "pricing_impact": [
+      {
+        "item": "Butter Chicken", "our_price": 320.0, "area_avg": 265.0,
+        "gap_pct": 20.8, "direction": "above",
+        "volume_change_pct": -16.6, "weekly_revenue_impact_inr": -8715.0
+      }
+    ],
+    "fetched_at": "2026-07-05"
+  },
+  "area_occupancy": { "signal": "HIGH", "tonight_busy": true, "competitors_checked": 3, "fetched_at": "2026-07-05" },
+  "procurement": [ { "name": "Tomatoes", "price": 45.0, "unit": "1kg", "in_stock": true } ]
+}
+```
+
+`competitor_deals` (P6-MI06, from `fetch_food_coupons`) and `pricing_impact` (P6-MI09, quantified
+demand-elasticity revenue model) were added in the market intelligence expansion. Both are `[]`
+when Swiggy is unavailable or no data qualifies — never `null`, safe to render unconditionally.
+
+---
+
+### `GET /api/v1/market/trends`
+
+P6-MI11. Per-dish price history and area occupancy signal history across past planning runs — no
+new Swiggy calls, reads `market_intel` already stored in each run's persisted `final_response`.
+
+**Auth:** JWT required.
+
+**Query parameters**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `days` | integer (1–90) | `7` | Number of data points to return |
+
+**Response `200`**
+
+```json
+{
+  "price_trends": {
+    "butter chicken": [
+      { "date": "2026-06-29", "area_avg": 265.0 },
+      { "date": "2026-07-02", "area_avg": 270.0 }
+    ]
+  },
+  "occupancy_trend": [
+    { "date": "2026-06-29", "signal": "HIGH" },
+    { "date": "2026-07-02", "signal": "MEDIUM" }
+  ],
+  "days_returned": 2,
+  "note": "Run 3+ plans with Swiggy market intelligence enabled to see pricing trends."
+}
+```
+
+`note` is only present when fewer than 3 qualifying data points exist — the frontend renders an
+empty state in that case instead of a partial chart.
 
 ---
 

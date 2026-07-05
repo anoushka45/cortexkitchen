@@ -235,3 +235,12 @@ class WhatIfResponse(BaseModel):
     pressure_components: Dict[str, float]
     tradeoff_notes: list[str]
     recommended_focus: list[str]
+
+
+# ── Scenario recommendation (P6-MI10) ────────────────────────────────────────
+
+class ScenarioRecommendationResponse(BaseModel):
+    recommended_scenario: PlanningScenarioId
+    reason: str
+    confidence: Literal["high", "medium", "low"]
+    signals_used: list[str] = Field(default_factory=list)

@@ -7,10 +7,12 @@ the highest-priority provider that has an active connector record for the org.
 No DB migration needed — reads from the existing `connectors` table which
 already tracks per-org platform health (sync_status, error_count).
 
-Adding a new provider (e.g. Zomato for competitor pricing) means:
-  1. Insert a row into CAPABILITY_PROVIDERS below
-  2. Implement a BaseConnector subclass for it
-  3. The registry automatically routes to it when the org's connector is active
+Adding a new provider means:
+  1. Insert a row into CAPABILITY_PROVIDERS below (already done for "zomato" here)
+  2. Implement a BaseConnector subclass for it (done: app/infrastructure/zomato/
+     ZomatoConnector -- currently a stub with no live API, returns None/not_connected)
+  3. The registry automatically routes to it once the org has an active connector row
+     with a healthy sync_status for that provider -- no other code changes needed
 """
 
 from sqlalchemy.orm import Session

@@ -704,3 +704,51 @@ export async function getMarketTrends(days = 7): Promise<MarketTrendsResponse> {
 
   return res.json() as Promise<MarketTrendsResponse>;
 }
+
+// ── Chat conversation history (P6-A4) ─────────────────────────────────────────
+
+export interface ChatSessionSummary {
+  id: number;
+  title: string | null;
+  message_count: number;
+  updated_at: string;
+}
+
+export interface ChatMessageDTO {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ChatSessionDetail {
+  id: number;
+  title: string | null;
+  messages: ChatMessageDTO[];
+}
+
+export async function getChatSessions(): Promise<ChatSessionSummary[]> {
+  const res = await fetch(`${BASE_URL}/api/v1/chat/sessions`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Chat sessions API error ${res.status}: ${detail}`);
+  }
+
+  return res.json() as Promise<ChatSessionSummary[]>;
+}
+
+export async function getChatSession(sessionId: number): Promise<ChatSessionDetail> {
+  const res = await fetch(`${BASE_URL}/api/v1/chat/sessions/${sessionId}`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Chat session API error ${res.status}: ${detail}`);
+  }
+
+  return res.json() as Promise<ChatSessionDetail>;
+}

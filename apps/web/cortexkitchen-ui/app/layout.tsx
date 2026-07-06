@@ -3,7 +3,9 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { DashboardProvider } from "@/context/DashboardContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { ChatSessionProvider } from "@/context/ChatSessionContext";
 import NavBar from "@/components/layout/NavBar";
+import FloatingChatWidget from "@/components/chat/FloatingChatWidget";
 
 export const metadata: Metadata = {
   title: "CortexKitchen — Ops Intelligence",
@@ -37,8 +39,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <AuthProvider>
             <DashboardProvider>
-              <NavBar />
-              <main className="flex-1">{children}</main>
+              <ChatSessionProvider>
+                <NavBar />
+                <main className="flex-1">{children}</main>
+                <FloatingChatWidget />
+              </ChatSessionProvider>
             </DashboardProvider>
           </AuthProvider>
         </ThemeProvider>

@@ -3,6 +3,7 @@ import re
 
 from sqlalchemy.orm import Session
 
+from app.domain.services.business_analytics_service import BusinessAnalyticsService
 from app.domain.services.complaint_service import ComplaintService
 from app.domain.services.forecast_service import ForecastService
 from app.domain.services.inventory_service import InventoryService
@@ -181,6 +182,18 @@ class MenuService:
             capacity_lines.append(f"  - Your Dineout slots tonight: {low_dineout_slots} low-availability")
         capacity_context = "\n".join(capacity_lines)
 
+        # Margin-aware dish performance -- forecasted top_items above only know what's
+        # POPULAR, not what's PROFITABLE. Without this, a plan can push a high-demand,
+        # low-margin dish while a similarly-popular, higher-margin alternative sits unused.
+        analytics_service = BusinessAnalyticsService(self.db)
+        dish_performance = analytics_service.get_dish_performance(days=14)
+        margin_lines = "\n".join(
+            f"  - {d['name']} ({d['category']}): Rs.{d['revenue']:.0f} revenue, "
+            f"{d['margin_pct']:.0f}% margin" if d["margin_pct"] is not None
+            else f"  - {d['name']} ({d['category']}): Rs.{d['revenue']:.0f} revenue, margin unknown"
+            for d in dish_performance[:10]
+        )
+
         prompt = PromptUtils.format_menu_prompt(
             scenario_label=scenario_label,
             service_day_label=service_day_label,
@@ -195,6 +208,7 @@ class MenuService:
             market_context=market_context,
             prior_feedback=prior_feedback or "",
             capacity_context=capacity_context,
+            margin_context=margin_lines,
         )
 
         recommendation = await self.llm.complete_json(

@@ -3,6 +3,7 @@ from sqlalchemy import func
 from datetime import datetime, timedelta
 
 from app.domain.scenarios import ScenarioDefinition
+from app.domain.services.business_analytics_service import BusinessAnalyticsService
 from app.infrastructure.db.models import Feedback, SentimentType
 from app.infrastructure.llm.base import BaseLLMProvider
 from app.infrastructure.llm.prompt_utils import PromptUtils
@@ -47,6 +48,11 @@ class ComplaintService:
         unique_complaints = list(set(feedback["negative_texts"]))
         unique_positives  = list(set(feedback["positive_texts"]))
 
+        # Category breakdown -- the LLM previously had to infer themes itself from raw
+        # complaint text every time. This hands it the same quantified counts
+        # ("Wait Time: 10 of 28 days") the Today dashboard already computes and shows.
+        category_breakdown = BusinessAnalyticsService(self.db).get_complaints_by_category(days=days)
+
         return {
             "period_days": days,
             "total_feedback": feedback["total_feedback"],
@@ -58,6 +64,7 @@ class ComplaintService:
             },
             "unique_complaints": unique_complaints,
             "unique_positives": unique_positives,
+            "category_breakdown": category_breakdown,
         }
 
     async def analyse_and_recommend(

@@ -126,6 +126,7 @@ class OccupancyEnricher:
             "slot_availability_by_time":   slot_availability_by_time,
             "prompt_text": self._build_prompt(
                 signal, len(availability_counts), avg_count, competitor_dineout_deals, slot_deals,
+                slot_availability_by_time,
             ),
             "fetched_at":                today,
         }
@@ -356,9 +357,11 @@ class OccupancyEnricher:
         avg_count: float,
         competitor_dineout_deals: Optional[list[dict]] = None,
         slot_deals: Optional[list[dict]] = None,
+        slot_availability_by_time: Optional[list[dict]] = None,
     ) -> str:
         competitor_dineout_deals = competitor_dineout_deals or []
         slot_deals = slot_deals or []
+        slot_availability_by_time = slot_availability_by_time or []
 
         signal_desc = {
             "HIGH":   "Most nearby competitors are nearly full tonight.",
@@ -377,6 +380,14 @@ class OccupancyEnricher:
                 "Recommendation: consider opening additional Dineout slots "
                 "or increasing walk-in capacity for tonight."
             )
+
+        if len(slot_availability_by_time) >= 2:
+            tightest = min(slot_availability_by_time, key=lambda s: s["avg_availability"])
+            lines.append("")
+            lines.append("## Occupancy By Time Slot")
+            for s in slot_availability_by_time:
+                lines.append(f"- {s['time']}: {s['signal']} (avg {s['avg_availability']:.1f} slots left)")
+            lines.append(f"Tightest window tonight: {tightest['time']}.")
 
         if competitor_dineout_deals or slot_deals:
             lines.append("")

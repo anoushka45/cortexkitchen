@@ -160,6 +160,7 @@ class CompetitorEnricher:
             "prompt_text": self._build_prompt(
                 area_avg, cheapest, alerts, restaurant_names, our_items,
                 competitor_deals, pricing_impact, category_pricing, positioning,
+                menu_breadth, cuisine_crowding, veg_mix, competitor_landscape,
             ),
             "fetched_at":  date.today().isoformat(),
         }
@@ -620,6 +621,10 @@ class CompetitorEnricher:
         pricing_impact: Optional[list[dict]] = None,
         category_pricing: Optional[list[dict]] = None,
         positioning: Optional[dict] = None,
+        menu_breadth: Optional[dict] = None,
+        cuisine_crowding: Optional[dict] = None,
+        veg_mix: Optional[dict] = None,
+        competitor_landscape: Optional[list[dict]] = None,
     ) -> str:
         competitor_deals = competitor_deals or []
         pricing_impact = pricing_impact or []
@@ -644,6 +649,40 @@ class CompetitorEnricher:
                 f"ranks #{positioning['rank']} of {positioning['total']} nearby options "
                 f"({positioning['pricier_than_count']} cheaper, {positioning['cheaper_than_count']} pricier)."
             )
+            lines.append("")
+
+        if menu_breadth:
+            lines.append(
+                f"**Menu breadth:** You have {menu_breadth['your_item_count']} items vs a nearby average "
+                f"of {menu_breadth['competitor_avg_item_count']:.0f} "
+                f"(sampled {menu_breadth['competitors_sampled']} competitor menus)."
+            )
+            lines.append("")
+
+        if cuisine_crowding:
+            lines.append(
+                f"**Cuisine crowding:** {cuisine_crowding['matching_count']} of "
+                f"{cuisine_crowding['total_checked']} nearby restaurants also serve "
+                f"{cuisine_crowding['cuisine']}."
+            )
+            lines.append("")
+
+        if veg_mix:
+            lines.append(
+                f"**Area veg/non-veg mix:** {veg_mix['veg_count']} of {veg_mix['total']} nearby "
+                f"restaurants are pure veg."
+            )
+            lines.append("")
+
+        if competitor_landscape:
+            top = sorted(competitor_landscape, key=lambda c: c.get("rating") or 0, reverse=True)[:3]
+            lines.append("**Competitor landscape (top by rating):**")
+            for c in top:
+                offer_note = f', running "{c["offer"]}"' if c.get("offer") else ""
+                lines.append(
+                    f"- {c['name']}: {c.get('rating', '?')} stars, Rs.{c.get('cost_for_two', 0):.0f} for "
+                    f"two, {c.get('distance_km', 0):.1f}km away{offer_note}"
+                )
             lines.append("")
 
         if alerts:

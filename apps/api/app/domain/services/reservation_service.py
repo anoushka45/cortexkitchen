@@ -5,6 +5,7 @@ from sqlalchemy import func
 from datetime import datetime, timedelta
 
 from app.domain.scenarios import ScenarioDefinition
+from app.domain.services.business_analytics_service import BusinessAnalyticsService
 from app.infrastructure.db.models import Reservation, ReservationStatus
 from app.infrastructure.llm.base import BaseLLMProvider
 from app.infrastructure.llm.prompt_utils import PromptUtils
@@ -99,6 +100,14 @@ class ReservationService:
         occupancy_section = (occupancy_context or {}).get("prompt_text") or ""
         occupancy_block = f"\n{occupancy_section}\n" if occupancy_section else ""
 
+        # Real peak hours from actual order history (dine-in + delivery, all hours) --
+        # "busiest_hour" above is just tonight's advance-reservation clustering, which
+        # can miss demand the static configured service window / booking pattern
+        # doesn't capture (e.g. a lunch rush, or a later real peak than reservations show).
+        real_peak_hours = BusinessAnalyticsService(self.db).get_peak_hours(days=14)
+        top_real_hours = sorted(real_peak_hours, key=lambda h: h["avg_orders"], reverse=True)[:3]
+        real_peak_line = ", ".join(f"{h['hour']}:00 (avg {h['avg_orders']} orders)" for h in top_real_hours if h["avg_orders"] > 0)
+
         prompt = PromptUtils.format_recommendation_prompt(
             context=f"""
 Reservation data for {data['scenario_label']} on {data['date']}:
@@ -108,8 +117,9 @@ Reservation data for {data['scenario_label']} on {data['date']}:
 - Restaurant capacity: {data['capacity']} guests
 - Current occupancy: {data['occupancy_pct']}%
 - Overbooking risk: {data['overbooking_risk']}
-- Busiest hour: {data['busiest_hour']}:00
+- Busiest hour (tonight's bookings): {data['busiest_hour']}:00
 - Guests on waitlist: {data['waitlist_count']}
+- Actual historical peak hours (last 14 days, real orders, all channels): {real_peak_line or 'not enough order history yet'}
 {occupancy_block}""",
             task="Analyse this reservation data and recommend specific actions to manage capacity effectively for this target service window. Where area occupancy data is provided, factor in the neighbourhood demand signal — HIGH area occupancy means walk-in pressure; LOW means opportunity for promotions to attract diners. When you use this signal, explicitly name Swiggy as the source, e.g. 'Because Swiggy shows HIGH occupancy nearby tonight, expect walk-in pressure' — never reference area occupancy without naming Swiggy."
         )

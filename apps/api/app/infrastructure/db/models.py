@@ -277,6 +277,39 @@ class Connector(Base):
     updated_at              = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class ChatSession(Base):
+    """A single chat conversation thread.
+
+    title is a cheap truncated preview of the first user message -- no extra
+    LLM call needed just to label a thread in a history list.
+    """
+    __tablename__ = "chat_sessions"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    org_id     = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    user_id    = Column(Integer, ForeignKey("users.id"), nullable=False)
+    title      = Column(String(200), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    messages = relationship(
+        "ChatMessage", back_populates="session",
+        order_by="ChatMessage.created_at", cascade="all, delete-orphan",
+    )
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(Integer, ForeignKey("chat_sessions.id"), nullable=False)
+    role       = Column(String(20), nullable=False)  # "user" | "assistant"
+    content    = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    session = relationship("ChatSession", back_populates="messages")
+
+
 """
 MenuItem  ──< Order >── Feedback
 
@@ -284,4 +317,5 @@ Reservation (standalone)
 Inventory   (standalone)
 DecisionLog (standalone)
 Connector   (per org, per platform)
+ChatSession ──< ChatMessage
 """

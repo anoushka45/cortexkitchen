@@ -16,6 +16,7 @@ import structlog
 from sqlalchemy.orm import Session
 
 from app.core.settings import get_settings
+from app.domain.services.business_analytics_service import BusinessAnalyticsService
 from app.infrastructure.db.models import Feedback, PlanningRun, SentimentType
 from app.infrastructure.llm.prompt_utils import PromptUtils
 from app.infrastructure.swiggy.client import (
@@ -36,7 +37,7 @@ _MAX_RUNS = 10
 _MAX_TOOL_ITERATIONS = 3
 
 _SWIGGY_TOOL_NAMES = {
-    "swiggy_search_menu", "swiggy_get_food_orders", "swiggy_search_products",
+    "swiggy_get_food_orders", "swiggy_search_products",
     "swiggy_get_competitor_deals", "swiggy_get_area_occupancy", "swiggy_get_common_dishes",
 }
 
@@ -128,28 +129,9 @@ _TOOLS = [
         },
     },
     # ── Swiggy live data tools (P6-S13c) ────────────────────────────────────
-    {
-        "type": "function",
-        "function": {
-            "name": "swiggy_search_menu",
-            "description": (
-                "Search competitor menus on Swiggy to find dishes and their prices near the "
-                "restaurant. Use when the user asks about competitor prices, average dish prices "
-                "in the area, or what competitors are charging for a specific item. "
-                "Returns dish names, prices, and restaurant names from live Swiggy data."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Dish or category to search for (e.g. 'biryani', 'butter chicken')",
-                    },
-                },
-                "required": ["query"],
-            },
-        },
-    },
+    # NOTE: swiggy_search_menu was removed (P6-A3) -- confirmed to return zero
+    # results for every query tested against this Swiggy sandbox, same finding
+    # that led to removing it from CompetitorEnricher.
     {
         "type": "function",
         "function": {
@@ -352,17 +334,6 @@ async def _run_swiggy_tool(name: str, args: dict, org_id: int = 0) -> str:
     address_id = settings.swiggy_address_id or ""
 
     try:
-        if name == "swiggy_search_menu":
-            result = await client.call_tool(
-                FOOD_ENDPOINT,
-                "search_menu",
-                {"query": args.get("query", ""), "addressId": address_id},
-            )
-            if result is None:
-                return json.dumps({"error": "Swiggy search_menu returned no data"})
-            items = result.get("items") or result.get("restaurants") or []
-            return json.dumps({"source": "Swiggy Food (live)", "results": items[:15]})
-
         if name == "swiggy_get_food_orders":
             result = await client.call_tool(
                 FOOD_ENDPOINT,
@@ -589,6 +560,26 @@ def build_context(
         run_count=len(runs),
     )
 
+    # P6-A2: retrieve semantically relevant past complaints + SOPs for the actual
+    # question asked -- this parameter used to be accepted and never called, so
+    # context was built entirely from raw SQL (last N runs/feedback rows) with no
+    # relevance ranking at all.
+    if memory:
+        try:
+            similar_complaints = memory.retrieve_similar_complaints(question, org_id, top_k=3)
+            relevant_sops = memory.retrieve_relevant_sops(question, org_id, top_k=3)
+            rag_lines = []
+            if similar_complaints:
+                rag_lines.append("\n## Relevant past complaints")
+                rag_lines.extend(f"- {c['text']}" for c in similar_complaints)
+            if relevant_sops:
+                rag_lines.append("\n## Relevant SOPs")
+                rag_lines.extend(f"- {s['text']}" for s in relevant_sops)
+            if rag_lines:
+                system_prompt += "\n" + "\n".join(rag_lines)
+        except Exception:
+            pass
+
     # Inject past session context if available
     if session_memory and user_id:
         try:
@@ -602,6 +593,38 @@ def build_context(
                 system_prompt += "\n" + "\n".join(session_lines)
         except Exception:
             pass
+
+    # Business analytics -- margin-aware dish performance, complaint category counts,
+    # and real peak hours, the same signals the Today dashboard shows and the planning
+    # pipeline now reads. Previously the chatbot had none of this structured data --
+    # only raw planning-run/feedback rows -- so it couldn't answer "what's my margin on
+    # X" or "what's my top complaint theme" with a real number.
+    try:
+        analytics = BusinessAnalyticsService(db)
+        dishes = analytics.get_dish_performance(days=14)[:5]
+        categories = analytics.get_complaints_by_category(days=28)[:3]
+        peak = sorted(analytics.get_peak_hours(days=14), key=lambda h: h["avg_orders"], reverse=True)[:2]
+
+        analytics_lines = ["\n## Business analytics (last 14 days)"]
+        if dishes:
+            analytics_lines.append("Top dishes by revenue (with margin where known):")
+            analytics_lines.extend(
+                f"- {d['name']}: Rs.{d['revenue']:.0f} revenue"
+                + (f", {d['margin_pct']:.0f}% margin" if d["margin_pct"] is not None else ", margin unknown")
+                for d in dishes
+            )
+        if categories:
+            analytics_lines.append("Top complaint categories (last 28 days):")
+            analytics_lines.extend(f"- {c['category']}: {c['count']}" for c in categories)
+        if peak and any(h["avg_orders"] > 0 for h in peak):
+            analytics_lines.append(
+                "Real peak hours (actual orders): " +
+                ", ".join(f"{h['hour']}:00 (avg {h['avg_orders']} orders)" for h in peak if h["avg_orders"] > 0)
+            )
+        if len(analytics_lines) > 1:
+            system_prompt += "\n" + "\n".join(analytics_lines)
+    except Exception:
+        pass
 
     # Proactive pattern warning
     pattern_warning = get_recurring_failures(org_id, db)

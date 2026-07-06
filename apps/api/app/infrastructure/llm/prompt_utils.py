@@ -161,6 +161,9 @@ Customer feedback analysis for {scenario_label} planning:
 Operational watchouts for this scenario:
 {chr(10).join(f'- {item}' for item in scenario_watchouts)}
 
+Complaint category breakdown ({summary.get('period_days', 28)} days, keyword-categorized):
+{chr(10).join(f"- {c['category']}: {c['count']}" for c in summary.get('category_breakdown', [])) or '- No categorized complaints in this window'}
+
 Complaint texts:
 {chr(10).join(f'- {c}' for c in summary['unique_complaints'])}
 
@@ -197,12 +200,14 @@ Respond with a JSON object containing:
         market_context: str = "",
         prior_feedback: str = "",
         capacity_context: str = "",
+        margin_context: str = "",
     ) -> str:
         """Prompt for the Menu Intelligence Agent."""
         market_section = f"\n{market_context}\n" if market_context else ""
         capacity_section = (
             f"\nReservation & capacity context:\n{capacity_context}\n" if capacity_context else ""
         )
+        margin_section = f"\nMargin analysis (last 14 days, actual sales):\n{margin_context}\n" if margin_context else ""
         prior_feedback_section = (
             f"""
 ## MUST FIX — Critic feedback from a previous evaluation of this exact plan
@@ -225,7 +230,7 @@ Menu planning context for {scenario_label} ({service_day_label} service):
 
 Top items on matching service days:
 {top_item_lines}
-
+{margin_section}
 Complaint themes to watch:
 {complaint_lines}
 
@@ -253,6 +258,7 @@ Rules:
 8. If a highlight_items dish depends on an ingredient that is short but not BLOCKED (limited, constrained stock), state in operational_notes the maximum covers/orders it can safely support tonight and the fallback dish once that cap is hit.
 9. If a critically short ingredient's restock is not yet confirmed, operational_notes must state a concrete cutoff time and an explicit fallback (86 the affected dish, switch to the named pivot) if the reorder doesn't land by then — do not just note the shortage and move on.
 10. Where reservation/capacity context above shows occupancy above 90% (CONSTRAINED), operational_notes must include explicit throughput-protection guidance — staggered course timing, a capped promo volume, or avoiding a push on high-prep-time items. A menu push that ignores a near-full-house kitchen's throughput limits is not acceptable, regardless of how popular the items are.
+11. Where the margin analysis above shows a high-revenue item has meaningfully lower margin than an available alternative in the same category, note this in pricing_notes — a popular dish is not automatically the right one to promote if a similarly-popular, higher-margin dish exists.
 
 ## Task
 Recommend how the restaurant should shape the menu focus for the target service window. Prioritise items that are popular AND operationally safe (ingredients available), avoid pushing items that depend on shortage ingredients or have complaint patterns, and suggest practical promo or menu positioning actions that can be executed within the next 24 hours. Where competitor pricing data is available, factor in market positioning and explicitly name Swiggy as the source of that pricing data. Produce a plan a shift manager could execute from without asking a follow-up question — name specific dishes, specific quantities, and specific cutoff times, not generic guidance.

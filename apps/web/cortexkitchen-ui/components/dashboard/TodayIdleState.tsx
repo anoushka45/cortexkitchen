@@ -9,6 +9,7 @@ import {
 } from "recharts";
 import { useAuth } from "@/context/AuthContext";
 import PlanShiftModal from "@/components/dashboard/PlanShiftModal";
+import CategoryPricingChart from "@/components/dashboard/CategoryPricingChart";
 import {
   getDataHealth, getConnectorsStatus, getMarketPulse, getBusinessPerformance,
   listRestaurantProfiles,
@@ -188,6 +189,10 @@ export default function TodayIdleState({
   const positivePct = feedback && feedback.count > 0 ? Math.round((feedback.positive / feedback.count) * 100) : null;
 
   const occupancy = marketPulse?.area_occupancy ?? null;
+  // Category pricing (dish-name independent) is the primary, reliable market signal --
+  // see /market's own redesign. Exact dish-name matches (below) are a bonus, near-always-empty
+  // signal that should never be the sole basis for "do we have market data".
+  const categoryPricing = marketPulse?.competitor_pricing?.category_pricing ?? [];
   // Only dishes that actually matched one of our own menu items have a real comparison --
   // /market/pulse now also returns unmatched competitor dishes (diff_pct/direction null)
   // for market-awareness display, which don't belong in this "pricing alert" insight.
@@ -664,7 +669,7 @@ export default function TodayIdleState({
                 Swiggy
               </span>
             </p>
-            <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">Live competitor pricing, area demand &amp; Instamart — via Swiggy MCP</p>
+            <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">Live category pricing &amp; Instamart — via Swiggy MCP</p>
           </div>
           <Link href="/market" className="flex shrink-0 items-center gap-1 text-[12.5px] font-bold text-[var(--color-accent)]">
             Full market intelligence
@@ -673,33 +678,39 @@ export default function TodayIdleState({
         </div>
 
         <div className="relative mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[1.6fr_1fr]">
-          {pricingAlerts.length > 0 ? (
-            <div style={{ height: 200 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={pricingAlerts} layout="vertical" margin={{ top: 8, right: 24, left: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-soft)" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 9, fill: "#6b7280", fontFamily: "Space Mono" }} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="item" width={110} tick={{ fontSize: 10.5, fill: "#6b7280" }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: "var(--color-surface-raised)", border: "1px solid var(--color-border-default)", borderRadius: 8, fontSize: 12 }} />
-                  <Bar dataKey="your_price" name="Your price" fill="#efa345" radius={[0, 3, 3, 0]} barSize={10} />
-                  <Bar dataKey="area_avg" name="Area avg" fill="#fc8019" fillOpacity={0.4} radius={[0, 3, 3, 0]} barSize={10} />
-                </BarChart>
-              </ResponsiveContainer>
+          {categoryPricing.length > 0 ? (
+            <div>
+              <div className="mb-3 space-y-1.5">
+                {categoryPricing.slice(0, 3).map((c) => (
+                  <div
+                    key={c.category}
+                    className={`rounded-lg border px-3 py-2 ${
+                      c.verdict === "above" ? "border-rose-500/25 bg-rose-500/[0.06]"
+                      : c.verdict === "below" ? "border-emerald-500/25 bg-emerald-500/[0.06]"
+                      : "border-[var(--color-border-soft)] bg-[var(--color-surface-raised)]"
+                    }`}
+                  >
+                    <p className="text-xs text-[var(--color-text-primary)]">
+                      <span className="font-semibold capitalize">{c.category}</span>
+                      {": you're "}
+                      <span className={`font-semibold ${c.verdict === "above" ? "text-rose-300" : c.verdict === "below" ? "text-emerald-300" : ""}`}>
+                        {Math.abs(c.diff_pct).toFixed(0)}% {c.verdict === "in line" ? "in line with" : c.verdict}
+                      </span>{c.verdict !== "in line" ? " the area" : ""} (₹{c.your_avg} vs ₹{c.area_avg} avg)
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <CategoryPricingChart data={categoryPricing} />
             </div>
           ) : (
             <div className="flex h-[160px] items-center justify-center rounded-xl border border-dashed border-[var(--color-border-default)] text-center">
               <p className="max-w-xs text-xs text-[var(--color-text-faint)]">
-                {!marketLoaded ? "Checking Swiggy for live competitor pricing…" : marketPulse?.swiggy_connected === false ? "Connect Swiggy to see live competitor pricing for your menu." : "No competitor pricing data available right now."}
+                {!marketLoaded ? "Checking Swiggy for live category pricing…" : marketPulse?.swiggy_connected === false ? "Connect Swiggy to see live category pricing for your menu." : "No category pricing data available right now."}
               </p>
             </div>
           )}
 
           <div className="space-y-2.5">
-            <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 py-3">
-              <p className="text-[10.5px] font-semibold text-[var(--color-text-faint)]">Area demand tonight</p>
-              <p className="num-display mt-0.5 text-[19px] text-[var(--color-text-primary)]">{occupancy?.signal ? occupancy.signal.charAt(0) + occupancy.signal.slice(1).toLowerCase() : "--"}</p>
-              <p className="mt-0.5 text-[10.5px] text-[var(--color-text-faint)]">{occupancy ? `${occupancy.competitors_checked} nearby kitchens tracked` : swiggyEmptyMeta}</p>
-            </div>
             <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 py-3">
               <p className="text-[10.5px] font-semibold text-[var(--color-text-faint)]">Instamart price check</p>
               <p className="num-display mt-0.5 text-[19px] text-[var(--color-text-primary)]">{cheapestProcurement ? `₹${cheapestProcurement.price}/${cheapestProcurement.unit}` : "--"}</p>

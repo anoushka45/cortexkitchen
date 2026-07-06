@@ -63,6 +63,37 @@ async def test_menu_service_prompt_mentions_inventory_and_complaints():
 
 
 @pytest.mark.asyncio
+async def test_menu_service_prompt_includes_margin_analysis():
+    """The plan previously only knew what was POPULAR (forecasted top_items), never
+    what was PROFITABLE -- this confirms margin data now reaches the actual prompt."""
+    from app.domain.services.menu_service import MenuService
+
+    db = MagicMock()
+    llm = MagicMock()
+    llm.complete_json = AsyncMock(return_value={})
+
+    with patch("app.domain.services.menu_service.ForecastService") as MockForecastService, \
+         patch("app.domain.services.menu_service.BusinessAnalyticsService") as MockAnalytics:
+        MockForecastService.return_value.get_top_service_day_items.return_value = []
+        MockAnalytics.return_value.get_dish_performance.return_value = [
+            {"name": "Four Cheese", "category": "pizza", "revenue": 1500.0, "quantity": 5, "margin_pct": 16.7},
+            {"name": "Margherita", "category": "pizza", "revenue": 600.0, "quantity": 2, "margin_pct": 66.7},
+        ]
+        service = MenuService(db=db, llm=llm)
+        await service.analyse_and_recommend(
+            forecast_data={"predicted_orders": 120},
+            complaint_data={"unique_complaints": []},
+            inventory_data={"shortage_alerts": []},
+        )
+
+    prompt = llm.complete_json.await_args.kwargs["prompt"]
+    assert "Four Cheese" in prompt
+    assert "16.7" in prompt or "17" in prompt
+    assert "Margherita" in prompt
+    assert "66.7" in prompt or "67" in prompt
+
+
+@pytest.mark.asyncio
 async def test_menu_service_computes_capacity_constrained_from_reservation_data():
     """Regression guard for the bug that caused stuck-in-revision runs:
     capacity_constrained must be genuinely computed from reservation's own

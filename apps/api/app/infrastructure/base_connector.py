@@ -12,18 +12,22 @@ LangGraph nodes can fall back to synthetic data without crashing.
 
 import structlog
 from abc import ABC, abstractmethod
+from typing import Any
 
 from sqlalchemy.orm import Session
-
-from app.infrastructure.swiggy.client import SwiggyMCPClient
 
 log = structlog.get_logger()
 
 
 class BaseConnector(ABC):
-    """Abstract connector that every platform integration must implement."""
+    """Abstract connector that every platform integration must implement.
 
-    def __init__(self, client: SwiggyMCPClient, db: Session, org_id: int) -> None:
+    client is intentionally untyped (Any) -- this base class must not assume
+    any single platform's client shape. SwiggyConnector uses SwiggyMCPClient;
+    a connector with no live API yet (e.g. ZomatoConnector) can pass None.
+    """
+
+    def __init__(self, client: Any, db: Session, org_id: int) -> None:
         self._client = client
         self._db = db
         self.org_id = org_id

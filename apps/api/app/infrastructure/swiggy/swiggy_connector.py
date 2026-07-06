@@ -17,7 +17,7 @@ enrich() → VALID NOW — primary value of Swiggy integration.
 from sqlalchemy.orm import Session
 
 from app.core.settings import get_settings
-from app.infrastructure.swiggy.base_connector import BaseConnector
+from app.infrastructure.base_connector import BaseConnector
 from app.infrastructure.swiggy.client import SwiggyMCPClient
 from app.infrastructure.swiggy.connector_repository import ConnectorRepository
 from app.infrastructure.swiggy.sync.feedback_sync import SwiggyFeedbackSyncService

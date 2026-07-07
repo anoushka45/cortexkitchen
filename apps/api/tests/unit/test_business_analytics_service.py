@@ -136,11 +136,17 @@ def test_peak_hours_returns_24_entries_with_correct_averages(db):
     _order(db, item, quantity=1, total_price=100.0, days_ago=2, hour=19)
 
     analytics = BusinessAnalyticsService(db)
-    result = analytics.get_peak_hours(days=2)
+    # days=3 here (not 2) deliberately gives a full calendar day of buffer beyond
+    # the furthest order (days_ago=2): trend_start's calendar day is always
+    # strictly earlier than day_ago=2's, regardless of what wall-clock hour the
+    # test happens to run at. Using days=2 made this test flaky -- it failed
+    # whenever the suite ran after 19:00 UTC, since trend_start would then fall
+    # later in the day than the fixed hour=19 order timestamp on its boundary day.
+    result = analytics.get_peak_hours(days=3)
 
     assert len(result) == 24
     hour_19 = next(h for h in result if h["hour"] == 19)
-    assert hour_19["avg_orders"] == 1.0  # 2 orders / 2 days
+    assert hour_19["avg_orders"] == 0.7  # 2 orders / 3 days, rounded to 1 decimal
     hour_10 = next(h for h in result if h["hour"] == 10)
     assert hour_10["avg_orders"] == 0.0
 

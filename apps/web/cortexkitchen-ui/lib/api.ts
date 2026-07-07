@@ -406,6 +406,58 @@ export async function triggerSwiggySync(): Promise<SyncResult> {
   return res.json() as Promise<SyncResult>;
 }
 
+// ── Action Queue (approval-gated agentic recommendations) ──────────────────
+
+export interface ActionQueueItem {
+  id: number;
+  category: string;
+  tier: "auto" | "approve_required" | "recommendation";
+  status: "pending" | "approved" | "executed" | "rejected" | "expired";
+  title: string;
+  payload: Record<string, unknown>;
+  approved_by: number | null;
+  executed_at: string | null;
+  error: string | null;
+  created_at: string | null;
+}
+
+export async function getActionQueue(status?: string): Promise<ActionQueueItem[]> {
+  const qs = status ? `?status=${status}` : "";
+  const res = await fetch(`${BASE_URL}/api/v1/action-queue${qs}`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Action queue API error ${res.status}: ${detail}`);
+  }
+  return res.json() as Promise<ActionQueueItem[]>;
+}
+
+export async function approveAction(id: number): Promise<ActionQueueItem> {
+  const res = await fetch(`${BASE_URL}/api/v1/action-queue/${id}/approve`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({ detail: "Approve failed." }));
+    throw new Error(detail.detail ?? `Approve failed: ${res.status}`);
+  }
+  return res.json() as Promise<ActionQueueItem>;
+}
+
+export async function rejectAction(id: number): Promise<ActionQueueItem> {
+  const res = await fetch(`${BASE_URL}/api/v1/action-queue/${id}/reject`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({ detail: "Reject failed." }));
+    throw new Error(detail.detail ?? `Reject failed: ${res.status}`);
+  }
+  return res.json() as Promise<ActionQueueItem>;
+}
+
 export async function getDataHealth(): Promise<DataHealth> {
   const res = await fetch(`${BASE_URL}/api/v1/data-health`, {
     headers: authHeaders(),

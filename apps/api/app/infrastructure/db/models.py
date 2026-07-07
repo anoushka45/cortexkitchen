@@ -30,6 +30,21 @@ class FeedbackSource(str, enum.Enum):
     swiggy          = "swiggy"
     swiggy_delivery = "swiggy_delivery"
 
+class ExpenseCategory(str, enum.Enum):
+    rent      = "rent"
+    utilities = "utilities"
+    marketing = "marketing"
+    labor     = "labor"   # not populated yet (no labor/staffing feature exists) --
+                          # included now so it slots in later as just another
+                          # category, not a schema rewrite.
+    other     = "other"
+
+class ExpenseRecurrence(str, enum.Enum):
+    one_time = "one_time"
+    daily    = "daily"
+    weekly   = "weekly"
+    monthly  = "monthly"
+
 class ConnectorType(str, enum.Enum):
     swiggy         = "swiggy"
     pos_square     = "pos_square"
@@ -277,6 +292,26 @@ class Connector(Base):
     updated_at              = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class Expense(Base):
+    """A fixed/recurring cost -- rent, utilities, marketing, (later) labor.
+
+    recurrence + effective_date let the P&L computation prorate a recurring
+    cost into a daily-equivalent figure (e.g. Rs.50,000/month rent -> ~Rs.1,667/
+    day) rather than only handling one-off costs.
+    """
+    __tablename__ = "expenses"
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    org_id          = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    category        = Column(Enum(ExpenseCategory), nullable=False)
+    amount          = Column(Float, nullable=False)
+    recurrence      = Column(Enum(ExpenseRecurrence), nullable=False, default=ExpenseRecurrence.one_time)
+    effective_date  = Column(DateTime, nullable=False)  # when a one-time cost hit, or when a recurring cost started
+    end_date        = Column(DateTime, nullable=True)   # null = still active (for recurring costs)
+    note            = Column(String(200), nullable=True)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+
 class ChatSession(Base):
     """A single chat conversation thread.
 
@@ -318,4 +353,5 @@ Inventory   (standalone)
 DecisionLog (standalone)
 Connector   (per org, per platform)
 ChatSession ──< ChatMessage
+Expense     (per org, standalone -- prorated into daily P&L)
 """

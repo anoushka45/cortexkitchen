@@ -11,7 +11,9 @@ from datetime import datetime, timedelta
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.infrastructure.db.models import Feedback, MenuItem, Order, SentimentType
+from app.infrastructure.db.models import (
+    Expense, ExpenseRecurrence, Feedback, MenuItem, Order, SentimentType,
+)
 
 # Keyword buckets checked in order -- first match wins. Tuned against the
 # actual seeded complaint text (see scripts/seed_demo_data.py).
@@ -79,6 +81,62 @@ class BusinessAnalyticsService:
             {"category": cat, "count": n}
             for cat, n in sorted(counts.items(), key=lambda kv: kv[1], reverse=True)
         ]
+
+    def get_daily_expense_total(self, target_date: datetime) -> float:
+        """Prorate one-time and recurring expenses into a single daily-equivalent
+        figure for target_date -- e.g. Rs.50,000/month rent -> ~Rs.1,667/day.
+        Monthly uses a flat /30 divisor (demo-scale precision, matches the rest
+        of this codebase's simplifications, e.g. reservation capacity math)."""
+        target_day = target_date.date()
+        expenses = (
+            self.db.query(Expense)
+            .filter(
+                func.date(Expense.effective_date) <= target_day,
+                (Expense.end_date.is_(None)) | (func.date(Expense.end_date) >= target_day),
+            )
+            .all()
+        )
+        total = 0.0
+        for e in expenses:
+            if e.recurrence == ExpenseRecurrence.one_time:
+                if e.effective_date.date() == target_day:
+                    total += e.amount
+            elif e.recurrence == ExpenseRecurrence.daily:
+                total += e.amount
+            elif e.recurrence == ExpenseRecurrence.weekly:
+                total += e.amount / 7
+            elif e.recurrence == ExpenseRecurrence.monthly:
+                total += e.amount / 30
+        return round(total, 2)
+
+    def get_total_expenses_for_period(self, days: int) -> float:
+        """Sum of get_daily_expense_total() across the trailing `days` days."""
+        total = 0.0
+        for i in range(days):
+            day = datetime.utcnow() - timedelta(days=i)
+            total += self.get_daily_expense_total(day)
+        return round(total, 2)
+
+    def get_positive_sentiment_pct(self, days: int = 28) -> float | None:
+        """Share of feedback rows in the window that are positive. None when
+        there's no feedback at all, so callers can distinguish "no data" from 0%."""
+        window = datetime.utcnow() - timedelta(days=days)
+        rows = self.db.query(Feedback.sentiment).filter(Feedback.created_at >= window).all()
+        if not rows:
+            return None
+        positive = sum(1 for (s,) in rows if s == SentimentType.positive)
+        return round(positive / len(rows) * 100, 1)
+
+    def compute_health_score(self, net_margin_pct: float | None, positive_sentiment_pct: float | None) -> int:
+        """Deterministic composite score, 0-100. Weighted 70% net margin (normalized
+        against a 30%-net-margin benchmark for a healthy restaurant), 30% guest
+        sentiment. Missing sentiment data defaults to a neutral 50, missing margin
+        data defaults to 0 (no revenue data is itself a bad sign, not neutral)."""
+        margin_component = 0.0
+        if net_margin_pct is not None:
+            margin_component = max(0.0, min(100.0, (net_margin_pct / 30.0) * 100))
+        sentiment_component = positive_sentiment_pct if positive_sentiment_pct is not None else 50.0
+        return round(0.7 * margin_component + 0.3 * sentiment_component)
 
     def get_peak_hours(self, days: int = 14) -> list[dict]:
         """Average orders per hour-of-day over the trend window, from real order

@@ -209,6 +209,11 @@ export default function TodayIdleState({
 
   const yesterday = businessPerf?.yesterday ?? null;
   const revenueTrend = businessPerf?.trend ?? [];
+  const healthScoreTone = !businessPerf || businessPerf.health_score >= 70
+    ? TONE_CLASS.good
+    : businessPerf.health_score >= 40
+      ? TONE_CLASS.caution
+      : TONE_CLASS.rose;
   const dineInShare = yesterday && (yesterday.revenue > 0)
     ? Math.round((businessPerf!.channel_split.dine_in_revenue / yesterday.revenue) * 100)
     : null;
@@ -367,9 +372,23 @@ export default function TodayIdleState({
               <p className="text-[15px] font-bold text-[var(--color-text-primary)]">Overall performance</p>
               <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">Revenue, profit &amp; orders — last {revenueTrend.length || 14} days</p>
             </div>
-            {yesterday?.margin_pct != null && (
-              <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: "var(--color-good-soft)", color: "var(--color-good)" }}>{yesterday.margin_pct}% margin yesterday</span>
-            )}
+            <div className="flex shrink-0 items-center gap-2">
+              {yesterday?.margin_pct != null && (
+                <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: "var(--color-good-soft)", color: "var(--color-good)" }}>{yesterday.margin_pct}% margin yesterday</span>
+              )}
+              {businessPerf && (
+                <span
+                  className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                  style={{
+                    background: healthScoreTone.bg,
+                    color: healthScoreTone.text,
+                  }}
+                  title={`Health score: 70% net margin (last ${businessPerf.period_days}d), 30% guest sentiment (last 28d)`}
+                >
+                  {businessPerf.health_score}/100 health
+                </span>
+              )}
+            </div>
           </div>
 
           {revenueTrend.length >= 2 ? (
@@ -459,9 +478,9 @@ export default function TodayIdleState({
             lg
           />
           <KpiTile
-            label="Profit & margin"
-            value={yesterday ? `₹${yesterday.profit.toLocaleString("en-IN")}` : "--"}
-            meta={yesterday?.margin_pct != null ? `${yesterday.margin_pct}% margin` : "no data yet"}
+            label="Net profit"
+            value={yesterday?.net_profit != null ? `₹${yesterday.net_profit.toLocaleString("en-IN")}` : "--"}
+            meta={yesterday?.net_margin_pct != null ? `${yesterday.net_margin_pct}% net margin · ₹${yesterday.expenses.toLocaleString("en-IN")} expenses` : "no data yet"}
             icon="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
             lg
           />

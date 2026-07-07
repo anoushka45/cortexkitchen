@@ -33,6 +33,9 @@ from app.domain.scenarios import list_scenarios
 from app.infrastructure.db.models import (
     CriticVerdict,
     DecisionLog,
+    Expense,
+    ExpenseCategory,
+    ExpenseRecurrence,
     Feedback,
     FeedbackSource,
     Inventory,
@@ -153,6 +156,7 @@ session.query(Order).delete()
 session.query(Reservation).delete()
 session.query(Inventory).delete()
 session.query(MenuItem).delete()
+session.query(Expense).delete()
 session.commit()
 print("  Cleared existing data")
 
@@ -637,6 +641,29 @@ decision_logs = [
         critic_notes="Low-stock weekend call is well-timed. Quantities are specific and justified.",
     ),
 ]
+# ── 7. Expenses — fixed/recurring costs backing the financial health score ──
+# DEMO_ORG_ID=1 ("Casa Mia") is the seeded owner account's org. Effective dates
+# anchor to the start of the history window so recurring costs are active for
+# the whole trailing period, not just from today.
+DEMO_ORG_ID = 1
+expenses = [
+    Expense(org_id=DEMO_ORG_ID, category=ExpenseCategory.rent, amount=85000.0,
+            recurrence=ExpenseRecurrence.monthly, effective_date=base_date,
+            note="Restaurant premises rent"),
+    Expense(org_id=DEMO_ORG_ID, category=ExpenseCategory.utilities, amount=22000.0,
+            recurrence=ExpenseRecurrence.monthly, effective_date=base_date,
+            note="Electricity, water, gas"),
+    Expense(org_id=DEMO_ORG_ID, category=ExpenseCategory.marketing, amount=3500.0,
+            recurrence=ExpenseRecurrence.weekly, effective_date=base_date,
+            note="Swiggy/Zomato ad spend + local promotions"),
+    Expense(org_id=DEMO_ORG_ID, category=ExpenseCategory.other, amount=15000.0,
+            recurrence=ExpenseRecurrence.one_time, effective_date=SEED_AS_OF - timedelta(days=9),
+            note="Diwali decor + festive signage"),
+]
+session.add_all(expenses)
+session.commit()
+print(f"  Added {len(expenses)} expenses (rent, utilities, marketing, one-time)")
+
 session.add_all(decision_logs)
 session.commit()
 print(f"  Added {len(decision_logs)} decision logs")
@@ -652,3 +679,4 @@ print(f"  Holiday spikes   : {len(HOLIDAY_PEAKS)} historical dates")
 print(f"  Inventory        : 3 of {len(inventory_items)} items below threshold")
 print(f"  Feedback         : {len(feedback_list)} entries — older ~35% neg, last 28d ~27% neg (Diff 4 gray zone)")
 print(f"  High-occupancy   : {fmt(FUTURE_SCENARIO_TARGETS['friday_rush'][0])} and {fmt(FUTURE_SCENARIO_TARGETS['friday_rush'][2])} seeded >90% occupancy")
+print(f"  Expenses         : {len(expenses)} entries — rent + utilities (monthly), marketing (weekly), 1 one-time cost")

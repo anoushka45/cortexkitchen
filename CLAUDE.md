@@ -1,7 +1,7 @@
 # CortexKitchen — Claude Code Master Reference
 
 > **Read this file completely before touching any code.**
-> Last updated: Phase 6 — market intelligence expansion (P6-MI05–MI14) complete.
+> Last updated: Phase 6A — financial scorecard (P6-A6) complete.
 > Reference zip: cortexkitchen-dev (latest dev branch)
 
 ---
@@ -165,7 +165,11 @@ infrastructure/swiggy/
 domain/services/
 ├── market_intel_service.py  Orchestrates enrichers concurrently
 ├── scenario_recommender.py  P6-MI10 — suggests a scenario preset from run history + market + calendar + inventory signals
-├── chat_service.py          Groq function calling: 7 tools including 3 Swiggy
+├── business_analytics_service.py  Shared analytics (dish margin, complaint categories, peak hours,
+│                                  expense proration, composite health score — P6-A6) used identically
+│                                  by business.py AND the planning pipeline/chatbot (menu_intelligence,
+│                                  complaint_intelligence, reservation, chat_service)
+├── chat_service.py          Groq function calling: Swiggy tools + business analytics context
 ├── critic_service.py        LLM critic with assumption diffs + stale assumptions
 ├── evaluation_sanity.py     Diffs 1-7 (incl. 3 market/dineout diffs — Diff 7 added P6-MI08)
 └── ...others existing
@@ -176,9 +180,21 @@ api/routes/
 │                 GET /market/trends — price/occupancy history
 ├── planning.py   GET /planning/recommend — ScenarioRecommender suggestion (P6-MI10)
 ├── connectors.py POST /connectors/swiggy/sync, GET /connectors/status
-├── business.py   GET /business/performance — revenue/profit analytics
+├── business.py   GET /business/performance — revenue/profit analytics + real P&L (net profit,
+│                 net margin) + composite health score, backed by the new Expense ledger (P6-A6)
 └── ...others existing
 ```
+
+### Financial scorecard (P6-A6)
+
+`Expense` (`infrastructure/db/models.py`) is a per-org fixed/recurring cost (rent, utilities,
+marketing, other; `labor` category exists but is unpopulated — no staffing feature yet, included so
+it slots in later without a schema change). `BusinessAnalyticsService.get_daily_expense_total`
+prorates one-time/daily/weekly/monthly costs into a daily-equivalent figure (e.g. Rs.50k/month rent
+→ ~Rs.1,667/day). `GET /business/performance` now returns real net profit/net margin per day and
+per period, plus a single `health_score` (0-100, deterministic: 70% net margin normalized against a
+30%-benchmark + 30% guest sentiment). Seed data (`scripts/seed_demo_data.py`) includes rent,
+utilities, marketing, and one one-time expense for org 1.
 
 ### What's built — frontend pages
 

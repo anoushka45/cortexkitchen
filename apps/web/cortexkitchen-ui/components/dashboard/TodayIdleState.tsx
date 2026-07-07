@@ -10,6 +10,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import PlanShiftModal from "@/components/dashboard/PlanShiftModal";
 import CategoryPricingChart from "@/components/dashboard/CategoryPricingChart";
+import ActionQueuePanel from "@/components/dashboard/ActionQueuePanel";
 import {
   getDataHealth, getConnectorsStatus, getMarketPulse, getBusinessPerformance,
   listRestaurantProfiles,
@@ -464,6 +465,9 @@ export default function TodayIdleState({
           </div>
         </div>
       </div>
+
+      {/* Action Queue — pending agentic recommendations awaiting approval */}
+      <ActionQueuePanel />
 
       {/* Yesterday's business — money KPIs + channel split */}
       <div>

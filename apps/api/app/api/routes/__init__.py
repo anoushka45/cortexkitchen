@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.routes.action_queue import router as action_queue_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.business import router as business_router
 from app.api.routes.chat import router as chat_router
@@ -17,6 +18,7 @@ def get_api_router() -> APIRouter:
     settings = get_settings()
     router = APIRouter(prefix=settings.api_v1_prefix)
 
+    router.include_router(action_queue_router)
     router.include_router(auth_router)
     router.include_router(business_router)
     router.include_router(chat_router)

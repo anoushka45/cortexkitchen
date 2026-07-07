@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, Integer, String, Float, Boolean,
-    DateTime, Text, ForeignKey, Enum, UniqueConstraint
+    DateTime, Text, ForeignKey, Enum, UniqueConstraint, JSON
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
@@ -65,6 +65,18 @@ class CriticVerdict(str, enum.Enum):
 class UserRole(str, enum.Enum):
     owner  = "owner"
     member = "member"
+
+class ActionTier(str, enum.Enum):
+    auto             = "auto"              # executes without approval (earned via trust-ladder)
+    approve_required = "approve_required"  # default -- needs a human approval before executing
+    recommendation   = "recommendation"     # informational only, no execution path
+
+class ActionStatus(str, enum.Enum):
+    pending  = "pending"
+    approved = "approved"
+    executed = "executed"
+    rejected = "rejected"
+    expired  = "expired"
 
 
 # ── Auth models ────────────────────────────────────────
@@ -312,6 +324,35 @@ class Expense(Base):
     created_at      = Column(DateTime, default=datetime.utcnow)
 
 
+class ActionQueue(Base):
+    """A proposed action awaiting approval (or auto-executed, once trust-ladder promotes its
+    category to the `auto` tier) -- e.g. 'reorder mozzarella from Ramesh Traders via WhatsApp'.
+
+    `category` is the specific kind of action (e.g. "whatsapp_vendor_order", "restock_alert") --
+    this is what the trust-ladder mechanic counts consecutive approvals against, not `tier`.
+    `tier` is the current autonomy level for that category: recommendation-only, needs approval,
+    or promoted to auto-execute. `payload` carries whatever the acting code needs to actually
+    execute the action (e.g. vendor contact + drafted message for a WhatsApp order) -- this
+    table only manages the approval lifecycle, it does not execute anything itself.
+    """
+    __tablename__ = "action_queue"
+
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    org_id       = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    category     = Column(String(50), nullable=False)
+    tier         = Column(Enum(ActionTier), nullable=False, default=ActionTier.approve_required)
+    status       = Column(Enum(ActionStatus), nullable=False, default=ActionStatus.pending)
+    title        = Column(String(200), nullable=False)
+    payload      = Column(JSON, nullable=False)  # plain JSON (not JSONB) -- no Postgres-only path
+                                                  # queries needed here, and it keeps this table's
+                                                  # tests runnable against SQLite in-memory (unlike
+                                                  # Connector's JSONB column, see P6-A19)
+    approved_by  = Column(Integer, ForeignKey("users.id"), nullable=True)
+    executed_at  = Column(DateTime, nullable=True)
+    error        = Column(String(500), nullable=True)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+
+
 class ChatSession(Base):
     """A single chat conversation thread.
 
@@ -354,4 +395,5 @@ DecisionLog (standalone)
 Connector   (per org, per platform)
 ChatSession ──< ChatMessage
 Expense     (per org, standalone -- prorated into daily P&L)
+ActionQueue (per org, standalone -- approval lifecycle for agentic recommendations)
 """

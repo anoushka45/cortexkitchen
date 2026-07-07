@@ -31,6 +31,9 @@ from sqlalchemy.orm import sessionmaker
 
 from app.domain.scenarios import list_scenarios
 from app.infrastructure.db.models import (
+    ActionQueue,
+    ActionStatus,
+    ActionTier,
     CriticVerdict,
     DecisionLog,
     Expense,
@@ -157,6 +160,7 @@ session.query(Reservation).delete()
 session.query(Inventory).delete()
 session.query(MenuItem).delete()
 session.query(Expense).delete()
+session.query(ActionQueue).delete()
 session.commit()
 print("  Cleared existing data")
 
@@ -664,6 +668,33 @@ session.add_all(expenses)
 session.commit()
 print(f"  Added {len(expenses)} expenses (rent, utilities, marketing, one-time)")
 
+
+# ── 8. Action Queue — demo pending actions ──────────────────────────────────
+# Two realistic pending actions tied to the genuinely-low inventory items above,
+# so the Action Queue UI has real content before the workflow trigger engine
+# (P6-A11) exists to create these automatically.
+action_queue_items = [
+    ActionQueue(
+        org_id=DEMO_ORG_ID, category="restock_alert", tier=ActionTier.recommendation,
+        status=ActionStatus.pending, title="Fresh Basil running low -- 0.35kg vs 1kg threshold",
+        payload={"ingredient": "Fresh Basil", "quantity_in_stock": 0.35, "reorder_threshold": 1.0},
+    ),
+    ActionQueue(
+        org_id=DEMO_ORG_ID, category="whatsapp_vendor_order", tier=ActionTier.approve_required,
+        status=ActionStatus.pending, title="Order Mozzarella Cheese from Ramesh Traders",
+        payload={
+            "vendor": "Ramesh Traders", "ingredient": "Mozzarella Cheese",
+            "quantity_in_stock": 2.6, "reorder_threshold": 8.0,
+            "message_draft": "Hi Ramesh ji, running low on mozzarella (2.6kg left) -- can you send "
+                             "6kg by tomorrow morning? Same rate as last time. Thanks!",
+        },
+    ),
+]
+session.add_all(action_queue_items)
+session.commit()
+print(f"  Added {len(action_queue_items)} Action Queue demo items (pending)")
+
+
 session.add_all(decision_logs)
 session.commit()
 print(f"  Added {len(decision_logs)} decision logs")
@@ -680,3 +711,4 @@ print(f"  Inventory        : 3 of {len(inventory_items)} items below threshold")
 print(f"  Feedback         : {len(feedback_list)} entries — older ~35% neg, last 28d ~27% neg (Diff 4 gray zone)")
 print(f"  High-occupancy   : {fmt(FUTURE_SCENARIO_TARGETS['friday_rush'][0])} and {fmt(FUTURE_SCENARIO_TARGETS['friday_rush'][2])} seeded >90% occupancy")
 print(f"  Expenses         : {len(expenses)} entries — rent + utilities (monthly), marketing (weekly), 1 one-time cost")
+print(f"  Action Queue     : {len(action_queue_items)} pending demo items")

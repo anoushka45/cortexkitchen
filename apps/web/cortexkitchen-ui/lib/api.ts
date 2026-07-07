@@ -436,6 +436,9 @@ export interface BusinessDaySnapshot {
   margin_pct: number | null;
   orders: number;
   avg_order_value: number;
+  expenses: number;
+  net_profit: number | null;
+  net_margin_pct: number | null;
 }
 
 export interface BusinessDishPerformance {
@@ -473,6 +476,10 @@ export interface BusinessPerformanceResponse {
   channel_split: BusinessChannelSplit;
   complaints_by_category: BusinessComplaintCategory[];
   peak_hours: BusinessHourlyDemand[];
+  total_expenses: number;
+  net_profit: number | null;
+  net_margin_pct: number | null;
+  health_score: number;
 }
 
 export async function getBusinessPerformance(days = 14): Promise<BusinessPerformanceResponse> {

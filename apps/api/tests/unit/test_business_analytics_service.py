@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.infrastructure.db.models import Feedback, MenuItem, Order, SentimentType
+from app.infrastructure.db.models import Expense, ExpenseCategory, ExpenseRecurrence, Feedback, MenuItem, Order, SentimentType
 from app.domain.services.business_analytics_service import BusinessAnalyticsService
 
 
@@ -22,6 +22,7 @@ def engine():
     MenuItem.__table__.create(bind=eng)
     Order.__table__.create(bind=eng)
     Feedback.__table__.create(bind=eng)
+    Expense.__table__.create(bind=eng)
     yield eng
     eng.dispose()
 
@@ -31,6 +32,7 @@ def db(engine):
     with Session(engine) as session:
         yield session
         session.rollback()
+        session.query(Expense).delete()
         session.query(Feedback).delete()
         session.query(Order).delete()
         session.query(MenuItem).delete()
@@ -56,6 +58,14 @@ def _order(db, item, quantity, total_price, days_ago=1, hour=19):
 def _feedback(db, text, sentiment=SentimentType.negative, days_ago=1):
     fb = Feedback(raw_text=text, sentiment=sentiment, created_at=datetime.utcnow() - timedelta(days=days_ago))
     db.add(fb)
+    db.commit()
+
+
+def _expense(db, category, amount, recurrence, days_ago_start, days_ago_end=None, note=None):
+    start = datetime.utcnow() - timedelta(days=days_ago_start)
+    end = (datetime.utcnow() - timedelta(days=days_ago_end)) if days_ago_end is not None else None
+    e = Expense(category=category, amount=amount, recurrence=recurrence, effective_date=start, end_date=end, note=note, org_id=1)
+    db.add(e)
     db.commit()
 
 
@@ -133,3 +143,91 @@ def test_peak_hours_returns_24_entries_with_correct_averages(db):
     assert hour_19["avg_orders"] == 1.0  # 2 orders / 2 days
     hour_10 = next(h for h in result if h["hour"] == 10)
     assert hour_10["avg_orders"] == 0.0
+
+
+# ── get_daily_expense_total ───────────────────────────────────────────────────
+
+def test_daily_expense_prorates_monthly_recurring_cost(db):
+    _expense(db, ExpenseCategory.rent, 30000.0, ExpenseRecurrence.monthly, days_ago_start=60)
+    analytics = BusinessAnalyticsService(db)
+    total = analytics.get_daily_expense_total(datetime.utcnow())
+    assert total == 1000.0  # 30000 / 30
+
+
+def test_daily_expense_prorates_weekly_recurring_cost(db):
+    _expense(db, ExpenseCategory.marketing, 700.0, ExpenseRecurrence.weekly, days_ago_start=30)
+    analytics = BusinessAnalyticsService(db)
+    total = analytics.get_daily_expense_total(datetime.utcnow())
+    assert total == 100.0  # 700 / 7
+
+
+def test_daily_expense_one_time_only_counts_on_its_own_date(db):
+    _expense(db, ExpenseCategory.other, 5000.0, ExpenseRecurrence.one_time, days_ago_start=3)
+    analytics = BusinessAnalyticsService(db)
+    assert analytics.get_daily_expense_total(datetime.utcnow() - timedelta(days=3)) == 5000.0
+    assert analytics.get_daily_expense_total(datetime.utcnow() - timedelta(days=2)) == 0.0
+    assert analytics.get_daily_expense_total(datetime.utcnow()) == 0.0
+
+
+def test_daily_expense_ended_recurring_cost_excluded_after_end_date(db):
+    _expense(db, ExpenseCategory.utilities, 3000.0, ExpenseRecurrence.monthly, days_ago_start=60, days_ago_end=10)
+    analytics = BusinessAnalyticsService(db)
+    # still within the active window (10 days ago the expense ended, so 15 days ago it was active)
+    assert analytics.get_daily_expense_total(datetime.utcnow() - timedelta(days=15)) == 100.0
+    # after end_date -- no longer counted
+    assert analytics.get_daily_expense_total(datetime.utcnow() - timedelta(days=5)) == 0.0
+
+
+def test_daily_expense_sums_multiple_active_expenses(db):
+    _expense(db, ExpenseCategory.rent, 30000.0, ExpenseRecurrence.monthly, days_ago_start=60)
+    _expense(db, ExpenseCategory.utilities, 700.0, ExpenseRecurrence.weekly, days_ago_start=60)
+    analytics = BusinessAnalyticsService(db)
+    total = analytics.get_daily_expense_total(datetime.utcnow())
+    assert total == 1100.0  # 1000 + 100
+
+
+# ── get_positive_sentiment_pct ────────────────────────────────────────────────
+
+def test_positive_sentiment_pct_computes_correctly(db):
+    _feedback(db, "Loved it", sentiment=SentimentType.positive, days_ago=1)
+    _feedback(db, "Great service", sentiment=SentimentType.positive, days_ago=2)
+    _feedback(db, "Too slow", sentiment=SentimentType.negative, days_ago=1)
+    _feedback(db, "Meh", sentiment=SentimentType.neutral, days_ago=1)
+
+    analytics = BusinessAnalyticsService(db)
+    assert analytics.get_positive_sentiment_pct(days=28) == 50.0  # 2 of 4
+
+
+def test_positive_sentiment_pct_returns_none_when_no_feedback(db):
+    analytics = BusinessAnalyticsService(db)
+    assert analytics.get_positive_sentiment_pct(days=28) is None
+
+
+# ── compute_health_score ──────────────────────────────────────────────────────
+
+def test_health_score_weights_margin_and_sentiment(db):
+    analytics = BusinessAnalyticsService(db)
+    # 30% net margin (benchmark) + 100% positive sentiment -> full marks on both
+    assert analytics.compute_health_score(net_margin_pct=30.0, positive_sentiment_pct=100.0) == 100
+    # 0% margin, 0% sentiment -> 0
+    assert analytics.compute_health_score(net_margin_pct=0.0, positive_sentiment_pct=0.0) == 0
+    # 15% margin (half of benchmark) + 50% sentiment -> 0.7*50 + 0.3*50 = 50
+    assert analytics.compute_health_score(net_margin_pct=15.0, positive_sentiment_pct=50.0) == 50
+
+
+def test_health_score_defaults_sentiment_to_neutral_when_missing(db):
+    analytics = BusinessAnalyticsService(db)
+    # 30% margin, no sentiment data -> 0.7*100 + 0.3*50 = 85
+    assert analytics.compute_health_score(net_margin_pct=30.0, positive_sentiment_pct=None) == 85
+
+
+def test_health_score_defaults_margin_to_zero_when_missing(db):
+    analytics = BusinessAnalyticsService(db)
+    # no margin data (no revenue) is treated as a bad sign, not neutral
+    assert analytics.compute_health_score(net_margin_pct=None, positive_sentiment_pct=100.0) == 30
+
+
+def test_health_score_caps_margin_component_above_benchmark(db):
+    analytics = BusinessAnalyticsService(db)
+    # 60% margin (2x benchmark) should cap at 100, not exceed it
+    assert analytics.compute_health_score(net_margin_pct=60.0, positive_sentiment_pct=0.0) == 70

@@ -34,6 +34,9 @@ class DaySnapshot(BaseModel):
     margin_pct: float | None = None
     orders: int
     avg_order_value: float
+    expenses: float = 0
+    net_profit: float | None = None
+    net_margin_pct: float | None = None
 
 
 class DishPerformance(BaseModel):
@@ -71,6 +74,10 @@ class BusinessPerformanceResponse(BaseModel):
     channel_split: ChannelSplit = ChannelSplit()
     complaints_by_category: list[ComplaintCategory] = []
     peak_hours: list[HourlyDemand] = []
+    total_expenses: float = 0
+    net_profit: float | None = None
+    net_margin_pct: float | None = None
+    health_score: int = 50
 
 
 @router.get("/performance", response_model=BusinessPerformanceResponse)
@@ -110,11 +117,16 @@ def get_business_performance(
         by_day[day_str] = {"revenue": revenue, "profit": profit, "orders": row.orders}
         trend.append(DailyPoint(date=day_str, revenue=round(revenue, 2), profit=round(profit, 2), orders=row.orders))
 
-    def _snapshot(day_str: str) -> DaySnapshot | None:
+    analytics = BusinessAnalyticsService(db)
+
+    def _snapshot(day_str: str, day_dt: datetime) -> DaySnapshot | None:
         d = by_day.get(day_str)
         if not d or not d["orders"]:
             return None
         margin = (d["profit"] / d["revenue"] * 100) if d["revenue"] > 0 else None
+        expenses = analytics.get_daily_expense_total(day_dt)
+        net_profit = d["profit"] - expenses
+        net_margin = (net_profit / d["revenue"] * 100) if d["revenue"] > 0 else None
         return DaySnapshot(
             date=day_str,
             revenue=round(d["revenue"], 2),
@@ -122,13 +134,15 @@ def get_business_performance(
             margin_pct=round(margin, 1) if margin is not None else None,
             orders=d["orders"],
             avg_order_value=round(d["revenue"] / d["orders"], 2),
+            expenses=round(expenses, 2),
+            net_profit=round(net_profit, 2),
+            net_margin_pct=round(net_margin, 1) if net_margin is not None else None,
         )
 
-    yesterday_snapshot = _snapshot(yesterday_start.date().isoformat())
-    today_snapshot = _snapshot(today_start.date().isoformat())
+    yesterday_snapshot = _snapshot(yesterday_start.date().isoformat(), yesterday_start)
+    today_snapshot = _snapshot(today_start.date().isoformat(), today_start)
 
     # ── Top / bottom dishes by revenue over the trend window ───────────
-    analytics = BusinessAnalyticsService(db)
     dishes = [DishPerformance(**d) for d in analytics.get_dish_performance(days)]
     top_dishes = dishes[:5]
     bottom_dishes = list(reversed(dishes[-5:])) if len(dishes) > 5 else []
@@ -160,6 +174,15 @@ def get_business_performance(
         ComplaintCategory(**c) for c in analytics.get_complaints_by_category(days=28)
     ]
 
+    # ── Period P&L and composite health score ───────────────────────────
+    period_revenue = sum(p.revenue for p in trend)
+    period_gross_profit = sum(p.profit for p in trend)
+    total_expenses = analytics.get_total_expenses_for_period(days)
+    net_profit = period_gross_profit - total_expenses
+    net_margin_pct = round(net_profit / period_revenue * 100, 1) if period_revenue > 0 else None
+    positive_sentiment_pct = analytics.get_positive_sentiment_pct(days=28)
+    health_score = analytics.compute_health_score(net_margin_pct, positive_sentiment_pct)
+
     return BusinessPerformanceResponse(
         period_days=days,
         yesterday=yesterday_snapshot,
@@ -170,4 +193,8 @@ def get_business_performance(
         channel_split=channel_split,
         complaints_by_category=complaints_by_category,
         peak_hours=peak_hours,
+        total_expenses=round(total_expenses, 2),
+        net_profit=round(net_profit, 2),
+        net_margin_pct=net_margin_pct,
+        health_score=health_score,
     )

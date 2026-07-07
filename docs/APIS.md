@@ -566,6 +566,59 @@ empty state in that case instead of a partial chart.
 
 ---
 
+## Business
+
+Revenue, profit, and complaint analytics for the Today dashboard — computed directly from `Order`,
+`MenuItem`, `Feedback`, and `Expense`, independent of any planning run.
+
+### `GET /api/v1/business/performance`
+
+**Auth:** JWT required.
+
+**Query parameters**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `days` | integer (1–90) | `14` | Trailing window for the trend, dish ranking, and period P&L |
+
+**Response `200`**
+
+```json
+{
+  "period_days": 14,
+  "yesterday": {
+    "date": "2026-07-06", "revenue": 20189.0, "profit": 13321.0, "margin_pct": 66.0,
+    "orders": 25, "avg_order_value": 807.56,
+    "expenses": 4066.67, "net_profit": 9254.33, "net_margin_pct": 45.8
+  },
+  "today_so_far": { "...": "same shape as yesterday" },
+  "trend": [ { "date": "2026-06-24", "revenue": 18420.0, "profit": 12100.0, "orders": 22 } ],
+  "top_dishes": [ { "name": "Four Cheese", "category": "pizza", "revenue": 1500.0, "quantity": 5, "margin_pct": 16.7 } ],
+  "bottom_dishes": [ "...same shape as top_dishes" ],
+  "channel_split": { "dine_in_revenue": 12000.0, "delivery_revenue": 8189.0, "dine_in_orders": 15, "delivery_orders": 10 },
+  "complaints_by_category": [ { "category": "Wait Time", "count": 6 } ],
+  "peak_hours": [ { "hour": 19, "avg_orders": 4.2 } ],
+  "total_expenses": 71933.38,
+  "net_profit": 307646.62,
+  "net_margin_pct": 53.8,
+  "health_score": 86
+}
+```
+
+`expenses`/`net_profit`/`net_margin_pct` on each `DaySnapshot`, and the top-level
+`total_expenses`/`net_profit`/`net_margin_pct`/`health_score` fields, were added in P6-A6 (Financial
+scorecard). Expenses are prorated from the `Expense` ledger (one-time/daily/weekly/monthly
+recurrence) into a daily-equivalent figure via `BusinessAnalyticsService.get_daily_expense_total`.
+`health_score` (0–100) is a deterministic composite: 70% net margin over `days` (normalized against
+a 30%-net-margin benchmark, capped at 100), 30% positive-sentiment share over the last 28 days of
+feedback. Missing margin data (no revenue) defaults to 0; missing sentiment data defaults to a
+neutral 50 — see `BusinessAnalyticsService.compute_health_score`.
+
+`yesterday`/`today_so_far` are `null` when that day has no orders yet — the frontend renders a
+"no data yet" state rather than zeros.
+
+---
+
 ## Chat
 
 ### `POST /api/v1/chat`  *(SSE stream)*

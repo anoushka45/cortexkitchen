@@ -235,14 +235,122 @@ _TOOLS = [
             },
         },
     },
+    # ── Action Queue + market brief tools (P6-A13) -- same capabilities the
+    # MCP server exposes to Claude Desktop, wired here so the in-app chatbot
+    # has them too. ─────────────────────────────────────────────────────────
+    {
+        "type": "function",
+        "function": {
+            "name": "get_market_brief",
+            "description": (
+                "Get a full live market snapshot: category-level pricing vs the area average, "
+                "your competitive positioning, menu breadth, cuisine crowding, veg/non-veg mix, "
+                "live competitor deals, and area occupancy tonight. Broader than the individual "
+                "swiggy_* tools -- use when the user asks for an overall market summary or "
+                "'how are we doing competitively' rather than one specific signal."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_action_queue",
+            "description": (
+                "List pending (or other-status) actions in the Action Queue -- e.g. restock "
+                "alerts, WhatsApp vendor order drafts awaiting approval, pricing/promo review "
+                "flags. Use when the user asks what's waiting for their approval or attention."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "description": "Filter by status. Defaults to 'pending' if omitted.",
+                        "enum": ["pending", "approved", "executed", "rejected", "expired"],
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "approve_action",
+            "description": (
+                "Approve a specific Action Queue item by its ID. For a WhatsApp vendor-order "
+                "action, this is the same step that actually sends the message -- there's "
+                "nothing further to approve once the user has explicitly said to approve it. "
+                "Use ONLY when the user explicitly approves a specific action (e.g. 'approve "
+                "the mozzarella reorder') -- never approve on your own initiative."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action_id": {
+                        "type": "integer",
+                        "description": "The ID of the action to approve, from get_action_queue's results.",
+                    },
+                },
+                "required": ["action_id"],
+            },
+        },
+    },
 ]
 
 
 # ── Tool execution ────────────────────────────────────────────────────────────
 
-def _run_tool(name: str, args: dict, db: Session, org_id: int) -> str:
+def _run_tool(name: str, args: dict, db: Session, org_id: int, user_id: Optional[int] = None) -> str:
     """Execute a tool call and return a JSON string result."""
     try:
+        if name == "get_action_queue":
+            from app.domain.services.action_queue_service import ActionQueueService
+            from app.domain.services.trust_ladder_service import TrustLadderService
+            from app.infrastructure.db.models import ActionStatus
+
+            status_arg = args.get("status") or "pending"
+            try:
+                status_enum = ActionStatus(status_arg)
+            except ValueError:
+                return json.dumps({"error": f"Invalid status '{status_arg}'"})
+
+            service = ActionQueueService(db)
+            trust_ladder = TrustLadderService(db)
+            actions = service.list_actions(org_id, status=status_enum)
+            return json.dumps({
+                "actions": [
+                    {
+                        "id": a.id, "category": a.category, "tier": a.tier.value,
+                        "status": a.status.value, "title": a.title,
+                        "approval_streak": trust_ladder.count_consecutive_approvals(org_id, a.category),
+                    }
+                    for a in actions
+                ]
+            })
+
+        if name == "approve_action":
+            from app.domain.services.action_execution_service import approve_and_execute
+            from app.domain.services.action_queue_service import ActionQueueService
+
+            action_id = int(args["action_id"])
+            existing = ActionQueueService(db).get(action_id)
+            if existing is None or existing.org_id != org_id:
+                return json.dumps({"error": f"Action {action_id} not found for this org"})
+            if not user_id:
+                return json.dumps({"error": "Cannot approve -- no authenticated user for this session"})
+
+            action = approve_and_execute(db, action_id, user_id)
+            return json.dumps({
+                "id": action.id, "status": action.status.value,
+                "error": action.error, "title": action.title,
+            })
+
         if name == "query_runs":
             limit = min(int(args.get("limit", 5)), 10)
             sf    = args.get("scenario_filter")
@@ -412,6 +520,20 @@ async def _run_swiggy_tool(name: str, args: dict, org_id: int = 0) -> str:
         return json.dumps({"error": str(exc)})
 
     return json.dumps({"error": f"Unknown Swiggy tool: {name}"})
+
+
+async def _run_market_brief(org_id: int, db: Session) -> str:
+    """Reuses GET /market/pulse's own handler directly (same process, same
+    logic) rather than duplicating its enricher-orchestration code here --
+    current only needs org_id, so it's safe to construct a minimal dict
+    instead of going through the real auth dependency."""
+    try:
+        from app.api.routes.market import get_market_pulse
+        pulse = await get_market_pulse(current={"org_id": org_id}, db=db)
+        return json.dumps(pulse.model_dump(), default=str)
+    except Exception as exc:
+        logger.warning("chat_tool_failed", tool="get_market_brief", error=str(exc))
+        return json.dumps({"error": str(exc)})
 
 
 # ── Context formatters ────────────────────────────────────────────────────────
@@ -665,6 +787,7 @@ async def stream_reply(
     db: Optional[Session] = None,
     org_id: Optional[int] = None,
     chat_cache=None,
+    user_id: Optional[int] = None,
 ) -> AsyncGenerator[str, None]:
     """
     Stream a reply via the configured LLM provider with optional ReAct tool use.
@@ -751,10 +874,12 @@ async def stream_reply(
             except Exception:
                 args = {}
 
-            if tc.function.name in _SWIGGY_TOOL_NAMES:
+            if tc.function.name == "get_market_brief":
+                result = await _run_market_brief(org_id or 0, db)
+            elif tc.function.name in _SWIGGY_TOOL_NAMES:
                 result = await _run_swiggy_tool(tc.function.name, args, org_id or 0)
             else:
-                result = _run_tool(tc.function.name, args, db, org_id)
+                result = _run_tool(tc.function.name, args, db, org_id, user_id)
             messages.append({
                 "role":         "tool",
                 "tool_call_id": tc.id,

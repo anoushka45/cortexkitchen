@@ -619,6 +619,60 @@ neutral 50 — see `BusinessAnalyticsService.compute_health_score`.
 
 ---
 
+## Action Queue
+
+Approval-gated agentic recommendations (P6-A7/A8) — restock alerts, WhatsApp vendor-order drafts,
+pricing/promo review flags. Auto-populated after every planning run by two built-in workflow
+triggers (P6-A11): 2+ critical shortages queues a `restock_alert`; tonight-busy plus 2+ competitor
+Dineout deals queues a `pricing_promo_review`. Both are `recommendation`-tier — informational only,
+never auto-executed.
+
+### `GET /api/v1/action-queue`
+
+**Auth:** JWT required.
+
+**Query parameters**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `status` | string | *(none — all statuses)* | Filter: `pending`, `approved`, `executed`, `rejected`, `expired` |
+
+**Response `200`**
+
+```json
+[
+  {
+    "id": 14, "category": "whatsapp_vendor_order", "tier": "approve_required", "status": "pending",
+    "title": "Order Mozzarella Cheese from Ramesh Traders",
+    "payload": { "vendor_id": 1, "vendor": "Ramesh Traders", "ingredient": "Mozzarella Cheese",
+                 "message_draft": "Ramesh bhai, mozzarella is almost done..." },
+    "approved_by": null, "executed_at": null, "error": null, "created_at": "2026-07-08T06:47:20",
+    "approval_streak": 2
+  }
+]
+```
+
+`approval_streak` (P6-A12, trust-ladder) is a read-only count of how many times in a row this
+`category` has been approved before (a rejection anywhere breaks the streak) — informational only,
+never bypasses approval. See `TrustLadderService.count_consecutive_approvals`.
+
+### `POST /api/v1/action-queue/{action_id}/approve`
+
+For a `whatsapp_vendor_order` action, approval and execution are the same step: this call also
+triggers the real WhatsApp send via Twilio (P6-A9). On send failure, the action stays `approved`
+with `error` populated rather than losing the approval decision. Other categories are approved only
+— no execution step wired for them yet.
+
+Shared logic lives in `action_execution_service.approve_and_execute`, called identically by this
+route, the in-app chatbot's `approve_action` tool, and the MCP server's `approve_action` tool
+(P6-A13) — approving via any of the three surfaces behaves the same way.
+
+### `POST /api/v1/action-queue/{action_id}/reject`
+
+Transitions status to `rejected` only — never executes anything.
+
+---
+
 ## Chat
 
 ### `POST /api/v1/chat`  *(SSE stream)*
@@ -655,6 +709,11 @@ data: {"done": true}
 - "Which ingredients keep showing up as low stock?"
 - "How is my restaurant performing overall?"
 - "If I had to focus on one thing to improve our score, what would it be?"
+- "What's the market situation right now?" → `get_market_brief` (P6-A13)
+- "What's waiting for my approval?" → `get_action_queue` (P6-A13)
+- "Approve the mozzarella reorder" → `approve_action` (P6-A13) — for a WhatsApp vendor order, this is
+  the same step that actually sends the message, so only fires on the user's explicit approval, never
+  on the model's own initiative
 
 ---
 

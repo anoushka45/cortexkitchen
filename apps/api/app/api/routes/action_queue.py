@@ -1,9 +1,11 @@
 """action_queue.py — approve/reject agentic recommendations.
 
 GET /api/v1/action-queue lists pending/approved/rejected/executed actions for
-the org. POST .../approve and .../reject transition status. Execution itself
-(e.g. actually sending a WhatsApp message) is the caller's responsibility --
-this router only manages the approval lifecycle.
+the org. POST .../reject just transitions status. POST .../approve transitions
+status AND, for whatsapp_vendor_order actions, triggers the actual WhatsApp
+send (P6-A9) -- approval and execution are the same step for that action kind,
+since there's nothing further to approve once a human has reviewed the drafted
+message. Other action categories may not have an execution step wired yet.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -12,7 +14,9 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, get_db
 from app.domain.services.action_queue_service import ActionQueueService
-from app.infrastructure.db.models import ActionStatus
+from app.domain.services.vendor_service import VendorService
+from app.infrastructure.db.models import ActionQueue, ActionStatus
+from app.infrastructure.whatsapp.whatsapp_service import WhatsAppSendError, WhatsAppService
 
 router = APIRouter(prefix="/action-queue", tags=["action-queue"])
 
@@ -62,7 +66,31 @@ def approve_action(
     if action is None or action.org_id != current["org_id"]:
         raise HTTPException(status_code=404, detail="Action not found.")
     action = service.approve(action_id, current["user_id"])
+
+    if action.category == "whatsapp_vendor_order":
+        action = _send_whatsapp_order(service, VendorService(db), action)
+
     return _to_item(action)
+
+
+def _send_whatsapp_order(service: ActionQueueService, vendor_service: VendorService, action: ActionQueue) -> ActionQueue:
+    """Approving a whatsapp_vendor_order action is what actually triggers the send --
+    approval and execution are the same step for this action kind. On any failure the
+    action stays 'approved' with an error recorded, rather than silently losing the
+    approval decision."""
+    message = action.payload.get("message_draft")
+    vendor_id = action.payload.get("vendor_id")
+    vendor = vendor_service.get(vendor_id) if vendor_id else None
+
+    if not message or vendor is None or not vendor.whatsapp_number:
+        return service.mark_error(action.id, "Missing message draft or vendor WhatsApp number.")
+
+    try:
+        WhatsAppService().send_message(message)
+    except WhatsAppSendError as exc:
+        return service.mark_error(action.id, str(exc))
+
+    return service.mark_executed(action.id)
 
 
 @router.post("/{action_id}/reject", response_model=ActionQueueItem)

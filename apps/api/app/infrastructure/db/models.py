@@ -353,6 +353,36 @@ class ActionQueue(Base):
     created_at   = Column(DateTime, default=datetime.utcnow)
 
 
+class Vendor(Base):
+    """A procurement source -- a local vendor reached by WhatsApp/phone, or an online one
+    like Instamart. Confirmed via the 2026-07-08 restaurant-owner call: real procurement here
+    is manual (phone, market visits, WhatsApp to known vendors), not e-commerce checkout, so
+    `is_online=False` is the common case, not the exception.
+    """
+    __tablename__ = "vendors"
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    org_id          = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    name            = Column(String(100), nullable=False)
+    category        = Column(String(50), nullable=True)  # e.g. "dairy", "produce", "general"
+    is_online       = Column(Boolean, default=False)
+    whatsapp_number = Column(String(20), nullable=True)  # E.164 format, e.g. "+919876543210"
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+
+class VendorPriceQuote(Base):
+    """A vendor's quoted price for one ingredient, at a point in time -- lets a cheapest-
+    vendor-per-ingredient comparison be computed without needing a live API for every source.
+    """
+    __tablename__ = "vendor_price_quotes"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    vendor_id  = Column(Integer, ForeignKey("vendors.id"), nullable=False)
+    ingredient = Column(String(100), nullable=False)
+    price      = Column(Float, nullable=False)
+    quoted_at  = Column(DateTime, default=datetime.utcnow)
+
+
 class ChatSession(Base):
     """A single chat conversation thread.
 
@@ -396,4 +426,5 @@ Connector   (per org, per platform)
 ChatSession ──< ChatMessage
 Expense     (per org, standalone -- prorated into daily P&L)
 ActionQueue (per org, standalone -- approval lifecycle for agentic recommendations)
+Vendor      (per org) ──< VendorPriceQuote
 """

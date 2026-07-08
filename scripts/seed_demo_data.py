@@ -48,6 +48,8 @@ from app.infrastructure.db.models import (
     Reservation,
     ReservationStatus,
     SentimentType,
+    Vendor,
+    VendorPriceQuote,
 )
 
 DATABASE_URL = "postgresql://cortex:cortexpass@localhost:5432/cortexkitchen"
@@ -161,6 +163,8 @@ session.query(Inventory).delete()
 session.query(MenuItem).delete()
 session.query(Expense).delete()
 session.query(ActionQueue).delete()
+session.query(VendorPriceQuote).delete()
+session.query(Vendor).delete()
 session.commit()
 print("  Cleared existing data")
 
@@ -669,7 +673,35 @@ session.commit()
 print(f"  Added {len(expenses)} expenses (rent, utilities, marketing, one-time)")
 
 
-# ── 8. Action Queue — demo pending actions ──────────────────────────────────
+# ── 8. Vendors -- local procurement contacts (P6-A10) ───────────────────────
+# Confirmed via the 2026-07-08 restaurant-owner call: real procurement here is
+# manual (phone/market visits/WhatsApp to known vendors), not e-commerce
+# checkout -- Instamart is seeded here as just one vendor among several, not
+# the default.
+vendors = [
+    Vendor(org_id=DEMO_ORG_ID, name="Ramesh Traders", category="dairy",
+           is_online=False, whatsapp_number="+919876543210"),
+    Vendor(org_id=DEMO_ORG_ID, name="Green Valley Produce", category="produce",
+           is_online=False, whatsapp_number="+919876512345"),
+    Vendor(org_id=DEMO_ORG_ID, name="Instamart", category="general",
+           is_online=True, whatsapp_number=None),
+]
+session.add_all(vendors)
+session.commit()
+ramesh_traders = vendors[0]
+print(f"  Added {len(vendors)} vendors (Ramesh Traders, Green Valley Produce, Instamart)")
+
+vendor_price_quotes = [
+    VendorPriceQuote(vendor_id=vendors[0].id, ingredient="Mozzarella Cheese", price=380.0),
+    VendorPriceQuote(vendor_id=vendors[2].id, ingredient="Mozzarella Cheese", price=420.0),
+    VendorPriceQuote(vendor_id=vendors[1].id, ingredient="Fresh Basil", price=45.0),
+]
+session.add_all(vendor_price_quotes)
+session.commit()
+print(f"  Added {len(vendor_price_quotes)} vendor price quotes")
+
+
+# ── 9. Action Queue — demo pending actions ──────────────────────────────────
 # Two realistic pending actions tied to the genuinely-low inventory items above,
 # so the Action Queue UI has real content before the workflow trigger engine
 # (P6-A11) exists to create these automatically.
@@ -683,10 +715,10 @@ action_queue_items = [
         org_id=DEMO_ORG_ID, category="whatsapp_vendor_order", tier=ActionTier.approve_required,
         status=ActionStatus.pending, title="Order Mozzarella Cheese from Ramesh Traders",
         payload={
-            "vendor": "Ramesh Traders", "ingredient": "Mozzarella Cheese",
+            "vendor_id": ramesh_traders.id, "vendor": ramesh_traders.name, "ingredient": "Mozzarella Cheese",
             "quantity_in_stock": 2.6, "reorder_threshold": 8.0,
-            "message_draft": "Hi Ramesh ji, running low on mozzarella (2.6kg left) -- can you send "
-                             "6kg by tomorrow morning? Same rate as last time. Thanks!",
+            "message_draft": "Ramesh bhai, mozzarella is almost done, only 2.6kg left. Can you send "
+                             "6kg by tomorrow morning? Same rate as usual, thanks!",
         },
     ),
 ]
@@ -712,3 +744,4 @@ print(f"  Feedback         : {len(feedback_list)} entries — older ~35% neg, la
 print(f"  High-occupancy   : {fmt(FUTURE_SCENARIO_TARGETS['friday_rush'][0])} and {fmt(FUTURE_SCENARIO_TARGETS['friday_rush'][2])} seeded >90% occupancy")
 print(f"  Expenses         : {len(expenses)} entries — rent + utilities (monthly), marketing (weekly), 1 one-time cost")
 print(f"  Action Queue     : {len(action_queue_items)} pending demo items")
+print(f"  Vendors          : {len(vendors)} vendors, {len(vendor_price_quotes)} price quotes")

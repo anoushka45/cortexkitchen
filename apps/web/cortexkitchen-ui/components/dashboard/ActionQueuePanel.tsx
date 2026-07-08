@@ -20,6 +20,7 @@ export default function ActionQueuePanel() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [previewAction, setPreviewAction] = useState<ActionQueueItem | null>(null);
+  const [actionErrors, setActionErrors] = useState<Record<number, string>>({});
 
   useEffect(() => {
     getActionQueue("pending")
@@ -31,13 +32,23 @@ export default function ActionQueuePanel() {
   const handleApprove = async (action: ActionQueueItem) => {
     setBusyId(action.id);
     try {
-      // NOTE: this only transitions the action to "approved" -- actually sending
-      // the WhatsApp message is wired in P6-A9/A10; until then, approving here
-      // records the decision but doesn't yet trigger a real Twilio send.
-      await approveAction(action.id);
-      setActions((prev) => prev.filter((a) => a.id !== action.id));
-    } catch {
-      // leave the item in the list on failure so the user can retry
+      // For whatsapp_vendor_order actions, approving is also what triggers the
+      // real Twilio send (P6-A9) -- a 200 response doesn't guarantee the send
+      // itself succeeded, so check the returned error field explicitly rather
+      // than treating any non-throwing response as success.
+      const result = await approveAction(action.id);
+      if (result.error) {
+        setActionErrors((prev) => ({ ...prev, [action.id]: result.error! }));
+      } else {
+        setActions((prev) => prev.filter((a) => a.id !== action.id));
+        setActionErrors((prev) => {
+          const next = { ...prev };
+          delete next[action.id];
+          return next;
+        });
+      }
+    } catch (err) {
+      setActionErrors((prev) => ({ ...prev, [action.id]: err instanceof Error ? err.message : "Approve failed." }));
     } finally {
       setBusyId(null);
       setPreviewAction(null);
@@ -84,49 +95,56 @@ export default function ActionQueuePanel() {
           {actions.map((action) => (
             <div
               key={action.id}
-              className="flex items-center justify-between gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 py-3"
+              className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 py-3"
             >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-                    style={{ background: "rgba(56,189,248,0.10)", color: "#38bdf8" }}
-                  >
-                    {CATEGORY_LABELS[action.category] ?? action.category}
-                  </span>
-                  <span className="text-[10px] text-[var(--color-text-faint)]">{TIER_LABELS[action.tier]}</span>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                      style={{ background: "rgba(56,189,248,0.10)", color: "#38bdf8" }}
+                    >
+                      {CATEGORY_LABELS[action.category] ?? action.category}
+                    </span>
+                    <span className="text-[10px] text-[var(--color-text-faint)]">{TIER_LABELS[action.tier]}</span>
+                  </div>
+                  <p className="mt-1 truncate text-[13px] font-medium text-[var(--color-text-primary)]">{action.title}</p>
                 </div>
-                <p className="mt-1 truncate text-[13px] font-medium text-[var(--color-text-primary)]">{action.title}</p>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                {action.category === "whatsapp_vendor_order" ? (
+                <div className="flex shrink-0 items-center gap-2">
+                  {action.category === "whatsapp_vendor_order" ? (
+                    <button
+                      onClick={() => setPreviewAction(action)}
+                      disabled={busyId === action.id}
+                      className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
+                      style={{ background: "var(--color-good)" }}
+                    >
+                      Review &amp; approve
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleApprove(action)}
+                      disabled={busyId === action.id}
+                      className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
+                      style={{ background: "var(--color-good)" }}
+                    >
+                      Approve
+                    </button>
+                  )}
                   <button
-                    onClick={() => setPreviewAction(action)}
+                    onClick={() => handleReject(action)}
                     disabled={busyId === action.id}
-                    className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
-                    style={{ background: "var(--color-good)" }}
+                    className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-[var(--color-text-faint)] disabled:opacity-50"
+                    style={{ background: "var(--color-surface-sunken)" }}
                   >
-                    Review &amp; approve
+                    Dismiss
                   </button>
-                ) : (
-                  <button
-                    onClick={() => handleApprove(action)}
-                    disabled={busyId === action.id}
-                    className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
-                    style={{ background: "var(--color-good)" }}
-                  >
-                    Approve
-                  </button>
-                )}
-                <button
-                  onClick={() => handleReject(action)}
-                  disabled={busyId === action.id}
-                  className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-[var(--color-text-faint)] disabled:opacity-50"
-                  style={{ background: "var(--color-surface-sunken)" }}
-                >
-                  Dismiss
-                </button>
+                </div>
               </div>
+              {actionErrors[action.id] && (
+                <p className="mt-2 text-[11px]" style={{ color: "var(--color-caution)" }}>
+                  Couldn&apos;t send: {actionErrors[action.id]}
+                </p>
+              )}
             </div>
           ))}
         </div>

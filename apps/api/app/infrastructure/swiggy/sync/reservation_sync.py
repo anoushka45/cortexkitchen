@@ -15,7 +15,7 @@ because book_table is not called in the consumer-side flow). The reservations ta
 is populated by internal/POS data only.
 
 Booking order IDs (returned by book_table) are stored in the connector's connector_metadata
-JSONB column under "dineout_order_ids". DineoutExecutor (P6-S16) calls
+JSON column under "dineout_order_ids". DineoutExecutor (P6-S16) calls
 register_booking_order_id() after each successful book_table call.
 """
 

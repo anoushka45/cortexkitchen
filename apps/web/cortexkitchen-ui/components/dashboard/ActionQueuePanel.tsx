@@ -107,6 +107,15 @@ export default function ActionQueuePanel() {
                       {CATEGORY_LABELS[action.category] ?? action.category}
                     </span>
                     <span className="text-[10px] text-[var(--color-text-faint)]">{TIER_LABELS[action.tier]}</span>
+                    {action.approval_streak > 0 && (
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                        style={{ background: "var(--color-good-soft)", color: "var(--color-good)" }}
+                        title={`You've approved ${CATEGORY_LABELS[action.category] ?? action.category} ${action.approval_streak} time${action.approval_streak !== 1 ? "s" : ""} in a row`}
+                      >
+                        Approved {action.approval_streak}x in a row
+                      </span>
+                    )}
                   </div>
                   <p className="mt-1 truncate text-[13px] font-medium text-[var(--color-text-primary)]">{action.title}</p>
                 </div>

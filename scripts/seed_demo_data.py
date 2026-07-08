@@ -701,10 +701,34 @@ session.commit()
 print(f"  Added {len(vendor_price_quotes)} vendor price quotes")
 
 
-# ── 9. Action Queue — demo pending actions ──────────────────────────────────
+# ── 9. Action Queue — historical decisions + demo pending actions ───────────
+# A couple of already-decided historical actions so the trust-ladder approval
+# streak (P6-A12) has something real to show immediately after a fresh seed,
+# not just whatever happens to accumulate from live testing.
+historical_actions = [
+    ActionQueue(
+        org_id=DEMO_ORG_ID, category="whatsapp_vendor_order", tier=ActionTier.approve_required,
+        status=ActionStatus.executed, title="Order Pizza Dough from Ramesh Traders",
+        payload={"vendor_id": ramesh_traders.id, "vendor": ramesh_traders.name, "ingredient": "Pizza Dough",
+                 "message_draft": "Ramesh bhai, dough thoda kam hai, kal 10kg bhej dena. Thanks!"},
+        approved_by=None, executed_at=SEED_AS_OF - timedelta(days=6),
+        created_at=SEED_AS_OF - timedelta(days=6, hours=1),
+    ),
+    ActionQueue(
+        org_id=DEMO_ORG_ID, category="whatsapp_vendor_order", tier=ActionTier.approve_required,
+        status=ActionStatus.executed, title="Order Chicken from Ramesh Traders",
+        payload={"vendor_id": ramesh_traders.id, "vendor": ramesh_traders.name, "ingredient": "Chicken",
+                 "message_draft": "Ramesh bhai, chicken kam ho raha hai, 8kg bhej do kal subah tak."},
+        approved_by=None, executed_at=SEED_AS_OF - timedelta(days=2),
+        created_at=SEED_AS_OF - timedelta(days=2, hours=1),
+    ),
+]
+session.add_all(historical_actions)
+session.commit()
+
 # Two realistic pending actions tied to the genuinely-low inventory items above,
 # so the Action Queue UI has real content before the workflow trigger engine
-# (P6-A11) exists to create these automatically.
+# (P6-A11) creates one automatically on the next planning run.
 action_queue_items = [
     ActionQueue(
         org_id=DEMO_ORG_ID, category="restock_alert", tier=ActionTier.recommendation,
@@ -724,7 +748,7 @@ action_queue_items = [
 ]
 session.add_all(action_queue_items)
 session.commit()
-print(f"  Added {len(action_queue_items)} Action Queue demo items (pending)")
+print(f"  Added {len(historical_actions)} historical Action Queue decisions + {len(action_queue_items)} pending demo items")
 
 
 session.add_all(decision_logs)

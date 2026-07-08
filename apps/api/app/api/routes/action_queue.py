@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, get_db
 from app.domain.services.action_queue_service import ActionQueueService
+from app.domain.services.trust_ladder_service import TrustLadderService
 from app.domain.services.vendor_service import VendorService
 from app.infrastructure.db.models import ActionQueue, ActionStatus
 from app.infrastructure.whatsapp.whatsapp_service import WhatsAppSendError, WhatsAppService
@@ -32,15 +33,17 @@ class ActionQueueItem(BaseModel):
     executed_at: str | None = None
     error: str | None = None
     created_at: str | None = None
+    approval_streak: int = 0
 
 
-def _to_item(a) -> ActionQueueItem:
+def _to_item(a, approval_streak: int = 0) -> ActionQueueItem:
     return ActionQueueItem(
         id=a.id, category=a.category, tier=a.tier.value, status=a.status.value,
         title=a.title, payload=a.payload, approved_by=a.approved_by,
         executed_at=a.executed_at.isoformat() if a.executed_at else None,
         error=a.error,
         created_at=a.created_at.isoformat() if a.created_at else None,
+        approval_streak=approval_streak,
     )
 
 
@@ -51,8 +54,12 @@ def list_actions(
     db: Session = Depends(get_db),
 ) -> list[ActionQueueItem]:
     service = ActionQueueService(db)
+    trust_ladder = TrustLadderService(db)
     actions = service.list_actions(current["org_id"], status=status_filter)
-    return [_to_item(a) for a in actions]
+    return [
+        _to_item(a, approval_streak=trust_ladder.count_consecutive_approvals(current["org_id"], a.category))
+        for a in actions
+    ]
 
 
 @router.post("/{action_id}/approve", response_model=ActionQueueItem)

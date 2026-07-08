@@ -2,7 +2,6 @@ from sqlalchemy import (
     Column, Integer, String, Float, Boolean,
     DateTime, Text, ForeignKey, Enum, UniqueConstraint, JSON
 )
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -98,7 +97,7 @@ class Organization(Base):
     id         = Column(Integer, primary_key=True, autoincrement=True)
     name       = Column(String(100), nullable=False)
     slug       = Column(String(100), nullable=False, unique=True)
-    settings   = Column(JSONB, nullable=True, default=_DEFAULT_SETTINGS)
+    settings   = Column(JSON, nullable=True, default=_DEFAULT_SETTINGS)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     members             = relationship("UserOrganization", back_populates="organization")
@@ -235,7 +234,7 @@ class DecisionLog(Base):
     critic_verdict     = Column(Enum(CriticVerdict), nullable=True)
     critic_score       = Column(Float, nullable=True)          # 0.0 - 1.0
     critic_notes       = Column(Text, nullable=True)
-    metadata_          = Column("metadata", JSONB, nullable=True)  # flexible extra data
+    metadata_          = Column("metadata", JSON, nullable=True)  # flexible extra data
     created_at         = Column(DateTime, default=datetime.utcnow)
 
 
@@ -250,11 +249,11 @@ class PlanningRun(Base):
     critic_verdict     = Column(String(40), nullable=True)
     critic_score       = Column(Float, nullable=True)
     decision_log_id    = Column(Integer, nullable=True)
-    final_response     = Column(JSONB, nullable=False)
-    recommendations    = Column(JSONB, nullable=True)
-    rag_context        = Column(JSONB, nullable=True)
-    critic             = Column(JSONB, nullable=True)
-    metadata_          = Column("metadata", JSONB, nullable=True)
+    final_response     = Column(JSON, nullable=False)
+    recommendations    = Column(JSON, nullable=True)
+    rag_context        = Column(JSON, nullable=True)
+    critic             = Column(JSON, nullable=True)
+    metadata_          = Column("metadata", JSON, nullable=True)
     generated_at       = Column(DateTime, default=datetime.utcnow)
     created_at         = Column(DateTime, default=datetime.utcnow)
 
@@ -299,7 +298,7 @@ class Connector(Base):
     sync_status             = Column(String(20), nullable=False, default="never_synced")
     error_count             = Column(Integer, nullable=False, default=0)
     last_error              = Column(Text, nullable=True)
-    connector_metadata      = Column(JSONB, nullable=True)
+    connector_metadata      = Column(JSON, nullable=True)
     created_at              = Column(DateTime, default=datetime.utcnow)
     updated_at              = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -343,10 +342,7 @@ class ActionQueue(Base):
     tier         = Column(Enum(ActionTier), nullable=False, default=ActionTier.approve_required)
     status       = Column(Enum(ActionStatus), nullable=False, default=ActionStatus.pending)
     title        = Column(String(200), nullable=False)
-    payload      = Column(JSON, nullable=False)  # plain JSON (not JSONB) -- no Postgres-only path
-                                                  # queries needed here, and it keeps this table's
-                                                  # tests runnable against SQLite in-memory (unlike
-                                                  # Connector's JSONB column, see P6-A19)
+    payload      = Column(JSON, nullable=False)  # no Postgres-only path queries needed here
     approved_by  = Column(Integer, ForeignKey("users.id"), nullable=True)
     executed_at  = Column(DateTime, nullable=True)
     error        = Column(String(500), nullable=True)

@@ -10,7 +10,6 @@ from datetime import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.infrastructure.db.base import Base
 from app.infrastructure.db.models import Connector
 from app.infrastructure.swiggy.connector_repository import ConnectorRepository
 
@@ -18,12 +17,11 @@ from app.infrastructure.swiggy.connector_repository import ConnectorRepository
 
 @pytest.fixture(scope="function")
 def db_session():
-    """In-memory SQLite session with only the connectors table.
-
-    Organization has a JSONB column (PostgreSQL-only) so we cannot use
-    Base.metadata.create_all(). We create only the Connector table and
-    skip FK enforcement so org_id=1 is accepted without a parent row.
-    """
+    """In-memory SQLite session with only the connectors table -- skips FK
+    enforcement so org_id=1 is accepted without a parent row. (Every JSONB
+    column in this schema was converted to plain JSON in P6-A18, so this no
+    longer needs to dodge a Postgres-only column type; kept as a single-table
+    fixture anyway since this test only needs Connector.)"""
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
     Connector.__table__.create(bind=engine)
     Session = sessionmaker(bind=engine)

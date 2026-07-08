@@ -6,7 +6,7 @@ connector_metadata is stored as plain JSON (no JSONB dialect needed for SQLite).
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.infrastructure.db.models import Connector, Reservation

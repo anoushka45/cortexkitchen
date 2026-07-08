@@ -2,9 +2,10 @@
 every agentic recommendation (WhatsApp vendor orders, restock alerts, price
 changes) writes into instead of inventing its own approval mechanism.
 
-Uses SQLite in-memory DB. ActionQueue.payload is a plain JSON column (not
-Postgres-only JSONB), specifically so this test file doesn't hit the
-SQLite/JSONB CI gap that excludes Connector's tests (see P6-A19).
+Uses SQLite in-memory DB. Every JSONB column in this schema (including
+Connector's, which used to exclude its tests from CI) was converted to plain
+JSON in P6-A18, so this and every other model's tests run against SQLite
+without needing a per-table workaround.
 """
 
 import pytest

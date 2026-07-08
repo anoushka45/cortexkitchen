@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     swiggy_address_id: str = Field(default="", alias="SWIGGY_ADDRESS_ID")
     swiggy_dineout_restaurant_id: str = Field(default="", alias="SWIGGY_DINEOUT_RESTAURANT_ID")
 
+    # Twilio WhatsApp Sandbox (demo procurement-messaging flow, P6-A9)
+    twilio_account_sid: str = Field(default="", alias="TWILIO_ACCOUNT_SID")
+    twilio_auth_token: str = Field(default="", alias="TWILIO_AUTH_TOKEN")
+    twilio_whatsapp_from: str = Field(default="", alias="TWILIO_WHATSAPP_FROM")
+    twilio_whatsapp_to: str = Field(default="", alias="TWILIO_WHATSAPP_TO")
+
     # LangSmith tracing
     langsmith_tracing: str = Field(default="false", alias="LANGSMITH_TRACING")
     langsmith_api_key: str = Field(default="", alias="LANGSMITH_API_KEY")

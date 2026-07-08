@@ -419,6 +419,7 @@ export interface ActionQueueItem {
   executed_at: string | null;
   error: string | null;
   created_at: string | null;
+  approval_streak: number;
 }
 
 export async function getActionQueue(status?: string): Promise<ActionQueueItem[]> {

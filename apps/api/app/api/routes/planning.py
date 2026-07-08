@@ -23,6 +23,7 @@ from app.domain.scenarios import list_scenarios
 from app.domain.services.cost_aware_scoring import CostAwareScoringService
 from app.domain.services.run_service import RunService
 from app.domain.services.scenario_recommender import ScenarioRecommender
+from app.domain.services.workflow_trigger_service import WorkflowTriggerService
 from app.infrastructure.cache.plan_cache import build_cache_key, cache_plan, get_cached_plan
 from app.infrastructure.swiggy.client import SwiggyMCPClient
 from app.orchestration import run_friday_rush, run_planning_scenario, stream_planning_scenario
@@ -119,6 +120,15 @@ async def run_planning(
                 cached["meta"]["planning_run_id"] = run.id
             except Exception:
                 pass
+            # Cache hits still represent a real plan the owner is looking at right
+            # now -- workflow triggers (P6-A11) must evaluate here too, not just on
+            # the non-cached path below, otherwise a shortage that first appeared
+            # before this feature existed (or whose action was since dismissed)
+            # would never get re-flagged as long as the plan keeps hitting cache.
+            try:
+                WorkflowTriggerService(deps["db"]).evaluate_and_queue(current_user["org_id"], cached)
+            except Exception:
+                pass
             return FridayRushResponse(**cached)
 
     # Pull org settings so agents use tenant-configured capacity and hours
@@ -182,6 +192,14 @@ async def run_planning(
         meta.setdefault("planning_run_id", run.id)
     except Exception as exc:
         meta.setdefault("run_persistence_error", str(exc))
+
+    # Built-in workflow triggers (P6-A11) -- evaluated after every real run (not
+    # cache hits, which already evaluated this on their original run). Never lets
+    # a trigger-evaluation failure break the planning response itself.
+    try:
+        WorkflowTriggerService(deps["db"]).evaluate_and_queue(current_user["org_id"], result)
+    except Exception as exc:
+        meta.setdefault("workflow_trigger_error", str(exc))
 
     response = _build_response(result, meta, body.scenario)
     response.cache_hit = False

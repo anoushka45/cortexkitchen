@@ -303,12 +303,17 @@ Tenant isolation is enforced at three levels:
 
 ## MCP server
 
-`apps/api/mcp_server.py` is a stdio MCP server (Anthropic MCP SDK) exposing two tools:
+`apps/api/mcp_server.py` is a stdio MCP server (Anthropic MCP SDK) exposing five tools:
 
 | Tool | Description |
 |------|-------------|
 | `run_planning_scenario` | Triggers the full 11-node planning pipeline |
 | `get_run_history` | Fetches recent planning runs with optional scenario/verdict filters |
+| `get_market_brief` (P6-A13) | Live market snapshot — category pricing, positioning, deals, area occupancy |
+| `get_action_queue` (P6-A13) | Lists pending (or other-status) Action Queue items |
+| `approve_action` (P6-A13) | Approves an action by ID — for a WhatsApp vendor order, this is the same step that sends the message |
+
+All five call the CortexKitchen API directly (`GET /market/pulse`, `GET /action-queue`, `POST /action-queue/{id}/approve`), so an owner can ask Claude Desktop about their restaurant and approve actions without opening the CortexKitchen app at all — the same 3 capabilities are also exposed as in-app chatbot tools (`app/domain/services/chat_service.py`), sharing the same backend services (`ActionQueueService`, `action_execution_service.approve_and_execute`) so both surfaces behave identically.
 
 Claude Code discovers the server automatically via `.mcp.json`. Claude Desktop uses `docs/mcp_claude_desktop_config.json`.
 

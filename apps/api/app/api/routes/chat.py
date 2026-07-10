@@ -86,6 +86,7 @@ async def chat(
                 db=db,
                 org_id=org_id,
                 chat_cache=chat_cache,
+                user_id=user_id,
             ):
                 full_tokens.append(token)
                 yield f"data: {json.dumps({'token': token})}\n\n"

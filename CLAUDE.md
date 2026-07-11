@@ -2,16 +2,21 @@
 
 > **Read this file completely before touching any code.**
 > Last updated: P6-A19/P6-A20 (compliance batch) merged to `dev`. Tracker
-> restructured twice — P6-A21 onward now runs P6-A21→A36 to fit the live-
-> intelligence signals (A21-A24), scenario overhaul (A25), and a real-product
-> IA pass adding two new tasks (Today Dashboard redesign A26, Data page
-> redesign A27) plus retargeting Menu Engineering Matrix (A28) to the new
-> Data page. Nine tasks (P6-A21–A29) share one combined branch
-> `feature/live-intelligence-signals`. Procurement loop (now A30) depends on
-> A24, not the old A21. In progress: starting P6-A21 (weather + holiday
-> signals with a real numeric adjustment to Prophet's forecast, not just
-> narrative prompt text). See the tracker for full task detail (Phase 6A /
-> Phase 6B sheets) — this file gives orientation, the
+> restructured twice — P6-A21 onward now runs P6-A21→A36, nine tasks
+> (P6-A21–A29: live-intelligence signals, scenario overhaul, and a
+> real-product IA pass merging `/operations` into Today and `/runs`+
+> `/data-health` into Data) sharing one combined branch
+> `feature/live-intelligence-signals`. **P6-A21 (weather + holidays) is
+> DONE** on that branch — `WeatherService` (Open-Meteo), a shared
+> `core/calendar_utils.py` holiday lookup, and a real deterministic
+> multiplier applied to Prophet's raw forecast
+> (`ForecastService._apply_signal_adjustments`, transparent —
+> pre-adjustment value/multiplier/reasons all preserved), not just
+> narrative prompt text. Wired into `ScenarioRecommender`, `/market/pulse`
+> (independent of `swiggy_connected`), and a new Weather & Holidays card on
+> `/market`. 519 backend tests pass (21 new), frontend typechecks clean.
+> Next: P6-A22 (industry trends, RSS-only). See the tracker for full task
+> detail (Phase 6A / Phase 6B sheets) — this file gives orientation, the
 > tracker is the source of truth for task-level status.
 > Reference zip: cortexkitchen-dev (latest dev branch)
 
@@ -186,11 +191,11 @@ Next up — **nine tasks (P6-A21–A29) on one combined branch**
 (`feature/live-intelligence-signals`), since live intelligence, scenario
 intake, and the dashboard/data-page IA redesign are all tightly coupled:
 
-1. **A21 Weather + holidays**, **A22 industry trends (RSS)**, **A23
-   regulatory alerts (FSSAI)** — three independently fail-open signal
-   services. A21 also applies a real deterministic multiplier to Prophet's
-   raw forecast (holiday/weather-adjusted, not just narrative prompt text —
-   the actual fix for "scenario only changes labels, not the number").
+1. **A21 Weather + holidays — DONE.** **A22 industry trends (RSS)**, **A23
+   regulatory alerts (FSSAI)** — still planned, same independently fail-open
+   pattern. A21 applies a real deterministic multiplier to Prophet's raw
+   forecast (holiday/weather-adjusted, not just narrative prompt text — the
+   actual fix for "scenario only changes labels, not the number").
 2. **A24 "unify"** — merges all three plus the existing anonymised Swiggy
    area signals inside the *existing* `market_intel_node`/`MarketIntelService`
    rather than a new graph node, so the state field names 5+ other files

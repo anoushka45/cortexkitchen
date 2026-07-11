@@ -4,7 +4,10 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from app.core.calendar_utils import get_date_context
+from app.core.constants import DEFAULT_RESTAURANT_LAT, DEFAULT_RESTAURANT_LNG
 from app.domain.services.forecast_service import ForecastService
+from app.infrastructure.external.weather_service import WeatherService
 from app.infrastructure.llm.base import BaseLLMProvider
 from app.orchestration.state import OrchestratorState
 
@@ -53,15 +56,33 @@ async def demand_forecast_node(
             return {**state, "forecast_output": simulated_result}
 
         target_date = _parse_target_date(state.get("target_date"))
+
+        # Live-intelligence signals (P6-A21) — weather + holiday, not Swiggy MCP,
+        # so no consent/compliance gating applies. Both fail open: a weather
+        # lookup failure or missing target_date just means no adjustment, the
+        # forecast still runs on Prophet's raw output.
+        weather_signal = None
+        is_holiday, holiday_name = False, None
+        if target_date is not None:
+            _, is_holiday, holiday_name = get_date_context(target_date.date().isoformat())
+            weather_signal = await WeatherService().get_forecast(
+                lat=DEFAULT_RESTAURANT_LAT,
+                lng=DEFAULT_RESTAURANT_LNG,
+                target_date=target_date.date(),
+            )
+
         service = ForecastService(db=db, llm=llm)
         result = await service.analyse_and_recommend(
             target_date=target_date,
             org_capacity=state.get("org_capacity"),
+            weather_signal=weather_signal,
+            is_holiday=is_holiday,
+            holiday_name=holiday_name,
         )
         result.setdefault("data", {})
         result["data"]["service_window"] = scenario_profile.get("service_window", "18:00-22:00")
         result["data"]["scenario_label"] = scenario_profile.get("label", state.get("scenario"))
-        return {**state, "forecast_output": result}
+        return {**state, "forecast_output": result, "weather_signal": weather_signal}
 
     except Exception as exc:
         return {

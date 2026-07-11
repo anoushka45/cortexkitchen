@@ -666,11 +666,29 @@ export interface MarketProcurementItem {
   in_stock: boolean;
 }
 
+// P6-A21 -- Open-Meteo, not Swiggy MCP, so independent of swiggy_connected.
+export interface MarketWeather {
+  condition: "heavy_rain" | "light_rain" | "very_hot" | "clear";
+  avg_precipitation_pct: number | null;
+  avg_temp_celsius: number | null;
+  delivery_impact: string;
+  dinein_impact: string;
+  signal: string;
+}
+
+export interface MarketUpcomingHoliday {
+  date: string;
+  name: string;
+  days_away: number;
+}
+
 export interface MarketPulseResponse {
   swiggy_connected: boolean;
   competitor_pricing: MarketCompetitorPricing | null;
   area_occupancy: MarketAreaOccupancy | null;
   procurement: MarketProcurementItem[];
+  weather: MarketWeather | null;
+  upcoming_holiday: MarketUpcomingHoliday | null;
 }
 
 export async function getMarketPulse(): Promise<MarketPulseResponse> {

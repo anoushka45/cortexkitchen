@@ -55,6 +55,10 @@ class OrchestratorState(TypedDict):
     menu_output:        Annotated[Optional[Dict[str, Any]], keep_last]
     inventory_output:   Annotated[Optional[Dict[str, Any]], keep_last]
 
+    # Live-intelligence signals (P6-A21) — not Swiggy MCP, no consent/compliance
+    # gating. Populated by demand_forecast_node via WeatherService (Open-Meteo).
+    weather_signal: Annotated[Optional[Dict[str, Any]], keep_last]
+
     # Per-node assumption dicts — populated by each domain node after its service call.
     # Used by EvaluationSanityChecker to diff cross-agent assumptions against actual state.
     menu_assumptions:        Annotated[Optional[Dict[str, Any]], keep_last]
@@ -147,6 +151,7 @@ def make_initial_state(
         complaint_output=None,
         menu_output=None,
         inventory_output=None,
+        weather_signal=None,
 
         # Per-node assumptions (populated after each domain node completes)
         menu_assumptions=None,

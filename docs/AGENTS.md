@@ -88,11 +88,26 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 **Role:** Produces the demand and service-pressure signal used by all downstream domain nodes. Acts as the gate — if confidence is too low, the run does not proceed.
 
 **Inputs:** Scenario context from `ops_manager`  
-**Outputs:** Forecast output block in `state["forecast"]` — predicted covers, peak hour, confidence band, day-of-week adjustment  
+**Outputs:** Forecast output block in `state["forecast"]` — predicted covers, peak hour, confidence band, day-of-week adjustment; also writes `state["weather_signal"]`  
 **Implementation:** `app/orchestration/nodes/demand_forecast.py`  
 **Service:** `ForecastService` — queries historical orders from PostgreSQL and runs Prophet time-series  
 **Dependencies:** `db`, `llm`  
 **Model tier:** `fast` (`deepseek-v4-flash` when `COMET_TIERED=true`)
+
+**Live-intelligence signals (P6-A21):** Prophet's `predicted_orders` is purely
+historical (90-day window) and structurally can't know about a forward-
+looking one-off signal its training data never saw — a holiday, a rain
+forecast. `demand_forecast_node` fetches `WeatherService` (Open-Meteo, free,
+keyless — `app/infrastructure/external/weather_service.py`) and a holiday
+lookup (`app/core/calendar_utils.py`, shared with `ScenarioRecommender`) for
+the target date, then `ForecastService._apply_signal_adjustments()` applies
+a deterministic multiplier to the raw Prophet output — not just narrative
+prompt text an LLM may or may not act on. Transparent by construction:
+`predicted_orders_pre_adjustment`, `adjustment_multiplier`, and
+`adjustment_reasons` are all preserved in the forecast dict, so the
+adjustment is never a silent change to what Prophet actually said. Both
+signals fail open — a weather-lookup failure or missing `target_date` just
+means no adjustment, the forecast still runs on Prophet's raw output.
 
 ---
 

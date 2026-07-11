@@ -112,6 +112,44 @@ See D-019 in `docs/DECISIONS.md` for the full design rationale.
 
 ---
 
+## Live-intelligence signals (P6-A21+)
+
+Not Swiggy MCP — no consent/compliance gating applies to any of these.
+Each is its own independently fail-open service, following the same
+graceful-degradation contract as the Swiggy enrichers (`BaseConnector`):
+never raise, return `None` on any failure.
+
+- **Weather + holidays** (`infrastructure/external/weather_service.py`) —
+  Open-Meteo, free, keyless REST API. `WeatherService.get_forecast(lat, lng,
+  target_date)` averages temperature + precipitation probability across the
+  target date's 18:00–22:00 dinner window, classifies into
+  `heavy_rain`/`light_rain`/`very_hot`/`clear`, and returns a conservative
+  `demand_multiplier` alongside descriptive `delivery_impact`/`dinein_impact`
+  strings. Holiday lookup (`core/calendar_utils.py`, `get_date_context`) is
+  a plain dict scan against `INDIAN_HOLIDAYS_2026` — shared between
+  `ScenarioRecommender` and `demand_forecast_node` so the lookup isn't
+  duplicated.
+- **`demand_forecast_node`** applies both as a deterministic multiplier to
+  Prophet's raw `predicted_orders`/`predicted_peak_orders`
+  (`ForecastService._apply_signal_adjustments`) — not just narrative prompt
+  text. Transparent by construction: `predicted_orders_pre_adjustment`,
+  `adjustment_multiplier`, and `adjustment_reasons` are preserved alongside
+  the adjusted number.
+- **`GET /market/pulse`** returns `weather` and `upcoming_holiday`
+  independently of `swiggy_connected` — neither depends on a Swiggy
+  connection existing.
+- Default coordinates (`core/constants.py`:
+  `DEFAULT_RESTAURANT_LAT`/`DEFAULT_RESTAURANT_LNG`, Navi Mumbai) are used
+  until `RestaurantProfile` stores real per-restaurant coordinates.
+
+Industry trends (RSS) and regulatory alerts (FSSAI public notices) join
+this same pattern in P6-A22/P6-A23, then all signals — plus the existing
+anonymised Swiggy area signals — merge inside the existing
+`market_intel_node`/`MarketIntelService` in P6-A24, rather than a new graph
+node.
+
+---
+
 ## Backend architecture
 
 ### API layer

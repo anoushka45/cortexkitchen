@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timedelta
+from typing import Optional
 import pandas as pd
 from prophet import Prophet
 
@@ -9,6 +10,13 @@ from app.infrastructure.llm.base import BaseLLMProvider
 from app.infrastructure.llm.prompt_utils import PromptUtils
 from app.infrastructure.forecasting.prophet_forecaster import ProphetForecaster
 
+# Holiday demand multiplier (P6-A21) -- applied to Prophet's raw predicted_orders
+# when the target date is a known public holiday (INDIAN_HOLIDAYS_2026). Flat and
+# conservative rather than per-holiday-tiered: Prophet's 90-day training window
+# is unlikely to contain an equivalent holiday spike, so without this adjustment
+# a genuinely unusual day gets forecast like an ordinary one. Documented constant,
+# not a silent guess -- see _apply_signal_adjustments for how it's surfaced.
+_HOLIDAY_DEMAND_MULTIPLIER = 1.4
 
 
 class ForecastService:
@@ -225,10 +233,69 @@ class ForecastService:
         """Calculate predicted demand for target Friday using Prophet (with baseline fallback)."""
         return self.calculate_prophet_forecast(target_date)
 
-    async def analyse_and_recommend(self, target_date: datetime | None = None, org_capacity: int | None = None) -> dict:
+    def _apply_signal_adjustments(
+        self,
+        forecast: dict,
+        weather_signal: Optional[dict] = None,
+        is_holiday: bool = False,
+        holiday_name: Optional[str] = None,
+    ) -> dict:
+        """Apply a deterministic multiplier to Prophet's raw predicted_orders/
+        predicted_peak_orders (P6-A21). Prophet is a purely historical model --
+        it cannot know about a forward-looking, one-off signal its 90-day
+        training window never saw (a holiday, a rain forecast). Without this,
+        weather/holiday only ever reach the LLM as narrative text the
+        recommendation step may or may not act on; this makes them move the
+        actual predicted number.
+
+        Transparent by construction -- predicted_orders_pre_adjustment,
+        adjustment_multiplier, and adjustment_reasons are all preserved, so
+        nothing here is a silent change to what Prophet said.
+        """
+        multiplier = 1.0
+        reasons: list[str] = []
+
+        if is_holiday:
+            multiplier *= _HOLIDAY_DEMAND_MULTIPLIER
+            reasons.append(f"holiday ({holiday_name or 'public holiday'}): x{_HOLIDAY_DEMAND_MULTIPLIER}")
+
+        if weather_signal and weather_signal.get("demand_multiplier"):
+            weather_multiplier = float(weather_signal["demand_multiplier"])
+            if weather_multiplier != 1.0:
+                multiplier *= weather_multiplier
+                reasons.append(
+                    f"weather ({weather_signal.get('condition', 'unknown')}): x{weather_multiplier}"
+                )
+
+        if multiplier == 1.0:
+            return forecast
+
+        pre_adjustment_orders = forecast.get("predicted_orders", 0) or 0
+        pre_adjustment_peak = forecast.get("predicted_peak_orders", 0) or 0
+
+        forecast = {
+            **forecast,
+            "predicted_orders_pre_adjustment": pre_adjustment_orders,
+            "predicted_peak_orders_pre_adjustment": pre_adjustment_peak,
+            "predicted_orders": round(pre_adjustment_orders * multiplier, 1),
+            "predicted_peak_orders": round(pre_adjustment_peak * multiplier, 1),
+            "adjustment_multiplier": round(multiplier, 3),
+            "adjustment_reasons": reasons,
+        }
+        return forecast
+
+    async def analyse_and_recommend(
+        self,
+        target_date: datetime | None = None,
+        org_capacity: int | None = None,
+        weather_signal: Optional[dict] = None,
+        is_holiday: bool = False,
+        holiday_name: Optional[str] = None,
+    ) -> dict:
         """Use Gemini to analyse forecast data and generate recommendation."""
 
         forecast = self.calculate_forecast(target_date)
+        forecast = self._apply_signal_adjustments(forecast, weather_signal, is_holiday, holiday_name)
 
         predicted = forecast.get("predicted_orders", 0)
         capacity_line = ""
@@ -242,6 +309,16 @@ class ForecastService:
             else:
                 capacity_line = f"\n- Restaurant seating capacity: {org_capacity} seats"
 
+        signal_line = ""
+        if forecast.get("adjustment_reasons"):
+            signal_line = (
+                f"\n- Demand adjusted x{forecast['adjustment_multiplier']} from "
+                f"{forecast['predicted_orders_pre_adjustment']} baseline due to: "
+                f"{'; '.join(forecast['adjustment_reasons'])}"
+            )
+        if weather_signal and weather_signal.get("signal"):
+            signal_line += f"\n- Weather: {weather_signal['signal']}"
+
         service_day_label = forecast.get("service_day_label", "service day")
         prompt = PromptUtils.format_recommendation_prompt(
             context=f"""
@@ -252,7 +329,7 @@ Demand forecast for the target {service_day_label} service (using {forecast.get(
 {f"- Prediction range: {forecast.get('predicted_orders_lower', 'N/A')} - {forecast.get('predicted_orders_upper', 'N/A')}" if forecast.get('predicted_orders_lower') else ""}
 - Predicted peak orders: {forecast['predicted_peak_orders']}
 - Forecast confidence: {forecast.get('confidence', 'medium')}
-- Top ordered items on matching service days: {forecast['top_items']}{capacity_line}
+- Top ordered items on matching service days: {forecast['top_items']}{capacity_line}{signal_line}
 """,
             task="Based on this demand forecast, recommend specific staffing and preparation actions for the target service window."
         )

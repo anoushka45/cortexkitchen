@@ -31,8 +31,38 @@ async def test_skips_db_query_when_swiggy_unavailable():
     state = {"org_id": 1, "scenario_profile": {}}
     result = await market_intel_node(state, swiggy_client=swiggy_client, db_factory=db_factory)
 
-    assert result["market_intel_output"] is None
+    # P6-A24: Swiggy-specific fields are null, but market_intel_output itself
+    # is never wiped to None -- weather/trends/compliance (fetched earlier by
+    # demand_forecast_node, absent here) still need a place to surface.
+    assert result["market_intel_output"]["competitor_pricing"] is None
+    assert result["market_intel_output"]["area_occupancy"] is None
+    assert result["market_intel_output"]["live_signals_text"] == ""
     assert result["market_intel_assumptions"] == {"swiggy_available": False}
+    db_factory.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_live_signals_surface_even_when_swiggy_unavailable():
+    """P6-A24: weather/trends/compliance are not Swiggy MCP -- one source
+    (Swiggy) being down must never block the other three from reaching
+    live_signals_text."""
+    swiggy_client = MagicMock()
+    swiggy_client.is_available.return_value = False
+    db_factory = MagicMock()
+
+    state = {
+        "org_id": 1,
+        "scenario_profile": {},
+        "weather_signal": {"prompt_text": "## Weather Forecast\nClear skies."},
+        "trends_signal": {"prompt_text": "## Industry Trends\n- Mustard prices up."},
+        "compliance_alerts_signal": {"prompt_text": "## Regulatory Alerts (FSSAI)\n- New vegan labelling rule."},
+    }
+    result = await market_intel_node(state, swiggy_client=swiggy_client, db_factory=db_factory)
+
+    text = result["market_intel_output"]["live_signals_text"]
+    assert "Clear skies." in text
+    assert "Mustard prices up." in text
+    assert "New vegan labelling rule." in text
     db_factory.assert_not_called()
 
 

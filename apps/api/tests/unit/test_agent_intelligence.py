@@ -194,6 +194,33 @@ class TestAggregatorReplanContext:
         summary = _build_critic_summary(state)
         assert "CRITIC FEEDBACK" not in summary
 
+    def test_live_signals_section_present_when_any_signal_available(self):
+        """P6-A24: weather/trends/compliance (none is Swiggy MCP) each
+        contribute independently -- any subset present still produces a
+        [Live Signals] line."""
+        state = _base_state(
+            weather_signal={"signal": "Clear conditions expected"},
+            trends_signal={"digest": "Mustard oil prices rising"},
+            compliance_alerts_signal={"notices": [{"title": "Vegan labelling rule"}]},
+        )
+        summary = _build_critic_summary(state)
+        assert "[Live Signals]" in summary
+        assert "Weather: Clear conditions expected" in summary
+        assert "Industry trends noted" in summary
+        assert "1 recent FSSAI notice(s)" in summary
+
+    def test_live_signals_section_omitted_when_none_available(self):
+        state = _base_state()
+        summary = _build_critic_summary(state)
+        assert "[Live Signals]" not in summary
+
+    def test_live_signals_partial_availability_does_not_crash(self):
+        """One source (trends) present, the other two absent -- must still
+        produce a valid, non-crashing summary containing just that one."""
+        state = _base_state(trends_signal={"digest": "Some trend"})
+        summary = _build_critic_summary(state)
+        assert "[Live Signals] Industry trends noted" in summary
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 3. replan_orchestrator_node

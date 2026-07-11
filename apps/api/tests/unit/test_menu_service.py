@@ -63,6 +63,60 @@ async def test_menu_service_prompt_mentions_inventory_and_complaints():
 
 
 @pytest.mark.asyncio
+async def test_menu_service_prefers_unified_live_signals_text():
+    """P6-A24: market_intel_data["live_signals_text"] (competitor + occupancy +
+    weather + trends + compliance, assembled in MarketIntelService) must reach
+    the prompt in preference to the raw competitor_context prompt_text alone."""
+    from app.domain.services.menu_service import MenuService
+
+    db = MagicMock()
+    llm = MagicMock()
+    llm.complete_json = AsyncMock(return_value={})
+
+    with patch("app.domain.services.menu_service.ForecastService") as MockForecastService:
+        MockForecastService.return_value.get_top_service_day_items.return_value = []
+        service = MenuService(db=db, llm=llm)
+        await service.analyse_and_recommend(
+            forecast_data={"predicted_orders": 120},
+            complaint_data={"unique_complaints": []},
+            inventory_data={"shortage_alerts": []},
+            competitor_context={"prompt_text": "## Area Market Signals\nOLD competitor-only text."},
+            market_intel_data={
+                "area_occupancy": "HIGH",
+                "live_signals_text": "## Area & Live Signals\n\nNEW unified text with weather and trends.",
+            },
+        )
+
+    prompt = llm.complete_json.await_args.kwargs["prompt"]
+    assert "NEW unified text with weather and trends." in prompt
+    assert "OLD competitor-only text." not in prompt
+
+
+@pytest.mark.asyncio
+async def test_menu_service_falls_back_to_competitor_prompt_text_without_live_signals():
+    """If live_signals_text is absent (e.g. an older cached market_intel_output),
+    the raw competitor prompt_text must still reach the prompt, not silently vanish."""
+    from app.domain.services.menu_service import MenuService
+
+    db = MagicMock()
+    llm = MagicMock()
+    llm.complete_json = AsyncMock(return_value={})
+
+    with patch("app.domain.services.menu_service.ForecastService") as MockForecastService:
+        MockForecastService.return_value.get_top_service_day_items.return_value = []
+        service = MenuService(db=db, llm=llm)
+        await service.analyse_and_recommend(
+            forecast_data={"predicted_orders": 120},
+            complaint_data={"unique_complaints": []},
+            inventory_data={"shortage_alerts": []},
+            competitor_context={"prompt_text": "## Area Market Signals\nFallback competitor text."},
+        )
+
+    prompt = llm.complete_json.await_args.kwargs["prompt"]
+    assert "Fallback competitor text." in prompt
+
+
+@pytest.mark.asyncio
 async def test_menu_service_prompt_includes_margin_analysis():
     """The plan previously only knew what was POPULAR (forecasted top_items), never
     what was PROFITABLE -- this confirms margin data now reaches the actual prompt."""

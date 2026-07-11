@@ -264,6 +264,24 @@ def _build_critic_summary(state: OrchestratorState, auto_resolved: list[str] | N
         if mi_parts:
             lines.append("[Market Intel — Swiggy] " + " | ".join(mi_parts))
 
+    # Live-intelligence signals (P6-A21/A22/A23) — weather/holiday, industry
+    # trends, regulatory alerts; none is Swiggy MCP. Condensed here (the full
+    # prose already lives in market_intel_output["live_signals_text"] for
+    # menu_intelligence's prompt, P6-A24) so the critic sees each signal
+    # without duplicating that full text and bloating this summary.
+    ls_parts = []
+    weather_signal = state.get("weather_signal")
+    if weather_signal and weather_signal.get("signal"):
+        ls_parts.append(f"Weather: {weather_signal['signal']}")
+    trends_signal = state.get("trends_signal")
+    if trends_signal and trends_signal.get("digest"):
+        ls_parts.append("Industry trends noted (see market intel for detail)")
+    compliance_signal = state.get("compliance_alerts_signal")
+    if compliance_signal and compliance_signal.get("notices"):
+        ls_parts.append(f"{len(compliance_signal['notices'])} recent FSSAI notice(s)")
+    if ls_parts:
+        lines.append("[Live Signals] " + " | ".join(ls_parts))
+
     # Dineout slot availability (your own restaurant)
     dineout_out = state.get("dineout_manager_output")
     if dineout_out:

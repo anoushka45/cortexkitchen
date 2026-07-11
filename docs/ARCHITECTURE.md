@@ -162,11 +162,28 @@ never raise, return `None` on any failure.
   `compliance_alerts` independently of `swiggy_connected` — same treatment
   as weather/holidays.
 
-All four signals (weather/holidays, industry trends, regulatory alerts, and
-the existing anonymised Swiggy area signals) merge inside the existing
-`market_intel_node`/`MarketIntelService` in P6-A24, rather than a new graph
-node — `trends_signal`/`compliance_alerts_signal` exist as `OrchestratorState`
-fields already but aren't yet read by any node prompt until then.
+**Unification (P6-A24)** — all four signals merge into one "Area & Live
+Signals" text inside the existing `market_intel_node`/`MarketIntelService`
+(`MarketIntelService._build_live_signals_text`), rather than a new graph
+node. Existing state field names (`swiggy_competitor_context`,
+`swiggy_occupancy_context`, `market_intel_output`) are unchanged — only a
+new `market_intel_output["live_signals_text"]` key was added — since 5+
+files and the frontend already read the old names by string key.
+`weather_signal`/`trends_signal`/`compliance_alerts_signal` are fetched once
+by `demand_forecast_node` (it runs before the `qdrant_enrichment` fan-out,
+so it can't read `market_intel_output`) and injected directly into its own
+LLM narrative (`ForecastService.analyse_and_recommend`, text-only for
+trends/compliance — only weather shifts the actual number);
+`market_intel_node` reads the same three back from state rather than
+re-fetching, and merges them with the Swiggy competitor/occupancy prompt
+text into `live_signals_text`, which `menu_intelligence` (via
+`MenuService.analyse_and_recommend`'s `market_context`) and the critic (via
+`aggregator.py`'s `_build_critic_summary`, a condensed `[Live Signals]`
+line — the full prose is menu_intelligence's job, not the critic's) both
+read. Each of the five sources (competitor, occupancy, weather, trends,
+compliance) stays independently optional through this whole chain — any
+subset being `None` (simulated per-source failure) never blocks the others
+or raises.
 
 ---
 

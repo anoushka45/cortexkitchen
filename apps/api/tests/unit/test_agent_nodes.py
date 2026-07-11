@@ -64,8 +64,14 @@ class TestDemandForecastNode:
 
         with patch(
             "app.orchestration.nodes.demand_forecast.ForecastService"
-        ) as MockService:
+        ) as MockService, patch(
+            "app.orchestration.nodes.demand_forecast.TrendsService"
+        ) as MockTrends, patch(
+            "app.orchestration.nodes.demand_forecast.ComplianceAlertsService"
+        ) as MockCompliance:
             MockService.return_value.analyse_and_recommend = AsyncMock(return_value=mock_service_result)
+            MockTrends.return_value.get_digest = AsyncMock(return_value=None)
+            MockCompliance.return_value.get_alerts = AsyncMock(return_value=None)
             result = await demand_forecast_node(base_state, db=mock_db, llm=mock_llm)
 
         assert result["forecast_output"]["data"]["predicted_orders"] == 110
@@ -74,8 +80,16 @@ class TestDemandForecastNode:
     async def test_service_exception_captured_in_output(self, base_state, mock_db, mock_llm):
         from app.orchestration.nodes.demand_forecast import demand_forecast_node
 
-        with patch("app.orchestration.nodes.demand_forecast.ForecastService") as MockService:
+        with patch(
+            "app.orchestration.nodes.demand_forecast.ForecastService"
+        ) as MockService, patch(
+            "app.orchestration.nodes.demand_forecast.TrendsService"
+        ) as MockTrends, patch(
+            "app.orchestration.nodes.demand_forecast.ComplianceAlertsService"
+        ) as MockCompliance:
             MockService.return_value.analyse_and_recommend = AsyncMock(side_effect=Exception("DB timeout"))
+            MockTrends.return_value.get_digest = AsyncMock(return_value=None)
+            MockCompliance.return_value.get_alerts = AsyncMock(return_value=None)
             result = await demand_forecast_node(base_state, db=mock_db, llm=mock_llm)
 
         output = result["forecast_output"]
@@ -83,6 +97,39 @@ class TestDemandForecastNode:
         assert "DB timeout" in output["error"]
         assert output["data"] is None
         assert result["error"] is None  # state-level error not set — node catches it
+
+    @pytest.mark.asyncio
+    async def test_trends_and_compliance_signals_written_to_state(self, base_state, mock_db, mock_llm):
+        """P6-A24: trends/compliance are fetched here (not deferred to
+        market_intel_node) so they're available even though this node runs
+        before the qdrant_enrichment fan-out."""
+        from app.orchestration.nodes.demand_forecast import demand_forecast_node
+
+        trends = {"digest": "- Mustard prices up", "prompt_text": "## Industry Trends\n- Mustard prices up"}
+        compliance = {"notices": [{"title": "Vegan labelling rule"}], "prompt_text": "## Regulatory Alerts (FSSAI)\n- Vegan labelling rule"}
+
+        captured_kwargs = {}
+
+        async def fake_analyse(**kwargs):
+            captured_kwargs.update(kwargs)
+            return {"service": "forecast", "data": {"predicted_orders": 100}, "recommendation": {}}
+
+        with patch(
+            "app.orchestration.nodes.demand_forecast.ForecastService"
+        ) as MockService, patch(
+            "app.orchestration.nodes.demand_forecast.TrendsService"
+        ) as MockTrends, patch(
+            "app.orchestration.nodes.demand_forecast.ComplianceAlertsService"
+        ) as MockCompliance:
+            MockService.return_value.analyse_and_recommend = fake_analyse
+            MockTrends.return_value.get_digest = AsyncMock(return_value=trends)
+            MockCompliance.return_value.get_alerts = AsyncMock(return_value=compliance)
+            result = await demand_forecast_node(base_state, db=mock_db, llm=mock_llm)
+
+        assert result["trends_signal"] == trends
+        assert result["compliance_alerts_signal"] == compliance
+        assert captured_kwargs["trends_signal"] == trends
+        assert captured_kwargs["compliance_alerts_signal"] == compliance
 
     @pytest.mark.asyncio
     async def test_debug_trace_appended(self, mock_db, mock_llm):

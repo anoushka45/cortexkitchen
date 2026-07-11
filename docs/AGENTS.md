@@ -109,6 +109,21 @@ adjustment is never a silent change to what Prophet actually said. Both
 signals fail open — a weather-lookup failure or missing `target_date` just
 means no adjustment, the forecast still runs on Prophet's raw output.
 
+**P6-A22/A23/A24:** `demand_forecast_node` also fetches `TrendsService`
+(curated RSS) and `ComplianceAlertsService` (FSSAI notices) here — narrative
+context only for this node's own LLM recommendation
+(`ForecastService.analyse_and_recommend`'s `signal_line`), never touching
+the multiplier. All three signals are written to state
+(`weather_signal`/`trends_signal`/`compliance_alerts_signal`) and read back
+(not re-fetched) by `market_intel_node`, which merges them with the Swiggy
+competitor/occupancy prompt text into one `market_intel_output
+["live_signals_text"]` (`MarketIntelService._build_live_signals_text`) —
+read by `menu_intelligence` (`MenuService`'s `market_context`) and
+condensed into a `[Live Signals]` line in the critic's summary
+(`aggregator.py`'s `_build_critic_summary`). Existing state field names
+(`swiggy_competitor_context`, `swiggy_occupancy_context`,
+`market_intel_output`) are unchanged.
+
 ---
 
 ### `reservation`

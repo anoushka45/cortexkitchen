@@ -165,7 +165,16 @@ class MenuService:
         ]
         blocked_lines = "\n".join(f"  - {ing}" for ing in critical_blocked) or "  None"
 
-        market_context = (competitor_context or {}).get("prompt_text") or ""
+        # P6-A24: prefer the unified "Area & Live Signals" text (competitor +
+        # occupancy + weather/holiday + industry trends + regulatory alerts,
+        # assembled in MarketIntelService) -- falls back to the raw competitor
+        # prompt_text alone if live_signals_text is somehow absent (e.g. an
+        # older cached market_intel_output).
+        market_context = (
+            (market_intel_data or {}).get("live_signals_text")
+            or (competitor_context or {}).get("prompt_text")
+            or ""
+        )
 
         capacity_lines = []
         if occupancy_pct is not None:

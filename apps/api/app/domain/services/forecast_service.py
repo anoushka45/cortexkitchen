@@ -291,6 +291,8 @@ class ForecastService:
         weather_signal: Optional[dict] = None,
         is_holiday: bool = False,
         holiday_name: Optional[str] = None,
+        trends_signal: Optional[dict] = None,
+        compliance_alerts_signal: Optional[dict] = None,
     ) -> dict:
         """Use Gemini to analyse forecast data and generate recommendation."""
 
@@ -318,6 +320,13 @@ class ForecastService:
             )
         if weather_signal and weather_signal.get("signal"):
             signal_line += f"\n- Weather: {weather_signal['signal']}"
+        # P6-A22/A23: narrative-only context, neither shifts the predicted number --
+        # unlike weather/holiday, trends/regulatory news aren't demand multipliers.
+        if trends_signal and trends_signal.get("digest"):
+            signal_line += f"\n- Industry trends: {trends_signal['digest']}"
+        if compliance_alerts_signal and compliance_alerts_signal.get("notices"):
+            notice_titles = "; ".join(n["title"] for n in compliance_alerts_signal["notices"][:3])
+            signal_line += f"\n- Recent FSSAI notices: {notice_titles}"
 
         service_day_label = forecast.get("service_day_label", "service day")
         prompt = PromptUtils.format_recommendation_prompt(

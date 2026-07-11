@@ -1,23 +1,32 @@
 # CortexKitchen — Claude Code Master Reference
 
 > **Read this file completely before touching any code.**
-> Last updated: P6-A19/P6-A20 (compliance batch) merged to `dev`. Tracker
-> restructured twice — P6-A21 onward now runs P6-A21→A36, nine tasks
-> (P6-A21–A29: live-intelligence signals, scenario overhaul, and a
-> real-product IA pass merging `/operations` into Today and `/runs`+
-> `/data-health` into Data) sharing one combined branch
-> `feature/live-intelligence-signals`. **P6-A21 (weather + holidays) is
-> DONE** on that branch — `WeatherService` (Open-Meteo), a shared
-> `core/calendar_utils.py` holiday lookup, and a real deterministic
-> multiplier applied to Prophet's raw forecast
-> (`ForecastService._apply_signal_adjustments`, transparent —
-> pre-adjustment value/multiplier/reasons all preserved), not just
-> narrative prompt text. Wired into `ScenarioRecommender`, `/market/pulse`
-> (independent of `swiggy_connected`), and a new Weather & Holidays card on
-> `/market`. 519 backend tests pass (21 new), frontend typechecks clean.
-> Next: P6-A22 (industry trends, RSS-only). See the tracker for full task
-> detail (Phase 6A / Phase 6B sheets) — this file gives orientation, the
-> tracker is the source of truth for task-level status.
+> Last updated: P6-A21/A22/A23 (all three live-intelligence signals) done on
+> `feature/live-intelligence-signals` — nine tasks (P6-A21–A29: live-
+> intelligence signals, scenario overhaul, and a real-product IA pass
+> merging `/operations` into Today and `/runs`+`/data-health` into Data)
+> share this one combined branch. **P6-A21 (weather + holidays)**,
+> **P6-A22 (industry trends, curated RSS)**, and **P6-A23 (regulatory
+> alerts, FSSAI public notices)** are all DONE. All three are independently
+> fail-open services under `infrastructure/external/` (`WeatherService`,
+> `TrendsService`, `ComplianceAlertsService`), each wired into
+> `GET /market/pulse` (independent of `swiggy_connected`) with its own
+> `/market` card. Weather is the only one actually wired into a forecast
+> number so far (`ForecastService._apply_signal_adjustments`, transparent —
+> pre-adjustment value/multiplier/reasons preserved); trends/compliance
+> exist as `OrchestratorState` fields (`trends_signal`,
+> `compliance_alerts_signal`) not yet read by any node — that's P6-A24.
+> Along the way, live testing found `OccupancyEnricher` (Dineout) never
+> actually worked end-to-end — three separate live response-shape
+> mismatches (`search_restaurants_dineout`'s empty `structuredContent`
+> needing a `render_restaurants_dineout` follow-up, `get_restaurant_details`'
+> nested `offers`/`restaurant` fields, `get_available_slots`' slots living in
+> `_meta` with no numeric `availabilityCount` field anymore) — all fixed,
+> plus the identical bug in `dineout_manager.py` (currently dormant, no real
+> Dineout restaurant ID configured yet). Next: P6-A24 (unify all four
+> signals into `market_intel_node`). See the tracker for full task detail
+> (Phase 6A / Phase 6B sheets) — this file gives orientation, the tracker is
+> the source of truth for task-level status.
 > Reference zip: cortexkitchen-dev (latest dev branch)
 
 ---

@@ -141,12 +141,32 @@ never raise, return `None` on any failure.
 - Default coordinates (`core/constants.py`:
   `DEFAULT_RESTAURANT_LAT`/`DEFAULT_RESTAURANT_LNG`, Navi Mumbai) are used
   until `RestaurantProfile` stores real per-restaurant coordinates.
+- **Industry trends** (`infrastructure/external/trends_service.py`) —
+  `TrendsService.get_digest()` fetches a curated list of Indian F&B/agri-
+  business RSS feeds (`feedparser`, free/keyless, zero ToS risk — not
+  Google Trends/pytrends, which scrapes a non-public endpoint) and
+  summarizes headlines + article summaries into a short digest via the
+  existing `create_llm_provider()` factory (no new LLM integration). Cached
+  in Redis for 1 hour (news moves slower than Swiggy signals; an LLM call
+  isn't free). Prompt is tuned for specificity (a fact + an operational
+  implication per bullet) and stays neutral about any named platform rather
+  than reading as scrutiny of it.
+- **Regulatory alerts** (`infrastructure/external/compliance_alerts_service.py`)
+  — `ComplianceAlertsService.get_alerts()` scrapes FSSAI's public
+  notifications page (Gazette Notification category — finalized
+  regulations, not drafts). Confirmed live: no RSS feed exists, but the page
+  is plain server-rendered HTML (a category `<select>` + form reload, no
+  JS/AJAX), so a lightweight BeautifulSoup parser is sufficient. Public
+  government data — no ToS tension of any kind.
+- **`GET /market/pulse`** also returns `industry_trends` and
+  `compliance_alerts` independently of `swiggy_connected` — same treatment
+  as weather/holidays.
 
-Industry trends (RSS) and regulatory alerts (FSSAI public notices) join
-this same pattern in P6-A22/P6-A23, then all signals — plus the existing
-anonymised Swiggy area signals — merge inside the existing
+All four signals (weather/holidays, industry trends, regulatory alerts, and
+the existing anonymised Swiggy area signals) merge inside the existing
 `market_intel_node`/`MarketIntelService` in P6-A24, rather than a new graph
-node.
+node — `trends_signal`/`compliance_alerts_signal` exist as `OrchestratorState`
+fields already but aren't yet read by any node prompt until then.
 
 ---
 

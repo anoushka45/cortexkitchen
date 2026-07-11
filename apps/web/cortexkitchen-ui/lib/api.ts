@@ -690,6 +690,19 @@ export interface MarketIndustryTrends {
   fetched_at: string | null;
 }
 
+// P6-A23 -- FSSAI public notices, not Swiggy MCP, so independent of swiggy_connected.
+export interface MarketRegulatoryNotice {
+  title: string;
+  uploaded_on: string;
+  url: string;
+}
+
+export interface MarketComplianceAlerts {
+  notices: MarketRegulatoryNotice[];
+  notice_count: number;
+  fetched_at: string | null;
+}
+
 export interface MarketPulseResponse {
   swiggy_connected: boolean;
   competitor_pricing: MarketCompetitorPricing | null;
@@ -698,6 +711,7 @@ export interface MarketPulseResponse {
   weather: MarketWeather | null;
   upcoming_holiday: MarketUpcomingHoliday | null;
   industry_trends: MarketIndustryTrends | null;
+  compliance_alerts: MarketComplianceAlerts | null;
 }
 
 export async function getMarketPulse(): Promise<MarketPulseResponse> {

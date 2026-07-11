@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { getMarketPulse, MarketPulseResponse, MarketWeather, MarketUpcomingHoliday, MarketIndustryTrends } from "@/lib/api";
+import { getMarketPulse, MarketPulseResponse, MarketWeather, MarketUpcomingHoliday, MarketIndustryTrends, MarketComplianceAlerts } from "@/lib/api";
 import CategoryPricingChart from "./CategoryPricingChart";
 import PricingImpactChart from "./PricingImpactChart";
 import OccupancyBySlotChart from "./OccupancyBySlotChart";
@@ -73,20 +73,22 @@ export default function SwiggyLiveMarketPanel() {
 
   if (!data) return null;
 
-  // Weather + holiday + industry trends are independent of Swiggy (Open-Meteo,
-  // internal calendar, curated RSS -- no MCP involved) -- must render even
-  // when Swiggy isn't connected.
+  // Weather + holiday + industry trends + regulatory alerts are independent
+  // of Swiggy (Open-Meteo, internal calendar, curated RSS, FSSAI notices --
+  // no MCP involved) -- must render even when Swiggy isn't connected.
   const weather = data.weather;
   const upcomingHoliday = data.upcoming_holiday;
   const industryTrends = data.industry_trends;
+  const complianceAlerts = data.compliance_alerts;
 
   if (!data.swiggy_connected) {
     return (
       <div className="space-y-4">
-        {(weather || upcomingHoliday || industryTrends) && (
+        {(weather || upcomingHoliday || industryTrends || complianceAlerts) && (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <WeatherHolidayCard weather={weather} upcomingHoliday={upcomingHoliday} />
             {industryTrends && <IndustryTrendsCard trends={industryTrends} />}
+            {complianceAlerts && <ComplianceAlertsCard alerts={complianceAlerts} />}
           </div>
         )}
         <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-6 py-10 text-center">
@@ -118,7 +120,7 @@ export default function SwiggyLiveMarketPanel() {
   const hasAnything =
     categoryPricing.length > 0 || comparisons.length > 0 || occupancy?.signal || procurement.length > 0 ||
     dineoutDealsCount > 0 || slotDeals.length > 0 || dealsActiveCount > 0 || landscapeSummary !== null ||
-    weather !== null || upcomingHoliday !== null || industryTrends !== null;
+    weather !== null || upcomingHoliday !== null || industryTrends !== null || complianceAlerts !== null;
 
   if (!hasAnything) {
     return (
@@ -144,6 +146,9 @@ export default function SwiggyLiveMarketPanel() {
 
         {/* 0b. Industry Trends -- curated RSS, not Swiggy-sourced */}
         {industryTrends && <IndustryTrendsCard trends={industryTrends} />}
+
+        {/* 0c. Regulatory Alerts -- FSSAI public notices, not Swiggy-sourced */}
+        {complianceAlerts && <ComplianceAlertsCard alerts={complianceAlerts} />}
 
         {/* 1. Category Pricing Intelligence (derived, leads with verdict) */}
         {categoryPricing.length > 0 && (
@@ -461,6 +466,28 @@ function IndustryTrendsCard({ trends }: { trends: MarketIndustryTrends }) {
       <p className="mt-3 text-[10px] text-[var(--color-text-ghost)]">
         {trends.headline_count} headlines across {trends.sources_used} source{trends.sources_used !== 1 ? "s" : ""}
       </p>
+    </Card>
+  );
+}
+
+function ComplianceAlertsCard({ alerts }: { alerts: MarketComplianceAlerts }) {
+  return (
+    <Card title="Regulatory Alerts" source="FSSAI public notices" wide swiggy={false}>
+      <ul className="space-y-2.5">
+        {alerts.notices.map((n, i) => (
+          <li key={i} className="text-xs text-[var(--color-text-soft)]">
+            <a
+              href={n.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-[var(--color-text-primary)] hover:text-[var(--color-accent)] hover:underline"
+            >
+              {n.title}
+            </a>
+            <span className="ml-1.5 text-[10px] text-[var(--color-text-ghost)]">uploaded {n.uploaded_on}</span>
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }

@@ -26,6 +26,7 @@ from app.core.settings import get_settings
 from app.domain.services.inventory_service import InventoryService
 from app.domain.services.run_service import RunService
 from app.infrastructure.db.models import MenuItem, Organization
+from app.infrastructure.external.compliance_alerts_service import ComplianceAlertsService
 from app.infrastructure.external.trends_service import TrendsService
 from app.infrastructure.external.weather_service import WeatherService
 from app.infrastructure.swiggy.client import SwiggyMCPClient
@@ -175,6 +176,19 @@ class IndustryTrends(BaseModel):
     fetched_at: str | None = None
 
 
+class RegulatoryNotice(BaseModel):
+    title: str
+    uploaded_on: str
+    url: str
+
+
+class ComplianceAlerts(BaseModel):
+    """P6-A23 -- FSSAI public notices, not Swiggy MCP, independent of swiggy_connected."""
+    notices: list[RegulatoryNotice] = []
+    notice_count: int
+    fetched_at: str | None = None
+
+
 class MarketPulseResponse(BaseModel):
     swiggy_connected: bool
     competitor_pricing: CompetitorPricing | None = None
@@ -183,6 +197,7 @@ class MarketPulseResponse(BaseModel):
     weather: Weather | None = None
     upcoming_holiday: UpcomingHoliday | None = None
     industry_trends: IndustryTrends | None = None
+    compliance_alerts: ComplianceAlerts | None = None
 
 
 def _get_upcoming_holiday(days_ahead: int = 14) -> UpcomingHoliday | None:
@@ -206,8 +221,9 @@ async def get_market_pulse(
     current: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> MarketPulseResponse:
-    # Weather + holiday + industry trends are independent of Swiggy connection
-    # status -- none of the three is Swiggy MCP, never gated behind swiggy_connected.
+    # Weather + holiday + industry trends + regulatory alerts are independent
+    # of Swiggy connection status -- none of the four is Swiggy MCP, never
+    # gated behind swiggy_connected.
     weather_signal = await WeatherService().get_forecast(
         lat=DEFAULT_RESTAURANT_LAT, lng=DEFAULT_RESTAURANT_LNG, target_date=date.today(),
     )
@@ -217,11 +233,14 @@ async def get_market_pulse(
     trends_signal = await TrendsService().get_digest()
     industry_trends = IndustryTrends(**trends_signal) if trends_signal else None
 
+    compliance_signal = await ComplianceAlertsService().get_alerts()
+    compliance_alerts = ComplianceAlerts(**compliance_signal) if compliance_signal else None
+
     client = SwiggyMCPClient()
     if not client.is_available():
         return MarketPulseResponse(
             swiggy_connected=False, weather=weather, upcoming_holiday=upcoming_holiday,
-            industry_trends=industry_trends,
+            industry_trends=industry_trends, compliance_alerts=compliance_alerts,
         )
 
     org = db.query(Organization).filter(Organization.id == current["org_id"]).first()
@@ -344,6 +363,7 @@ async def get_market_pulse(
         weather=weather,
         upcoming_holiday=upcoming_holiday,
         industry_trends=industry_trends,
+        compliance_alerts=compliance_alerts,
     )
 
 

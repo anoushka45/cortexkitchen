@@ -55,12 +55,15 @@ class OrchestratorState(TypedDict):
     menu_output:        Annotated[Optional[Dict[str, Any]], keep_last]
     inventory_output:   Annotated[Optional[Dict[str, Any]], keep_last]
 
-    # Live-intelligence signals (P6-A21/A22) — not Swiggy MCP, no consent/compliance
-    # gating. weather_signal populated by demand_forecast_node via WeatherService
-    # (Open-Meteo). trends_signal populated by TrendsService (curated RSS) —
-    # wired into the planning pipeline proper by P6-A24, not yet a node input.
-    weather_signal: Annotated[Optional[Dict[str, Any]], keep_last]
-    trends_signal:  Annotated[Optional[Dict[str, Any]], keep_last]
+    # Live-intelligence signals (P6-A21/A22/A23) — not Swiggy MCP, no consent/
+    # compliance gating. weather_signal populated by demand_forecast_node via
+    # WeatherService (Open-Meteo). trends_signal (curated RSS) and
+    # compliance_alerts_signal (FSSAI notices) are populated by their
+    # respective services but not yet wired into the planning pipeline proper
+    # — that's P6-A24, which unifies all four signals into market_intel_node.
+    weather_signal:            Annotated[Optional[Dict[str, Any]], keep_last]
+    trends_signal:             Annotated[Optional[Dict[str, Any]], keep_last]
+    compliance_alerts_signal:  Annotated[Optional[Dict[str, Any]], keep_last]
 
     # Per-node assumption dicts — populated by each domain node after its service call.
     # Used by EvaluationSanityChecker to diff cross-agent assumptions against actual state.
@@ -156,6 +159,7 @@ def make_initial_state(
         inventory_output=None,
         weather_signal=None,
         trends_signal=None,
+        compliance_alerts_signal=None,
 
         # Per-node assumptions (populated after each domain node completes)
         menu_assumptions=None,

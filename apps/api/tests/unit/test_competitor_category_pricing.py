@@ -5,7 +5,9 @@ in a category (not just ones with a name-matched competitor price), and area_avg
 comes from competitor dishes keyword-classified into that category via
 _classify_dish -- not from exact string matches. category_dishes (name+price+
 restaurant per dish, not just bare prices) is built upstream by _compute_averages()
-and passed in directly here, so cheapest/priciest can be named, not just numeric.
+and passed in directly here, but _compute_category_pricing strips the restaurant
+attribution before returning cheapest_dish/priciest_dish (P6-A20) -- dish name +
+price only, never which restaurant serves it.
 """
 
 from unittest.mock import MagicMock
@@ -103,7 +105,7 @@ def test_category_pricing_sorted_by_absolute_diff_descending():
     assert results[1]["category"] == "cat a"
 
 
-def test_category_pricing_names_cheapest_and_priciest_dish():
+def test_category_pricing_cheapest_and_priciest_dish_omit_restaurant():
     enricher = _enricher()
     category_dishes = {
         "pizza": [
@@ -117,5 +119,8 @@ def test_category_pricing_names_cheapest_and_priciest_dish():
     results = enricher._compute_category_pricing(category_dishes, our_items)
     assert len(results) == 1
     cat = results[0]
-    assert cat["cheapest_dish"] == {"name": "Farmhouse Pizza", "price": 549.0, "restaurant": "Oven Story Pizza"}
-    assert cat["priciest_dish"] == {"name": "Butter Crust Pizza", "price": 1569.0, "restaurant": "American Pie"}
+    # Dish name + price only -- restaurant attribution stripped (P6-A20).
+    assert cat["cheapest_dish"] == {"name": "Farmhouse Pizza", "price": 549.0}
+    assert cat["priciest_dish"] == {"name": "Butter Crust Pizza", "price": 1569.0}
+    assert "restaurant" not in cat["cheapest_dish"]
+    assert "restaurant" not in cat["priciest_dish"]

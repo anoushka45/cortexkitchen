@@ -55,7 +55,7 @@ class WorkflowTriggerService:
         )
 
     def _check_busy_plus_competitor_deals(self, org_id: int, plan_result: dict):
-        """Trigger 2: tonight_busy + 2+ competitor Dineout deals live -> queue a
+        """Trigger 2: tonight_busy + 2+ Dineout deals live in the area -> queue a
         pricing/promo review action. Same signal Diff 7 (evaluation_sanity.py)
         already flags to the critic -- this surfaces it as an actionable item too,
         not just a plan-revision note."""
@@ -64,13 +64,13 @@ class WorkflowTriggerService:
         market_intel = plan_result.get("market_intel") or {}
         tonight_busy = market_intel.get("tonight_busy")
         deals_count = (
-            len(market_intel.get("competitor_dineout_deals") or [])
+            (market_intel.get("dineout_deals_count") or 0)
             + len(market_intel.get("slot_deals_found") or [])
         )
         if tonight_busy is not True or deals_count < 2:
             return None
         return self.action_queue.create_action(
             org_id=org_id, category="pricing_promo_review", tier=ActionTier.recommendation,
-            title=f"Review pricing/promos tonight -- {deals_count} competitor deal(s) live while you're at HIGH occupancy",
-            payload={"tonight_busy": tonight_busy, "competitor_deals_count": deals_count},
+            title=f"Review pricing/promos tonight -- {deals_count} area deal(s) live while you're at HIGH occupancy",
+            payload={"tonight_busy": tonight_busy, "area_deals_count": deals_count},
         )

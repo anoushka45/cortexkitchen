@@ -1049,7 +1049,9 @@ Returns PUBLIC promotional data regardless of the calling account's activity —
 any competitor's restaurantId.
 
 CortexKitchen use (P6-MI06): `CompetitorEnricher._fetch_competitor_deals()` calls this for up to
-3 competitor restaurants per run and surfaces live promotional deals in the Market Context prompt.
+3 nearby restaurants per run; the raw named-restaurant result is reduced to a count + area-level
+summary (`deals_active_count`/`deals_summary`, P6-A20) before it reaches the Area Market Signals
+prompt or anything downstream — no restaurant name is ever paired with its specific deal.
 
 ---
 
@@ -1338,13 +1340,13 @@ CortexKitchen mapping:
 | `get_booking_status` | Dineout | reservation sync | `reservations` (source=dineout) |
 | `search_restaurants` | Food | CompetitorEnricher | `swiggy_competitor_context` state |
 | `search_menu` | Food | CompetitorEnricher | `swiggy_competitor_context.dish_prices` (P6-MI05) |
-| `fetch_food_coupons` | Food | CompetitorEnricher | `swiggy_competitor_context.competitor_deals` (P6-MI06) |
+| `fetch_food_coupons` | Food | CompetitorEnricher | `swiggy_competitor_context.deals_active_count`/`.deals_summary` (P6-MI06, anonymised P6-A20) |
 | `get_restaurant_menu` | Food | CompetitorEnricher | `swiggy_competitor_context` state |
 | `search_products` | Instamart | ProcurementEnricher | `swiggy_procurement_options` state |
 | `your_go_to_items` | Instamart | ProcurementEnricher | `swiggy_procurement_options` state |
 | `get_saved_locations` | Dineout | OccupancyEnricher | `swiggy_occupancy_context` state |
 | `search_restaurants_dineout` | Dineout | OccupancyEnricher | `swiggy_occupancy_context` state |
-| `get_restaurant_details` | Dineout | OccupancyEnricher | `swiggy_occupancy_context.competitor_dineout_deals` (P6-MI07) |
+| `get_restaurant_details` | Dineout | OccupancyEnricher | `swiggy_occupancy_context.dineout_deals_count`/`.dineout_deals_summary` (P6-MI07, anonymised P6-A20) |
 | `get_available_slots` | Dineout | OccupancyEnricher | `swiggy_occupancy_context` state + `.slot_deals_found` parsed from `deals[]` (P6-MI07) |
 | `update_cart` | Instamart | ProcurementExecutor | `action_queue` table |
 | `get_cart` | Instamart | ProcurementExecutor | verify before checkout |

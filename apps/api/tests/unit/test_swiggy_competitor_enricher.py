@@ -134,7 +134,10 @@ async def test_alert_generated_for_item_above_threshold():
 
 
 @pytest.mark.asyncio
-async def test_cheapest_map_populated():
+async def test_result_has_no_named_restaurant_pricing():
+    """P6-A20: cheapest-map (per-dish price + restaurant) is computed internally
+    but never exposed -- result only carries area_avg (dish -> price, no restaurant
+    attribution) plus the anonymised count/summary fields."""
     enricher = CompetitorEnricher(_client(
         restaurants=[OPEN_RESTAURANT],
         menu=MENU_RESPONSE,
@@ -144,12 +147,16 @@ async def test_cheapest_map_populated():
         result = await enricher.enrich(CONTEXT)
 
     assert result is not None
-    assert result["cheapest"]["butter chicken"]["restaurant"] == "Spice Garden"
-    assert result["cheapest"]["butter chicken"]["price"] == 280.0
+    assert "cheapest" not in result
+    assert "restaurants" not in result
+    assert "competitor_landscape" not in result
+    assert "competitor_deals" not in result
+    assert result["area_avg"]["butter chicken"] == 280.0
+    assert result["area_restaurant_count"] == 1
 
 
 @pytest.mark.asyncio
-async def test_prompt_text_present_and_contains_market_context():
+async def test_prompt_text_present_and_omits_restaurant_names():
     enricher = CompetitorEnricher(_client(
         restaurants=[OPEN_RESTAURANT],
         menu=MENU_RESPONSE,
@@ -159,8 +166,8 @@ async def test_prompt_text_present_and_contains_market_context():
         result = await enricher.enrich(CONTEXT)
 
     assert result is not None
-    assert "## Market Context" in result["prompt_text"]
-    assert "Spice Garden" in result["prompt_text"]
+    assert "## Area Market Signals" in result["prompt_text"]
+    assert "Spice Garden" not in result["prompt_text"]
 
 
 @pytest.mark.asyncio

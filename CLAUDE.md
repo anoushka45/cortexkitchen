@@ -1,11 +1,12 @@
 # CortexKitchen — Claude Code Master Reference
 
 > **Read this file completely before touching any code.**
-> Last updated: P6-A19 (Zomato removal) complete on `feature/compliance-fixes`
-> — 487 backend tests pass, frontend typechecks clean. P6-A20 (anonymise
-> market intel) is next, same branch. See the tracker for full task detail
-> (Phase 6A / Phase 6B sheets) — this file gives orientation, the tracker is
-> the source of truth for task-level status.
+> Last updated: P6-A19 (Zomato removal) and P6-A20 (anonymise market intel)
+> both complete on `feature/compliance-fixes` — compliance batch done, 487
+> backend tests pass, frontend typechecks clean. P6-A21 (weather + holiday
+> signals) is next, its own branch per the tracker. See the tracker for full
+> task detail (Phase 6A / Phase 6B sheets) — this file gives orientation,
+> the tracker is the source of truth for task-level status.
 > Reference zip: cortexkitchen-dev (latest dev branch)
 
 ---
@@ -95,19 +96,28 @@ dev to resolve with Swiggy directly, not something to silently code around.**
 ### Flagged contradictions — now tracked as concrete tasks
 
 1. **Clause 4(iv) — competitive-intelligence ban vs. the Market Intelligence
-   feature.** The Agreement prohibits using the Swiggy MCP "directly or
-   indirectly, to (i) gather competitive intelligence on Swiggy...
-   restaurants, sellers... (ii) benchmark... a product... that competes
-   with... Swiggy's services." `CompetitorEnricher` and the competitor-facing
-   calls in `OccupancyEnricher` do exactly this today — named restaurants,
-   named prices, named deals.
-   **Resolution: P6-A20** (tracker, Phase 6A) — replace all named-restaurant
-   output with area-level aggregates only ("area avg for North Indian mains:
-   Rs.265", "3 restaurants near you are HIGH occupancy tonight", "2
-   restaurants have active deals" — never a restaurant name, never an
-   individual price). The word "competitor" is being removed from all
-   outputs/prompts/UI in favor of "area market signals." **Not yet
-   remediated in code** — P6-A20 is Planned, not Completed, in the tracker.
+   feature — DONE (P6-A20).** The Agreement prohibits using the Swiggy MCP
+   "directly or indirectly, to (i) gather competitive intelligence on
+   Swiggy... restaurants, sellers... (ii) benchmark... a product... that
+   competes with... Swiggy's services." `CompetitorEnricher` and the
+   competitor-facing calls in `OccupancyEnricher` did exactly this — named
+   restaurants, named prices, named deals, in the result dict, the LLM
+   prompt, the `/market/pulse` API response, the operator chatbot's
+   `swiggy_get_competitor_deals` tool, and the `/market` page UI.
+   All of it replaced with area-level aggregates only: `area_restaurant_count`,
+   `deals_active_count`/`deals_summary`, `landscape_summary` (count/avg
+   rating/cost-for-two range/offers count), `dineout_deals_count`/
+   `dineout_deals_summary` — never a restaurant name paired with a specific
+   price, deal, rating, or occupancy figure. `category_pricing`'s
+   `cheapest_dish`/`priciest_dish` keep the dish name (not restaurant-
+   identifying) but drop which restaurant serves it. Propagated through
+   every consumer: `market_intel_service.py`, `market_intel.py` node,
+   `workflow_trigger_service.py`, `mcp_server.py`'s `get_market_brief`,
+   `chat_service.py`'s three `swiggy_get_*` tools, `market.py`'s Pydantic
+   models, and `SwiggyLiveMarketPanel.tsx`'s three named-data cards (now
+   aggregate cards). `evaluation_sanity.py`'s Diff 7 already read a count
+   field, not the raw list, so it needed no change. 487 backend tests pass,
+   frontend typechecks clean.
 
 2. **Clause 6 (Exclusivity) vs. the Zomato stub connector — DONE (P6-A19).**
    The Agreement bars partnering with "any other food delivery, dining out
@@ -160,14 +170,15 @@ dev to resolve with Swiggy directly, not something to silently code around.**
 
 ### Current plan — see the tracker for full task detail
 
-Phase 6A remaining (10 tasks, P6-A20→A29, in order): compliance fixes first
-(A19 Zomato removal — DONE, A20 anonymise market intel — next) → weather/holiday signals
-(A21) → autonomous procurement loop, the flagship demo (A22) → Instamart
-event supplies in the operator chatbot (A23) → menu engineering matrix UI
-(A24) → structured outputs (A25) → voice interface (A26) → eval pipeline
-refresh (A27) → docs/screenshots (A28) → sync to main (A29). Full detail,
-acceptance criteria, and branch names are in the "Phase 6A" tracker sheet —
-this file is orientation, not a duplicate of it.
+Phase 6A remaining (9 tasks, P6-A21→A29, in order): compliance batch DONE
+(A19 Zomato removal, A20 anonymise market intel — both complete on
+`feature/compliance-fixes`) → weather/holiday signals (A21, next) →
+autonomous procurement loop, the flagship demo (A22) → Instamart event
+supplies in the operator chatbot (A23) → menu engineering matrix UI (A24) →
+structured outputs (A25) → voice interface (A26) → eval pipeline refresh
+(A27) → docs/screenshots (A28) → sync to main (A29). Full detail, acceptance
+criteria, and branch names are in the "Phase 6A" tracker sheet — this file
+is orientation, not a duplicate of it.
 
 Phase 6B (Guest Concierge, 9 tasks, P6-B1→B9) is scoped in the "Phase 6B"
 tracker sheet, gated entirely on P6-B1 (Swiggy consent) and starting only

@@ -1,7 +1,9 @@
 """CompetitorEnricher — P6-S07.
 
-Fetches live competitor pricing from Swiggy Food MCP at planning time and injects
-it into the menu_intelligence node prompt as a Market Context section.
+Fetches live area pricing/deals/landscape data from Swiggy Food MCP at planning
+time and injects it into the menu_intelligence node prompt as an Area Market
+Signals section. Area aggregates only (P6-A20) -- no restaurant is individually
+named or attributed a specific price/deal in anything this class returns.
 
 Flow:
   search_restaurants(cuisine) → up to 5 open, ORGANIC (non-ad) competitors
@@ -79,13 +81,17 @@ class CompetitorEnricher:
           cuisine      str   — e.g. "Indian" or "North Indian" (default "restaurant")
           our_items    list  — [{"name": str, "price": float}, ...] for alert generation
 
-        Returns:
+        Returns (anonymised -- area aggregates only, no named restaurants or
+        individually-attributed prices; see CLAUDE.md's compliance section):
           {
-            "area_avg":   {"butter chicken": 280.0, ...},
-            "cheapest":   {"butter chicken": {"price": 240.0, "restaurant": "KFC"}},
-            "restaurants": ["Name A", "Name B"],
+            "area_avg":              {"butter chicken": 280.0, ...},
+            "area_restaurant_count": 4,
+            "deals_active_count":    2,
+            "deals_summary":         "2 nearby restaurants have active deals tonight.",
+            "landscape_summary":     {"count": 4, "avg_rating": 4.2, "cost_for_two_min": 300,
+                                       "cost_for_two_max": 650, "offers_count": 1},
             "alerts":     ["Your Margherita is 14% above the area average (Rs.240)"],
-            "prompt_text": "## Market Context\n...",
+            "prompt_text": "## Area Market Signals\n...",
             "fetched_at": "2026-06-30",
           }
           or None if Swiggy is unreachable or returns no usable data.
@@ -124,21 +130,30 @@ class CompetitorEnricher:
         if not competitor_menus:
             return None
 
-        # Step 3 — compute area averages (dish-name AND category-level) and alerts
-        area_avg, cheapest, category_prices = self._compute_averages(competitor_menus)
+        # Step 3 — compute area averages (dish-name AND category-level) and alerts.
+        # cheapest_map (per-dish price + restaurant) is intentionally discarded here --
+        # it's individually-attributed named-restaurant pricing, exactly what the
+        # anonymisation pass removes; only the plain area_avg (dish -> price, no
+        # restaurant attribution) survives into the result.
+        area_avg, _cheapest_map, category_prices = self._compute_averages(competitor_menus)
         alerts = self._generate_alerts(area_avg, our_items)
-        restaurant_names = [c["name"] for c in competitor_menus]
+        restaurant_names = [c["name"] for c in competitor_menus]  # internal count only, never exposed
 
-        # Step 4 — competitor Swiggy deals (P6-MI06), category-level pricing (primary
+        # Step 4 — Swiggy deals (P6-MI06), category-level pricing (primary
         # signal — dish-name independent), pricing impact (bonus, only when exact dish
         # names happen to match), and market positioning (ranks us among competitors).
-        competitor_deals = await self._fetch_competitor_deals(address_id, restaurants)
+        # Raw deal/landscape data is fetched here but reduced to area aggregates before
+        # it ever reaches the result dict — no restaurant is individually named or
+        # attributed a specific price/deal in anything returned by this method.
+        deals_raw = await self._fetch_competitor_deals(address_id, restaurants)
+        deals_active_count, deals_summary = self._summarize_deals(deals_raw)
         category_pricing = self._compute_category_pricing(category_prices, our_items)
         pricing_impact   = self._compute_pricing_impact(area_avg, our_items)
         # rating/costForTwo/distanceKm are already in the search_restaurants response
         # (Step 1) — just retained here instead of discarded, zero extra API calls.
-        competitor_landscape = self._extract_landscape(restaurants)
-        positioning = self._compute_positioning(competitor_landscape, our_items)
+        landscape_raw = self._extract_landscape(restaurants)
+        positioning = self._compute_positioning(landscape_raw, our_items)
+        landscape_summary = self._compute_landscape_summary(landscape_raw)
         # Market context signals -- all derived from data already fetched, zero extra calls.
         menu_breadth    = self._compute_menu_breadth(competitor_menus, our_items)
         cuisine_crowding = self._compute_cuisine_crowding(restaurants, cuisine)
@@ -146,21 +161,21 @@ class CompetitorEnricher:
 
         result = {
             "area_avg":              area_avg,
-            "cheapest":              cheapest,
-            "competitor_deals":      competitor_deals,
+            "area_restaurant_count": len(restaurant_names),
+            "deals_active_count":    deals_active_count,
+            "deals_summary":         deals_summary,
             "pricing_impact":        pricing_impact,
             "category_pricing":      category_pricing,
-            "competitor_landscape":  competitor_landscape,
+            "landscape_summary":     landscape_summary,
             "positioning":           positioning,
             "menu_breadth":          menu_breadth,
             "cuisine_crowding":      cuisine_crowding,
             "veg_mix":               veg_mix,
-            "restaurants":           restaurant_names,
             "alerts":                alerts,
             "prompt_text": self._build_prompt(
-                area_avg, cheapest, alerts, restaurant_names, our_items,
-                competitor_deals, pricing_impact, category_pricing, positioning,
-                menu_breadth, cuisine_crowding, veg_mix, competitor_landscape,
+                area_avg, alerts, len(restaurant_names), our_items,
+                deals_active_count, deals_summary, pricing_impact, category_pricing,
+                positioning, menu_breadth, cuisine_crowding, veg_mix, landscape_summary,
             ),
             "fetched_at":  date.today().isoformat(),
         }
@@ -169,7 +184,7 @@ class CompetitorEnricher:
         log.info(
             "competitor_enricher_done",
             restaurants=len(restaurant_names), dishes=len(area_avg), alerts=len(alerts),
-            categories=len(category_pricing), deals=len(competitor_deals),
+            categories=len(category_pricing), deals=deals_active_count,
         )
         return result
 
@@ -255,6 +270,27 @@ class CompetitorEnricher:
         if not match:
             return None
         return float(match.group(0).replace(",", ""))
+
+    def _compute_landscape_summary(self, landscape_raw: list[dict]) -> Optional[dict]:
+        """Reduce the raw named landscape (used internally for _compute_positioning)
+        to an area-level aggregate -- count, average rating, cost-for-two range, and
+        how many nearby restaurants are running an offer. No restaurant is named or
+        individually attributed a rating/price/offer in the return value.
+        """
+        if not landscape_raw:
+            return None
+
+        ratings = [c["rating"] for c in landscape_raw if c.get("rating") is not None]
+        costs   = [c["cost_for_two"] for c in landscape_raw if c.get("cost_for_two") is not None]
+        offers_count = sum(1 for c in landscape_raw if c.get("offer"))
+
+        return {
+            "count":             len(landscape_raw),
+            "avg_rating":        round(sum(ratings) / len(ratings), 1) if ratings else None,
+            "cost_for_two_min":  min(costs) if costs else None,
+            "cost_for_two_max":  max(costs) if costs else None,
+            "offers_count":      offers_count,
+        }
 
     async def _fetch_menus(self, address_id: str, restaurants: list[dict]) -> list[dict]:
         results = []
@@ -399,6 +435,15 @@ class CompetitorEnricher:
         log.info("competitor_enricher_deals_done", deals_found=len(deals))
         return deals
 
+    def _summarize_deals(self, deals_raw: list[dict]) -> tuple[int, str]:
+        """Reduce the raw per-restaurant deal list to a count + area-level summary --
+        never a named restaurant paired with its specific deal.
+        """
+        count = len(deals_raw)
+        if count == 0:
+            return 0, "No active deals detected among nearby restaurants right now."
+        return count, f"{count} nearby restaurant{'s' if count != 1 else ''} have active deals tonight."
+
     def _compute_pricing_impact(
         self, area_avg: dict[str, float], our_items: list[dict]
     ) -> list[dict]:
@@ -449,8 +494,10 @@ class CompetitorEnricher:
         intelligence signal; exact dish-name matches (see _generate_alerts) are too
         rare in practice to carry the analysis on their own.
 
-        Also names the actual cheapest/priciest competitor dish per category -- the
-        one piece of concrete, named evidence a bare average doesn't give you.
+        Also names the actual cheapest/priciest dish per category (dish name only,
+        never which restaurant serves it -- a dish name isn't restaurant-identifying,
+        but attributing it to a specific competitor would be) -- concrete evidence a
+        bare average doesn't give you, without naming a source restaurant.
         """
         your_prices: dict[str, list[float]] = {}
         for item in our_items:
@@ -487,8 +534,8 @@ class CompetitorEnricher:
                 "diff_pct":                  diff_pct,
                 "verdict":                   verdict,
                 "competitor_dishes_sampled": len(dishes),
-                "cheapest_dish":             cheapest_dish,
-                "priciest_dish":             priciest_dish,
+                "cheapest_dish":             {"name": cheapest_dish["name"], "price": cheapest_dish["price"]},
+                "priciest_dish":             {"name": priciest_dish["name"], "price": priciest_dish["price"]},
             })
 
         results.sort(key=lambda x: abs(x["diff_pct"]), reverse=True)
@@ -613,24 +660,23 @@ class CompetitorEnricher:
     def _build_prompt(
         self,
         area_avg: dict[str, float],
-        cheapest: dict[str, dict],
         alerts: list[str],
-        restaurant_names: list[str],
+        area_restaurant_count: int,
         our_items: list[dict],
-        competitor_deals: Optional[list[dict]] = None,
+        deals_active_count: int = 0,
+        deals_summary: str = "",
         pricing_impact: Optional[list[dict]] = None,
         category_pricing: Optional[list[dict]] = None,
         positioning: Optional[dict] = None,
         menu_breadth: Optional[dict] = None,
         cuisine_crowding: Optional[dict] = None,
         veg_mix: Optional[dict] = None,
-        competitor_landscape: Optional[list[dict]] = None,
+        landscape_summary: Optional[dict] = None,
     ) -> str:
-        competitor_deals = competitor_deals or []
         pricing_impact = pricing_impact or []
         category_pricing = category_pricing or []
 
-        lines = ["## Market Context", f"Competitors checked: {', '.join(restaurant_names)}", ""]
+        lines = ["## Area Market Signals", f"Nearby restaurants checked: {area_restaurant_count}", ""]
 
         # Category pricing leads — this is the primary, dish-name-independent signal.
         if category_pricing:
@@ -655,7 +701,7 @@ class CompetitorEnricher:
             lines.append(
                 f"**Menu breadth:** You have {menu_breadth['your_item_count']} items vs a nearby average "
                 f"of {menu_breadth['competitor_avg_item_count']:.0f} "
-                f"(sampled {menu_breadth['competitors_sampled']} competitor menus)."
+                f"(sampled {menu_breadth['competitors_sampled']} nearby menus)."
             )
             lines.append("")
 
@@ -674,15 +720,24 @@ class CompetitorEnricher:
             )
             lines.append("")
 
-        if competitor_landscape:
-            top = sorted(competitor_landscape, key=lambda c: c.get("rating") or 0, reverse=True)[:3]
-            lines.append("**Competitor landscape (top by rating):**")
-            for c in top:
-                offer_note = f', running "{c["offer"]}"' if c.get("offer") else ""
-                lines.append(
-                    f"- {c['name']}: {c.get('rating', '?')} stars, Rs.{c.get('cost_for_two', 0):.0f} for "
-                    f"two, {c.get('distance_km', 0):.1f}km away{offer_note}"
-                )
+        if landscape_summary:
+            offer_note = (
+                f", {landscape_summary['offers_count']} running an active offer"
+                if landscape_summary.get("offers_count") else ""
+            )
+            rating_note = (
+                f"avg {landscape_summary['avg_rating']} stars, "
+                if landscape_summary.get("avg_rating") is not None else ""
+            )
+            cost_note = (
+                f"cost-for-two Rs.{landscape_summary['cost_for_two_min']:.0f}"
+                f"–Rs.{landscape_summary['cost_for_two_max']:.0f}"
+                if landscape_summary.get("cost_for_two_min") is not None else ""
+            )
+            lines.append(
+                f"**Nearby market landscape:** {landscape_summary['count']} nearby option(s), "
+                f"{rating_note}{cost_note}{offer_note}."
+            )
             lines.append("")
 
         if alerts:
@@ -699,20 +754,15 @@ class CompetitorEnricher:
             lines.append("**Area average prices — dishes found nearby (from Swiggy):**")
             for dish, avg in sorted(area_avg.items())[:15]:  # cap at 15 dishes
                 our_p = our_price_map.get(dish)
-                cheapest_entry = cheapest.get(dish, {})
                 row = f"- {dish.title()}: area avg Rs.{avg:.0f}"
-                if cheapest_entry:
-                    row += f", cheapest Rs.{cheapest_entry['price']:.0f} at {cheapest_entry['restaurant']}"
                 if our_p:
                     row += f", your price Rs.{our_p:.0f}"
                 lines.append(row)
             lines.append("")
 
-        if competitor_deals:
-            lines.append("## Competitor Swiggy Deals Tonight")
-            lines.append(f"{len(competitor_deals)} competitor deal(s) live right now:")
-            for deal in competitor_deals[:8]:
-                lines.append(f"- {deal['restaurant']}: {deal['deal_title']}")
+        if deals_active_count:
+            lines.append("## Area Deals Tonight")
+            lines.append(deals_summary)
             lines.append(
                 "Implication: price-sensitive customers have alternatives tonight. "
                 "Consider promotional response or focus on quality differentiation."

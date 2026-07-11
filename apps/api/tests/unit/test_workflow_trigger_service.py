@@ -46,11 +46,14 @@ def _plan_with_shortages(*ingredients_with_severity):
 
 
 def _plan_with_market(tonight_busy, deals, slot_deals=None):
+    # P6-A20: OccupancyEnricher exposes a count/summary, not a named-restaurant
+    # list -- `deals` here is still passed as a list by callers for readability,
+    # reduced to its count to match the anonymised market_intel shape.
     return {
         "recommendations": {},
         "market_intel": {
             "tonight_busy": tonight_busy,
-            "competitor_dineout_deals": deals,
+            "dineout_deals_count": len(deals),
             "slot_deals_found": slot_deals or [],
         },
     }
@@ -138,7 +141,7 @@ def test_both_triggers_fire_independently(db):
         },
         "market_intel": {
             "tonight_busy": True,
-            "competitor_dineout_deals": ["deal1", "deal2"],
+            "dineout_deals_count": 2,
             "slot_deals_found": [],
         },
     }

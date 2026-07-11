@@ -1,7 +1,9 @@
 """OccupancyEnricher — P6-S08.
 
-Fetches live competitor Dineout slot availability at planning time and injects
-an occupancy signal into the reservation node prompt.
+Fetches live area Dineout slot availability at planning time and injects an
+occupancy signal into the reservation node prompt. Area aggregates only
+(P6-A20) -- no restaurant is individually named or attributed a specific
+deal/occupancy figure in anything this class returns.
 
 Flow:
   get_saved_locations() → lat/lng + location id
@@ -61,6 +63,9 @@ class OccupancyEnricher:
             "tonight_busy":     bool,
             "competitors_checked": int,
             "avg_availability_count": float,
+            "dineout_deals_count": int,          # area aggregate, no restaurant named
+            "dineout_deals_summary": str,
+            "slot_deals_found": [...],            # already time-keyed, not restaurant-named
             "prompt_text": "## Occupancy Signal\\n...",
             "fetched_at": "2026-06-30",
           }
@@ -108,11 +113,15 @@ class OccupancyEnricher:
         avg_count = sum(availability_counts) / len(availability_counts)
         signal    = self._compute_signal(avg_count)
 
-        # Step 5 — competitor Dineout deals (P6-MI07)
-        # PART A: get_restaurant_details for amenities + deals (extra API calls, capped)
-        competitor_dineout_deals = await self._fetch_competitor_dineout_details(competitors, lat, lng)
-        # PART B: deals[] parsed from the slots we already fetched — zero extra calls
+        # Step 5 — Dineout deals (P6-MI07)
+        # PART A: get_restaurant_details for amenities + deals (extra API calls, capped).
+        # Raw list is named-restaurant + deal detail -- reduced to a count + area summary
+        # before it reaches the result dict; the raw list itself is never returned.
+        dineout_deals_raw = await self._fetch_competitor_dineout_details(competitors, lat, lng)
+        # PART B: deals[] parsed from the slots we already fetched — zero extra calls.
+        # Already time-keyed, not restaurant-named, so this stays as a raw list.
         slot_deals = self._extract_slot_deals(all_slots)
+        dineout_deals_count, dineout_deals_summary = self._summarize_dineout_deals(dineout_deals_raw)
         # Occupancy-by-time-slot chart data — also zero extra calls, same dinner_slots reused.
         slot_availability_by_time = self._aggregate_slot_availability_by_time(all_slots)
 
@@ -121,12 +130,13 @@ class OccupancyEnricher:
             "tonight_busy":                signal == "HIGH",
             "competitors_checked":         len(availability_counts),
             "avg_availability_count":      round(avg_count, 2),
-            "competitor_dineout_deals":    competitor_dineout_deals,
+            "dineout_deals_count":         dineout_deals_count,
+            "dineout_deals_summary":       dineout_deals_summary,
             "slot_deals_found":            slot_deals,
             "slot_availability_by_time":   slot_availability_by_time,
             "prompt_text": self._build_prompt(
-                signal, len(availability_counts), avg_count, competitor_dineout_deals, slot_deals,
-                slot_availability_by_time,
+                signal, len(availability_counts), avg_count, dineout_deals_count,
+                dineout_deals_summary, slot_deals, slot_availability_by_time,
             ),
             "fetched_at":                today,
         }
@@ -135,7 +145,7 @@ class OccupancyEnricher:
         log.info(
             "occupancy_enricher_done",
             signal=signal, competitors=len(availability_counts), avg_slots=round(avg_count, 1),
-            dineout_deals=len(competitor_dineout_deals), slot_deals=len(slot_deals),
+            dineout_deals=dineout_deals_count, slot_deals=len(slot_deals),
         )
         return result
 
@@ -270,6 +280,15 @@ class OccupancyEnricher:
 
         return details
 
+    def _summarize_dineout_deals(self, dineout_deals_raw: list[dict]) -> tuple[int, str]:
+        """Reduce the raw named-restaurant deal list to a count + area-level summary --
+        never a named restaurant paired with its specific deal.
+        """
+        count = len(dineout_deals_raw)
+        if count == 0:
+            return 0, "No active Dineout deals detected among nearby restaurants right now."
+        return count, f"{count} nearby restaurant{'s' if count != 1 else ''} have active Dineout deals tonight."
+
     def _extract_slot_deals(self, slots: list[dict]) -> list[dict]:
         """Parse deals[] from already-fetched get_available_slots dinner slots.
 
@@ -355,23 +374,23 @@ class OccupancyEnricher:
         signal: str,
         competitors: int,
         avg_count: float,
-        competitor_dineout_deals: Optional[list[dict]] = None,
+        dineout_deals_count: int = 0,
+        dineout_deals_summary: str = "",
         slot_deals: Optional[list[dict]] = None,
         slot_availability_by_time: Optional[list[dict]] = None,
     ) -> str:
-        competitor_dineout_deals = competitor_dineout_deals or []
         slot_deals = slot_deals or []
         slot_availability_by_time = slot_availability_by_time or []
 
         signal_desc = {
-            "HIGH":   "Most nearby competitors are nearly full tonight.",
-            "MEDIUM": "Nearby competitors have moderate availability tonight.",
-            "LOW":    "Nearby competitors have ample availability tonight.",
+            "HIGH":   "Most nearby restaurants are nearly full tonight.",
+            "MEDIUM": "Nearby restaurants have moderate availability tonight.",
+            "LOW":    "Nearby restaurants have ample availability tonight.",
         }[signal]
 
         lines = [
             "## Occupancy Signal",
-            f"Area tonight: **{signal}** (based on {competitors} nearby Dineout competitor(s), "
+            f"Area tonight: **{signal}** (based on {competitors} nearby Dineout restaurant(s), "
             f"avg {avg_count:.1f} slots remaining per dinner time slot).",
             signal_desc,
         ]
@@ -389,19 +408,15 @@ class OccupancyEnricher:
                 lines.append(f"- {s['time']}: {s['signal']} (avg {s['avg_availability']:.1f} slots left)")
             lines.append(f"Tightest window tonight: {tightest['time']}.")
 
-        if competitor_dineout_deals or slot_deals:
+        if dineout_deals_count or slot_deals:
             lines.append("")
-            lines.append("## Competitor Dineout Deals Tonight")
-            for detail in competitor_dineout_deals:
-                for deal in detail["deals"][:2]:
-                    if deal["is_free"]:
-                        lines.append(f"- {detail['name']}: {deal['title']} (free booking)")
-                    else:
-                        lines.append(f"- {detail['name']}: {deal['title']} ({deal['discount_pct']:.0f}% off)")
+            lines.append("## Dineout Deals Tonight")
+            if dineout_deals_count:
+                lines.append(dineout_deals_summary)
             for deal in slot_deals[:5]:
                 lines.append(f"- {deal['time']}: {deal['deal_title']} ({deal['discount_pct']:.0f}% off)")
             lines.append(
-                "Implication: competitors are incentivising bookings tonight. "
+                "Implication: nearby restaurants are incentivising bookings tonight. "
                 "Walk-in overflow may be lower than occupancy signal suggests — "
                 "demand is being captured by promotional offers."
             )

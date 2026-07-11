@@ -26,18 +26,23 @@ async def test_get_competitor_deals_combines_food_and_dineout_deals():
          patch("app.domain.services.chat_service.CompetitorEnricher") as mock_comp, \
          patch("app.domain.services.chat_service.OccupancyEnricher") as mock_occ:
         mock_comp.return_value.enrich = AsyncMock(return_value={
-            "competitor_deals": [{"restaurant": "Biryani House", "deal_title": "20% off", "discount": 20, "code": "X", "restaurantId": "r1"}],
+            "deals_active_count": 1,
+            "deals_summary": "1 nearby restaurant has active deals tonight.",
         })
         mock_occ.return_value.enrich = AsyncMock(return_value={
-            "competitor_dineout_deals": [{"name": "The Fatty Bao", "deals": [{"title": "Free booking", "discount_pct": 0, "is_free": True}], "amenities": [], "timings": ""}],
+            "dineout_deals_count": 1,
+            "dineout_deals_summary": "1 nearby restaurant has active Dineout deals tonight.",
             "slot_deals_found": [{"time": "7:00 PM", "deal_title": "15% off", "discount_pct": 15, "is_free": False}],
         })
 
         result = json.loads(await _run_swiggy_tool("swiggy_get_competitor_deals", {"cuisine": "Biryani"}, org_id=1))
 
-    assert result["source"] == "Swiggy Food + Dineout (live)"
-    assert len(result["food_swiggy_deals"]) == 1
-    assert len(result["dineout_prebooking_deals"]) == 1
+    assert result["source"] == "Swiggy Food + Dineout (live, area aggregate)"
+    # P6-A20: no restaurant name anywhere in the response -- area count/summary only.
+    assert "1 nearby restaurant" in result["food_deals_summary"]
+    assert "1 nearby restaurant" in result["dineout_prebooking_deals_summary"]
+    assert "Biryani House" not in json.dumps(result)
+    assert "The Fatty Bao" not in json.dumps(result)
     assert len(result["dineout_slot_deals_tonight"]) == 1
 
 

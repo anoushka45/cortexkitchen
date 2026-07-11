@@ -559,13 +559,6 @@ export interface MarketPricingComparison {
   direction: "above" | "below" | null;
 }
 
-export interface MarketCompetitorDeal {
-  restaurant: string;
-  deal_title: string;
-  discount: number;
-  code: string;
-}
-
 export interface MarketPricingImpactItem {
   item: string;
   our_price: number;
@@ -576,10 +569,10 @@ export interface MarketPricingImpactItem {
   weekly_revenue_impact_inr: number;
 }
 
-export interface MarketNamedDish {
+// Dish name + price only -- never which restaurant serves it.
+export interface MarketDishPrice {
   name: string;
   price: number;
-  restaurant: string;
 }
 
 export interface MarketCategoryPricing {
@@ -589,20 +582,17 @@ export interface MarketCategoryPricing {
   diff_pct: number;
   verdict: "above" | "below" | "in line";
   competitor_dishes_sampled: number;
-  cheapest_dish: MarketNamedDish;
-  priciest_dish: MarketNamedDish;
+  cheapest_dish: MarketDishPrice;
+  priciest_dish: MarketDishPrice;
 }
 
-export interface MarketCompetitorLandscapeEntry {
-  name: string;
-  rating: number;
-  total_ratings: string;
-  cost_for_two: number;
-  distance_km: number;
-  delivery_time_range: string;
-  cuisines: string[];
-  offer: string;
-  veg: boolean;
+// Area aggregate only -- no restaurant is individually named.
+export interface MarketLandscapeSummary {
+  count: number;
+  avg_rating: number | null;
+  cost_for_two_min: number | null;
+  cost_for_two_max: number | null;
+  offers_count: number;
 }
 
 export interface MarketPositioningInsight {
@@ -631,24 +621,18 @@ export interface MarketVegMix {
 }
 
 export interface MarketCompetitorPricing {
-  restaurants_checked: string[];
+  restaurants_checked_count: number;
   comparisons: MarketPricingComparison[];
-  competitor_deals: MarketCompetitorDeal[];
+  deals_active_count: number;
+  deals_summary: string;
   pricing_impact: MarketPricingImpactItem[];
   category_pricing: MarketCategoryPricing[];
-  competitor_landscape: MarketCompetitorLandscapeEntry[];
+  landscape_summary: MarketLandscapeSummary | null;
   positioning: MarketPositioningInsight | null;
   menu_breadth: MarketMenuBreadth | null;
   cuisine_crowding: MarketCuisineCrowding | null;
   veg_mix: MarketVegMix | null;
   fetched_at: string | null;
-}
-
-export interface MarketCompetitorDineoutDeal {
-  name: string;
-  deals: Array<{ title: string; discount_pct: number; is_free: boolean }>;
-  amenities: string[];
-  timings: string;
 }
 
 export interface MarketSlotDeal {
@@ -668,7 +652,8 @@ export interface MarketAreaOccupancy {
   signal: "HIGH" | "MEDIUM" | "LOW" | null;
   tonight_busy: boolean | null;
   competitors_checked: number;
-  competitor_dineout_deals: MarketCompetitorDineoutDeal[];
+  dineout_deals_count: number;
+  dineout_deals_summary: string;
   slot_deals_found: MarketSlotDeal[];
   slot_availability_by_time: MarketSlotAvailability[];
   fetched_at: string | null;

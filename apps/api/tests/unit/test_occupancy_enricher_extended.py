@@ -131,10 +131,14 @@ async def test_competitor_dineout_deals_in_result_dict():
     result = await enricher.enrich(CONTEXT)
 
     assert result is not None
-    assert len(result["competitor_dineout_deals"]) == 1
-    assert result["competitor_dineout_deals"][0]["name"] == "The Fatty Bao"
+    # P6-A20: raw named-restaurant deal list is reduced to a count/summary --
+    # the restaurant name itself never reaches the result dict or prompt.
+    assert result["dineout_deals_count"] == 1
+    assert "The Fatty Bao" not in result["dineout_deals_summary"]
+    assert "1 nearby restaurant" in result["dineout_deals_summary"]
     assert len(result["slot_deals_found"]) == 1
-    assert "## Competitor Dineout Deals Tonight" in result["prompt_text"]
+    assert "## Dineout Deals Tonight" in result["prompt_text"]
+    assert "The Fatty Bao" not in result["prompt_text"]
 
 
 @pytest.mark.asyncio
@@ -159,6 +163,6 @@ async def test_result_dict_has_empty_deal_lists_when_no_deals_anywhere():
     result = await enricher.enrich(CONTEXT)
 
     assert result is not None
-    assert result["competitor_dineout_deals"] == []
+    assert result["dineout_deals_count"] == 0
     assert result["slot_deals_found"] == []
-    assert "## Competitor Dineout Deals Tonight" not in result["prompt_text"]
+    assert "## Dineout Deals Tonight" not in result["prompt_text"]

@@ -7,8 +7,8 @@ menu_intelligence alongside the other three.
 Calls MarketIntelService which runs CompetitorEnricher + OccupancyEnricher +
 ProcurementEnricher concurrently. All three outputs are written to state so:
   - aggregator/critic receive full market context (market_intel_output)
-  - menu_intelligence can read swiggy_competitor_context for the Market Context
-    section it injects into its LLM prompt
+  - menu_intelligence can read swiggy_competitor_context for the Area Market
+    Signals section it injects into its LLM prompt
   - reservation can read swiggy_occupancy_context for the Occupancy Signal section
   - swiggy_procurement_options is populated by inventory_node itself, which calls
     ProcurementEnricher directly with actual shortage_items after its own analysis
@@ -76,7 +76,7 @@ async def market_intel_node(
 
     market_intel = result.get("market_intel_output") or {}
     dineout_deals_count = (
-        len(market_intel.get("competitor_dineout_deals") or [])
+        (market_intel.get("dineout_deals_count") or 0)
         + len(market_intel.get("slot_deals_found") or [])
     )
     assumptions = {
@@ -85,9 +85,9 @@ async def market_intel_node(
         "assumed_area_occupancy":       market_intel.get("area_occupancy"),
         "pricing_alerts_count":         len(market_intel.get("pricing_alerts") or []),
         "tonight_busy":                 market_intel.get("tonight_busy"),
-        # P6-MI08 (Diff 7): count of live competitor Dineout deals/promos tonight —
+        # P6-MI08 (Diff 7): count of live Dineout deals/promos tonight in the area —
         # used to catch tonight_busy=True occupancy signals that may be inflated
-        # because competitors are actively absorbing demand with promotions.
+        # because nearby restaurants are actively absorbing demand with promotions.
         "dineout_deals_count":          dineout_deals_count,
         "fetched_at":                   market_intel.get("fetched_at"),
     }

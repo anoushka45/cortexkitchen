@@ -48,7 +48,6 @@ class ConnectorType(str, enum.Enum):
     swiggy         = "swiggy"
     pos_square     = "pos_square"
     google_reviews = "google_reviews"
-    zomato         = "zomato"
 
 class SyncStatus(str, enum.Enum):
     never_synced = "never_synced"

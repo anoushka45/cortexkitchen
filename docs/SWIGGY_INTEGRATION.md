@@ -420,7 +420,10 @@ class BaseConnector(ABC):
 ```
 
 `SwiggyConnector` is the reference implementation (skeleton — sync/enrich filled in P6-S03 to S08).
-Future connectors (Zomato, Google Reviews, Square POS, EazyDiner) follow the same pattern.
+Future non-competing connectors (Google Reviews, Square POS, loyalty/rewards, accounting/inventory
+tools) follow the same pattern. NOT another food-delivery/dining-out/quick-commerce platform (e.g.
+Zomato, EazyDiner) while the signed Swiggy Integration Agreement's exclusivity clause is in effect —
+a Zomato stub was removed for this reason, P6-A19 (see CLAUDE.md).
 Token per org stored in `connectors` table via `ConnectorRepository`. See D-019 in `docs/DECISIONS.md`.
 
 ### LangGraph pipeline — 11 nodes (current) + 2 planned
@@ -793,12 +796,19 @@ Routes planning capabilities to the highest-priority healthy provider. Uses both
 
 ```python
 CAPABILITY_PROVIDERS = {
-    "competitor_pricing": ["swiggy", "zomato"],
-    "reservation_data":   ["swiggy", "eazydiner"],
+    "competitor_pricing": ["swiggy"],
+    "reservation_data":   ["swiggy"],
     "procurement":        ["swiggy"],
-    "order_history":      ["swiggy", "zomato"],
+    "order_history":      ["swiggy"],
 }
 ```
+
+`swiggy` is currently the only provider for every capability. A Zomato provider and an EazyDiner
+provider (`reservation_data`) previously sat here as unimplemented placeholders; both were removed
+(P6-A19) — both are food-delivery/dining-out platforms directly restricted by the signed Swiggy
+Integration Agreement's exclusivity clause while it's in effect. The list-based structure stays —
+it exists to support future non-competing providers (POS, review platforms, loyalty/rewards,
+accounting/inventory tools), not to be permanently single-entry.
 
 **Two routing methods:**
 - `get_provider(org_id, capability, db)` — synchronous; DB health only. Use when you can't await.
@@ -816,7 +826,7 @@ CAPABILITY_PROVIDERS = {
 }
 ```
 
-Adding a new provider (e.g. Zomato for competitor pricing) requires only: (1) a connector row in `CAPABILITY_PROVIDERS`, and (2) a `BaseConnector` subclass. The registry routes to it automatically when the org's connector row is active and the circuit is closed.
+Adding a new provider (e.g. Google Reviews for sentiment data) requires only: (1) a connector row in `CAPABILITY_PROVIDERS`, and (2) a `BaseConnector` subclass. The registry routes to it automatically when the org's connector row is active and the circuit is closed.
 
 ---
 

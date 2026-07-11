@@ -1,12 +1,11 @@
 # CortexKitchen — Claude Code Master Reference
 
 > **Read this file completely before touching any code.**
-> Last updated: Phase 6A compliance/completion plan finalized in the tracker
-> (P6-A19–A29), Phase 6B (Guest Concierge) scoped as 9 tasks, gated on P6-B1.
-> Branch `feature/phase6a-completion` not yet created — next action is P6-A19,
-> pending explicit go-ahead. See the tracker for full task detail (Phase 6A /
-> Phase 6B sheets) — this file gives orientation, the tracker is the source
-> of truth for task-level status.
+> Last updated: P6-A19 (Zomato removal) complete on `feature/compliance-fixes`
+> — 487 backend tests pass, frontend typechecks clean. P6-A20 (anonymise
+> market intel) is next, same branch. See the tracker for full task detail
+> (Phase 6A / Phase 6B sheets) — this file gives orientation, the tracker is
+> the source of truth for task-level status.
 > Reference zip: cortexkitchen-dev (latest dev branch)
 
 ---
@@ -110,22 +109,33 @@ dev to resolve with Swiggy directly, not something to silently code around.**
    outputs/prompts/UI in favor of "area market signals." **Not yet
    remediated in code** — P6-A20 is Planned, not Completed, in the tracker.
 
-2. **Clause 6 (Exclusivity) vs. the Zomato stub connector.** The Agreement
-   bars partnering with "any other food delivery, dining out and/or quick
-   commerce platform" for a similar solution, enforceable by injunctive
-   relief (6.3) — not just damages. Confirmed via codebase audit this is
-   more than a name in one file: `ZomatoConnector` (a genuine no-op stub,
-   never calls a live API), `provider_registry.py`'s `CAPABILITY_PROVIDERS`
-   lists `zomato` alongside `swiggy` under `competitor_pricing` and
-   `order_history`, and the `/connectors` frontend page has a live "Zomato"
-   card. Bad optics under clause 17's audit rights even though nothing
-   actually calls Zomato.
-   **Resolution: P6-A19** (tracker, Phase 6A) — full removal: connector
-   file, both `provider_registry.py` entries, the frontend card, its test
-   file, and `ConnectorType.zomato` from the DB enum. Does **not** touch
-   `FeedbackSource.zomato` (separate enum, same file) — that's just a
-   provenance tag for feedback that originated from a Zomato review, no live
-   Zomato connection, legitimate to keep. **Not yet remediated in code.**
+2. **Clause 6 (Exclusivity) vs. the Zomato stub connector — DONE (P6-A19).**
+   The Agreement bars partnering with "any other food delivery, dining out
+   and/or quick commerce platform" for a similar solution, enforceable by
+   injunctive relief (6.3) — not just damages. The codebase audit found this
+   was more than a name in one file: `ZomatoConnector` (a genuine no-op
+   stub, never called a live API), `provider_registry.py`'s
+   `CAPABILITY_PROVIDERS` listed `zomato` alongside `swiggy` under
+   `competitor_pricing`/`order_history` (plus `eazydiner` — Zomato's own
+   dining vertical — under `reservation_data`, found during remediation),
+   and the `/connectors` frontend page had a live "Zomato" card. All removed:
+   `apps/api/app/infrastructure/zomato/` deleted, both provider_registry.py
+   lists now list only `swiggy`, the frontend card removed, `test_zomato_
+   connector.py` deleted, `ConnectorType.zomato` removed from `models.py`.
+   `connector_type` is a plain `String(50)` column (not a DB enum), so no
+   Alembic migration was needed. `FeedbackSource.zomato` (separate enum,
+   same file) was deliberately left untouched — just a provenance tag for
+   feedback that originated from a Zomato review, no live Zomato connection.
+   The multi-provider *architecture* (`BaseConnector`, `provider_registry.py`'s
+   pattern, `ConnectorType`) was never the problem and stays fully intact —
+   already proven extensible by `pos_square`/`google_reviews`, neither of
+   which is a food-delivery/dining/quick-commerce competitor.
+   `base_connector.py`'s docstring now states explicitly what the pattern
+   may extend to (POS systems, loyalty/rewards platforms, accounting/
+   inventory tools, review aggregators, payment processors) and what it must
+   not, while clause 6.1 is in effect (any other food delivery/dining-out/
+   quick-commerce platform — e.g. Zomato, EazyDiner). 487 backend tests pass,
+   frontend typechecks clean, post-removal.
 
 3. **Clause 2.1(v) — prior written consent required before any new
    implementation.** An ongoing obligation on every future MCP-touching
@@ -150,8 +160,8 @@ dev to resolve with Swiggy directly, not something to silently code around.**
 
 ### Current plan — see the tracker for full task detail
 
-Phase 6A remaining (11 tasks, P6-A19→A29, in order): compliance fixes first
-(A19 Zomato removal, A20 anonymise market intel) → weather/holiday signals
+Phase 6A remaining (10 tasks, P6-A20→A29, in order): compliance fixes first
+(A19 Zomato removal — DONE, A20 anonymise market intel — next) → weather/holiday signals
 (A21) → autonomous procurement loop, the flagship demo (A22) → Instamart
 event supplies in the operator chatbot (A23) → menu engineering matrix UI
 (A24) → structured outputs (A25) → voice interface (A26) → eval pipeline

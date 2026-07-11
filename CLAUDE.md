@@ -54,6 +54,83 @@ They are useful ONLY as chatbot context ("what did I order recently").
 
 ---
 
+## CRITICAL: Signed Swiggy Integration Agreement — compliance conflicts (UNRESOLVED)
+
+A real Integration Agreement between Swiggy Limited and the dev (as an Individual
+Developer partner) was signed, effective **2026-07-09**, 1-year Term. The full
+agreement text is NOT committed to this repo and should not be pasted into
+other tools/services — clause 12.5 (Confidentiality) bars disclosing the
+Agreement's existence/contents to any third party without Swiggy's prior
+written consent. This section only records the compliance implications for
+this codebase.
+
+**Not legal advice — this is an engineering-risk summary flagged for the
+dev to resolve with Swiggy directly, not something to silently code around.**
+
+### Flagged contradictions with current/planned work
+
+1. **Clause 4(iv) — competitive-intelligence ban vs. the Market Intelligence
+   feature (P6-MI05–MI14, P6-A1).** The Agreement prohibits using the Swiggy
+   MCP "directly or indirectly, to (i) gather competitive intelligence on
+   Swiggy... restaurants, sellers... (ii) benchmark... a product... that
+   competes with... Swiggy's services." `CompetitorEnricher` and the
+   competitor-facing calls in `OccupancyEnricher` (`search_restaurants`,
+   `get_restaurant_menu`, `fetch_food_coupons`, `search_restaurants_dineout`,
+   `get_restaurant_details` scoped to competitor restaurant IDs) do exactly
+   this — it is the "knows what competitors are charging tonight" pitch in
+   the Product Vision above, and it is currently live/shipped code.
+   **Status: UNRESOLVED.** Do not build P6-A16 (Dineout competitive chatbot
+   tools) until this is clarified with Swiggy. Existing competitor-scoped
+   calls in `CompetitorEnricher`/`OccupancyEnricher` have NOT been removed —
+   flagged here for a decision, not yet remediated.
+
+2. **Clause 6 (Exclusivity) vs. the Zomato stub connector (P6-A5, marked
+   Completed in the tracker).** The Agreement bars partnering with "any
+   other food delivery, dining out and/or quick commerce platform" for a
+   similar solution during the Term, and is enforceable by injunctive relief
+   (6.3) — not just damages. The Zomato stub connector is a direct conflict.
+   **Status: UNRESOLVED.**
+
+3. **Clause 2.1(v) — prior written consent required before any new
+   implementation.** Any new use/invocation/integration of the Swiggy MCP
+   requires furnishing Swiggy full technical details in writing and getting
+   prior written consent *before* implementation — an ongoing obligation on
+   every future MCP-touching feature, not a one-time signing formality.
+
+### What remains fully compliant and unaffected
+
+- **Instamart procurement** (`search_products`, and `update_cart`/`get_cart`/
+  `checkout` once staging creds land) — address-based, not restaurant-listing
+  based, not competitive intelligence. This is the flagship real, live,
+  compliant Swiggy use case and does not depend on the dev's restaurant
+  having a real Swiggy listing.
+- Demand forecasting, business analytics, financial scorecard, Action Queue,
+  trust-ladder mechanic, WhatsApp vendor coordination, Vendor/Supplier model
+  — no Swiggy MCP dependency at all.
+- Weather + holiday signals (P6-A14, planned) — Open-Meteo + internal
+  constants, zero Swiggy MCP involvement.
+
+### Direction under discussion (not yet started)
+
+Pivot away from competitor-scoped Swiggy calls. Candidate replacement for
+"market intelligence": crowdsourced pricing from CortexKitchen's own
+restaurant network (opt-in, proprietary, not Swiggy-sourced) and/or leaning
+on context signals (weather/holiday/own analytics) instead of live
+competitor MCP pulls. A "Guest Concierge" consumer-facing pivot was explored
+and mostly discarded on realism grounds — holds up only for a narrow
+waitlist/overflow-referral case (guest not yet seated, restaurant at
+capacity), not as a flagship feature. Current flagship candidate for an
+end-to-end, fully compliant demo story: an **autonomous procurement loop** —
+weather/holiday + demand forecast → inventory shortage detected →
+`ProcurementEnricher` checks real Instamart prices → Action Queue surfaces
+a priced, approvable restock action via the trust ladder → real Instamart
+checkout once creds land → WhatsApp vendor coordination as fallback if an
+ingredient isn't available on Instamart. Ties together P6-A4/A6/A7/A9/A10/
+A12/A14 into one coherent narrative instead of scattered features. Not yet
+scoped as concrete tasks.
+
+---
+
 ## Current system state (51 tasks complete)
 
 ### Pipeline — 11 nodes live

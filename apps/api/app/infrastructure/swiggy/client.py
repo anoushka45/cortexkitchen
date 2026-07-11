@@ -206,8 +206,13 @@ class SwiggyMCPClient:
 
             result = body["result"]
 
-            # Prefer structuredContent (machine-readable)
-            if "structuredContent" in result:
+            # Prefer structuredContent (machine-readable) -- but only when it's
+            # actually populated. Some Dineout tools (confirmed live:
+            # search_restaurants_dineout) return structuredContent: {} and put
+            # everything in the text content instead, meant for an LLM to read;
+            # treating an empty dict as "success with no data" would silently
+            # discard the only data actually returned.
+            if result.get("structuredContent"):
                 log.info("swiggy_tool_ok", tool=tool_name, server=server_tag, duration_ms=duration_ms)
                 self._traces.append({
                     "provider":    _PROVIDER,
@@ -217,7 +222,10 @@ class SwiggyMCPClient:
                     "duration_ms": duration_ms,
                     "attempt":     attempt,
                 })
-                return result["structuredContent"]
+                payload = dict(result["structuredContent"])
+                if "_meta" in result:
+                    payload["_meta"] = result["_meta"]
+                return payload
 
             # Fallback: plain text content
             content = result.get("content", [])
@@ -231,7 +239,10 @@ class SwiggyMCPClient:
                     "duration_ms": duration_ms,
                     "attempt":     attempt,
                 })
-                return {"text": content[0]["text"]}
+                payload = {"text": content[0]["text"]}
+                if "_meta" in result:
+                    payload["_meta"] = result["_meta"]
+                return payload
 
             log.warning(
                 "swiggy_empty_result",

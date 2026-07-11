@@ -34,6 +34,7 @@ from typing import Optional
 
 import structlog
 
+from app.core.constants import DEFAULT_RESTAURANT_LAT, DEFAULT_RESTAURANT_LNG
 from app.core.settings import get_settings
 from app.infrastructure.swiggy.client import DINEOUT_ENDPOINT, SwiggyMCPClient
 from app.orchestration.state import OrchestratorState
@@ -42,8 +43,11 @@ from app.orchestration.state import OrchestratorState
 log = structlog.get_logger()
 
 _DINNER_HOURS = {"19:00", "19:30", "20:00", "20:30", "21:00", "21:30"}
-_LOW_SLOT_THRESHOLD = 3   # availabilityCount <= this → slot considered low
-_OPEN_MORE_RATIO    = 0.5  # if > 50% of tonight's slots are low → recommend opening more
+_MAX_DINNER_SLOTS   = len(_DINNER_HOURS)
+_LOW_SLOT_THRESHOLD = 2   # dinner-hour times still listed <= this → recommend opening more
+                          # (get_available_slots carries no numeric availabilityCount field
+                          # live -- see OccupancyEnricher's module docstring for the same
+                          # finding. Proxy: fewer listed times = busier, same direction.)
 
 
 async def dineout_manager_node(
@@ -133,54 +137,63 @@ async def _check_own_slots(
     if not data:
         return None
 
-    slots = data.get("slots") or []
-    dinner_slots = [s for s in slots if _is_dinner_slot(s.get("displayTime") or "")]
+    # Slots live in the JSON-RPC result's _meta.slots, not structuredContent
+    # (confirmed live -- client.py's call_tool() merges _meta into its return
+    # value), and the response spans many days regardless of the "date"
+    # argument, so this filters to tonight's dateStr explicitly.
+    slots = (data.get("_meta") or {}).get("slots") or data.get("slots") or []
+    dinner_slots = [
+        s for s in slots
+        if s.get("dateStr") == tonight and _is_dinner_slot(s.get("displayTime") or "")
+    ]
 
     if not dinner_slots:
         return {
             "total_slots_tonight":    0,
-            "low_availability_slots": 0,
-            "open_more_recommended":  False,
-            "prompt_text":            "No Dineout dinner slots found for tonight.",
+            "low_availability_slots": _MAX_DINNER_SLOTS,
+            "open_more_recommended":  True,
+            "prompt_text":            "No Dineout dinner slots found for tonight -- fully booked or unlisted.",
             "fetched_at":             tonight,
         }
 
-    low_slots = [
-        s for s in dinner_slots
-        if (s.get("availabilityCount") or 0) <= _LOW_SLOT_THRESHOLD
-    ]
-    low_ratio = len(low_slots) / len(dinner_slots)
-    open_more = low_ratio > _OPEN_MORE_RATIO
+    total = len(dinner_slots)
+    # "low_availability_slots" reinterpreted as "how many of the possible
+    # dinner-hour times are NOT currently listed as bookable" -- no per-slot
+    # numeric count exists live, so time-slot presence/absence is the proxy.
+    low = max(0, _MAX_DINNER_SLOTS - total)
+    open_more = total <= _LOW_SLOT_THRESHOLD
 
     result = {
-        "total_slots_tonight":    len(dinner_slots),
-        "low_availability_slots": len(low_slots),
+        "total_slots_tonight":    total,
+        "low_availability_slots": low,
         "open_more_recommended":  open_more,
-        "slot_details": [
-            {
-                "time":              s.get("displayTime"),
-                "availability_count": s.get("availabilityCount"),
-            }
-            for s in dinner_slots
-        ],
-        "prompt_text": _build_prompt(len(dinner_slots), len(low_slots), open_more),
+        "slot_details": [{"time": s.get("displayTime")} for s in dinner_slots],
+        "prompt_text": _build_prompt(total, low, open_more),
         "fetched_at":  tonight,
     }
 
     log.info(
         "dineout_manager_done",
-        total=len(dinner_slots), low=len(low_slots), open_more=open_more,
+        total=total, low=low, open_more=open_more,
     )
     return result
 
 
 async def _get_location(client: SwiggyMCPClient) -> Optional[dict]:
+    """Same get_saved_locations quirks as OccupancyEnricher._get_location() --
+    payload nests one level deeper under "data", and never includes lat/lng
+    (confirmed live), so this falls back to DEFAULT_RESTAURANT_LAT/LNG for any
+    location that has an id but no lat/lng."""
     data = await client.call_tool(DINEOUT_ENDPOINT, "get_saved_locations", {})
     if not data:
         return None
-    for loc in data.get("locations") or []:
-        if loc.get("lat") and loc.get("lng"):
-            return {"lat": float(loc["lat"]), "lng": float(loc["lng"])}
+    locations = (data.get("data") or {}).get("locations") or data.get("locations") or []
+    for loc in locations:
+        if not loc.get("id"):
+            continue
+        lat = loc.get("lat") or DEFAULT_RESTAURANT_LAT
+        lng = loc.get("lng") or DEFAULT_RESTAURANT_LNG
+        return {"lat": float(lat), "lng": float(lng)}
     return None
 
 
@@ -200,11 +213,14 @@ def _is_dinner_slot(display_time: str) -> bool:
 
 def _build_prompt(total: int, low: int, open_more: bool) -> str:
     lines = ["## Your Dineout Availability Tonight"]
-    lines.append(f"Dinner slots: {total} total, {low} with low availability (≤{_LOW_SLOT_THRESHOLD} seats).")
+    lines.append(
+        f"{total} of {_MAX_DINNER_SLOTS} dinner-hour times currently listed as bookable "
+        f"({low} unlisted/fully booked)."
+    )
     if open_more:
         lines.append(
             "Recommendation: consider opening additional Dineout slots — "
-            f"{low}/{total} dinner-hour slots are nearly full."
+            f"only {total} dinner-hour time{'s' if total != 1 else ''} still bookable tonight."
         )
     else:
         lines.append("Dineout capacity appears adequate for tonight.")

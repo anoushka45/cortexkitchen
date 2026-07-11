@@ -1,12 +1,14 @@
 # CortexKitchen — Claude Code Master Reference
 
 > **Read this file completely before touching any code.**
-> Last updated: P6-A19 (Zomato removal) and P6-A20 (anonymise market intel)
-> both complete on `feature/compliance-fixes` — compliance batch done, 487
-> backend tests pass, frontend typechecks clean. P6-A21 (weather + holiday
-> signals) is next, its own branch per the tracker. See the tracker for full
-> task detail (Phase 6A / Phase 6B sheets) — this file gives orientation,
-> the tracker is the source of truth for task-level status.
+> Last updated: P6-A19/P6-A20 (compliance batch) merged to `dev`. Tracker
+> restructured — P6-A21 onward renumbered to P6-A21→A34 to fit 4 new
+> live-intelligence + scenario-overhaul tasks (P6-A21–A26) ahead of the
+> procurement loop, which now depends on P6-A24 instead of the old P6-A21.
+> Next up: P6-A21–A26 on one combined branch `feature/live-intelligence-signals`.
+> Not yet started — pending explicit go-ahead. See the tracker for full task
+> detail (Phase 6A / Phase 6B sheets) — this file gives orientation, the
+> tracker is the source of truth for task-level status.
 > Reference zip: cortexkitchen-dev (latest dev branch)
 
 ---
@@ -152,37 +154,58 @@ dev to resolve with Swiggy directly, not something to silently code around.**
    feature, not a one-time signing formality. Applies most directly to
    **Guest Concierge (Phase 6B)** — it's gated on **P6-B1** in the tracker
    (send Swiggy a technical brief, get written sign-off) before any Phase 6B
-   code is written. Does not apply to weather/holiday signals (P6-A21) —
-   that's Open-Meteo + internal constants, zero Swiggy MCP.
+   code is written. Does not apply to the live-intelligence signals (P6-A21
+   through P6-A23) — none of weather, industry trends, or regulatory alerts
+   touch the Swiggy MCP at all.
 
 ### What remains fully compliant and unaffected
 
 - **Instamart procurement** (`search_products`, and `update_cart`/`get_cart`/
   `checkout` once staging creds land) — address-based, not restaurant-listing
   based, not competitive intelligence. This is the flagship real, live,
-  compliant Swiggy use case (P6-A22's autonomous procurement loop) and does
+  compliant Swiggy use case (P6-A27's autonomous procurement loop) and does
   not depend on the dev's restaurant having a real Swiggy listing.
 - Demand forecasting, business analytics, financial scorecard, Action Queue,
   trust-ladder mechanic, WhatsApp vendor coordination, Vendor/Supplier model
   — no Swiggy MCP dependency at all.
-- Weather + holiday signals (P6-A21) — Open-Meteo + internal constants, zero
-  Swiggy MCP involvement.
+- Live-intelligence signals (P6-A21–A23: weather/holidays via Open-Meteo,
+  industry trends via curated RSS, regulatory alerts via FSSAI's public
+  notices) — zero Swiggy MCP involvement, zero paid services.
 
 ### Current plan — see the tracker for full task detail
 
-Phase 6A remaining (9 tasks, P6-A21→A29, in order): compliance batch DONE
+Phase 6A remaining (14 tasks, P6-A21→A34, in order): compliance batch DONE
 (A19 Zomato removal, A20 anonymise market intel — both complete on
-`feature/compliance-fixes`) → weather/holiday signals (A21, next) →
-autonomous procurement loop, the flagship demo (A22) → Instamart event
-supplies in the operator chatbot (A23) → menu engineering matrix UI (A24) →
-structured outputs (A25) → voice interface (A26) → eval pipeline refresh
-(A27) → docs/screenshots (A28) → sync to main (A29). Full detail, acceptance
-criteria, and branch names are in the "Phase 6A" tracker sheet — this file
-is orientation, not a duplicate of it.
+`feature/compliance-fixes`, merged to `dev`).
+
+Next up — **live intelligence + scenario overhaul**, one combined branch
+(`feature/live-intelligence-signals`) since these are tightly coupled: four
+independently fail-open signal services — weather/holidays (A21), industry
+trends via RSS (A22), regulatory alerts via FSSAI (A23) — merged with the
+existing anonymised Swiggy area signals inside the *existing*
+`market_intel_node`/`MarketIntelService` rather than a new graph node (A24,
+"unify"), so none of the state field names 5+ other files already read by
+name have to change. Alongside that: a scenario-selection overhaul (A25) —
+the 4 scenarios are hardcoded end-to-end today and `demand_forecast` doesn't
+actually branch its algorithm on which one is picked (only labeling text
+does) — replacing that with either an expanded dynamic option list or
+free-form natural language ("we're hosting an event today...") parsed into
+an ad-hoc scenario profile, with the 4 presets kept as shortcuts, not
+replaced. Then a validation checkpoint (A26, conditional) on whether richer
+signals alone fix the "generic action items" feedback, before committing to
+a separate prompt-engineering task.
+
+Then: autonomous procurement loop, the flagship demo (A27, now depends on
+A24 — needs live signals actually wired in, not just existing) → Instamart
+event supplies in the operator chatbot (A28) → menu engineering matrix UI
+(A29) → structured outputs (A30) → voice interface (A31) → eval pipeline
+refresh (A32) → docs/screenshots (A33) → sync to main (A34). Full detail,
+acceptance criteria, and branch names are in the "Phase 6A" tracker sheet —
+this file is orientation, not a duplicate of it.
 
 Phase 6B (Guest Concierge, 9 tasks, P6-B1→B9) is scoped in the "Phase 6B"
 tracker sheet, gated entirely on P6-B1 (Swiggy consent) and starting only
-after P6-A29 (sync to main). Do not write Phase 6B code before that gate
+after P6-A34 (sync to main). Do not write Phase 6B code before that gate
 clears.
 
 ---

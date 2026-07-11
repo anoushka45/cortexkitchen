@@ -10,14 +10,11 @@ Graceful degradation: enrich() must return None on any failure so that
 LangGraph nodes can fall back to synthetic data without crashing.
 
 This pattern is intentionally generic so the system can extend to future
-non-competing integrations without touching this file or provider_registry.py's
-structure -- only adding a new entry. Fair game: a different POS system,
-a loyalty/rewards platform, an accounting or inventory tool, a review
-aggregator, a payments processor. NOT fair game while the signed Swiggy
-Integration Agreement's exclusivity clause (6.1) is in effect: any other
-food delivery, dining-out, or quick-commerce platform (e.g. Zomato,
-EazyDiner) -- see CLAUDE.md's "Signed Swiggy Integration Agreement" section
-for why the Zomato connector that used to live here was removed (P6-A19).
+integrations without touching this file or provider_registry.py's structure
+-- only adding a new entry. Natural candidates: a different POS system, a
+loyalty/rewards platform, an accounting or inventory tool, a review
+aggregator, a payments processor. Kept single-provider (Swiggy) on the food
+delivery / dining-out / quick-commerce side for now.
 """
 
 import structlog

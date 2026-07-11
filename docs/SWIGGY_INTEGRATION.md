@@ -420,10 +420,8 @@ class BaseConnector(ABC):
 ```
 
 `SwiggyConnector` is the reference implementation (skeleton — sync/enrich filled in P6-S03 to S08).
-Future non-competing connectors (Google Reviews, Square POS, loyalty/rewards, accounting/inventory
-tools) follow the same pattern. NOT another food-delivery/dining-out/quick-commerce platform (e.g.
-Zomato, EazyDiner) while the signed Swiggy Integration Agreement's exclusivity clause is in effect —
-a Zomato stub was removed for this reason, P6-A19 (see CLAUDE.md).
+Future connectors (Google Reviews, Square POS, loyalty/rewards, accounting/inventory tools) follow
+the same pattern.
 Token per org stored in `connectors` table via `ConnectorRepository`. See D-019 in `docs/DECISIONS.md`.
 
 ### LangGraph pipeline — 11 nodes (current) + 2 planned
@@ -803,12 +801,9 @@ CAPABILITY_PROVIDERS = {
 }
 ```
 
-`swiggy` is currently the only provider for every capability. A Zomato provider and an EazyDiner
-provider (`reservation_data`) previously sat here as unimplemented placeholders; both were removed
-(P6-A19) — both are food-delivery/dining-out platforms directly restricted by the signed Swiggy
-Integration Agreement's exclusivity clause while it's in effect. The list-based structure stays —
-it exists to support future non-competing providers (POS, review platforms, loyalty/rewards,
-accounting/inventory tools), not to be permanently single-entry.
+`swiggy` is currently the only provider for every capability. The list-based structure stays —
+it exists to support future providers (POS, review platforms, loyalty/rewards, accounting/inventory
+tools), not to be permanently single-entry.
 
 **Two routing methods:**
 - `get_provider(org_id, capability, db)` — synchronous; DB health only. Use when you can't await.

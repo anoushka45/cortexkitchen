@@ -9,12 +9,9 @@ already tracks per-org platform health (sync_status, error_count).
 
 Adding a new provider means:
   1. Insert a row into CAPABILITY_PROVIDERS below
-  2. Implement a BaseConnector subclass for it (see base_connector.py for what
-     kinds of providers are fair game -- POS systems, review platforms,
-     loyalty/rewards, accounting/inventory tools, payment processors -- and
-     what's off-limits while the signed Swiggy Integration Agreement's
-     exclusivity clause (6.1) is in effect: any other food delivery,
-     dining-out, or quick-commerce platform)
+  2. Implement a BaseConnector subclass for it (see base_connector.py for the
+     kinds of providers this fits -- POS systems, review platforms, loyalty/
+     rewards, accounting/inventory tools, payment processors)
   3. The registry automatically routes to it once the org has an active connector row
      with a healthy sync_status for that provider -- no other code changes needed
 """

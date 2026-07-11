@@ -682,6 +682,14 @@ export interface MarketUpcomingHoliday {
   days_away: number;
 }
 
+// P6-A22 -- curated RSS trade press, not Swiggy MCP, so independent of swiggy_connected.
+export interface MarketIndustryTrends {
+  digest: string;
+  headline_count: number;
+  sources_used: number;
+  fetched_at: string | null;
+}
+
 export interface MarketPulseResponse {
   swiggy_connected: boolean;
   competitor_pricing: MarketCompetitorPricing | null;
@@ -689,6 +697,7 @@ export interface MarketPulseResponse {
   procurement: MarketProcurementItem[];
   weather: MarketWeather | null;
   upcoming_holiday: MarketUpcomingHoliday | null;
+  industry_trends: MarketIndustryTrends | null;
 }
 
 export async function getMarketPulse(): Promise<MarketPulseResponse> {

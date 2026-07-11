@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { getMarketPulse, MarketPulseResponse, MarketWeather, MarketUpcomingHoliday } from "@/lib/api";
+import { getMarketPulse, MarketPulseResponse, MarketWeather, MarketUpcomingHoliday, MarketIndustryTrends } from "@/lib/api";
 import CategoryPricingChart from "./CategoryPricingChart";
 import PricingImpactChart from "./PricingImpactChart";
 import OccupancyBySlotChart from "./OccupancyBySlotChart";
@@ -19,12 +19,12 @@ function SwiggyBadge() {
   );
 }
 
-function Card({ title, source, children, wide }: { title: string; source: string; children: React.ReactNode; wide?: boolean }) {
+function Card({ title, source, children, wide, swiggy = true }: { title: string; source: string; children: React.ReactNode; wide?: boolean; swiggy?: boolean }) {
   return (
     <div className={`rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5 ${wide ? "lg:col-span-2" : ""}`}>
       <div className="flex items-start justify-between mb-1 flex-wrap gap-2">
         <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)]">{title}</p>
-        <SwiggyBadge />
+        {swiggy && <SwiggyBadge />}
       </div>
       <p className="mb-3 font-mono text-[9px] text-[var(--color-text-ghost)]">via {source}</p>
       {children}
@@ -73,17 +73,20 @@ export default function SwiggyLiveMarketPanel() {
 
   if (!data) return null;
 
-  // Weather + holiday are independent of Swiggy (Open-Meteo + internal calendar,
-  // no MCP involved) -- must render even when Swiggy isn't connected.
+  // Weather + holiday + industry trends are independent of Swiggy (Open-Meteo,
+  // internal calendar, curated RSS -- no MCP involved) -- must render even
+  // when Swiggy isn't connected.
   const weather = data.weather;
   const upcomingHoliday = data.upcoming_holiday;
+  const industryTrends = data.industry_trends;
 
   if (!data.swiggy_connected) {
     return (
       <div className="space-y-4">
-        {(weather || upcomingHoliday) && (
+        {(weather || upcomingHoliday || industryTrends) && (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <WeatherHolidayCard weather={weather} upcomingHoliday={upcomingHoliday} />
+            {industryTrends && <IndustryTrendsCard trends={industryTrends} />}
           </div>
         )}
         <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-6 py-10 text-center">
@@ -115,7 +118,7 @@ export default function SwiggyLiveMarketPanel() {
   const hasAnything =
     categoryPricing.length > 0 || comparisons.length > 0 || occupancy?.signal || procurement.length > 0 ||
     dineoutDealsCount > 0 || slotDeals.length > 0 || dealsActiveCount > 0 || landscapeSummary !== null ||
-    weather !== null || upcomingHoliday !== null;
+    weather !== null || upcomingHoliday !== null || industryTrends !== null;
 
   if (!hasAnything) {
     return (
@@ -138,6 +141,9 @@ export default function SwiggyLiveMarketPanel() {
         {(weather || upcomingHoliday) && (
           <WeatherHolidayCard weather={weather} upcomingHoliday={upcomingHoliday} />
         )}
+
+        {/* 0b. Industry Trends -- curated RSS, not Swiggy-sourced */}
+        {industryTrends && <IndustryTrendsCard trends={industryTrends} />}
 
         {/* 1. Category Pricing Intelligence (derived, leads with verdict) */}
         {categoryPricing.length > 0 && (
@@ -405,7 +411,7 @@ function WeatherHolidayCard({
   upcomingHoliday: MarketUpcomingHoliday | null | undefined;
 }) {
   return (
-    <Card title="Weather & Holidays" source="Open-Meteo + internal calendar" wide>
+    <Card title="Weather & Holidays" source="Open-Meteo + internal calendar" wide swiggy={false}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {weather && (
           <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
@@ -435,6 +441,26 @@ function WeatherHolidayCard({
           </div>
         )}
       </div>
+    </Card>
+  );
+}
+
+function IndustryTrendsCard({ trends }: { trends: MarketIndustryTrends }) {
+  const bullets = trends.digest.split("\n").map((line) => line.trim()).filter(Boolean);
+
+  return (
+    <Card title="Industry Trends" source="curated RSS trade press" wide swiggy={false}>
+      <ul className="space-y-2">
+        {bullets.map((line, i) => (
+          <li key={i} className="flex gap-2 text-xs text-[var(--color-text-soft)]">
+            <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-[var(--color-text-faint)]" />
+            <span>{line.replace(/^[-•*]\s*/, "")}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-[10px] text-[var(--color-text-ghost)]">
+        {trends.headline_count} headlines across {trends.sources_used} source{trends.sources_used !== 1 ? "s" : ""}
+      </p>
     </Card>
   );
 }

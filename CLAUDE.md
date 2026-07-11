@@ -1,18 +1,44 @@
 # CortexKitchen — Claude Code Master Reference
 
 > **Read this file completely before touching any code.**
-> Last updated: Phase 6A — financial scorecard (P6-A6) complete.
+> Last updated: Phase 6A compliance/completion plan finalized in the tracker
+> (P6-A19–A29), Phase 6B (Guest Concierge) scoped as 9 tasks, gated on P6-B1.
+> Branch `feature/phase6a-completion` not yet created — next action is P6-A19,
+> pending explicit go-ahead. See the tracker for full task detail (Phase 6A /
+> Phase 6B sheets) — this file gives orientation, the tracker is the source
+> of truth for task-level status.
 > Reference zip: cortexkitchen-dev (latest dev branch)
 
 ---
 
 ## Product vision
 
-CortexKitchen is a **Swiggy-native restaurant operating system**. A restaurant
-owner gets a market-aware operational plan that knows what competitors are
-charging tonight, which ingredients are running low and what they cost on
-Instamart, how full nearby restaurants are on Dineout, and what deals
-competitors are running — all baked into a single actionable plan.
+CortexKitchen is a **two-sided platform powered by Swiggy MCP**, with two
+independent user groups:
+
+**Side 1 — Restaurant OS (Phase 6A, in progress).** A restaurant operator
+tool: owners/managers log in to run operations. An 11-node LangGraph planning
+pipeline produces operational plans informed by weather forecasts, Indian
+holidays, and *area-level* market signals (not named-competitor data — see
+the compliance section below for why). Flagship feature: an autonomous
+procurement loop — weather/demand signal → ingredient shortage detected →
+real Instamart price check → Action Queue approval via a trust ladder → real
+checkout (once staging creds land) or WhatsApp vendor coordination as
+fallback. Does NOT connect to any specific restaurant's real Swiggy listing
+(no real restaurant yet — that requires the Partner API) and does NOT show
+individual competitor restaurant names or prices (compliance, see below).
+
+**Side 2 — Guest Concierge (Phase 6B, not started).** A consumer-facing event
+planning assistant, fully independent of the Restaurant OS — no fake
+restaurant connection, no shared data. A guest describes an event and the
+concierge uses all 3 Swiggy MCP servers (Dineout, Food, Instamart) to
+actually plan and book it end-to-end. The differentiator over just asking
+ChatGPT/Gemini: a generic LLM can only *suggest* — it can't see live slot
+availability, can't confirm a coupon is still active, and can't place a
+real booking or checkout. Guest Concierge does all three, live, in one
+conversation. Gated on P6-B1 (Swiggy written consent, clause 2.1(v)) before
+any code starts. The two sides connect naturally later, once restaurants are
+real and listed on Swiggy — that's roadmap, not current state.
 
 **Being demoed to the Swiggy team. Every Swiggy integration must be polished,
 clearly attributed with Swiggy branding, and immediately legible.**
@@ -54,7 +80,7 @@ They are useful ONLY as chatbot context ("what did I order recently").
 
 ---
 
-## CRITICAL: Signed Swiggy Integration Agreement — compliance conflicts (UNRESOLVED)
+## CRITICAL: Signed Swiggy Integration Agreement — compliance plan (IN PROGRESS)
 
 A real Integration Agreement between Swiggy Limited and the dev (as an Individual
 Developer partner) was signed, effective **2026-07-09**, 1-year Term. The full
@@ -67,67 +93,76 @@ this codebase.
 **Not legal advice — this is an engineering-risk summary flagged for the
 dev to resolve with Swiggy directly, not something to silently code around.**
 
-### Flagged contradictions with current/planned work
+### Flagged contradictions — now tracked as concrete tasks
 
 1. **Clause 4(iv) — competitive-intelligence ban vs. the Market Intelligence
-   feature (P6-MI05–MI14, P6-A1).** The Agreement prohibits using the Swiggy
-   MCP "directly or indirectly, to (i) gather competitive intelligence on
-   Swiggy... restaurants, sellers... (ii) benchmark... a product... that
-   competes with... Swiggy's services." `CompetitorEnricher` and the
-   competitor-facing calls in `OccupancyEnricher` (`search_restaurants`,
-   `get_restaurant_menu`, `fetch_food_coupons`, `search_restaurants_dineout`,
-   `get_restaurant_details` scoped to competitor restaurant IDs) do exactly
-   this — it is the "knows what competitors are charging tonight" pitch in
-   the Product Vision above, and it is currently live/shipped code.
-   **Status: UNRESOLVED.** Do not build P6-A16 (Dineout competitive chatbot
-   tools) until this is clarified with Swiggy. Existing competitor-scoped
-   calls in `CompetitorEnricher`/`OccupancyEnricher` have NOT been removed —
-   flagged here for a decision, not yet remediated.
+   feature.** The Agreement prohibits using the Swiggy MCP "directly or
+   indirectly, to (i) gather competitive intelligence on Swiggy...
+   restaurants, sellers... (ii) benchmark... a product... that competes
+   with... Swiggy's services." `CompetitorEnricher` and the competitor-facing
+   calls in `OccupancyEnricher` do exactly this today — named restaurants,
+   named prices, named deals.
+   **Resolution: P6-A20** (tracker, Phase 6A) — replace all named-restaurant
+   output with area-level aggregates only ("area avg for North Indian mains:
+   Rs.265", "3 restaurants near you are HIGH occupancy tonight", "2
+   restaurants have active deals" — never a restaurant name, never an
+   individual price). The word "competitor" is being removed from all
+   outputs/prompts/UI in favor of "area market signals." **Not yet
+   remediated in code** — P6-A20 is Planned, not Completed, in the tracker.
 
-2. **Clause 6 (Exclusivity) vs. the Zomato stub connector (P6-A5, marked
-   Completed in the tracker).** The Agreement bars partnering with "any
-   other food delivery, dining out and/or quick commerce platform" for a
-   similar solution during the Term, and is enforceable by injunctive relief
-   (6.3) — not just damages. The Zomato stub connector is a direct conflict.
-   **Status: UNRESOLVED.**
+2. **Clause 6 (Exclusivity) vs. the Zomato stub connector.** The Agreement
+   bars partnering with "any other food delivery, dining out and/or quick
+   commerce platform" for a similar solution, enforceable by injunctive
+   relief (6.3) — not just damages. Confirmed via codebase audit this is
+   more than a name in one file: `ZomatoConnector` (a genuine no-op stub,
+   never calls a live API), `provider_registry.py`'s `CAPABILITY_PROVIDERS`
+   lists `zomato` alongside `swiggy` under `competitor_pricing` and
+   `order_history`, and the `/connectors` frontend page has a live "Zomato"
+   card. Bad optics under clause 17's audit rights even though nothing
+   actually calls Zomato.
+   **Resolution: P6-A19** (tracker, Phase 6A) — full removal: connector
+   file, both `provider_registry.py` entries, the frontend card, its test
+   file, and `ConnectorType.zomato` from the DB enum. Does **not** touch
+   `FeedbackSource.zomato` (separate enum, same file) — that's just a
+   provenance tag for feedback that originated from a Zomato review, no live
+   Zomato connection, legitimate to keep. **Not yet remediated in code.**
 
 3. **Clause 2.1(v) — prior written consent required before any new
-   implementation.** Any new use/invocation/integration of the Swiggy MCP
-   requires furnishing Swiggy full technical details in writing and getting
-   prior written consent *before* implementation — an ongoing obligation on
-   every future MCP-touching feature, not a one-time signing formality.
+   implementation.** An ongoing obligation on every future MCP-touching
+   feature, not a one-time signing formality. Applies most directly to
+   **Guest Concierge (Phase 6B)** — it's gated on **P6-B1** in the tracker
+   (send Swiggy a technical brief, get written sign-off) before any Phase 6B
+   code is written. Does not apply to weather/holiday signals (P6-A21) —
+   that's Open-Meteo + internal constants, zero Swiggy MCP.
 
 ### What remains fully compliant and unaffected
 
 - **Instamart procurement** (`search_products`, and `update_cart`/`get_cart`/
   `checkout` once staging creds land) — address-based, not restaurant-listing
   based, not competitive intelligence. This is the flagship real, live,
-  compliant Swiggy use case and does not depend on the dev's restaurant
-  having a real Swiggy listing.
+  compliant Swiggy use case (P6-A22's autonomous procurement loop) and does
+  not depend on the dev's restaurant having a real Swiggy listing.
 - Demand forecasting, business analytics, financial scorecard, Action Queue,
   trust-ladder mechanic, WhatsApp vendor coordination, Vendor/Supplier model
   — no Swiggy MCP dependency at all.
-- Weather + holiday signals (P6-A14, planned) — Open-Meteo + internal
-  constants, zero Swiggy MCP involvement.
+- Weather + holiday signals (P6-A21) — Open-Meteo + internal constants, zero
+  Swiggy MCP involvement.
 
-### Direction under discussion (not yet started)
+### Current plan — see the tracker for full task detail
 
-Pivot away from competitor-scoped Swiggy calls. Candidate replacement for
-"market intelligence": crowdsourced pricing from CortexKitchen's own
-restaurant network (opt-in, proprietary, not Swiggy-sourced) and/or leaning
-on context signals (weather/holiday/own analytics) instead of live
-competitor MCP pulls. A "Guest Concierge" consumer-facing pivot was explored
-and mostly discarded on realism grounds — holds up only for a narrow
-waitlist/overflow-referral case (guest not yet seated, restaurant at
-capacity), not as a flagship feature. Current flagship candidate for an
-end-to-end, fully compliant demo story: an **autonomous procurement loop** —
-weather/holiday + demand forecast → inventory shortage detected →
-`ProcurementEnricher` checks real Instamart prices → Action Queue surfaces
-a priced, approvable restock action via the trust ladder → real Instamart
-checkout once creds land → WhatsApp vendor coordination as fallback if an
-ingredient isn't available on Instamart. Ties together P6-A4/A6/A7/A9/A10/
-A12/A14 into one coherent narrative instead of scattered features. Not yet
-scoped as concrete tasks.
+Phase 6A remaining (11 tasks, P6-A19→A29, in order): compliance fixes first
+(A19 Zomato removal, A20 anonymise market intel) → weather/holiday signals
+(A21) → autonomous procurement loop, the flagship demo (A22) → Instamart
+event supplies in the operator chatbot (A23) → menu engineering matrix UI
+(A24) → structured outputs (A25) → voice interface (A26) → eval pipeline
+refresh (A27) → docs/screenshots (A28) → sync to main (A29). Full detail,
+acceptance criteria, and branch names are in the "Phase 6A" tracker sheet —
+this file is orientation, not a duplicate of it.
+
+Phase 6B (Guest Concierge, 9 tasks, P6-B1→B9) is scoped in the "Phase 6B"
+tracker sheet, gated entirely on P6-B1 (Swiggy consent) and starting only
+after P6-A29 (sync to main). Do not write Phase 6B code before that gate
+clears.
 
 ---
 

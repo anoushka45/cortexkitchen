@@ -1,13 +1,20 @@
 """BaseConnector ABC — contract for all external platform connectors.
 
-Every connector (Swiggy, Zomato, Google Reviews, Square POS, EazyDiner)
-implements this interface. Two modes:
+Every connector (Swiggy live; Square POS, Google Reviews as further
+examples of the pattern) implements this interface. Two modes:
 
   sync()   — nightly job, writes historical data to the DB (Layer 0)
   enrich() — at planning time, returns live signals without touching the DB
 
 Graceful degradation: enrich() must return None on any failure so that
 LangGraph nodes can fall back to synthetic data without crashing.
+
+This pattern is intentionally generic so the system can extend to future
+integrations without touching this file or provider_registry.py's structure
+-- only adding a new entry. Natural candidates: a different POS system, a
+loyalty/rewards platform, an accounting or inventory tool, a review
+aggregator, a payments processor. Kept single-provider (Swiggy) on the food
+delivery / dining-out / quick-commerce side for now.
 """
 
 import structlog
@@ -24,7 +31,7 @@ class BaseConnector(ABC):
 
     client is intentionally untyped (Any) -- this base class must not assume
     any single platform's client shape. SwiggyConnector uses SwiggyMCPClient;
-    a connector with no live API yet (e.g. ZomatoConnector) can pass None.
+    a connector with no live API yet can pass None.
     """
 
     def __init__(self, client: Any, db: Session, org_id: int) -> None:

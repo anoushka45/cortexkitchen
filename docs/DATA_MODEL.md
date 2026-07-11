@@ -43,7 +43,6 @@ class ConnectorType(str, Enum):
     swiggy         = "swiggy"
     pos_square     = "pos_square"
     google_reviews = "google_reviews"
-    zomato         = "zomato"
 
 class SyncStatus(str, Enum):
     never_synced = "never_synced"
@@ -291,7 +290,7 @@ Per-org external platform connector registry. Stores OAuth tokens (encrypted) an
 |--------|------|-------|
 | `id` | Integer PK | Auto-increment |
 | `org_id` | Integer FK → `organizations.id` | NOT NULL — tenant scoping |
-| `connector_type` | String(50) | NOT NULL — `swiggy`, `pos_square`, `google_reviews`, `zomato` |
+| `connector_type` | String(50) | NOT NULL — `swiggy`, `pos_square`, `google_reviews` |
 | `access_token_encrypted` | Text | Nullable — OAuth token (encrypted at rest) |
 | `token_expires_at` | DateTime | Nullable — 5-day TTL for Swiggy tokens |
 | `last_sync_at` | DateTime | Nullable — set on successful sync |

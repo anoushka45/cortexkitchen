@@ -36,13 +36,6 @@ class PricingComparison(BaseModel):
     direction: Literal["above", "below"] | None = None
 
 
-class CompetitorDeal(BaseModel):
-    restaurant: str
-    deal_title: str
-    discount: float
-    code: str = ""
-
-
 class PricingImpactItem(BaseModel):
     item: str
     our_price: float
@@ -53,10 +46,10 @@ class PricingImpactItem(BaseModel):
     weekly_revenue_impact_inr: float
 
 
-class NamedDish(BaseModel):
+class DishPrice(BaseModel):
+    """Dish name + price only -- never which restaurant serves it."""
     name: str
     price: float
-    restaurant: str
 
 
 class CategoryPricing(BaseModel):
@@ -66,20 +59,17 @@ class CategoryPricing(BaseModel):
     diff_pct: float
     verdict: Literal["above", "below", "in line"]
     competitor_dishes_sampled: int
-    cheapest_dish: NamedDish
-    priciest_dish: NamedDish
+    cheapest_dish: DishPrice
+    priciest_dish: DishPrice
 
 
-class CompetitorLandscapeEntry(BaseModel):
-    name: str
-    rating: float
-    total_ratings: str = ""
-    cost_for_two: float
-    distance_km: float
-    delivery_time_range: str = ""
-    cuisines: list[str] = []
-    offer: str = ""
-    veg: bool = False
+class LandscapeSummary(BaseModel):
+    """Area aggregate only -- no restaurant is individually named."""
+    count: int
+    avg_rating: float | None = None
+    cost_for_two_min: float | None = None
+    cost_for_two_max: float | None = None
+    offers_count: int = 0
 
 
 class PositioningInsight(BaseModel):
@@ -108,24 +98,18 @@ class VegMix(BaseModel):
 
 
 class CompetitorPricing(BaseModel):
-    restaurants_checked: list[str]
+    restaurants_checked_count: int = 0
     comparisons: list[PricingComparison]
-    competitor_deals: list[CompetitorDeal] = []
+    deals_active_count: int = 0
+    deals_summary: str = ""
     pricing_impact: list[PricingImpactItem] = []
     category_pricing: list[CategoryPricing] = []
-    competitor_landscape: list[CompetitorLandscapeEntry] = []
+    landscape_summary: LandscapeSummary | None = None
     positioning: PositioningInsight | None = None
     menu_breadth: MenuBreadth | None = None
     cuisine_crowding: CuisineCrowding | None = None
     veg_mix: VegMix | None = None
     fetched_at: str | None = None
-
-
-class CompetitorDineoutDeal(BaseModel):
-    name: str
-    deals: list[dict]
-    amenities: list[str] = []
-    timings: str = ""
 
 
 class SlotDeal(BaseModel):
@@ -145,7 +129,8 @@ class AreaOccupancy(BaseModel):
     signal: Literal["HIGH", "MEDIUM", "LOW"] | None = None
     tonight_busy: bool | None = None
     competitors_checked: int = 0
-    competitor_dineout_deals: list[CompetitorDineoutDeal] = []
+    dineout_deals_count: int = 0
+    dineout_deals_summary: str = ""
     slot_deals_found: list[SlotDeal] = []
     slot_availability_by_time: list[SlotAvailability] = []
     fetched_at: str | None = None
@@ -209,9 +194,9 @@ async def get_market_pulse(
         area_avg = competitor_ctx.get("area_avg") or {}
         our_price_by_name = {str(i["name"]).strip().lower(): i["price"] for i in our_items}
 
-        # Show EVERY competitor dish found (up to a display cap), not just the handful
-        # that happen to exact-string-match one of our own item names -- "competitor
-        # pricing across all dishes" means all dishes, matched or not. Matched dishes
+        # Show EVERY dish found nearby (up to a display cap), not just the handful
+        # that happen to exact-string-match one of our own item names -- "area pricing
+        # across all dishes" means all dishes, matched or not. Matched dishes
         # (our_price present) surface first so the actionable comparisons lead.
         comparisons: list[PricingComparison] = []
         for dish, avg_price in area_avg.items():
@@ -234,22 +219,20 @@ async def get_market_pulse(
         comparisons = comparisons[:40]
 
         positioning_data = competitor_ctx.get("positioning")
+        landscape_data = competitor_ctx.get("landscape_summary")
 
         competitor_pricing = CompetitorPricing(
-            restaurants_checked=competitor_ctx.get("restaurants") or [],
+            restaurants_checked_count=competitor_ctx.get("area_restaurant_count") or 0,
             comparisons=comparisons,
-            competitor_deals=[
-                CompetitorDeal(**deal) for deal in (competitor_ctx.get("competitor_deals") or [])
-            ],
+            deals_active_count=competitor_ctx.get("deals_active_count") or 0,
+            deals_summary=competitor_ctx.get("deals_summary") or "",
             pricing_impact=[
                 PricingImpactItem(**impact) for impact in (competitor_ctx.get("pricing_impact") or [])
             ],
             category_pricing=[
                 CategoryPricing(**cat) for cat in (competitor_ctx.get("category_pricing") or [])
             ],
-            competitor_landscape=[
-                CompetitorLandscapeEntry(**e) for e in (competitor_ctx.get("competitor_landscape") or [])
-            ],
+            landscape_summary=LandscapeSummary(**landscape_data) if landscape_data else None,
             positioning=PositioningInsight(**positioning_data) if positioning_data else None,
             menu_breadth=MenuBreadth(**competitor_ctx["menu_breadth"]) if competitor_ctx.get("menu_breadth") else None,
             cuisine_crowding=CuisineCrowding(**competitor_ctx["cuisine_crowding"]) if competitor_ctx.get("cuisine_crowding") else None,
@@ -263,9 +246,8 @@ async def get_market_pulse(
             signal=occupancy_ctx.get("occupancy_signal"),
             tonight_busy=occupancy_ctx.get("tonight_busy"),
             competitors_checked=occupancy_ctx.get("competitors_checked") or 0,
-            competitor_dineout_deals=[
-                CompetitorDineoutDeal(**d) for d in (occupancy_ctx.get("competitor_dineout_deals") or [])
-            ],
+            dineout_deals_count=occupancy_ctx.get("dineout_deals_count") or 0,
+            dineout_deals_summary=occupancy_ctx.get("dineout_deals_summary") or "",
             slot_deals_found=[
                 SlotDeal(**d) for d in (occupancy_ctx.get("slot_deals_found") or [])
             ],

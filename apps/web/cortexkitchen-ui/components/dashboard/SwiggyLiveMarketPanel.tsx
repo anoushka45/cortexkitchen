@@ -88,21 +88,21 @@ export default function SwiggyLiveMarketPanel() {
   const occupancy = data.area_occupancy;
   const procurement = data.procurement ?? [];
   const comparisons = pricing?.comparisons ?? [];
-  const foodDeals = pricing?.competitor_deals ?? [];
+  const dealsActiveCount = pricing?.deals_active_count ?? 0;
   const impacts = pricing?.pricing_impact ?? [];
   const categoryPricing = pricing?.category_pricing ?? [];
-  const competitorLandscape = pricing?.competitor_landscape ?? [];
+  const landscapeSummary = pricing?.landscape_summary ?? null;
   const positioning = pricing?.positioning ?? null;
   const menuBreadth = pricing?.menu_breadth ?? null;
   const cuisineCrowding = pricing?.cuisine_crowding ?? null;
   const vegMix = pricing?.veg_mix ?? null;
-  const dineoutDeals = occupancy?.competitor_dineout_deals ?? [];
+  const dineoutDealsCount = occupancy?.dineout_deals_count ?? 0;
   const slotDeals = occupancy?.slot_deals_found ?? [];
   const slotAvailability = occupancy?.slot_availability_by_time ?? [];
 
   const hasAnything =
     categoryPricing.length > 0 || comparisons.length > 0 || occupancy?.signal || procurement.length > 0 ||
-    dineoutDeals.length > 0 || slotDeals.length > 0 || foodDeals.length > 0 || competitorLandscape.length > 0;
+    dineoutDealsCount > 0 || slotDeals.length > 0 || dealsActiveCount > 0 || landscapeSummary !== null;
 
   if (!hasAnything) {
     return (
@@ -145,9 +145,9 @@ export default function SwiggyLiveMarketPanel() {
                     based on {c.competitor_dishes_sampled} nearby {c.category} dish{c.competitor_dishes_sampled !== 1 ? "es" : ""}
                   </p>
                   <p className="mt-1 text-[10px] text-[var(--color-text-faint)]">
-                    cheapest: <span className="text-emerald-300">{c.cheapest_dish.name} ₹{c.cheapest_dish.price}</span> ({c.cheapest_dish.restaurant})
+                    cheapest: <span className="text-emerald-300">{c.cheapest_dish.name} ₹{c.cheapest_dish.price}</span>
                     {" · "}
-                    priciest: <span className="text-rose-300">{c.priciest_dish.name} ₹{c.priciest_dish.price}</span> ({c.priciest_dish.restaurant})
+                    priciest: <span className="text-rose-300">{c.priciest_dish.name} ₹{c.priciest_dish.price}</span>
                   </p>
                 </div>
               ))}
@@ -159,14 +159,10 @@ export default function SwiggyLiveMarketPanel() {
         {/* 2. Market Context -- menu breadth, cuisine crowding, veg mix */}
         {(menuBreadth || cuisineCrowding || vegMix) && (
           <Card title="Market Context" source="search_restaurants + get_restaurant_menu (derived)" wide>
-            {pricing && pricing.restaurants_checked.length > 0 && (
-              <div className="mb-3 flex flex-wrap gap-1.5">
-                {pricing.restaurants_checked.map((name) => (
-                  <span key={name} className="rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-2 py-0.5 text-[10px] text-[var(--color-text-faint)]">
-                    {name}
-                  </span>
-                ))}
-              </div>
+            {pricing && pricing.restaurants_checked_count > 0 && (
+              <p className="mb-3 text-[10px] text-[var(--color-text-faint)]">
+                {pricing.restaurants_checked_count} nearby restaurant{pricing.restaurants_checked_count !== 1 ? "s" : ""} checked
+              </p>
             )}
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               {menuBreadth && (
@@ -211,28 +207,19 @@ export default function SwiggyLiveMarketPanel() {
           </Card>
         )}
 
-        {/* 4. Competitor Swiggy Deals -- full coupon detail */}
-        {foodDeals.length > 0 && (
-          <Card title={`Competitor Swiggy Deals (${foodDeals.length})`} source="fetch_food_coupons">
-            <div className="space-y-1.5">
-              {foodDeals.map((d, i) => (
-                <div key={i} className="rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-amber-200">{d.restaurant}</span>
-                    <span className="text-amber-300/90 text-right">{d.deal_title}</span>
-                  </div>
-                  <p className="mt-0.5 text-[10px] text-[var(--color-text-ghost)]">
-                    {d.discount}{d.discount <= 100 ? "% off" : " off"}{d.code ? ` · code ${d.code}` : ""}
-                  </p>
-                </div>
-              ))}
+        {/* 4. Area Deals -- aggregate count/summary, no restaurant names */}
+        {dealsActiveCount > 0 && (
+          <Card title="Area Deals Tonight" source="fetch_food_coupons (area aggregate)">
+            <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2.5 text-xs">
+              <p className="font-medium text-amber-200">{dealsActiveCount} deal{dealsActiveCount !== 1 ? "s" : ""} active nearby</p>
+              <p className="mt-1 text-[10px] text-amber-300/90">{pricing?.deals_summary}</p>
             </div>
           </Card>
         )}
 
-        {/* 5. Competitor Landscape -- full detail per competitor */}
-        {competitorLandscape.length > 0 && (
-          <Card title={`Competitor Landscape (${competitorLandscape.length})`} source="search_restaurants" wide>
+        {/* 5. Nearby Market Landscape -- area aggregate, no named restaurants */}
+        {landscapeSummary && (
+          <Card title="Nearby Market Landscape" source="search_restaurants (area aggregate)" wide>
             {positioning && (
               <div className="mb-3 rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-3 py-2.5">
                 <p className="text-sm text-[var(--color-text-primary)]">
@@ -244,26 +231,31 @@ export default function SwiggyLiveMarketPanel() {
                 </p>
               </div>
             )}
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 max-h-[400px] overflow-y-auto pr-1 scrollbar-thin">
-              {[...competitorLandscape].sort((a, b) => a.distance_km - b.distance_km).map((c) => (
-                <div key={c.name} className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-3 py-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-medium text-[var(--color-text-primary)] truncate">{c.name}</p>
-                    {c.veg && <span className="shrink-0 rounded border border-emerald-500/30 px-1 text-[9px] text-emerald-300">VEG</span>}
-                  </div>
-                  <p className="mt-1 text-[10px] text-[var(--color-text-faint)]">
-                    {c.rating.toFixed(1)}★{c.total_ratings ? ` (${c.total_ratings})` : ""} · {c.distance_km.toFixed(1)}km · {c.delivery_time_range || "—"}
-                  </p>
-                  <p className="mt-0.5 font-mono text-xs font-semibold text-[var(--color-text-primary)]">₹{c.cost_for_two} for two</p>
-                  {c.cuisines.length > 0 && (
-                    <p className="mt-1 text-[9px] text-[var(--color-text-ghost)]">{c.cuisines.join(" · ")}</p>
-                  )}
-                  {c.offer && (
-                    <p className="mt-1 text-[10px] text-amber-300">{c.offer}</p>
-                  )}
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
+                <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Nearby options</p>
+                <p className="mt-1 font-mono text-sm font-semibold text-[var(--color-text-primary)]">{landscapeSummary.count}</p>
+              </div>
+              {landscapeSummary.avg_rating !== null && (
+                <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
+                  <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Avg rating</p>
+                  <p className="mt-1 font-mono text-sm font-semibold text-[var(--color-text-primary)]">{landscapeSummary.avg_rating}★</p>
                 </div>
-              ))}
+              )}
+              {landscapeSummary.cost_for_two_min !== null && (
+                <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
+                  <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Cost for two range</p>
+                  <p className="mt-1 font-mono text-sm font-semibold text-[var(--color-text-primary)]">
+                    ₹{landscapeSummary.cost_for_two_min}–₹{landscapeSummary.cost_for_two_max}
+                  </p>
+                </div>
+              )}
             </div>
+            {landscapeSummary.offers_count > 0 && (
+              <p className="mt-2 text-[10px] text-amber-300">
+                {landscapeSummary.offers_count} nearby option{landscapeSummary.offers_count !== 1 ? "s" : ""} running an active offer
+              </p>
+            )}
           </Card>
         )}
 
@@ -283,12 +275,12 @@ export default function SwiggyLiveMarketPanel() {
               </span>
               <p className="text-xs text-[var(--color-text-soft)]">
                 {occupancy.signal === "HIGH"
-                  ? "Nearby competitors are nearly full — expect walk-in overflow tonight."
+                  ? "Nearby restaurants are nearly full — expect walk-in overflow tonight."
                   : occupancy.signal === "MEDIUM"
-                  ? "Nearby competitors have moderate availability tonight."
-                  : "Nearby competitors have ample availability — no unusual demand pressure expected."}
+                  ? "Nearby restaurants have moderate availability tonight."
+                  : "Nearby restaurants have ample availability — no unusual demand pressure expected."}
               </p>
-              <p className="text-[10px] text-[var(--color-text-ghost)]">{occupancy.competitors_checked} competitor(s) checked</p>
+              <p className="text-[10px] text-[var(--color-text-ghost)]">{occupancy.competitors_checked} restaurant(s) checked</p>
             </div>
           ) : (
             <p className="text-xs text-[var(--color-text-ghost)] italic">Occupancy data unavailable — add a Dineout saved location to your Swiggy account.</p>
@@ -309,26 +301,12 @@ export default function SwiggyLiveMarketPanel() {
           )}
         </Card>
 
-        {/* 7. Dineout Competitor Deals & Amenities -- ALL deals per restaurant */}
-        {dineoutDeals.length > 0 && (
-          <Card title={`Dineout Competitor Deals (${dineoutDeals.length})`} source="get_restaurant_details">
-            <div className="space-y-2">
-              {dineoutDeals.map((d, i) => (
-                <div key={i} className="rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-xs">
-                  <p className="font-medium text-amber-200">{d.name}</p>
-                  <div className="mt-1 space-y-0.5">
-                    {d.deals.map((deal, j) => (
-                      <p key={j} className="text-amber-300/90">
-                        {deal.is_free ? deal.title : `${deal.title} (${deal.discount_pct.toFixed(0)}%)`}
-                      </p>
-                    ))}
-                  </div>
-                  {d.amenities.length > 0 && (
-                    <p className="mt-1 text-[10px] text-[var(--color-text-ghost)]">{d.amenities.join(" · ")}</p>
-                  )}
-                  {d.timings && <p className="mt-0.5 text-[10px] text-[var(--color-text-faint)]">{d.timings}</p>}
-                </div>
-              ))}
+        {/* 7. Dineout Deals -- aggregate count/summary, no restaurant names */}
+        {dineoutDealsCount > 0 && (
+          <Card title="Dineout Deals Tonight" source="get_restaurant_details (area aggregate)">
+            <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2.5 text-xs">
+              <p className="font-medium text-amber-200">{dineoutDealsCount} deal{dineoutDealsCount !== 1 ? "s" : ""} active nearby</p>
+              <p className="mt-1 text-[10px] text-amber-300/90">{occupancy?.dineout_deals_summary}</p>
             </div>
           </Card>
         )}

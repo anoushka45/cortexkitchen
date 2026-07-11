@@ -169,15 +169,16 @@ _TOOLS = [
             },
         },
     },
-    # ── Swiggy Dineout competitive-intelligence tools (P6-MI04) ─────────────
+    # ── Swiggy Dineout area-market tools (P6-MI04) ──────────────────────────
     {
         "type": "function",
         "function": {
             "name": "swiggy_get_competitor_deals",
             "description": (
-                "Get live promotional deals competitors are running right now, combining Swiggy "
-                "Food coupons and Dineout pre-booking offers. Use when the user asks what deals "
-                "or offers competitors have tonight, or whether anyone nearby is discounting."
+                "Get a count/summary of live promotional deals active nearby right now, combining "
+                "Swiggy Food coupons and Dineout pre-booking offers. Area aggregate only -- no "
+                "individual restaurant names or per-restaurant deal detail. Use when the user asks "
+                "what deals or offers are around tonight, or whether anyone nearby is discounting."
             ),
             "parameters": {
                 "type": "object",
@@ -196,9 +197,9 @@ _TOOLS = [
         "function": {
             "name": "swiggy_get_area_occupancy",
             "description": (
-                "Get how full nearby competitor restaurants are right now, based on live Swiggy "
-                "Dineout table availability. Use when the user asks how busy the area is, whether "
-                "competitors are full, or what tonight's demand signal looks like."
+                "Get how full nearby restaurants are right now, based on live Swiggy Dineout table "
+                "availability. Area aggregate signal only. Use when the user asks how busy the area "
+                "is or what tonight's demand signal looks like."
             ),
             "parameters": {
                 "type": "object",
@@ -217,11 +218,11 @@ _TOOLS = [
         "function": {
             "name": "swiggy_get_common_dishes",
             "description": (
-                "Get dishes that commonly appear across nearby competitor menus on Swiggy, with "
-                "area-average pricing for each. NOTE: this reflects menu presence, not order "
-                "volume or popularity — Swiggy's consumer API does not expose competitor sales "
-                "data. Use when the user asks what dishes competitors are commonly offering or "
-                "what's typically priced around a certain range nearby."
+                "Get dishes that commonly appear across nearby menus on Swiggy, with area-average "
+                "pricing for each. NOTE: this reflects menu presence, not order volume or "
+                "popularity — Swiggy's consumer API does not expose sales data. Use when the user "
+                "asks what dishes are commonly offered nearby or what's typically priced around a "
+                "certain range in the area."
             ),
             "parameters": {
                 "type": "object",
@@ -244,10 +245,10 @@ _TOOLS = [
             "name": "get_market_brief",
             "description": (
                 "Get a full live market snapshot: category-level pricing vs the area average, "
-                "your competitive positioning, menu breadth, cuisine crowding, veg/non-veg mix, "
-                "live competitor deals, and area occupancy tonight. Broader than the individual "
+                "your market positioning, menu breadth, cuisine crowding, veg/non-veg mix, "
+                "live area deals, and area occupancy tonight. Broader than the individual "
                 "swiggy_* tools -- use when the user asks for an overall market summary or "
-                "'how are we doing competitively' rather than one specific signal."
+                "'how are we doing' rather than one specific signal."
             ),
             "parameters": {
                 "type": "object",
@@ -475,15 +476,17 @@ async def _run_swiggy_tool(name: str, args: dict, org_id: int = 0) -> str:
                 CompetitorEnricher(client).enrich(context),
                 OccupancyEnricher(client).enrich(context),
             )
-            food_deals = (competitor_ctx or {}).get("competitor_deals") or []
-            dineout_deals = (occupancy_ctx or {}).get("competitor_dineout_deals") or []
+            food_deals_count = (competitor_ctx or {}).get("deals_active_count") or 0
+            food_deals_summary = (competitor_ctx or {}).get("deals_summary") or ""
+            dineout_deals_count = (occupancy_ctx or {}).get("dineout_deals_count") or 0
+            dineout_deals_summary = (occupancy_ctx or {}).get("dineout_deals_summary") or ""
             slot_deals = (occupancy_ctx or {}).get("slot_deals_found") or []
-            if not food_deals and not dineout_deals and not slot_deals:
-                return json.dumps({"error": "No competitor deal data available right now"})
+            if not food_deals_count and not dineout_deals_count and not slot_deals:
+                return json.dumps({"error": "No area deal data available right now"})
             return json.dumps({
-                "source": "Swiggy Food + Dineout (live)",
-                "food_swiggy_deals": food_deals,
-                "dineout_prebooking_deals": dineout_deals,
+                "source": "Swiggy Food + Dineout (live, area aggregate)",
+                "food_deals_summary": food_deals_summary,
+                "dineout_prebooking_deals_summary": dineout_deals_summary,
                 "dineout_slot_deals_tonight": slot_deals,
             })
 

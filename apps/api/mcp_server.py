@@ -321,11 +321,10 @@ async def _handle_get_market_brief(args: dict) -> list[types.TextContent]:
         )
         lines.append("")
 
-    deals = pricing.get("competitor_deals") or []
-    if deals:
-        lines.append("## Live competitor deals")
-        for d in deals[:5]:
-            lines.append(f"- {d['restaurant']}: {d['deal_title']} ({d.get('code', '')})")
+    deals_summary = pricing.get("deals_summary")
+    if deals_summary:
+        lines.append("## Live area deals")
+        lines.append(f"- {deals_summary}")
         lines.append("")
 
     occupancy = result.get("area_occupancy") or {}

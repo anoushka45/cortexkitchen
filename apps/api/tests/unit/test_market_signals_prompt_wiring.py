@@ -1,7 +1,12 @@
-"""P6-A1: menu_breadth/cuisine_crowding/veg_mix/competitor_landscape were computed
+"""P6-A1: menu_breadth/cuisine_crowding/veg_mix/landscape_summary were computed
 and shown on /market but never reached _build_prompt(), so the LLM never saw them.
 These tests confirm they're now wired into prompt_text, without disturbing the
 existing category_pricing/positioning/deals/pricing_impact lines.
+
+P6-A20 update: _build_prompt's signature dropped named-restaurant params
+(cheapest, restaurant_names, competitor_landscape, competitor_dineout_deals) in
+favor of area aggregates (area_restaurant_count, deals_active_count/summary,
+landscape_summary, dineout_deals_count/summary) -- calls below updated to match.
 """
 
 from unittest.mock import MagicMock
@@ -23,7 +28,7 @@ def _occupancy_enricher():
 def test_prompt_includes_menu_breadth_when_present():
     enricher = _competitor_enricher()
     prompt = enricher._build_prompt(
-        area_avg={}, cheapest={}, alerts=[], restaurant_names=["Comp A"], our_items=[],
+        area_avg={}, alerts=[], area_restaurant_count=1, our_items=[],
         menu_breadth={"your_item_count": 27, "competitor_avg_item_count": 19.7, "competitors_sampled": 3},
     )
     assert "Menu breadth" in prompt
@@ -34,7 +39,7 @@ def test_prompt_includes_menu_breadth_when_present():
 def test_prompt_includes_cuisine_crowding_when_present():
     enricher = _competitor_enricher()
     prompt = enricher._build_prompt(
-        area_avg={}, cheapest={}, alerts=[], restaurant_names=[], our_items=[],
+        area_avg={}, alerts=[], area_restaurant_count=0, our_items=[],
         cuisine_crowding={"cuisine": "italian", "matching_count": 2, "total_checked": 5},
     )
     assert "Cuisine crowding" in prompt
@@ -45,46 +50,51 @@ def test_prompt_includes_cuisine_crowding_when_present():
 def test_prompt_includes_veg_mix_when_present():
     enricher = _competitor_enricher()
     prompt = enricher._build_prompt(
-        area_avg={}, cheapest={}, alerts=[], restaurant_names=[], our_items=[],
+        area_avg={}, alerts=[], area_restaurant_count=0, our_items=[],
         veg_mix={"veg_count": 3, "total": 5},
     )
     assert "veg/non-veg mix" in prompt.lower()
     assert "3 of 5" in prompt
 
 
-def test_prompt_includes_competitor_landscape_top_by_rating():
+def test_prompt_includes_landscape_summary_as_area_aggregate():
+    """P6-A20: landscape is now a count/avg-rating/cost-range aggregate -- no
+    restaurant is individually named in the prompt."""
     enricher = _competitor_enricher()
-    landscape = [
-        {"name": "Low Rated", "rating": 3.2, "cost_for_two": 300.0, "distance_km": 1.0, "offer": None},
-        {"name": "Top Rated", "rating": 4.8, "cost_for_two": 600.0, "distance_km": 2.0, "offer": "40% OFF"},
-    ]
+    landscape_summary = {
+        "count": 2, "avg_rating": 4.0, "cost_for_two_min": 300.0,
+        "cost_for_two_max": 600.0, "offers_count": 1,
+    }
     prompt = enricher._build_prompt(
-        area_avg={}, cheapest={}, alerts=[], restaurant_names=[], our_items=[],
-        competitor_landscape=landscape,
+        area_avg={}, alerts=[], area_restaurant_count=0, our_items=[],
+        landscape_summary=landscape_summary,
     )
-    assert "Competitor landscape" in prompt
-    assert "Top Rated" in prompt
-    assert "40% OFF" in prompt
-    # sorted by rating descending -- Top Rated line should appear before Low Rated
-    assert prompt.index("Top Rated") < prompt.index("Low Rated")
+    assert "Nearby market landscape" in prompt
+    assert "2 nearby option" in prompt
+    assert "4.0 stars" in prompt
+    assert "300" in prompt and "600" in prompt
+    assert "running an active offer" in prompt
+    # No restaurant should ever be individually named in this section.
+    assert "Low Rated" not in prompt
+    assert "Top Rated" not in prompt
 
 
 def test_prompt_omits_new_sections_when_absent():
     enricher = _competitor_enricher()
     prompt = enricher._build_prompt(
-        area_avg={}, cheapest={}, alerts=[], restaurant_names=[], our_items=[],
+        area_avg={}, alerts=[], area_restaurant_count=0, our_items=[],
     )
     assert "Menu breadth" not in prompt
     assert "Cuisine crowding" not in prompt
     assert "veg/non-veg mix" not in prompt.lower()
-    assert "Competitor landscape" not in prompt
+    assert "Nearby market landscape" not in prompt
 
 
 def test_prompt_existing_sections_unaffected_by_new_signals():
     enricher = _competitor_enricher()
     prompt = enricher._build_prompt(
-        area_avg={"biryani": 250.0}, cheapest={"biryani": {"price": 220.0, "restaurant": "X"}},
-        alerts=["Butter Chicken: 12% above area avg"], restaurant_names=["X"],
+        area_avg={"biryani": 250.0},
+        alerts=["Butter Chicken: 12% above area avg"], area_restaurant_count=1,
         our_items=[{"name": "Biryani", "price": 260.0}],
         category_pricing=[{"category": "mains", "your_avg": 300.0, "area_avg": 250.0,
                             "diff_pct": 20.0, "verdict": "above", "competitor_dishes_sampled": 2}],
@@ -128,7 +138,7 @@ def test_occupancy_prompt_existing_sections_unaffected():
     enricher = _occupancy_enricher()
     prompt = enricher._build_prompt(
         signal="HIGH", competitors=4, avg_count=0.8,
-        competitor_dineout_deals=[{"name": "Comp A", "deals": [{"title": "20% off", "is_free": False, "discount_pct": 20.0}]}],
+        dineout_deals_count=1, dineout_deals_summary="1 nearby restaurant has active Dineout deals tonight.",
         slot_deals=[{"time": "8:00 PM", "deal_title": "Free dessert", "discount_pct": 15.0}],
         slot_availability_by_time=[
             {"time": "7:00 PM", "avg_availability": 1.0, "signal": "HIGH"},
@@ -136,5 +146,6 @@ def test_occupancy_prompt_existing_sections_unaffected():
         ],
     )
     assert "Occupancy Signal" in prompt
-    assert "Competitor Dineout Deals Tonight" in prompt
+    assert "Dineout Deals Tonight" in prompt
+    assert "1 nearby restaurant has active Dineout deals tonight." in prompt
     assert "Occupancy By Time Slot" in prompt

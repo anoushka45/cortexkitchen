@@ -95,11 +95,11 @@ def test_update_sync_status_clears_error_on_success(repo, org_id):
 
 def test_list_active_filters_by_type(repo, org_id):
     repo.upsert(org_id, "swiggy", access_token_encrypted="tok_swiggy")
-    repo.upsert(org_id, "zomato")  # no token
+    repo.upsert(org_id, "pos_square")  # no token
 
     active = repo.list_active(connector_type="swiggy")
     assert len(active) == 1
     assert active[0].connector_type == "swiggy"
 
     all_active = repo.list_active()
-    assert len(all_active) == 1  # zomato has no token
+    assert len(all_active) == 1  # pos_square has no token

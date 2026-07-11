@@ -8,9 +8,10 @@ No DB migration needed — reads from the existing `connectors` table which
 already tracks per-org platform health (sync_status, error_count).
 
 Adding a new provider means:
-  1. Insert a row into CAPABILITY_PROVIDERS below (already done for "zomato" here)
-  2. Implement a BaseConnector subclass for it (done: app/infrastructure/zomato/
-     ZomatoConnector -- currently a stub with no live API, returns None/not_connected)
+  1. Insert a row into CAPABILITY_PROVIDERS below
+  2. Implement a BaseConnector subclass for it (see base_connector.py for the
+     kinds of providers this fits -- POS systems, review platforms, loyalty/
+     rewards, accounting/inventory tools, payment processors)
   3. The registry automatically routes to it once the org has an active connector row
      with a healthy sync_status for that provider -- no other code changes needed
 """
@@ -18,10 +19,10 @@ Adding a new provider means:
 from sqlalchemy.orm import Session
 
 CAPABILITY_PROVIDERS: dict[str, list[str]] = {
-    "competitor_pricing": ["swiggy", "zomato"],
-    "reservation_data":   ["swiggy", "eazydiner"],
+    "competitor_pricing": ["swiggy"],
+    "reservation_data":   ["swiggy"],
     "procurement":        ["swiggy"],
-    "order_history":      ["swiggy", "zomato"],
+    "order_history":      ["swiggy"],
 }
 
 # Maps capability → Swiggy endpoint tag for circuit breaker lookup.

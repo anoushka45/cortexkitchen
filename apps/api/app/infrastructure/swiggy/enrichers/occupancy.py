@@ -24,6 +24,7 @@ from typing import Optional
 import redis.asyncio as aioredis
 import structlog
 
+from app.core.constants import DEFAULT_RESTAURANT_LAT, DEFAULT_RESTAURANT_LNG
 from app.core.settings import get_settings
 from app.infrastructure.swiggy.client import DINEOUT_ENDPOINT, SwiggyMCPClient
 
@@ -150,14 +151,26 @@ class OccupancyEnricher:
         return result
 
     async def _get_location(self) -> Optional[dict]:
-        """Call get_saved_locations and return the first location with lat/lng."""
+        """Call get_saved_locations and return the first usable location.
+
+        Swiggy's Dineout get_saved_locations response does not actually include
+        lat/lng fields (confirmed live -- only id/addressLine/phoneNumber/
+        addressCategory/addressTag come back), even though get_available_slots
+        and get_restaurant_details require latitude/longitude. Falls back to
+        DEFAULT_RESTAURANT_LAT/LNG (the same address, already used for the
+        weather signal) for any saved location that has an id but no lat/lng,
+        rather than treating "no lat/lng in the response" as "no saved location."
+        """
         data = await self._client.call_tool(DINEOUT_ENDPOINT, "get_saved_locations", {})
         if not data:
             return None
         locations = data.get("locations") or []
         for loc in locations:
-            if loc.get("lat") and loc.get("lng"):
-                return {"id": str(loc["id"]), "lat": float(loc["lat"]), "lng": float(loc["lng"])}
+            if not loc.get("id"):
+                continue
+            lat = loc.get("lat") or DEFAULT_RESTAURANT_LAT
+            lng = loc.get("lng") or DEFAULT_RESTAURANT_LNG
+            return {"id": str(loc["id"]), "lat": float(lat), "lng": float(lng)}
         return None
 
     async def _get_competitors(self, cuisine: str, location_id: str) -> list[dict]:

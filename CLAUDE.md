@@ -2,12 +2,16 @@
 
 > **Read this file completely before touching any code.**
 > Last updated: P6-A19/P6-A20 (compliance batch) merged to `dev`. Tracker
-> restructured — P6-A21 onward renumbered to P6-A21→A34 to fit 4 new
-> live-intelligence + scenario-overhaul tasks (P6-A21–A26) ahead of the
-> procurement loop, which now depends on P6-A24 instead of the old P6-A21.
-> Next up: P6-A21–A26 on one combined branch `feature/live-intelligence-signals`.
-> Not yet started — pending explicit go-ahead. See the tracker for full task
-> detail (Phase 6A / Phase 6B sheets) — this file gives orientation, the
+> restructured twice — P6-A21 onward now runs P6-A21→A36 to fit the live-
+> intelligence signals (A21-A24), scenario overhaul (A25), and a real-product
+> IA pass adding two new tasks (Today Dashboard redesign A26, Data page
+> redesign A27) plus retargeting Menu Engineering Matrix (A28) to the new
+> Data page. Nine tasks (P6-A21–A29) share one combined branch
+> `feature/live-intelligence-signals`. Procurement loop (now A30) depends on
+> A24, not the old A21. In progress: starting P6-A21 (weather + holiday
+> signals with a real numeric adjustment to Prophet's forecast, not just
+> narrative prompt text). See the tracker for full task detail (Phase 6A /
+> Phase 6B sheets) — this file gives orientation, the
 > tracker is the source of truth for task-level status.
 > Reference zip: cortexkitchen-dev (latest dev branch)
 
@@ -163,7 +167,7 @@ dev to resolve with Swiggy directly, not something to silently code around.**
 - **Instamart procurement** (`search_products`, and `update_cart`/`get_cart`/
   `checkout` once staging creds land) — address-based, not restaurant-listing
   based, not competitive intelligence. This is the flagship real, live,
-  compliant Swiggy use case (P6-A27's autonomous procurement loop) and does
+  compliant Swiggy use case (P6-A30's autonomous procurement loop) and does
   not depend on the dev's restaurant having a real Swiggy listing.
 - Demand forecasting, business analytics, financial scorecard, Action Queue,
   trust-ladder mechanic, WhatsApp vendor coordination, Vendor/Supplier model
@@ -174,38 +178,55 @@ dev to resolve with Swiggy directly, not something to silently code around.**
 
 ### Current plan — see the tracker for full task detail
 
-Phase 6A remaining (14 tasks, P6-A21→A34, in order): compliance batch DONE
+Phase 6A remaining (16 tasks, P6-A21→A36, in order): compliance batch DONE
 (A19 Zomato removal, A20 anonymise market intel — both complete on
 `feature/compliance-fixes`, merged to `dev`).
 
-Next up — **live intelligence + scenario overhaul**, one combined branch
-(`feature/live-intelligence-signals`) since these are tightly coupled: four
-independently fail-open signal services — weather/holidays (A21), industry
-trends via RSS (A22), regulatory alerts via FSSAI (A23) — merged with the
-existing anonymised Swiggy area signals inside the *existing*
-`market_intel_node`/`MarketIntelService` rather than a new graph node (A24,
-"unify"), so none of the state field names 5+ other files already read by
-name have to change. Alongside that: a scenario-selection overhaul (A25) —
-the 4 scenarios are hardcoded end-to-end today and `demand_forecast` doesn't
-actually branch its algorithm on which one is picked (only labeling text
-does) — replacing that with either an expanded dynamic option list or
-free-form natural language ("we're hosting an event today...") parsed into
-an ad-hoc scenario profile, with the 4 presets kept as shortcuts, not
-replaced. Then a validation checkpoint (A26, conditional) on whether richer
-signals alone fix the "generic action items" feedback, before committing to
-a separate prompt-engineering task.
+Next up — **nine tasks (P6-A21–A29) on one combined branch**
+(`feature/live-intelligence-signals`), since live intelligence, scenario
+intake, and the dashboard/data-page IA redesign are all tightly coupled:
 
-Then: autonomous procurement loop, the flagship demo (A27, now depends on
-A24 — needs live signals actually wired in, not just existing) → Instamart
-event supplies in the operator chatbot (A28) → menu engineering matrix UI
-(A29) → structured outputs (A30) → voice interface (A31) → eval pipeline
-refresh (A32) → docs/screenshots (A33) → sync to main (A34). Full detail,
-acceptance criteria, and branch names are in the "Phase 6A" tracker sheet —
-this file is orientation, not a duplicate of it.
+1. **A21 Weather + holidays**, **A22 industry trends (RSS)**, **A23
+   regulatory alerts (FSSAI)** — three independently fail-open signal
+   services. A21 also applies a real deterministic multiplier to Prophet's
+   raw forecast (holiday/weather-adjusted, not just narrative prompt text —
+   the actual fix for "scenario only changes labels, not the number").
+2. **A24 "unify"** — merges all three plus the existing anonymised Swiggy
+   area signals inside the *existing* `market_intel_node`/`MarketIntelService`
+   rather than a new graph node, so the state field names 5+ other files
+   already read by name never change.
+3. **A25 scenario-selection overhaul** — the 4 scenarios are hardcoded
+   end-to-end today and `demand_forecast` doesn't algorithmically branch on
+   which one is picked (only labeling text does). Backend relaxation +
+   natural-language-to-profile service + the input widget itself; presets
+   kept as shortcuts, not replaced.
+4. **A26 Today Dashboard redesign** — real-product IA decision: merges
+   `/operations` into `/dashboard` (trigger a plan and watch it complete in
+   one view, not two pages), adds a live-signals context strip next to the
+   scenario picker, and gives the Action Queue — Phase 6A's biggest existing
+   feature — an actual primary-nav home for the first time.
+5. **A27 Data page redesign** — merges `/runs` + `/data-health` into one
+   page with the existing design system (fixing `/runs`'s known
+   weakest-screen problem and the `/runs/{id}` 404), adds an Action Queue
+   history section that doesn't exist anywhere today.
+6. **A28 Menu Engineering Matrix** — retargeted to live on the new Data page
+   (analytical/historical, not a daily trigger-time decision) instead of the
+   now-merged `/operations`.
+7. **A29 action-item specificity validation (conditional)** — checks whether
+   richer signals + the redesigned Today view already fix the "generic
+   response" feedback before committing to a separate prompt-engineering task.
+
+Then, each on its own existing branch: autonomous procurement loop, the
+flagship demo (**A30**, depends on A24 — needs live signals actually wired
+in) → Instamart event supplies in the operator chatbot (**A31**) →
+structured outputs (**A32**) → voice interface (**A33**) → eval pipeline
+refresh (**A34**) → docs/screenshots (**A35**) → sync to main (**A36**).
+Full detail, acceptance criteria, and branch names are in the "Phase 6A"
+tracker sheet — this file is orientation, not a duplicate of it.
 
 Phase 6B (Guest Concierge, 9 tasks, P6-B1→B9) is scoped in the "Phase 6B"
 tracker sheet, gated entirely on P6-B1 (Swiggy consent) and starting only
-after P6-A34 (sync to main). Do not write Phase 6B code before that gate
+after P6-A36 (sync to main). Do not write Phase 6B code before that gate
 clears.
 
 ---

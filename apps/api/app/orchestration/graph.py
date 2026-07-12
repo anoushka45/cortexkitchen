@@ -192,6 +192,66 @@ def _log_node(node_fn, traces: list):
 
 # ── Conditional edges ────────────────────────────────────────────────────────
 
+_REPLAY_METADATA_KEYS = (
+    "is_replay",
+    "kindred_replay_run_id",
+    "kindred_original_session_id",
+    "kindred_include_prior_context",
+    "kindred_turn_trace_id",
+)
+
+
+def _langfuse_run_context(
+    _org_id: int | None, run_id: str, replay_metadata: dict | None = None
+) -> tuple[list, dict]:
+    """Build the Langfuse callback + Kindred metadata for one planning-graph invocation.
+
+    No-ops (empty callbacks/metadata) when Langfuse isn't configured — Kindred
+    replay debugging is optional instrumentation, never a hard requirement to run
+    a plan. session_id is scoped to this one run (not shared across every run
+    from an org) — Kindred needs a clean 1:1 original-run <-> replay-run mapping
+    to find the matching original for a replayed turn; a shared org-wide session
+    pools every unrelated run's observations together and breaks that lookup
+    (found live: a single "org-1" session had accumulated 199 observations
+    across dozens of unrelated runs). org_id is accepted but no longer folded
+    into session_id — kept as a parameter for callers/tests, not dead code to
+    remove without checking call sites.
+
+    replay_metadata (only passed by the /replay endpoint): when it carries
+    kindred_original_session_id, the replay trace joins that exact same
+    per-run session instead of getting its own, so Kindred can line up
+    original vs. replay side by side. Only non-None replay keys are attached,
+    so a normal (non-replay) run's trace is completely unaffected.
+    """
+    from app.core.settings import get_settings
+    settings = get_settings()
+    if not settings.langfuse_secret_key:
+        return [], {}
+
+    from langfuse.langchain import CallbackHandler
+    replay_metadata = replay_metadata or {}
+    session_id = replay_metadata.get("kindred_original_session_id") or run_id
+    metadata = {
+        "agent_id": settings.kindred_agent_id,
+        "session_id": session_id,
+        "langfuse_session_id": session_id,
+    }
+    for key in _REPLAY_METADATA_KEYS:
+        if replay_metadata.get(key) is not None:
+            metadata[key] = replay_metadata[key]
+    return [CallbackHandler()], metadata
+
+
+def _flush_langfuse(langfuse_callbacks: list) -> None:
+    if not langfuse_callbacks:
+        return
+    try:
+        from langfuse import get_client
+        get_client().flush()
+    except Exception:
+        pass
+
+
 def _route_after_ops_manager(state: OrchestratorState) -> str:
     if state.get("error"):
         return FINAL_ASSEMBLER
@@ -352,6 +412,7 @@ async def run_planning_scenario(
     critic_threshold: float = 0.7,
     org_id: int | None = None,
     custom_profile: dict | None = None,
+    replay_metadata: dict | None = None,
 ) -> dict:
     """
     Top-level convenience function for a named planning scenario.
@@ -367,6 +428,9 @@ async def run_planning_scenario(
         custom_profile: Ad-hoc natural-language-derived scenario profile
             (P6-A25) -- bypasses the semantic cache, since two different
             custom descriptions could otherwise share a cache key.
+        replay_metadata: Kindred replay identifiers (P6-A27) attached to the
+            Langfuse trace only -- bypasses the semantic cache, since a replay
+            must always actually re-run, never return a stale cached plan.
 
     Returns:
         Final API-ready response from the LangGraph workflow.
@@ -376,7 +440,7 @@ async def run_planning_scenario(
     if (
         semantic_cache and org_id
         and not simulation_mode and not force_critic_decision and not debug
-        and not custom_profile
+        and not custom_profile and not replay_metadata
     ):
         try:
             cached = semantic_cache.get(org_id, scenario, target_date)
@@ -430,17 +494,20 @@ async def run_planning_scenario(
     if deps.get("llm_registry"):
         initial_state["llm_registry"] = deps["llm_registry"]
 
-    # Execute graph with LangSmith trace metadata
+    # Execute graph with LangSmith + Langfuse trace metadata
     run_label = f"{scenario}/{target_date or 'next'}"
     llm_metadata = _llm_log_fields(deps.get("llm"))
+    langfuse_callbacks, langfuse_metadata = _langfuse_run_context(org_id, run_id, replay_metadata)
     config = RunnableConfig(
         run_name=f"cortexkitchen/{run_label}",
         tags=[scenario, "planning_run"],
-        metadata={"scenario": scenario, "target_date": target_date or "", "run_id": run_id, **llm_metadata},
+        metadata={"scenario": scenario, "target_date": target_date or "", "run_id": run_id, **llm_metadata, **langfuse_metadata},
+        callbacks=langfuse_callbacks,
     )
     t0 = time.perf_counter()
     log.info("graph_start", target_date=target_date or "next", **llm_metadata)
     final_state = await graph.ainvoke(initial_state, config=config)
+    _flush_langfuse(langfuse_callbacks)
     total_duration_ms = round((time.perf_counter() - t0) * 1000, 2)
 
     # Collect usage captured per-node by _inject, then drain any remainder
@@ -461,6 +528,7 @@ async def run_planning_scenario(
     final_response = final_state.get("final_response", {})
     obs = {
         "run_id": run_id,
+        "session_id": langfuse_metadata.get("session_id"),
         "node_traces": traces,
         "llm_usage": llm_usage,
         "total_duration_ms": total_duration_ms,
@@ -716,10 +784,12 @@ async def stream_planning_scenario(
 
     run_label = f"{scenario}/{target_date or 'next'}"
     llm_metadata = _llm_log_fields(deps.get("llm"))
+    langfuse_callbacks, langfuse_metadata = _langfuse_run_context(org_id, run_id)
     config = RunnableConfig(
         run_name=f"cortexkitchen/stream/{run_label}",
         tags=[scenario, "planning_run", "stream"],
-        metadata={"scenario": scenario, "target_date": target_date or "", "run_id": run_id, **llm_metadata},
+        metadata={"scenario": scenario, "target_date": target_date or "", "run_id": run_id, **llm_metadata, **langfuse_metadata},
+        callbacks=langfuse_callbacks,
     )
 
     t0 = time.perf_counter()
@@ -752,6 +822,7 @@ async def stream_planning_scenario(
             if isinstance(state_update, dict):
                 final_response = state_update.get("final_response")
 
+    _flush_langfuse(langfuse_callbacks)
     total_duration_ms = round((time.perf_counter() - t0) * 1000, 2)
     llm_usage = []
     for trace in traces:

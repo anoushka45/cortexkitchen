@@ -56,6 +56,16 @@ class Settings(BaseSettings):
     langsmith_project: str = Field(default="CortexKitchen", alias="LANGSMITH_PROJECT")
     langsmith_endpoint: str = Field(default="https://api.smith.langchain.com", alias="LANGSMITH_ENDPOINT")
 
+    # Langfuse tracing (P6-A27, Kindred replay debugging)
+    langfuse_public_key: str = Field(default="", alias="LANGFUSE_PUBLIC_KEY")
+    langfuse_secret_key: str = Field(default="", alias="LANGFUSE_SECRET_KEY")
+    # Langfuse's own quickstart snippet uses LANGFUSE_BASE_URL; Kindred's setup
+    # prompt asks for LANGFUSE_HOST. The SDK checks both — support either name.
+    langfuse_host: str = Field(default="", alias="LANGFUSE_HOST")
+    langfuse_base_url: str = Field(default="", alias="LANGFUSE_BASE_URL")
+    kindred_agent_id: str = Field(default="", alias="KINDRED_AGENT_ID")
+    kindred_api_key: str = Field(default="", alias="KINDRED_API_KEY")
+
     # model_config defines global behavior for this Settings class
     model_config = SettingsConfigDict(
         env_file=".env",

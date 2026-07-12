@@ -39,3 +39,4 @@ langchain-google-vertexai
 deepeval==4.0.7
 litellm
 mcp
+langfuse

@@ -67,6 +67,42 @@ class BaseLLMProvider(ABC):
         with self._lock:
             self._usage_records.append(record)
 
+    def _trace_generation(
+        self,
+        *,
+        prompt: str,
+        system_prompt: str | None,
+        output_text: str,
+        prompt_tokens: int,
+        completion_tokens: int,
+    ) -> None:
+        """Emit a Langfuse generation observation nested under the current node span.
+
+        Best-effort only — tracing must never break an LLM call. No-ops if
+        Langfuse isn't configured (LANGFUSE_SECRET_KEY unset).
+        """
+        try:
+            from app.core.settings import get_settings
+            if not get_settings().langfuse_secret_key:
+                return
+
+            from langfuse import get_client
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
+
+            with get_client().start_as_current_observation(
+                name=f"{self.provider_name}-completion",
+                as_type="generation",
+                input=messages,
+                model=self.model,
+                usage_details={"input": prompt_tokens, "output": completion_tokens},
+            ) as gen:
+                gen.update(output=output_text)
+        except Exception:
+            pass
+
     def drain_usage(self, node: str | None = None) -> list[dict]:
         """Return accumulated usage records and clear them.
 

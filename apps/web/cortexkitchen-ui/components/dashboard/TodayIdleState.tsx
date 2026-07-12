@@ -11,6 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import PlanShiftModal from "@/components/dashboard/PlanShiftModal";
 import CategoryPricingChart from "@/components/dashboard/CategoryPricingChart";
 import ActionQueuePanel from "@/components/dashboard/ActionQueuePanel";
+import TodayContextStrip from "@/components/dashboard/TodayContextStrip";
 import {
   getDataHealth, getConnectorsStatus, getMarketPulse, getBusinessPerformance,
   listRestaurantProfiles,
@@ -293,27 +294,27 @@ export default function TodayIdleState({
         <p className="mt-1 text-sm text-[var(--color-text-soft)]">{daypartLine()}</p>
       </div>
 
-      {/* HERO: Plan your next shift — bold banner, first thing after the greeting */}
-      <div className="relative overflow-hidden rounded-2xl p-5 sm:p-6" style={{ background: "linear-gradient(120deg, #d9791f 0%, #b0621a 55%, #8a4a10 100%)" }}>
-        <div className="pointer-events-none absolute inset-0 opacity-40" style={{ background: "radial-gradient(480px 200px at 100% -30%, rgba(255,255,255,0.35), transparent 65%)" }} />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {/* HERO: Plan your next shift, first thing after the greeting -- matches
+          the same dark card style as every other section on this page, accent
+          color reserved for the icon chip and the primary button. */}
+      <div className="card relative p-5 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/15 ring-1 ring-white/25">
-              <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={{ background: "var(--color-accent-soft)" }}>
+              <svg className="h-5 w-5" style={{ color: "var(--color-accent)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
             </div>
             <div>
-              <p className="text-[15px] font-bold text-white">Ready when you are</p>
-              <p className="mt-0.5 text-[12.5px] text-white/75">5 specialists check your kitchen and the market, then a critic reviews the result — about 45 seconds.</p>
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-white/85">
+              <p className="text-[15px] font-bold text-[var(--color-text-primary)]">Ready when you are</p>
+              <p className="mt-0.5 text-[12.5px] text-[var(--color-text-faint)]">5 specialists check your kitchen and the market, then a critic reviews the result — about 45 seconds.</p>
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-[var(--color-text-soft)]">
                 {coverage && <span>{coverage.reservations} reservations tonight</span>}
-                {shortageAlerts > 0 && <span className="font-semibold text-white">{shortageAlerts} inventory alert{shortageAlerts !== 1 ? "s" : ""}</span>}
-                {occupancy?.signal && <span>Area demand <b className="capitalize text-white">{occupancy.signal.toLowerCase()}</b></span>}
+                {shortageAlerts > 0 && <span className="font-semibold text-[var(--color-caution)]">{shortageAlerts} inventory alert{shortageAlerts !== 1 ? "s" : ""}</span>}
               </div>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-3">
             {historyCount > 0 && (
-              <button onClick={onShowHistory} className="flex items-center gap-1.5 text-[11px] text-white/70 transition-colors hover:text-white">
+              <button onClick={onShowHistory} className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-faint)] transition-colors hover:text-[var(--color-text-primary)]">
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -322,12 +323,18 @@ export default function TodayIdleState({
             )}
             <button
               onClick={() => setShowPlanModal(true)}
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-[15px] font-semibold text-[#8a4a10] shadow-[0_10px_24px_-6px_rgba(0,0,0,0.35)] transition-transform hover:scale-[1.02]"
+              className="btn-primary inline-flex items-center gap-2 rounded-xl px-6 py-3 text-[15px] font-semibold transition-transform hover:scale-[1.02]"
             >
-              <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}><path strokeLinecap="round" strokeLinejoin="round" d="M5 3l14 9-14 9V3z" /></svg>
               Plan your next shift
+              <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
             </button>
           </div>
+        </div>
+
+        {/* Today's live signals -- weather/holiday/trends/compliance/area demand,
+            full width to breathe instead of squeezed into a half-width column */}
+        <div className="mt-4 border-t border-[var(--color-border-soft)] pt-4">
+          <TodayContextStrip marketPulse={marketPulse} loaded={marketLoaded} />
         </div>
       </div>
 

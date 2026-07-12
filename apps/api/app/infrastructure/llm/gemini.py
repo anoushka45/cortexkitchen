@@ -50,6 +50,13 @@ class GeminiProvider(BaseLLMProvider):
                 prompt_tokens=usage.prompt_token_count or 0,
                 completion_tokens=usage.candidates_token_count or 0,
             )
+            self._trace_generation(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                output_text=response.text,
+                prompt_tokens=usage.prompt_token_count or 0,
+                completion_tokens=usage.candidates_token_count or 0,
+            )
 
         return response.text
 

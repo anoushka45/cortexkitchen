@@ -39,14 +39,23 @@ class GroqProvider(BaseLLMProvider):
             messages=messages,
         )
 
+        output_text = response.choices[0].message.content
+
         if response.usage:
             self.record_usage(
                 model=self.model,
                 prompt_tokens=response.usage.prompt_tokens or 0,
                 completion_tokens=response.usage.completion_tokens or 0,
             )
+            self._trace_generation(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                output_text=output_text,
+                prompt_tokens=response.usage.prompt_tokens or 0,
+                completion_tokens=response.usage.completion_tokens or 0,
+            )
 
-        return response.choices[0].message.content
+        return output_text
 
     async def complete_json(self, prompt: str, system_prompt: str | None = None) -> dict:
         """Send a prompt to Groq and return parsed JSON response."""

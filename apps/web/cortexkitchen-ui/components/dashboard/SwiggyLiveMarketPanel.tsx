@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { getMarketPulse, MarketPulseResponse } from "@/lib/api";
+import { getMarketPulse, MarketPulseResponse, MarketWeather, MarketUpcomingHoliday, MarketIndustryTrends, MarketComplianceAlerts } from "@/lib/api";
 import CategoryPricingChart from "./CategoryPricingChart";
 import PricingImpactChart from "./PricingImpactChart";
 import OccupancyBySlotChart from "./OccupancyBySlotChart";
@@ -19,12 +19,12 @@ function SwiggyBadge() {
   );
 }
 
-function Card({ title, source, children, wide }: { title: string; source: string; children: React.ReactNode; wide?: boolean }) {
+function Card({ title, source, children, wide, swiggy = true }: { title: string; source: string; children: React.ReactNode; wide?: boolean; swiggy?: boolean }) {
   return (
     <div className={`rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5 ${wide ? "lg:col-span-2" : ""}`}>
       <div className="flex items-start justify-between mb-1 flex-wrap gap-2">
         <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)]">{title}</p>
-        <SwiggyBadge />
+        {swiggy && <SwiggyBadge />}
       </div>
       <p className="mb-3 font-mono text-[9px] text-[var(--color-text-ghost)]">via {source}</p>
       {children}
@@ -73,13 +73,30 @@ export default function SwiggyLiveMarketPanel() {
 
   if (!data) return null;
 
+  // Weather + holiday + industry trends + regulatory alerts are independent
+  // of Swiggy (Open-Meteo, internal calendar, curated RSS, FSSAI notices --
+  // no MCP involved) -- must render even when Swiggy isn't connected.
+  const weather = data.weather;
+  const upcomingHoliday = data.upcoming_holiday;
+  const industryTrends = data.industry_trends;
+  const complianceAlerts = data.compliance_alerts;
+
   if (!data.swiggy_connected) {
     return (
-      <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-6 py-10 text-center">
-        <p className="text-sm font-medium text-[var(--color-text-primary)]">Swiggy not connected</p>
-        <p className="mt-1 text-sm text-[var(--color-text-faint)]">
-          Connect your Swiggy account from Connectors to see live competitor pricing, occupancy, and procurement data.
-        </p>
+      <div className="space-y-4">
+        {(weather || upcomingHoliday || industryTrends || complianceAlerts) && (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <WeatherHolidayCard weather={weather} upcomingHoliday={upcomingHoliday} />
+            {industryTrends && <IndustryTrendsCard trends={industryTrends} />}
+            {complianceAlerts && <ComplianceAlertsCard alerts={complianceAlerts} />}
+          </div>
+        )}
+        <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-6 py-10 text-center">
+          <p className="text-sm font-medium text-[var(--color-text-primary)]">Swiggy not connected</p>
+          <p className="mt-1 text-sm text-[var(--color-text-faint)]">
+            Connect your Swiggy account from Connectors to see live competitor pricing, occupancy, and procurement data.
+          </p>
+        </div>
       </div>
     );
   }
@@ -102,7 +119,8 @@ export default function SwiggyLiveMarketPanel() {
 
   const hasAnything =
     categoryPricing.length > 0 || comparisons.length > 0 || occupancy?.signal || procurement.length > 0 ||
-    dineoutDealsCount > 0 || slotDeals.length > 0 || dealsActiveCount > 0 || landscapeSummary !== null;
+    dineoutDealsCount > 0 || slotDeals.length > 0 || dealsActiveCount > 0 || landscapeSummary !== null ||
+    weather !== null || upcomingHoliday !== null || industryTrends !== null || complianceAlerts !== null;
 
   if (!hasAnything) {
     return (
@@ -120,6 +138,17 @@ export default function SwiggyLiveMarketPanel() {
       <PanelHeader fetchedAt={pricing?.fetched_at ?? occupancy?.fetched_at} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+
+        {/* 0. Weather & Holidays -- not Swiggy-sourced, shown alongside the rest */}
+        {(weather || upcomingHoliday) && (
+          <WeatherHolidayCard weather={weather} upcomingHoliday={upcomingHoliday} />
+        )}
+
+        {/* 0b. Industry Trends -- curated RSS, not Swiggy-sourced */}
+        {industryTrends && <IndustryTrendsCard trends={industryTrends} />}
+
+        {/* 0c. Regulatory Alerts -- FSSAI public notices, not Swiggy-sourced */}
+        {complianceAlerts && <ComplianceAlertsCard alerts={complianceAlerts} />}
 
         {/* 1. Category Pricing Intelligence (derived, leads with verdict) */}
         {categoryPricing.length > 0 && (
@@ -369,5 +398,96 @@ function PanelHeader({ fetchedAt }: { fetchedAt?: string | null }) {
         </p>
       </div>
     </div>
+  );
+}
+
+const CONDITION_STYLES: Record<MarketWeather["condition"], { label: string; className: string }> = {
+  heavy_rain: { label: "Heavy rain expected", className: "border-rose-500/30 bg-rose-500/10 text-rose-300" },
+  light_rain: { label: "Light rain possible", className: "border-amber-500/30 bg-amber-500/10 text-amber-300" },
+  very_hot:   { label: "Hot evening", className: "border-amber-500/30 bg-amber-500/10 text-amber-300" },
+  clear:      { label: "Clear", className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" },
+};
+
+function WeatherHolidayCard({
+  weather,
+  upcomingHoliday,
+}: {
+  weather: MarketWeather | null | undefined;
+  upcomingHoliday: MarketUpcomingHoliday | null | undefined;
+}) {
+  return (
+    <Card title="Weather & Holidays" source="Open-Meteo + internal calendar" wide swiggy={false}>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {weather && (
+          <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
+            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${CONDITION_STYLES[weather.condition].className}`}>
+              {CONDITION_STYLES[weather.condition].label}
+            </span>
+            <p className="mt-2 text-xs text-[var(--color-text-soft)]">{weather.signal}</p>
+            <p className="mt-1 text-[10px] text-[var(--color-text-faint)]">
+              Delivery: {weather.delivery_impact} · Dine-in: {weather.dinein_impact}
+            </p>
+          </div>
+        )}
+        {upcomingHoliday && (
+          <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
+            <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Upcoming holiday</p>
+            <p className="mt-1 text-sm text-[var(--color-text-primary)]">
+              <span className="font-semibold">{upcomingHoliday.name}</span>
+            </p>
+            <p className="mt-0.5 text-[10px] text-[var(--color-text-faint)]">
+              {upcomingHoliday.days_away === 0
+                ? "Today"
+                : upcomingHoliday.days_away === 1
+                ? "Tomorrow"
+                : `In ${upcomingHoliday.days_away} days`}
+              {" "}({upcomingHoliday.date})
+            </p>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function IndustryTrendsCard({ trends }: { trends: MarketIndustryTrends }) {
+  const bullets = trends.digest.split("\n").map((line) => line.trim()).filter(Boolean);
+
+  return (
+    <Card title="Industry Trends" source="curated RSS trade press" wide swiggy={false}>
+      <ul className="space-y-2">
+        {bullets.map((line, i) => (
+          <li key={i} className="flex gap-2 text-xs text-[var(--color-text-soft)]">
+            <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-[var(--color-text-faint)]" />
+            <span>{line.replace(/^[-•*]\s*/, "")}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-[10px] text-[var(--color-text-ghost)]">
+        {trends.headline_count} headlines across {trends.sources_used} source{trends.sources_used !== 1 ? "s" : ""}
+      </p>
+    </Card>
+  );
+}
+
+function ComplianceAlertsCard({ alerts }: { alerts: MarketComplianceAlerts }) {
+  return (
+    <Card title="Regulatory Alerts" source="FSSAI public notices" wide swiggy={false}>
+      <ul className="space-y-2.5">
+        {alerts.notices.map((n, i) => (
+          <li key={i} className="text-xs text-[var(--color-text-soft)]">
+            <a
+              href={n.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-[var(--color-text-primary)] hover:text-[var(--color-accent)] hover:underline"
+            >
+              {n.title}
+            </a>
+            <span className="ml-1.5 text-[10px] text-[var(--color-text-ghost)]">uploaded {n.uploaded_on}</span>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }

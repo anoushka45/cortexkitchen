@@ -34,3 +34,10 @@ INDIAN_HOLIDAYS_2026 = {
     "2026-12-25": "Christmas",
 }
 
+# Default restaurant coordinates for WeatherService (P6-A21) when a restaurant
+# profile has no stored lat/lng -- Navi Mumbai, matching the approximate area
+# of SWIGGY_ADDRESS_ID. Replace with real per-restaurant coordinates once
+# RestaurantProfile stores them.
+DEFAULT_RESTAURANT_LAT = 19.0368
+DEFAULT_RESTAURANT_LNG = 73.0158
+

@@ -1,4 +1,4 @@
-"""MarketIntelService — P6-S10.
+"""MarketIntelService — P6-S10, extended P6-A24.
 
 Orchestrates all three Swiggy enrichers concurrently at planning time and
 assembles their outputs into state fields ready for the pipeline nodes.
@@ -8,6 +8,17 @@ Responsibilities:
   - Return a structured result mapping each output to its OrchestratorState key
   - Fail open: any enricher returning None is silently omitted; the service
     never raises, so callers (LangGraph nodes) always get a usable result
+
+P6-A24 (live-intelligence unification): weather/holiday (P6-A21), industry
+trends (P6-A22), and regulatory alerts (P6-A23) are NOT Swiggy MCP and are
+already fetched earlier in the graph by demand_forecast_node (written to
+state as weather_signal/trends_signal/compliance_alerts_signal) -- this
+service does not re-fetch them, just merges their prompt_text alongside the
+Swiggy competitor/occupancy signals into one combined market_intel_output
+["live_signals_text"] field, added inside this existing service rather than
+a new graph node. Each of the 5 sources (competitor, occupancy, weather,
+trends, compliance) stays independently optional -- any subset being None
+never blocks the others from appearing in the combined text.
 
 Returned dict shape:
   {
@@ -20,6 +31,7 @@ Returned dict shape:
       "pricing_alerts":       [...],
       "tonight_busy":         bool | None,
       "procurement_options":  [...],
+      "live_signals_text":    str,  # combined Area & Live Signals section (P6-A24)
       "fetched_at":           "YYYY-MM-DD",
     },
   }
@@ -58,23 +70,27 @@ class MarketIntelService:
         """Run all enrichers concurrently and return combined state payloads.
 
         context keys used (all optional — enrichers degrade gracefully):
-          org_id          int        — scopes Redis cache keys
-          address_id      str        — Swiggy Food + Instamart addressId
-          cuisine         str        — e.g. "North Indian"
-          our_items       list       — [{"name": str, "price": float}, ...]
-          shortage_items  list[str]  — ingredients that are low in stock
+          org_id                    int        — scopes Redis cache keys
+          address_id                str        — Swiggy Food + Instamart addressId
+          cuisine                   str        — e.g. "North Indian"
+          our_items                 list       — [{"name": str, "price": float}, ...]
+          shortage_items            list[str]  — ingredients that are low in stock
+          weather_signal            dict|None  — P6-A21, already fetched by demand_forecast_node
+          trends_signal             dict|None  — P6-A22, already fetched by demand_forecast_node
+          compliance_alerts_signal  dict|None  — P6-A23, already fetched by demand_forecast_node
 
         Returns a dict with four keys:
           swiggy_competitor_context   → CompetitorEnricher output or None
           swiggy_occupancy_context    → OccupancyEnricher output or None
           swiggy_procurement_options  → ProcurementEnricher output or None
-          market_intel_output         → assembled summary for market_intel_node
+          market_intel_output         → assembled summary for market_intel_node,
+                                         including live_signals_text (P6-A24)
         """
         try:
             return await self._run(context)
         except Exception as exc:
             log.warning("market_intel_service_error", error=str(exc))
-            return self._empty_result()
+            return self.build_signals_only_result(context)
 
     # ── internal ─────────────────────────────────────────────────────────────
 
@@ -91,7 +107,12 @@ class MarketIntelService:
             occupancy=occupancy_ctx is not None,
         )
 
-        market_intel_output = self._assemble_market_intel(competitor_ctx, occupancy_ctx)
+        market_intel_output = self._assemble_market_intel(
+            competitor_ctx, occupancy_ctx,
+            weather_signal=context.get("weather_signal"),
+            trends_signal=context.get("trends_signal"),
+            compliance_alerts_signal=context.get("compliance_alerts_signal"),
+        )
         if competitor_ctx is None:
             market_intel_output["competitor_status"] = await self._competitor_status()
 
@@ -105,6 +126,9 @@ class MarketIntelService:
         self,
         competitor_ctx: Optional[dict],
         occupancy_ctx:  Optional[dict],
+        weather_signal: Optional[dict] = None,
+        trends_signal: Optional[dict] = None,
+        compliance_alerts_signal: Optional[dict] = None,
     ) -> dict:
         """Build the market_intel_output dict that market_intel_node writes to state.
 
@@ -156,8 +180,38 @@ class MarketIntelService:
             "dineout_deals_summary":      dineout_deals_summary,
             "slot_deals_found":           slot_deals_found,
             "slot_availability_by_time":  slot_availability_by_time,
+            "live_signals_text": self._build_live_signals_text(
+                competitor_ctx, occupancy_ctx, weather_signal, trends_signal, compliance_alerts_signal,
+            ),
             "fetched_at":                 date.today().isoformat(),
         }
+
+    def _build_live_signals_text(
+        self,
+        competitor_ctx: Optional[dict],
+        occupancy_ctx: Optional[dict],
+        weather_signal: Optional[dict],
+        trends_signal: Optional[dict],
+        compliance_alerts_signal: Optional[dict],
+    ) -> str:
+        """Combine all five live-intelligence sources into one 'Area & Live
+        Signals' text block (P6-A24) -- weather/holiday, industry trends,
+        regulatory alerts (none of which is Swiggy MCP) alongside the existing
+        anonymised Swiggy competitor/occupancy signals. Each source contributes
+        its own prompt_text independently; any subset being None just means
+        that section is omitted, never blocks the others or raises.
+        """
+        sections = [
+            (competitor_ctx or {}).get("prompt_text"),
+            (occupancy_ctx or {}).get("prompt_text"),
+            (weather_signal or {}).get("prompt_text"),
+            (trends_signal or {}).get("prompt_text"),
+            (compliance_alerts_signal or {}).get("prompt_text"),
+        ]
+        body = "\n\n".join(s for s in sections if s)
+        if not body:
+            return ""
+        return f"## Area & Live Signals\n\n{body}"
 
     async def _competitor_status(self) -> dict:
         """Distinguish "temporarily degraded, will retry" from "no data" when
@@ -176,8 +230,15 @@ class MarketIntelService:
             }
         return {"state": "no_data", "resets_in_seconds": None}
 
-    @staticmethod
-    def _empty_result() -> dict:
+    def build_signals_only_result(self, context: Optional[dict] = None) -> dict:
+        """Competitor/occupancy data unavailable (Swiggy down, or run() itself
+        raised), but the three non-Swiggy live signals already sit in context
+        (fetched earlier by demand_forecast_node) -- they still surface in
+        live_signals_text rather than being wiped out by an unrelated Swiggy-
+        side failure. Public: called both internally (run()'s except branch)
+        and directly by market_intel_node when swiggy_client.is_available()
+        is False."""
+        context = context or {}
         return {
             "swiggy_competitor_context": None,
             "swiggy_occupancy_context":  None,
@@ -199,6 +260,12 @@ class MarketIntelService:
                 "dineout_deals_summary":    None,
                 "slot_deals_found":         None,
                 "slot_availability_by_time": None,
+                "live_signals_text": self._build_live_signals_text(
+                    None, None,
+                    context.get("weather_signal"),
+                    context.get("trends_signal"),
+                    context.get("compliance_alerts_signal"),
+                ),
                 "fetched_at":               date.today().isoformat(),
             },
         }

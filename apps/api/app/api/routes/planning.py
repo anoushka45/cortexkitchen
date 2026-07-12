@@ -14,6 +14,9 @@ from app.api.schemas.planning import (
     FridayRushResponse,
     PlanningRunRequest,
     PlanningScenarioListResponse,
+    ScenarioProfilePayload,
+    ScenarioProfileRequest,
+    ScenarioProfileResponse,
     ScenarioRecommendationResponse,
     WhatIfRequest,
     WhatIfResponse,
@@ -22,8 +25,10 @@ from app.core.exceptions import AppError
 from app.domain.scenarios import list_scenarios
 from app.domain.services.cost_aware_scoring import CostAwareScoringService
 from app.domain.services.run_service import RunService
+from app.domain.services.scenario_profile_service import ScenarioProfileService
 from app.domain.services.scenario_recommender import ScenarioRecommender
 from app.domain.services.workflow_trigger_service import WorkflowTriggerService
+from app.infrastructure.llm.base import BaseLLMProvider
 from app.infrastructure.cache.plan_cache import build_cache_key, cache_plan, get_cached_plan
 from app.infrastructure.swiggy.client import SwiggyMCPClient
 from app.orchestration import run_friday_rush, run_planning_scenario, stream_planning_scenario
@@ -38,6 +43,27 @@ router = APIRouter(prefix="/planning", tags=["planning"])
 )
 def get_scenarios() -> PlanningScenarioListResponse:
     return PlanningScenarioListResponse(scenarios=list_scenarios())
+
+
+@router.post(
+    "/scenario-from-text",
+    response_model=ScenarioProfileResponse,
+    summary="Derive an ad-hoc scenario profile from natural language",
+    description=(
+        "Converts a free-form description of tonight's service (e.g. "
+        "'we're hosting an event today, expecting large turnover') into a "
+        "structured scenario profile that can be passed as custom_profile "
+        "on POST /planning/run or /planning/stream (P6-A25). The 4 existing "
+        "presets are unaffected and remain available as one-click shortcuts."
+    ),
+)
+async def scenario_from_text(
+    body: ScenarioProfileRequest,
+    llm: BaseLLMProvider = Depends(get_llm),
+    current_user: dict = Depends(get_current_user),
+) -> ScenarioProfileResponse:
+    profile = await ScenarioProfileService(llm).derive_profile(body.text)
+    return ScenarioProfileResponse(profile=ScenarioProfilePayload(**profile))
 
 
 def _build_response(result: dict, meta: dict, fallback_scenario: str) -> FridayRushResponse:
@@ -92,11 +118,16 @@ async def run_planning(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> FridayRushResponse:
-    # Cache is bypassed for simulation runs, forced critic decisions, and debug mode
+    custom_profile_dict = body.custom_profile.model_dump() if body.custom_profile else None
+
+    # Cache is bypassed for simulation runs, forced critic decisions, debug
+    # mode, and custom profiles -- two different natural-language descriptions
+    # could otherwise share a cache key (P6-A25).
     cacheable = (
         not body.simulation_mode
         and not body.force_critic_decision
         and not body.debug
+        and not custom_profile_dict
     )
 
     if cacheable:
@@ -168,6 +199,7 @@ async def run_planning(
             restaurant_profile=restaurant_profile,
             critic_threshold=org_critic_threshold,
             org_id=current_user["org_id"],
+            custom_profile=custom_profile_dict,
         )
     except AppError:
         raise
@@ -224,10 +256,13 @@ async def stream_planning(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> StreamingResponse:
+    custom_profile_dict = body.custom_profile.model_dump() if body.custom_profile else None
+
     cacheable = (
         not body.simulation_mode
         and not body.force_critic_decision
         and not body.debug
+        and not custom_profile_dict
     )
 
     org = db.query(Organization).filter(Organization.id == current_user["org_id"]).first()
@@ -290,6 +325,7 @@ async def stream_planning(
                 restaurant_profile=restaurant_profile,
                 critic_threshold=org_critic_threshold,
                 org_id=current_user["org_id"],
+                custom_profile=custom_profile_dict,
             ):
                 if evt["event"] == "node_start":
                     yield _sse("node_start", {"node": evt["node"], "hint": evt.get("hint", "")})

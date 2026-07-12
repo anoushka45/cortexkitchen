@@ -112,6 +112,138 @@ See D-019 in `docs/DECISIONS.md` for the full design rationale.
 
 ---
 
+## Live-intelligence signals (P6-A21+)
+
+Not Swiggy MCP — no consent/compliance gating applies to any of these.
+Each is its own independently fail-open service, following the same
+graceful-degradation contract as the Swiggy enrichers (`BaseConnector`):
+never raise, return `None` on any failure.
+
+- **Weather + holidays** (`infrastructure/external/weather_service.py`) —
+  Open-Meteo, free, keyless REST API. `WeatherService.get_forecast(lat, lng,
+  target_date)` averages temperature + precipitation probability across the
+  target date's 18:00–22:00 dinner window, classifies into
+  `heavy_rain`/`light_rain`/`very_hot`/`clear`, and returns a conservative
+  `demand_multiplier` alongside descriptive `delivery_impact`/`dinein_impact`
+  strings. Holiday lookup (`core/calendar_utils.py`, `get_date_context`) is
+  a plain dict scan against `INDIAN_HOLIDAYS_2026` — shared between
+  `ScenarioRecommender` and `demand_forecast_node` so the lookup isn't
+  duplicated.
+- **`demand_forecast_node`** applies both as a deterministic multiplier to
+  Prophet's raw `predicted_orders`/`predicted_peak_orders`
+  (`ForecastService._apply_signal_adjustments`) — not just narrative prompt
+  text. Transparent by construction: `predicted_orders_pre_adjustment`,
+  `adjustment_multiplier`, and `adjustment_reasons` are preserved alongside
+  the adjusted number.
+- **`GET /market/pulse`** returns `weather` and `upcoming_holiday`
+  independently of `swiggy_connected` — neither depends on a Swiggy
+  connection existing.
+- Default coordinates (`core/constants.py`:
+  `DEFAULT_RESTAURANT_LAT`/`DEFAULT_RESTAURANT_LNG`, Navi Mumbai) are used
+  until `RestaurantProfile` stores real per-restaurant coordinates.
+- **Industry trends** (`infrastructure/external/trends_service.py`) —
+  `TrendsService.get_digest()` fetches a curated list of Indian F&B/agri-
+  business RSS feeds (`feedparser`, free/keyless, zero ToS risk — not
+  Google Trends/pytrends, which scrapes a non-public endpoint) and
+  summarizes headlines + article summaries into a short digest via the
+  existing `create_llm_provider()` factory (no new LLM integration). Cached
+  in Redis for 1 hour (news moves slower than Swiggy signals; an LLM call
+  isn't free). Prompt is tuned for specificity (a fact + an operational
+  implication per bullet) and stays neutral about any named platform rather
+  than reading as scrutiny of it.
+- **Regulatory alerts** (`infrastructure/external/compliance_alerts_service.py`)
+  — `ComplianceAlertsService.get_alerts()` scrapes FSSAI's public
+  notifications page (Gazette Notification category — finalized
+  regulations, not drafts). Confirmed live: no RSS feed exists, but the page
+  is plain server-rendered HTML (a category `<select>` + form reload, no
+  JS/AJAX), so a lightweight BeautifulSoup parser is sufficient. Public
+  government data — no ToS tension of any kind.
+- **`GET /market/pulse`** also returns `industry_trends` and
+  `compliance_alerts` independently of `swiggy_connected` — same treatment
+  as weather/holidays.
+
+**Unification (P6-A24)** — all four signals merge into one "Area & Live
+Signals" text inside the existing `market_intel_node`/`MarketIntelService`
+(`MarketIntelService._build_live_signals_text`), rather than a new graph
+node. Existing state field names (`swiggy_competitor_context`,
+`swiggy_occupancy_context`, `market_intel_output`) are unchanged — only a
+new `market_intel_output["live_signals_text"]` key was added — since 5+
+files and the frontend already read the old names by string key.
+`weather_signal`/`trends_signal`/`compliance_alerts_signal` are fetched once
+by `demand_forecast_node` (it runs before the `qdrant_enrichment` fan-out,
+so it can't read `market_intel_output`) and injected directly into its own
+LLM narrative (`ForecastService.analyse_and_recommend`, text-only for
+trends/compliance — only weather shifts the actual number);
+`market_intel_node` reads the same three back from state rather than
+re-fetching, and merges them with the Swiggy competitor/occupancy prompt
+text into `live_signals_text`, which `menu_intelligence` (via
+`MenuService.analyse_and_recommend`'s `market_context`) and the critic (via
+`aggregator.py`'s `_build_critic_summary`, a condensed `[Live Signals]`
+line — the full prose is menu_intelligence's job, not the critic's) both
+read. Each of the five sources (competitor, occupancy, weather, trends,
+compliance) stays independently optional through this whole chain — any
+subset being `None` (simulated per-source failure) never blocks the others
+or raises.
+
+---
+
+## Scenario intake modes (P6-A25)
+
+Full detail in `docs/PRODUCT_MODES.md`. Summary: `ops_manager_node` needs a
+`scenario_profile` (`label`/`service_window`/`operational_focus`) regardless
+of source. Two intake modes feed it, both converging on the same downstream
+pipeline:
+
+1. **Presets** (unchanged) — `scenario` is one of the 4
+   `SCENARIO_DEFINITIONS` keys, `ops_manager_node` resolves via
+   `get_scenario_definition()`.
+2. **Natural language** (new) — free text goes to
+   `POST /planning/scenario-from-text` (`ScenarioProfileService`, an LLM call
+   with a deterministic fallback, same never-raise pattern as
+   `ScenarioRecommender`), returning a fully-populated profile the frontend
+   sends back as `custom_profile` alongside a non-preset `scenario` id (e.g.
+   `"custom"`). `ops_manager_node` builds `scenario_profile` from that
+   instead. `custom_profile` is a new `OrchestratorState` field, threaded
+   through `make_initial_state`/`run_planning_scenario`/
+   `stream_planning_scenario`, and bypasses both the semantic cache and the
+   Redis plan cache (two different free-text descriptions would otherwise
+   collide on the same cache key).
+
+`ScenarioProfileService` always fills all three profile keys even in its
+fallback path, since `complaint_service.py`/`inventory_service.py`/
+`reservation_service.py` read them via direct dict-key access (not `.get()`)
+once `scenario_profile` is truthy.
+
+Frontend: the 4 preset tiles and the free-text input live side by side in
+`PlanShiftModal.tsx` (`SCENARIO_OPTIONS`, previously duplicated verbatim in
+`app/dashboard/page.tsx` and `TodayIdleState.tsx`, now a single shared
+constant in `lib/scenarios.ts`).
+
+---
+
+## Today Dashboard redesign (P6-A26)
+
+`/operations` (agent cards, forecast chart, critic banner) is merged
+directly into `/dashboard`'s success view — triggering a plan and watching
+it build/complete happens in one continuous view, no page navigation.
+`/operations` now only redirects (`?run=<id>` preserved as
+`/dashboard?run=<id>`) for old bookmarks/links; `app/dashboard/page.tsx`
+handles that deep link itself via `loadFromHistory({id: ...})`, the same
+mechanism the run-history drawer already used. The "Operations" nav entry
+is removed from `NavBar.tsx` — Today is now Action Queue's actual
+primary-nav home (`<ActionQueuePanel/>` renders in both the idle state and
+the post-run success view, not just idle).
+
+`PlanShiftModal.tsx` also gained a `TodayContextStrip` — condensed badges
+for all 4 live signals unified in P6-A24 (weather/holiday, industry
+trends, regulatory alerts, plus the existing anonymised Swiggy area
+occupancy signal), sourced from `TodayIdleState`'s already-fetched
+`getMarketPulse()` call (no new fetch), positioned above the scenario
+tiles/free-text input so it's visible during scenario selection itself.
+Degrades per-signal, same as its data sources.
+
+---
+
 ## Backend architecture
 
 ### API layer
@@ -339,7 +471,7 @@ The frontend (`apps/web/cortexkitchen-ui`) is a Next.js App Router application w
 |-------|---------|
 | `/` | Public marketing homepage — pipeline explainer, features, footer |
 | `/login`, `/register` | JWT auth flow |
-| `/dashboard` | Scenario selection, SSE streaming run, full plan, what-if simulator |
+| `/dashboard` | Scenario selection (presets + natural-language, P6-A25) with a live-signals context strip, SSE streaming run, full plan (5 specialist agent cards + forecast chart + critic banner + Action Queue, merged in from the retired `/operations` route, P6-A26), what-if simulator |
 | `/runs` | Audit trail — scenario filter, date range, critic score trend, run detail, PDF/Excel export |
 | `/chat` | Ask AI — RAG chatbot with suggested questions and streamed responses |
 | `/data-health` | Database coverage table + observability panel (7-day stats) |

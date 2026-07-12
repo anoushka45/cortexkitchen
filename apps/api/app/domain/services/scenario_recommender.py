@@ -18,11 +18,13 @@ from typing import Optional
 import structlog
 from sqlalchemy.orm import Session
 
-from app.core.constants import INDIAN_HOLIDAYS_2026
+from app.core.calendar_utils import get_date_context
+from app.core.constants import DEFAULT_RESTAURANT_LAT, DEFAULT_RESTAURANT_LNG
 from app.domain.services.inventory_service import InventoryService
 from app.domain.services.market_intel_service import MarketIntelService
 from app.domain.services.run_service import RunService
 from app.infrastructure.db.models import Organization
+from app.infrastructure.external.weather_service import WeatherService
 from app.infrastructure.llm.base import BaseLLMProvider
 from app.infrastructure.swiggy.client import SwiggyMCPClient
 
@@ -71,6 +73,7 @@ class ScenarioRecommender:
         occupancy_signal = market_context.get("area_occupancy")
         is_weekend, is_holiday, holiday_name = self._date_context(target_date)
         shortage_count = await self._shortage_count()
+        weather_signal = await self._get_weather_signal(target_date)
 
         approved_count = sum(1 for r in recent_runs if r.critic_verdict == "approved")
         signals_used = [f"recent_approved_runs: {approved_count}"]
@@ -82,6 +85,8 @@ class ScenarioRecommender:
             signals_used.append(f"occupancy_{occupancy_signal}")
         if shortage_count:
             signals_used.append(f"shortage_count:{shortage_count}")
+        if weather_signal:
+            signals_used.append(f"weather_{weather_signal.get('condition', 'unknown')}")
 
         llm_result = await self._ask_llm(
             target_date=target_date,
@@ -90,6 +95,7 @@ class ScenarioRecommender:
             holiday_name=holiday_name,
             occupancy_signal=occupancy_signal,
             shortage_count=shortage_count,
+            weather_signal=weather_signal,
             recent_runs_summary=recent_runs_summary,
         )
 
@@ -129,13 +135,16 @@ class ScenarioRecommender:
             return 0
 
     def _date_context(self, target_date: str) -> tuple[bool, bool, Optional[str]]:
+        return get_date_context(target_date)
+
+    async def _get_weather_signal(self, target_date: str) -> Optional[dict]:
         try:
             parsed = datetime.strptime(target_date, "%Y-%m-%d").date()
         except (ValueError, TypeError):
             parsed = date.today()
-        is_weekend = parsed.weekday() >= 5  # Saturday=5, Sunday=6
-        holiday_name = INDIAN_HOLIDAYS_2026.get(parsed.isoformat())
-        return is_weekend, holiday_name is not None, holiday_name
+        return await WeatherService().get_forecast(
+            lat=DEFAULT_RESTAURANT_LAT, lng=DEFAULT_RESTAURANT_LNG, target_date=parsed,
+        )
 
     async def _ask_llm(
         self,
@@ -146,12 +155,14 @@ class ScenarioRecommender:
         occupancy_signal: Optional[str],
         shortage_count: int,
         recent_runs_summary: list[dict],
+        weather_signal: Optional[dict] = None,
     ) -> dict:
         date_desc = "holiday" if is_holiday else ("weekend" if is_weekend else "weekday")
         holiday_suffix = f" ({holiday_name})" if holiday_name else ""
+        weather_line = f"\nWeather: {weather_signal['signal']}" if weather_signal else ""
         prompt = f"""
 ## Date context
-Target date: {target_date} — {date_desc}{holiday_suffix}
+Target date: {target_date} — {date_desc}{holiday_suffix}{weather_line}
 
 ## Market context
 Area Dineout occupancy signal: {occupancy_signal or "unavailable"}

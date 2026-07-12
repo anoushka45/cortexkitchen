@@ -8,6 +8,7 @@ import {
   PlanningScenarioOption,
   PlanningRunDetail,
   PlanningRunSummary,
+  ScenarioProfile,
 } from "@/types/planning";
 import { getAuthToken } from "@/lib/auth-cookies";
 
@@ -102,6 +103,25 @@ export async function runPlanningScenario(
   }
 
   return res.json() as Promise<FridayRushResponse>;
+}
+
+// P6-A25 -- converts a free-form description of tonight's service into a
+// structured ScenarioProfile, for use as FridayRushRequest.custom_profile
+// alongside a non-preset scenario id (e.g. "custom").
+export async function deriveScenarioProfile(text: string): Promise<ScenarioProfile> {
+  const res = await fetch(`${BASE_URL}/api/v1/planning/scenario-from-text`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ text }),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Scenario profile derivation failed ${res.status}: ${detail}`);
+  }
+
+  const data = await res.json() as { profile: ScenarioProfile };
+  return data.profile;
 }
 
 export interface ObservabilitySummary {
@@ -666,11 +686,52 @@ export interface MarketProcurementItem {
   in_stock: boolean;
 }
 
+// P6-A21 -- Open-Meteo, not Swiggy MCP, so independent of swiggy_connected.
+export interface MarketWeather {
+  condition: "heavy_rain" | "light_rain" | "very_hot" | "clear";
+  avg_precipitation_pct: number | null;
+  avg_temp_celsius: number | null;
+  delivery_impact: string;
+  dinein_impact: string;
+  signal: string;
+}
+
+export interface MarketUpcomingHoliday {
+  date: string;
+  name: string;
+  days_away: number;
+}
+
+// P6-A22 -- curated RSS trade press, not Swiggy MCP, so independent of swiggy_connected.
+export interface MarketIndustryTrends {
+  digest: string;
+  headline_count: number;
+  sources_used: number;
+  fetched_at: string | null;
+}
+
+// P6-A23 -- FSSAI public notices, not Swiggy MCP, so independent of swiggy_connected.
+export interface MarketRegulatoryNotice {
+  title: string;
+  uploaded_on: string;
+  url: string;
+}
+
+export interface MarketComplianceAlerts {
+  notices: MarketRegulatoryNotice[];
+  notice_count: number;
+  fetched_at: string | null;
+}
+
 export interface MarketPulseResponse {
   swiggy_connected: boolean;
   competitor_pricing: MarketCompetitorPricing | null;
   area_occupancy: MarketAreaOccupancy | null;
   procurement: MarketProcurementItem[];
+  weather: MarketWeather | null;
+  upcoming_holiday: MarketUpcomingHoliday | null;
+  industry_trends: MarketIndustryTrends | null;
+  compliance_alerts: MarketComplianceAlerts | null;
 }
 
 export async function getMarketPulse(): Promise<MarketPulseResponse> {

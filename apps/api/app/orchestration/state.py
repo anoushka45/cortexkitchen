@@ -30,6 +30,11 @@ class OrchestratorState(TypedDict):
     # Core request metadata
     scenario:     Annotated[Optional[str], keep_last]
     scenario_profile: Annotated[Optional[Dict[str, Any]], keep_last]
+    # Ad-hoc natural-language-derived scenario profile (P6-A25) -- input to
+    # ops_manager_node when `scenario` isn't one of the 4 presets; distinct
+    # from scenario_profile, which is ops_manager_node's *resolved* output
+    # (built from either a preset or this field).
+    custom_profile: Annotated[Optional[Dict[str, Any]], keep_last]
     target_date:  Annotated[Optional[str], keep_last]
     requested_at: Annotated[Optional[str], keep_last]
 
@@ -54,6 +59,16 @@ class OrchestratorState(TypedDict):
     complaint_output:   Annotated[Optional[Dict[str, Any]], keep_last]
     menu_output:        Annotated[Optional[Dict[str, Any]], keep_last]
     inventory_output:   Annotated[Optional[Dict[str, Any]], keep_last]
+
+    # Live-intelligence signals (P6-A21/A22/A23) — not Swiggy MCP, no consent/
+    # compliance gating. weather_signal populated by demand_forecast_node via
+    # WeatherService (Open-Meteo). trends_signal (curated RSS) and
+    # compliance_alerts_signal (FSSAI notices) are populated by their
+    # respective services but not yet wired into the planning pipeline proper
+    # — that's P6-A24, which unifies all four signals into market_intel_node.
+    weather_signal:            Annotated[Optional[Dict[str, Any]], keep_last]
+    trends_signal:             Annotated[Optional[Dict[str, Any]], keep_last]
+    compliance_alerts_signal:  Annotated[Optional[Dict[str, Any]], keep_last]
 
     # Per-node assumption dicts — populated by each domain node after its service call.
     # Used by EvaluationSanityChecker to diff cross-agent assumptions against actual state.
@@ -115,6 +130,7 @@ def make_initial_state(
     force_critic_decision: Optional[str] = None,
     debug: bool = False,
     restaurant_profile: Optional[Dict[str, Any]] = None,
+    custom_profile: Optional[Dict[str, Any]] = None,
 ) -> OrchestratorState:
     """
     Build a clean initial state for a new orchestration run.
@@ -133,6 +149,7 @@ def make_initial_state(
         # Core metadata
         scenario=scenario,
         scenario_profile=None,
+        custom_profile=custom_profile,
         target_date=target_date,
         requested_at=datetime.now(timezone.utc).isoformat(),
 
@@ -147,6 +164,9 @@ def make_initial_state(
         complaint_output=None,
         menu_output=None,
         inventory_output=None,
+        weather_signal=None,
+        trends_signal=None,
+        compliance_alerts_signal=None,
 
         # Per-node assumptions (populated after each domain node completes)
         menu_assumptions=None,

@@ -29,6 +29,8 @@ opentelemetry-instrumentation-fastapi
 opentelemetry-sdk
 structlog
 reportlab
+feedparser
+beautifulsoup4
 openpyxl
 pypdf
 ragas==0.3.9

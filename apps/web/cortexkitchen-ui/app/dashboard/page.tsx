@@ -3,57 +3,52 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import ActionQueuePanel from "@/components/dashboard/ActionQueuePanel";
+import AgentCard from "@/components/dashboard/AgentCard";
 import CriticBanner from "@/components/dashboard/CriticBanner";
 import DashboardDetailModal from "@/components/dashboard/DashboardDetailModal";
 import DashboardSummary from "@/components/dashboard/DashboardSummary";
 import DatePicker from "@/components/dashboard/DatePicker";
+import ForecastChart from "@/components/dashboard/ForecastChart";
 import ManagerActionPanel from "@/components/dashboard/ManagerActionPanel";
+import SectionHeader from "@/components/dashboard/SectionHeader";
 import WhatIfPanel from "@/components/dashboard/WhatIfPanel";
 import RunHistory from "@/components/dashboard/RunHistory";
 import TodayIdleState from "@/components/dashboard/TodayIdleState";
 import { useAuth } from "@/context/AuthContext";
 import { DashStatus, useDashboardCtx } from "@/context/DashboardContext";
 import { useFridayRush } from "@/hooks/useFridayRush";
-import { PlanningScenarioOption, RunHistoryEntry } from "@/types/planning";
-
-const SCENARIO_OPTIONS: PlanningScenarioOption[] = [
-  {
-    id: "friday_rush",
-    label: "Friday Rush",
-    description: "High-demand dinner rush with table-turn pressure and stock protection.",
-    default_weekday: 4,
-    service_window: "18:00-22:00",
-    operational_focus: "Peak dinner demand and rush execution.",
-  },
-  {
-    id: "weekday_lunch",
-    label: "Weekday Lunch",
-    description: "Lean midday service focused on pacing, efficiency, and cleaner prep burden.",
-    default_weekday: 2,
-    service_window: "12:00-15:00",
-    operational_focus: "Lunch pacing and staffing efficiency.",
-  },
-  {
-    id: "holiday_spike",
-    label: "Holiday Spike",
-    description: "Demand-surge planning for unusually heavy service conditions.",
-    default_weekday: 5,
-    service_window: "17:00-22:00",
-    operational_focus: "Queue protection, surge readiness, and quality retention.",
-  },
-  {
-    id: "low_stock_weekend",
-    label: "Low-Stock Weekend",
-    description: "Weekend planning with tighter ingredient constraints and stricter prioritization.",
-    default_weekday: 6,
-    service_window: "18:00-22:00",
-    operational_focus: "Shortage prioritization and menu restraint.",
-  },
-];
-
-
+import { FridayRushResponse } from "@/types/planning";
+import { SCENARIO_OPTIONS } from "@/lib/scenarios";
+import { PlanningScenarioOption, RunHistoryEntry, ScenarioProfile } from "@/types/planning";
 
 type NodeState = "idle" | "running" | "done" | "skipped";
+
+// P6-A26 — ported from the now-retired /operations page (merged inline here
+// so triggering a plan and watching it complete happens in one continuous
+// view, no navigation). Extracts a small Swiggy-signal string per agent from
+// the anonymised area-level context already on the response.
+function reservationSwiggySignal(data: FridayRushResponse | null): string | undefined {
+  const occ = data?.swiggy_occupancy_context as Record<string, unknown> | null | undefined;
+  const sig = occ?.occupancy_signal as string | undefined;
+  return sig ? `area tonight: ${sig}` : undefined;
+}
+
+function inventorySwiggySignal(data: FridayRushResponse | null): string | undefined {
+  const proc = data?.swiggy_procurement_options as Record<string, unknown> | null | undefined;
+  const opts = proc?.procurement_options as unknown[] | undefined;
+  return opts && opts.length > 0 ? `${opts.length} Instamart prices live` : undefined;
+}
+
+function menuSwiggySignal(data: FridayRushResponse | null): string | undefined {
+  const comp = data?.swiggy_competitor_context as Record<string, unknown> | null | undefined;
+  const alerts = comp?.alerts as unknown[] | undefined;
+  const avgMap = comp?.area_avg as Record<string, number> | undefined;
+  const dishCount = avgMap ? Object.keys(avgMap).length : 0;
+  if (alerts && alerts.length > 0) return `${alerts.length} pricing alert${alerts.length !== 1 ? "s" : ""} · ${dishCount} dishes`;
+  if (dishCount > 0) return `${dishCount} competitor dishes tracked`;
+  return undefined;
+}
 
 
 function StepRow({
@@ -329,7 +324,6 @@ export default function DashboardPage() {
     finally { setExportingExcel(false); }
   }
   const [runMeta, setRunMeta] = useState<{ scenarioLabel: string; restaurantName: string | null }>({ scenarioLabel: "", restaurantName: null });
-  const [justTriggered, setJustTriggered] = useState(false);
 
   // Auth guard
   useEffect(() => {
@@ -357,36 +351,35 @@ export default function DashboardPage() {
     }
   }, [searchParams, router]);
 
+  // Deep-link a specific past run via ?run=<id> (P6-A26) -- preserves old
+  // /operations?run=<id> bookmarks now that /operations just redirects here,
+  // and lets any future link to a specific run land on Today directly.
+  useEffect(() => {
+    const runId = searchParams.get("run");
+    if (runId) {
+      loadFromHistory({ id: Number(runId) } as RunHistoryEntry);
+      router.replace("/dashboard");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const selectedScenario    = (dashCtx?.selectedScenario ?? "friday_rush") as PlanningScenarioOption["id"];
   const setSelectedScenario = (s: PlanningScenarioOption["id"]) => dashCtx?.setSelectedScenario(s as typeof dashCtx.selectedScenario);
 
   const handleHistorySelect = async (entry: RunHistoryEntry) => {
-    setJustTriggered(false);
     setActiveHistoryId(entry.id);
     await loadFromHistory(entry);
     setShowHistoryDrawer(false);
   };
 
-  const handleRun = (date?: string, restaurantName?: string, restaurantId?: number) => {
+  const handleRun = (date?: string, restaurantName?: string, restaurantId?: number, customProfile?: ScenarioProfile) => {
     setActiveHistoryId(undefined);
-    setJustTriggered(true);
     setRunMeta({
-      scenarioLabel: SCENARIO_OPTIONS.find(s => s.id === selectedScenario)?.label ?? selectedScenario,
+      scenarioLabel: customProfile?.label ?? SCENARIO_OPTIONS.find(s => s.id === selectedScenario)?.label ?? selectedScenario,
       restaurantName: restaurantName ?? user?.org_name ?? null,
     });
-    trigger(date, selectedScenario, restaurantId);
+    trigger(date, selectedScenario, restaurantId, customProfile);
   };
-
-  // A plan just finished from a fresh trigger (not from re-viewing history) --
-  // hand off to the Operations page where the agent cards/insights live,
-  // instead of showing results inline on the Today page.
-  useEffect(() => {
-    if (status === "success" && justTriggered && data) {
-      setJustTriggered(false);
-      const runId = data?.meta?.planning_run_id as number | undefined;
-      router.push(`/operations${runId ? `?run=${runId}` : ""}`);
-    }
-  }, [status, justTriggered, data, router]);
 
   if (authLoading || !user) return null;
 
@@ -422,17 +415,7 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {status === "success" && data && justTriggered && (
-            <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
-              <span className="relative flex h-3 w-3">
-                <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400 opacity-60" />
-                <span className="relative h-3 w-3 rounded-full bg-emerald-400" />
-              </span>
-              <p className="text-sm font-semibold text-emerald-400">Plan approved — opening Operations…</p>
-            </div>
-          )}
-
-          {status === "success" && data && !justTriggered && (
+          {status === "success" && data && (
             <>
               {/* ── Breadcrumb + action bar ── */}
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -516,6 +499,11 @@ export default function DashboardPage() {
                 targetDate={data.target_date}
               />
 
+              {/* Action Queue — P6-A26: the biggest existing feature (P6-A7/A8/A9/A12)
+                  gets an actual primary-nav home, front and center right after a plan
+                  completes, directly approve/reject-able without navigating anywhere. */}
+              <ActionQueuePanel />
+
               {/* Next step prompt */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 {[
@@ -535,35 +523,86 @@ export default function DashboardPage() {
 
               <DashboardSummary data={data} />
 
-              {/* Deep-dive links — full agent detail lives on their own pages now */}
-              <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Link
-                  href={`/operations${data.meta?.planning_run_id ? `?run=${data.meta.planning_run_id}` : ""}`}
-                  className="group flex items-center justify-between gap-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-5 py-4 transition-colors hover:border-ember-500/30 hover:bg-ember-500/[0.04]"
-                >
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-faint)]">The 5 specialists</p>
-                    <p className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">See full operations detail</p>
-                    <p className="mt-0.5 text-xs text-[var(--color-text-faint)]">Forecast, reservations, complaints, inventory, menu</p>
+              {/* The 5 specialists, in full detail — P6-A26: ported from the
+                  now-retired /operations page so this lives inline, right where
+                  the plan was triggered, instead of behind a page navigation. */}
+              <div className="mt-6 space-y-4">
+                <SectionHeader
+                  label="Service Planning"
+                  description="Demand pacing and reservation pressure for the current run."
+                  tone="ember"
+                />
+                <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+                  <div className="xl:col-span-8">
+                    <ForecastChart
+                      forecast={data.recommendations.forecast}
+                      scenario={data.scenario}
+                    />
                   </div>
-                  <svg className="h-4 w-4 shrink-0 text-[var(--color-text-faint)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--color-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                </Link>
-                <Link
-                  href={`/market${data.meta?.planning_run_id ? `?run=${data.meta.planning_run_id}` : ""}`}
-                  className="group flex items-center justify-between gap-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-5 py-4 transition-colors hover:border-[#fc8019]/30 hover:bg-[#fc8019]/[0.04]"
-                >
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Via Swiggy MCP</p>
-                    <p className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">See market intelligence</p>
-                    <p className="mt-0.5 text-xs text-[var(--color-text-faint)]">Competitor pricing, area demand, Instamart prices</p>
+                  <div className="xl:col-span-4">
+                    <AgentCard
+                      agentKey="reservation"
+                      data={data.recommendations.reservation as Record<string, unknown> | null}
+                      index={0}
+                      swiggySignal={reservationSwiggySignal(data)}
+                    />
                   </div>
-                  <svg className="h-4 w-4 shrink-0 text-[var(--color-text-faint)] transition-transform group-hover:translate-x-0.5 group-hover:text-[#fc8019]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                </Link>
+                </div>
               </div>
+
+              <div className="mt-10 space-y-4">
+                <SectionHeader
+                  label="Operational Risk"
+                  description="Customer sentiment and stock pressure shaping service execution."
+                  tone="rose"
+                />
+                <div className="grid grid-cols-1 items-stretch gap-5 xl:grid-cols-12">
+                  <div className="xl:col-span-7">
+                    <AgentCard
+                      agentKey="complaint"
+                      data={data.recommendations.complaint as Record<string, unknown> | null}
+                      index={1}
+                    />
+                  </div>
+                  <div className="xl:col-span-5">
+                    <AgentCard
+                      agentKey="inventory"
+                      data={data.recommendations.inventory as Record<string, unknown> | null}
+                      index={2}
+                      swiggySignal={inventorySwiggySignal(data)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-10 space-y-4">
+                <SectionHeader
+                  label="Menu Direction"
+                  description="Commercial and operational guidance synthesised for this planning window."
+                  tone="amber"
+                />
+                <AgentCard
+                  agentKey="menu"
+                  data={data.recommendations.menu as Record<string, unknown> | null}
+                  index={3}
+                  swiggySignal={menuSwiggySignal(data)}
+                />
+              </div>
+
+              {/* Deep-dive link — market intelligence lives on its own page */}
+              <Link
+                href={`/market${data.meta?.planning_run_id ? `?run=${data.meta.planning_run_id}` : ""}`}
+                className="group mt-6 flex items-center justify-between gap-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-5 py-4 transition-colors hover:border-[#fc8019]/30 hover:bg-[#fc8019]/[0.04]"
+              >
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Via Swiggy MCP</p>
+                  <p className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">See market intelligence</p>
+                  <p className="mt-0.5 text-xs text-[var(--color-text-faint)]">Competitor pricing, area demand, Instamart prices</p>
+                </div>
+                <svg className="h-4 w-4 shrink-0 text-[var(--color-text-faint)] transition-transform group-hover:translate-x-0.5 group-hover:text-[#fc8019]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
 
               {/* Re-run bar */}
               <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { getPlanningRun, listPlanningRuns, streamPlanningScenario } from "@/lib/api";
-import { FridayRushRequest, FridayRushResponse, PlanningRunSummary, RunHistoryEntry } from "@/types/planning";
+import { FridayRushRequest, FridayRushResponse, PlanningRunSummary, RunHistoryEntry, ScenarioProfile } from "@/types/planning";
 
 type Status = "idle" | "loading" | "success" | "error";
 
@@ -16,7 +16,7 @@ interface UseFridayRushReturn {
   startedNodes:   Set<string>;
   nodeHints:      Record<string, string>;
   replanCount:    number;
-  trigger:        (targetDate?: string, scenario?: FridayRushRequest["scenario"], restaurantId?: number) => Promise<void>;
+  trigger:        (targetDate?: string, scenario?: FridayRushRequest["scenario"], restaurantId?: number, customProfile?: ScenarioProfile) => Promise<void>;
   reset:          () => void;
   loadFromHistory: (entry: RunHistoryEntry) => Promise<void>;
   refreshHistory:  () => Promise<void>;
@@ -57,7 +57,7 @@ export function useFridayRush(): UseFridayRushReturn {
     return () => window.clearTimeout(timer);
   }, [refreshHistory]);
 
-  const trigger = useCallback(async (targetDate?: string, scenario: FridayRushRequest["scenario"] = "friday_rush", restaurantId?: number) => {
+  const trigger = useCallback(async (targetDate?: string, scenario: FridayRushRequest["scenario"] = "friday_rush", restaurantId?: number, customProfile?: ScenarioProfile) => {
     setStatus("loading");
     setError(null);
     setData(null);
@@ -72,6 +72,7 @@ export function useFridayRush(): UseFridayRushReturn {
         simulation_mode: false,
         scenario,
         ...(restaurantId ? { restaurant_id: restaurantId } : {}),
+        ...(customProfile ? { custom_profile: customProfile } : {}),
       });
 
       for await (const evt of stream) {

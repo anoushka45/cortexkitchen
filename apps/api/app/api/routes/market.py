@@ -1,14 +1,19 @@
 """market.py — live market intelligence, independent of any planning run.
 
-GET /api/v1/market/pulse fetches current Swiggy market data (competitor
+GET /api/v1/market/pulse fetches current area market data (competitor
 pricing, area demand, Instamart procurement) directly via the enrichers used
-inside the planning pipeline, but without requiring a plan to be run first.
-Each enricher already caches its own result in Redis for 30 minutes (keyed by
-org_id + date), so calling this endpoint repeatedly (e.g. every dashboard
-load) does not re-hit the Swiggy MCP server each time.
+inside the planning pipeline, plus live weather (P6-A21, Open-Meteo) and an
+industry-trends digest (P6-A22, curated RSS) -- neither is Swiggy MCP, so
+both are returned regardless of Swiggy connection status, all without
+requiring a plan to be run first. Each Swiggy enricher already caches its
+own result in Redis for 30 minutes (keyed by org_id + date), and
+TrendsService caches its digest for 1 hour, so calling this endpoint
+repeatedly (e.g. every dashboard load) does not re-hit external services
+each time.
 """
 
 import asyncio
+from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
@@ -16,10 +21,14 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, get_db
+from app.core.constants import DEFAULT_RESTAURANT_LAT, DEFAULT_RESTAURANT_LNG
 from app.core.settings import get_settings
 from app.domain.services.inventory_service import InventoryService
 from app.domain.services.run_service import RunService
 from app.infrastructure.db.models import MenuItem, Organization
+from app.infrastructure.external.compliance_alerts_service import ComplianceAlertsService
+from app.infrastructure.external.trends_service import TrendsService
+from app.infrastructure.external.weather_service import WeatherService
 from app.infrastructure.swiggy.client import SwiggyMCPClient
 from app.infrastructure.swiggy.enrichers.competitor import CompetitorEnricher
 from app.infrastructure.swiggy.enrichers.occupancy import OccupancyEnricher
@@ -143,11 +152,68 @@ class ProcurementItem(BaseModel):
     in_stock: bool
 
 
+class Weather(BaseModel):
+    """P6-A21 -- Open-Meteo, not Swiggy MCP, so independent of swiggy_connected."""
+    condition: Literal["heavy_rain", "light_rain", "very_hot", "clear"]
+    avg_precipitation_pct: float | None = None
+    avg_temp_celsius: float | None = None
+    delivery_impact: str
+    dinein_impact: str
+    signal: str
+
+
+class UpcomingHoliday(BaseModel):
+    date: str
+    name: str
+    days_away: int
+
+
+class IndustryTrends(BaseModel):
+    """P6-A22 -- curated RSS trade press, not Swiggy MCP, independent of swiggy_connected."""
+    digest: str
+    headline_count: int
+    sources_used: int
+    fetched_at: str | None = None
+
+
+class RegulatoryNotice(BaseModel):
+    title: str
+    uploaded_on: str
+    url: str
+
+
+class ComplianceAlerts(BaseModel):
+    """P6-A23 -- FSSAI public notices, not Swiggy MCP, independent of swiggy_connected."""
+    notices: list[RegulatoryNotice] = []
+    notice_count: int
+    fetched_at: str | None = None
+
+
 class MarketPulseResponse(BaseModel):
     swiggy_connected: bool
     competitor_pricing: CompetitorPricing | None = None
     area_occupancy: AreaOccupancy | None = None
     procurement: list[ProcurementItem] = []
+    weather: Weather | None = None
+    upcoming_holiday: UpcomingHoliday | None = None
+    industry_trends: IndustryTrends | None = None
+    compliance_alerts: ComplianceAlerts | None = None
+
+
+def _get_upcoming_holiday(days_ahead: int = 14) -> UpcomingHoliday | None:
+    """Cheap dict scan against INDIAN_HOLIDAYS_2026 -- no API call, independent
+    of Swiggy connection status. Returns the nearest holiday within the window."""
+    from datetime import timedelta
+
+    from app.core.constants import INDIAN_HOLIDAYS_2026
+
+    today = date.today()
+    for i in range(days_ahead + 1):
+        check = today + timedelta(days=i)
+        name = INDIAN_HOLIDAYS_2026.get(check.isoformat())
+        if name:
+            return UpcomingHoliday(date=check.isoformat(), name=name, days_away=i)
+    return None
 
 
 @router.get("/pulse", response_model=MarketPulseResponse)
@@ -155,9 +221,27 @@ async def get_market_pulse(
     current: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> MarketPulseResponse:
+    # Weather + holiday + industry trends + regulatory alerts are independent
+    # of Swiggy connection status -- none of the four is Swiggy MCP, never
+    # gated behind swiggy_connected.
+    weather_signal = await WeatherService().get_forecast(
+        lat=DEFAULT_RESTAURANT_LAT, lng=DEFAULT_RESTAURANT_LNG, target_date=date.today(),
+    )
+    weather = Weather(**weather_signal) if weather_signal else None
+    upcoming_holiday = _get_upcoming_holiday()
+
+    trends_signal = await TrendsService().get_digest()
+    industry_trends = IndustryTrends(**trends_signal) if trends_signal else None
+
+    compliance_signal = await ComplianceAlertsService().get_alerts()
+    compliance_alerts = ComplianceAlerts(**compliance_signal) if compliance_signal else None
+
     client = SwiggyMCPClient()
     if not client.is_available():
-        return MarketPulseResponse(swiggy_connected=False)
+        return MarketPulseResponse(
+            swiggy_connected=False, weather=weather, upcoming_holiday=upcoming_holiday,
+            industry_trends=industry_trends, compliance_alerts=compliance_alerts,
+        )
 
     org = db.query(Organization).filter(Organization.id == current["org_id"]).first()
     cuisine = (org.settings or {}).get("cuisine_type", "restaurant") if org else "restaurant"
@@ -276,6 +360,10 @@ async def get_market_pulse(
         competitor_pricing=competitor_pricing,
         area_occupancy=area_occupancy,
         procurement=procurement,
+        weather=weather,
+        upcoming_holiday=upcoming_holiday,
+        industry_trends=industry_trends,
+        compliance_alerts=compliance_alerts,
     )
 
 

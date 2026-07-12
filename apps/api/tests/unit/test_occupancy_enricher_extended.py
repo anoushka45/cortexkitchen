@@ -3,21 +3,34 @@
 All Swiggy Dineout API calls and Redis are mocked — no live token needed.
 """
 
+from datetime import date
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from app.infrastructure.swiggy.enrichers.occupancy import OccupancyEnricher
 
+TODAY = date.today().isoformat()
+
 LOCATION = {"id": "loc_01", "lat": 12.9716, "lng": 77.5946}
-AVAILABLE_RESTAURANT = {"id": "drest_42", "name": "The Fatty Bao", "availability": "AVAILABLE"}
+RESTAURANT = {"id": "drest_42", "name": "The Fatty Bao"}
 CONTEXT = {"org_id": 1, "cuisine": "North Indian"}
 
+# get_restaurant_details' real shape: deals/name/timings live under "offers" and
+# nested "restaurant", not top-level (confirmed live) -- see occupancy.py.
 RESTAURANT_DETAILS_RESPONSE = {
-    "id": "drest_42",
-    "name": "The Fatty Bao",
-    "avgRating": 4.5,
-    "timings": "12:00 PM - 11:00 PM",
-    "deals": [
+    "restaurantId": "drest_42",
+    "restaurant": {
+        "name": "The Fatty Bao",
+        "avgRating": 4.5,
+        "timings": "12:00 PM - 11:00 PM",
+        "deals": [
+            {"title": "20% off on food bill", "isFree": False, "bookingPrice": 0, "discountPercentage": 20},
+            {"title": "Free Table Booking", "isFree": True, "bookingPrice": 0, "discountPercentage": 0},
+            {"title": "No discount deal", "isFree": False, "discountPercentage": 0},
+        ],
+    },
+    "offers": [
         {"title": "20% off on food bill", "isFree": False, "bookingPrice": 0, "discountPercentage": 20},
         {"title": "Free Table Booking", "isFree": True, "bookingPrice": 0, "discountPercentage": 0},
         {"title": "No discount deal", "isFree": False, "discountPercentage": 0},
@@ -28,14 +41,19 @@ RESTAURANT_DETAILS_RESPONSE = {
 SLOTS_WITH_DEALS = [
     {
         "displayTime": "7:00 PM",
-        "availabilityCount": 2,
+        "slotGroupName": "Dinner",
+        "dateStr": TODAY,
         "deals": [
             {"slotId": 1, "title": "Free Table Booking", "isFree": True, "discountPercentage": 0},
             {"slotId": 2, "title": "15% off", "isFree": False, "discountPercentage": 15},
         ],
     },
-    {"displayTime": "7:30 PM", "availabilityCount": 1, "deals": []},
+    {"displayTime": "7:30 PM", "slotGroupName": "Dinner", "dateStr": TODAY, "deals": []},
 ]
+
+
+def _slots_response(slots: list[dict]) -> dict:
+    return {"_meta": {"slots": slots}}
 
 
 # ── PART A: get_restaurant_details ───────────────────────────────────────────
@@ -61,7 +79,7 @@ async def test_fetch_competitor_dineout_details_extracts_deals():
 @pytest.mark.asyncio
 async def test_fetch_competitor_dineout_details_skips_restaurants_with_no_deals():
     c = MagicMock()
-    c.call_tool = AsyncMock(return_value={"name": "No Deals Place", "deals": [], "amenities": []})
+    c.call_tool = AsyncMock(return_value={"restaurant": {"name": "No Deals Place"}, "offers": [], "amenities": []})
     enricher = OccupancyEnricher(c)
 
     details = await enricher._fetch_competitor_dineout_details(
@@ -103,7 +121,7 @@ def test_slot_deals_parsed_from_available_slots_response():
 
 def test_slot_deals_returns_empty_list_when_no_deals_present():
     enricher = OccupancyEnricher(MagicMock())
-    slots = [{"displayTime": "8:00 PM", "availabilityCount": 3}]
+    slots = [{"displayTime": "8:00 PM", "dateStr": TODAY}]
     assert enricher._extract_slot_deals(slots) == []
 
 
@@ -115,9 +133,11 @@ async def test_competitor_dineout_deals_in_result_dict():
         if tool_name == "get_saved_locations":
             return {"locations": [LOCATION]}
         if tool_name == "search_restaurants_dineout":
-            return {"restaurants": [AVAILABLE_RESTAURANT]}
+            return {"restaurants": [RESTAURANT]}
+        if tool_name == "render_restaurants_dineout":
+            return {"restaurants": [RESTAURANT]}
         if tool_name == "get_available_slots":
-            return {"slots": SLOTS_WITH_DEALS}
+            return _slots_response(SLOTS_WITH_DEALS)
         if tool_name == "get_restaurant_details":
             return RESTAURANT_DETAILS_RESPONSE
         return None
@@ -147,11 +167,13 @@ async def test_result_dict_has_empty_deal_lists_when_no_deals_anywhere():
         if tool_name == "get_saved_locations":
             return {"locations": [LOCATION]}
         if tool_name == "search_restaurants_dineout":
-            return {"restaurants": [AVAILABLE_RESTAURANT]}
+            return {"restaurants": [RESTAURANT]}
+        if tool_name == "render_restaurants_dineout":
+            return {"restaurants": [RESTAURANT]}
         if tool_name == "get_available_slots":
-            return {"slots": [{"displayTime": "7:00 PM", "availabilityCount": 6}]}
+            return _slots_response([{"displayTime": "7:00 PM", "slotGroupName": "Dinner", "dateStr": TODAY, "deals": []}])
         if tool_name == "get_restaurant_details":
-            return {"name": "The Fatty Bao", "deals": [], "amenities": []}
+            return {"restaurant": {"name": "The Fatty Bao"}, "offers": [], "amenities": []}
         return None
 
     c = MagicMock()

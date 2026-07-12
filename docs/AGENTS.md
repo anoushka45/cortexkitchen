@@ -66,6 +66,14 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 
 **Phase 5 addition:** `org_id` is now written to shared state at this node so all downstream nodes operate in the correct tenant context.
 
+**P6-A25:** validation is no longer a closed-set membership check against the
+4 presets alone. If `scenario` is one of `SCENARIO_DEFINITIONS`'s keys,
+behavior is unchanged (`get_scenario_definition()`). If not, and
+`state["custom_profile"]` is present (a natural-language-derived profile
+from `ScenarioProfileService`, see `docs/PRODUCT_MODES.md`),
+`scenario_profile` is built from that instead — only an unrecognized
+scenario with no `custom_profile` still short-circuits to `state["error"]`.
+
 ---
 
 ### `qdrant_enrichment`
@@ -88,11 +96,41 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 **Role:** Produces the demand and service-pressure signal used by all downstream domain nodes. Acts as the gate — if confidence is too low, the run does not proceed.
 
 **Inputs:** Scenario context from `ops_manager`  
-**Outputs:** Forecast output block in `state["forecast"]` — predicted covers, peak hour, confidence band, day-of-week adjustment  
+**Outputs:** Forecast output block in `state["forecast"]` — predicted covers, peak hour, confidence band, day-of-week adjustment; also writes `state["weather_signal"]`  
 **Implementation:** `app/orchestration/nodes/demand_forecast.py`  
 **Service:** `ForecastService` — queries historical orders from PostgreSQL and runs Prophet time-series  
 **Dependencies:** `db`, `llm`  
 **Model tier:** `fast` (`deepseek-v4-flash` when `COMET_TIERED=true`)
+
+**Live-intelligence signals (P6-A21):** Prophet's `predicted_orders` is purely
+historical (90-day window) and structurally can't know about a forward-
+looking one-off signal its training data never saw — a holiday, a rain
+forecast. `demand_forecast_node` fetches `WeatherService` (Open-Meteo, free,
+keyless — `app/infrastructure/external/weather_service.py`) and a holiday
+lookup (`app/core/calendar_utils.py`, shared with `ScenarioRecommender`) for
+the target date, then `ForecastService._apply_signal_adjustments()` applies
+a deterministic multiplier to the raw Prophet output — not just narrative
+prompt text an LLM may or may not act on. Transparent by construction:
+`predicted_orders_pre_adjustment`, `adjustment_multiplier`, and
+`adjustment_reasons` are all preserved in the forecast dict, so the
+adjustment is never a silent change to what Prophet actually said. Both
+signals fail open — a weather-lookup failure or missing `target_date` just
+means no adjustment, the forecast still runs on Prophet's raw output.
+
+**P6-A22/A23/A24:** `demand_forecast_node` also fetches `TrendsService`
+(curated RSS) and `ComplianceAlertsService` (FSSAI notices) here — narrative
+context only for this node's own LLM recommendation
+(`ForecastService.analyse_and_recommend`'s `signal_line`), never touching
+the multiplier. All three signals are written to state
+(`weather_signal`/`trends_signal`/`compliance_alerts_signal`) and read back
+(not re-fetched) by `market_intel_node`, which merges them with the Swiggy
+competitor/occupancy prompt text into one `market_intel_output
+["live_signals_text"]` (`MarketIntelService._build_live_signals_text`) —
+read by `menu_intelligence` (`MenuService`'s `market_context`) and
+condensed into a `[Live Signals]` line in the critic's summary
+(`aggregator.py`'s `_build_critic_summary`). Existing state field names
+(`swiggy_competitor_context`, `swiggy_occupancy_context`,
+`market_intel_output`) are unchanged.
 
 ---
 

@@ -1,11 +1,16 @@
 # CortexKitchen — Claude Code Master Reference
 
 > **Read this file completely before touching any code.**
-> Last updated: P6-A21→A26 done on `feature/live-intelligence-signals` —
-> nine tasks (P6-A21–A29: live-
+> Last updated: P6-A21→A26 done and merged to `dev` via
+> `feature/live-intelligence-signals`; P6-A27 (Kindred/Langfuse replay
+> debugging) done on its own branch, `feature/kindred`, off `dev`. Original
+> nine-task plan (P6-A21–A29: live-
 > intelligence signals, scenario overhaul, and a real-product IA pass
 > merging `/operations` into Today and `/runs`+`/data-health` into Data)
-> share this one combined branch. **P6-A21 (weather + holidays)**, **P6-A22
+> was renumbered — the Data page redesign and menu matrix work that was
+> A27/A28 shifted to A28/A29 (now on their own branch, `feature/page-redesign`,
+> queued to start after this) to make room for A27 (Kindred). **P6-A21
+> (weather + holidays)**, **P6-A22
 > (industry trends, curated RSS)**, **P6-A23 (regulatory alerts, FSSAI
 > public notices)**, and **P6-A24 (unify all signals into the planning
 > pipeline)** are all DONE. Weather/trends/compliance are independently
@@ -70,7 +75,57 @@
 > frontend task in a row without hands-on browser verification; recommend
 > testing A25 + A26 together in one browser session before continuing much
 > further.
-> Next: P6-A27 (Data page redesign). See the tracker for full task detail
+> **P6-A27 (Langfuse tracing + Kindred replay debugging) is DONE.** Every
+> planning run is now traced in Langfuse: a `langfuse.langchain.CallbackHandler`
+> attached to `run_planning_scenario`/`stream_planning_scenario`'s
+> `RunnableConfig` records one span per LangGraph node with zero node-level
+> code changes, and a new `BaseLLMProvider._trace_generation()` (called from
+> all 3 providers — Groq/Gemini/Comet — right after `record_usage()`) records
+> one Langfuse *generation* per actual LLM call (real prompt/completion/token
+> usage), nested under the right node span automatically via OTel context
+> propagation. New settings: `LANGFUSE_PUBLIC_KEY`/`SECRET_KEY`/`HOST`/
+> `BASE_URL` (the SDK checks both host names, so both are supported —
+> Langfuse's own quickstart snippet uses `BASE_URL`, Kindred's setup prompt
+> asks for `HOST`), `KINDRED_AGENT_ID`, `KINDRED_API_KEY` (registered, not
+> yet used anywhere — no documented use case surfaced). New `POST /replay`
+> (`app/api/routes/replay.py`), mounted directly on the app in `main.py` at a
+> bare root path, not under `/api/v1`, since that's Kindred's Configure
+> Replay URL convention. Kindred replays at the granularity of **one LLM
+> generation**, not a whole run — confirmed from live request logs, which
+> carry back exactly the `[system, user]` messages array captured for one
+> observation inside a trace. `/replay` reuses `BaseLLMProvider.complete()`
+> directly for that one call — the same call path every node already uses.
+> An earlier version instead treated any unrecognised input as a free-text
+> scenario description and reran the *entire* 11-node graph per replay (6+
+> LLM calls) — wrong (replayed a different thing than what was asked) and
+> expensive (burned a full Groq daily token quota, 100k TPD, in 3 live
+> replay clicks before this was caught and fixed). All 5 Kindred replay
+> metadata fields (`kindred_replay_run_id`/`kindred_original_session_id`/
+> `kindred_include_prior_context`/`kindred_turn_trace_id`/`is_replay`) plus
+> their `X-Kindred-*` header equivalents are threaded onto the Langfuse trace
+> via `propagate_attributes()`, not just the HTTP response — Kindred finds a
+> replay by polling Langfuse trace metadata, not by reading HTTP responses.
+> `session_id` was originally `f"org-{org_id}"` (grouping every run from one
+> org into one shared Langfuse session) — found live to actively break
+> Kindred's original↔replay matching (one session had pooled 199 unrelated
+> observations across many unrelated runs); changed to scope `session_id` to
+> the individual `run_id` instead, which fixed original/replay trace-tree
+> structure lining up 1:1. Fail-open throughout, matching the existing
+> LangSmith integration: every new code path no-ops when
+> `LANGFUSE_SECRET_KEY` is unset. **Known gap, confirmed Kindred-side, not
+> ours**: Kindred's own Reproducibility comparison view never renders the
+> original/Reference output for the "Agent Output" step, even after the
+> session fix gave it a matching trace structure — directly verified via
+> Langfuse's own public API that the original data is fully present and
+> correctly formatted in every case checked, so this is a gap in Kindred's
+> matching/rendering, not a data problem here. True node re-execution
+> (reconstructing a node's original state and re-running its *current* code,
+> which would let a replay catch a real prompt/logic regression rather than
+> just LLM sampling variance) was scoped and deliberately not built — needs
+> LangGraph checkpointing that doesn't exist yet, and reopens real per-replay
+> LLM cost; left as a future task if it becomes a genuine recurring need.
+> Next: P6-A28 (Data page redesign, on its own branch `feature/page-redesign`,
+> queued to start after this). See the tracker for full task detail
 > (Phase 6A / Phase 6B sheets) — this file gives orientation, the tracker is
 > the source of truth for task-level status.
 > Reference zip: cortexkitchen-dev (latest dev branch)

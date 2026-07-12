@@ -8,6 +8,7 @@ import {
   PlanningScenarioOption,
   PlanningRunDetail,
   PlanningRunSummary,
+  ScenarioProfile,
 } from "@/types/planning";
 import { getAuthToken } from "@/lib/auth-cookies";
 
@@ -102,6 +103,25 @@ export async function runPlanningScenario(
   }
 
   return res.json() as Promise<FridayRushResponse>;
+}
+
+// P6-A25 -- converts a free-form description of tonight's service into a
+// structured ScenarioProfile, for use as FridayRushRequest.custom_profile
+// alongside a non-preset scenario id (e.g. "custom").
+export async function deriveScenarioProfile(text: string): Promise<ScenarioProfile> {
+  const res = await fetch(`${BASE_URL}/api/v1/planning/scenario-from-text`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ text }),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Scenario profile derivation failed ${res.status}: ${detail}`);
+  }
+
+  const data = await res.json() as { profile: ScenarioProfile };
+  return data.profile;
 }
 
 export interface ObservabilitySummary {

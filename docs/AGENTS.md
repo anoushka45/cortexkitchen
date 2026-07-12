@@ -66,6 +66,14 @@ The conditional edge after `ops_manager` short-circuits to `final_assembler` if 
 
 **Phase 5 addition:** `org_id` is now written to shared state at this node so all downstream nodes operate in the correct tenant context.
 
+**P6-A25:** validation is no longer a closed-set membership check against the
+4 presets alone. If `scenario` is one of `SCENARIO_DEFINITIONS`'s keys,
+behavior is unchanged (`get_scenario_definition()`). If not, and
+`state["custom_profile"]` is present (a natural-language-derived profile
+from `ScenarioProfileService`, see `docs/PRODUCT_MODES.md`),
+`scenario_profile` is built from that instead — only an unrecognized
+scenario with no `custom_profile` still short-circuits to `state["error"]`.
+
 ---
 
 ### `qdrant_enrichment`

@@ -187,6 +187,40 @@ or raises.
 
 ---
 
+## Scenario intake modes (P6-A25)
+
+Full detail in `docs/PRODUCT_MODES.md`. Summary: `ops_manager_node` needs a
+`scenario_profile` (`label`/`service_window`/`operational_focus`) regardless
+of source. Two intake modes feed it, both converging on the same downstream
+pipeline:
+
+1. **Presets** (unchanged) — `scenario` is one of the 4
+   `SCENARIO_DEFINITIONS` keys, `ops_manager_node` resolves via
+   `get_scenario_definition()`.
+2. **Natural language** (new) — free text goes to
+   `POST /planning/scenario-from-text` (`ScenarioProfileService`, an LLM call
+   with a deterministic fallback, same never-raise pattern as
+   `ScenarioRecommender`), returning a fully-populated profile the frontend
+   sends back as `custom_profile` alongside a non-preset `scenario` id (e.g.
+   `"custom"`). `ops_manager_node` builds `scenario_profile` from that
+   instead. `custom_profile` is a new `OrchestratorState` field, threaded
+   through `make_initial_state`/`run_planning_scenario`/
+   `stream_planning_scenario`, and bypasses both the semantic cache and the
+   Redis plan cache (two different free-text descriptions would otherwise
+   collide on the same cache key).
+
+`ScenarioProfileService` always fills all three profile keys even in its
+fallback path, since `complaint_service.py`/`inventory_service.py`/
+`reservation_service.py` read them via direct dict-key access (not `.get()`)
+once `scenario_profile` is truthy.
+
+Frontend: the 4 preset tiles and the free-text input live side by side in
+`PlanShiftModal.tsx` (`SCENARIO_OPTIONS`, previously duplicated verbatim in
+`app/dashboard/page.tsx` and `TodayIdleState.tsx`, now a single shared
+constant in `lib/scenarios.ts`).
+
+---
+
 ## Backend architecture
 
 ### API layer

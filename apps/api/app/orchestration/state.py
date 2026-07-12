@@ -30,6 +30,11 @@ class OrchestratorState(TypedDict):
     # Core request metadata
     scenario:     Annotated[Optional[str], keep_last]
     scenario_profile: Annotated[Optional[Dict[str, Any]], keep_last]
+    # Ad-hoc natural-language-derived scenario profile (P6-A25) -- input to
+    # ops_manager_node when `scenario` isn't one of the 4 presets; distinct
+    # from scenario_profile, which is ops_manager_node's *resolved* output
+    # (built from either a preset or this field).
+    custom_profile: Annotated[Optional[Dict[str, Any]], keep_last]
     target_date:  Annotated[Optional[str], keep_last]
     requested_at: Annotated[Optional[str], keep_last]
 
@@ -125,6 +130,7 @@ def make_initial_state(
     force_critic_decision: Optional[str] = None,
     debug: bool = False,
     restaurant_profile: Optional[Dict[str, Any]] = None,
+    custom_profile: Optional[Dict[str, Any]] = None,
 ) -> OrchestratorState:
     """
     Build a clean initial state for a new orchestration run.
@@ -143,6 +149,7 @@ def make_initial_state(
         # Core metadata
         scenario=scenario,
         scenario_profile=None,
+        custom_profile=custom_profile,
         target_date=target_date,
         requested_at=datetime.now(timezone.utc).isoformat(),
 

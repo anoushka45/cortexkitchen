@@ -1,8 +1,8 @@
 # CortexKitchen — Claude Code Master Reference
 
 > **Read this file completely before touching any code.**
-> Last updated: P6-A21→A24 (all four live-intelligence tasks) done on
-> `feature/live-intelligence-signals` — nine tasks (P6-A21–A29: live-
+> Last updated: P6-A21→A25 done on `feature/live-intelligence-signals` —
+> nine tasks (P6-A21–A29: live-
 > intelligence signals, scenario overhaul, and a real-product IA pass
 > merging `/operations` into Today and `/runs`+`/data-health` into Data)
 > share this one combined branch. **P6-A21 (weather + holidays)**, **P6-A22
@@ -33,10 +33,29 @@
 > nested `offers`/`restaurant` fields, `get_available_slots`' slots living in
 > `_meta` with no numeric `availabilityCount` field anymore) — all fixed,
 > plus the identical bug in `dineout_manager.py` (currently dormant, no real
-> Dineout restaurant ID configured yet). Next: P6-A25 (scenario-selection
-> overhaul). See the tracker for full task detail (Phase 6A / Phase 6B
-> sheets) — this file gives orientation, the tracker is the source of truth
-> for task-level status.
+> Dineout restaurant ID configured yet).
+> **P6-A25 (scenario-selection overhaul) is DONE.** `PlanningRunRequest.scenario`
+> relaxed from a 4-value Literal to `str`; new `custom_profile` field
+> (`ScenarioProfilePayload`). New `ScenarioProfileService` (new
+> `POST /planning/scenario-from-text`) turns free-form text ("we're hosting
+> an event today, expecting large turnover") into a full profile via an LLM
+> call — same never-raise + deterministic-fallback pattern as
+> `ScenarioRecommender`, always fills all 3 required keys since
+> `complaint_service`/`inventory_service`/`reservation_service` read
+> `scenario_profile["label"]` etc. via direct dict access, not `.get()`.
+> `ops_manager_node` now branches: known preset → unchanged; unknown
+> scenario + `custom_profile` present → build from that; unknown scenario +
+> no `custom_profile` → still a hard error. New `OrchestratorState` field:
+> `custom_profile`. Custom-profile runs bypass both the semantic cache and
+> the Redis plan cache. Frontend: deduplicated the two verbatim-identical
+> `SCENARIO_OPTIONS` arrays into `lib/scenarios.ts`; `PlanShiftModal.tsx` now
+> has a free-text input alongside the existing tile grid, not replacing it.
+> Full detail in `docs/PRODUCT_MODES.md`. **Not visually tested in a running
+> browser** (the user's own `npm dev` was already running) — typecheck +
+> 545 backend tests pass, but the live UI interaction itself is unverified.
+> Next: P6-A26 (Today Dashboard redesign). See the tracker for full task
+> detail (Phase 6A / Phase 6B sheets) — this file gives orientation, the
+> tracker is the source of truth for task-level status.
 > Reference zip: cortexkitchen-dev (latest dev branch)
 
 ---

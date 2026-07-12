@@ -223,14 +223,34 @@ export interface FridayRushResponse {
   dineout_manager?:           Record<string, unknown> | null;
 }
 
+// P6-A25 -- ad-hoc scenario profile derived from natural language, carried
+// alongside a non-preset `scenario` id. Mirrors the backend's
+// ScenarioProfilePayload (apps/api/app/api/schemas/planning.py).
+export interface ScenarioProfile {
+  id: string;
+  label: string;
+  description?: string;
+  service_window: string;
+  operational_focus: string;
+  cuisine?: string | null;
+}
+
 export interface FridayRushRequest {
   target_date?: string | null;
   simulation_mode?: boolean;
-  scenario?: "friday_rush" | "weekday_lunch" | "holiday_spike" | "low_stock_weekend";
+  // Widened from the 4-literal union (P6-A25) -- a custom id (e.g. "custom")
+  // is valid when custom_profile is also supplied. The 4 presets still work
+  // unchanged when scenario is one of them and custom_profile is omitted.
+  scenario?: string;
+  restaurant_id?: number;
+  custom_profile?: ScenarioProfile | null;
 }
 
 export interface PlanningScenarioOption {
-  id: "friday_rush" | "weekday_lunch" | "holiday_spike" | "low_stock_weekend";
+  // Widened from the 4-literal union (P6-A25) so a synthesized "custom" tile
+  // (built from ScenarioProfile) can be passed through the same picker props
+  // as the 4 presets.
+  id: string;
   label: string;
   description: string;
   default_weekday: number;

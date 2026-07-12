@@ -2,7 +2,9 @@
 
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 
-export type DashScenario = "friday_rush" | "weekday_lunch" | "holiday_spike" | "low_stock_weekend";
+// Widened from the 4-literal union (P6-A25) so a custom natural-language-
+// derived scenario id can be selected the same way a preset is.
+export type DashScenario = string;
 export type DashStatus   = "idle" | "loading" | "success" | "error";
 
 interface DashboardCtx {

@@ -351,24 +351,33 @@ async def run_planning_scenario(
     restaurant_profile: dict | None = None,
     critic_threshold: float = 0.7,
     org_id: int | None = None,
+    custom_profile: dict | None = None,
 ) -> dict:
     """
     Top-level convenience function for a named planning scenario.
 
     Args:
         deps: Infrastructure dependencies.
-        scenario: Scenario id from the scenario registry.
+        scenario: Scenario id from the scenario registry, or a custom id
+            (e.g. "custom") when custom_profile is supplied (P6-A25).
         target_date: Optional ISO date string.
         simulation_mode: Enables deterministic simulation.
         force_critic_decision: Overrides critic verdict for testing.
         debug: Enables observability and state tracing.
+        custom_profile: Ad-hoc natural-language-derived scenario profile
+            (P6-A25) -- bypasses the semantic cache, since two different
+            custom descriptions could otherwise share a cache key.
 
     Returns:
         Final API-ready response from the LangGraph workflow.
     """
     # ── Semantic cache check (Qdrant, similarity >= 0.92) ───────────────────
     semantic_cache = deps.get("semantic_cache")
-    if semantic_cache and org_id and not simulation_mode and not force_critic_decision and not debug:
+    if (
+        semantic_cache and org_id
+        and not simulation_mode and not force_critic_decision and not debug
+        and not custom_profile
+    ):
         try:
             cached = semantic_cache.get(org_id, scenario, target_date)
             if cached is not None:
@@ -401,6 +410,7 @@ async def run_planning_scenario(
         force_critic_decision=force_critic_decision,
         debug=debug,
         restaurant_profile=restaurant_profile,
+        custom_profile=custom_profile,
     )
 
     # Inject P1-10 testing flags
@@ -659,6 +669,7 @@ async def stream_planning_scenario(
     restaurant_profile: dict | None = None,
     critic_threshold: float = 0.7,
     org_id: int | None = None,
+    custom_profile: dict | None = None,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """
     Streams planning results node-by-node for SSE delivery.
@@ -667,6 +678,8 @@ async def stream_planning_scenario(
       {"event": "node_complete", "node": str}        — as each agent finishes
       {"event": "complete",      "response": dict}   — full final response
       {"event": "error",         "message": str}     — on failure
+
+    custom_profile: Ad-hoc natural-language-derived scenario profile (P6-A25).
     """
     traces: list[dict] = []
     graph_instance = build_graph(deps, traces=traces)
@@ -683,6 +696,7 @@ async def stream_planning_scenario(
         scenario=scenario, target_date=target_date,
         simulation_mode=simulation_mode, force_critic_decision=force_critic_decision,
         debug=debug, restaurant_profile=restaurant_profile,
+        custom_profile=custom_profile,
     )
     initial_state.update({
         "simulation_mode":        simulation_mode,

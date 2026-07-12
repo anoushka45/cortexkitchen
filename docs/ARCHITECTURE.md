@@ -221,6 +221,29 @@ constant in `lib/scenarios.ts`).
 
 ---
 
+## Today Dashboard redesign (P6-A26)
+
+`/operations` (agent cards, forecast chart, critic banner) is merged
+directly into `/dashboard`'s success view — triggering a plan and watching
+it build/complete happens in one continuous view, no page navigation.
+`/operations` now only redirects (`?run=<id>` preserved as
+`/dashboard?run=<id>`) for old bookmarks/links; `app/dashboard/page.tsx`
+handles that deep link itself via `loadFromHistory({id: ...})`, the same
+mechanism the run-history drawer already used. The "Operations" nav entry
+is removed from `NavBar.tsx` — Today is now Action Queue's actual
+primary-nav home (`<ActionQueuePanel/>` renders in both the idle state and
+the post-run success view, not just idle).
+
+`PlanShiftModal.tsx` also gained a `TodayContextStrip` — condensed badges
+for all 4 live signals unified in P6-A24 (weather/holiday, industry
+trends, regulatory alerts, plus the existing anonymised Swiggy area
+occupancy signal), sourced from `TodayIdleState`'s already-fetched
+`getMarketPulse()` call (no new fetch), positioned above the scenario
+tiles/free-text input so it's visible during scenario selection itself.
+Degrades per-signal, same as its data sources.
+
+---
+
 ## Backend architecture
 
 ### API layer
@@ -448,7 +471,7 @@ The frontend (`apps/web/cortexkitchen-ui`) is a Next.js App Router application w
 |-------|---------|
 | `/` | Public marketing homepage — pipeline explainer, features, footer |
 | `/login`, `/register` | JWT auth flow |
-| `/dashboard` | Scenario selection, SSE streaming run, full plan, what-if simulator |
+| `/dashboard` | Scenario selection (presets + natural-language, P6-A25) with a live-signals context strip, SSE streaming run, full plan (5 specialist agent cards + forecast chart + critic banner + Action Queue, merged in from the retired `/operations` route, P6-A26), what-if simulator |
 | `/runs` | Audit trail — scenario filter, date range, critic score trend, run detail, PDF/Excel export |
 | `/chat` | Ask AI — RAG chatbot with suggested questions and streamed responses |
 | `/data-health` | Database coverage table + observability panel (7-day stats) |

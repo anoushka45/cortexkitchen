@@ -742,6 +742,8 @@ export default function TodayIdleState({
         selectedProfileId={selectedProfileId}
         onSelectProfile={setSelectedProfileId}
         activeProfile={activeProfile}
+        marketPulse={marketPulse}
+        marketLoaded={marketLoaded}
       />
     </div>
   );

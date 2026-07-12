@@ -16,11 +16,13 @@ interface UseSelectedRunReturn {
 }
 
 /**
- * Shared by /operations and /market: reads ?run=<id> from the URL, falling
- * back to the most recent completed run when absent. Independent of the
- * live SSE hook (useFridayRush) on purpose -- these pages show a completed
- * run's detail, not the in-progress streaming experience, so they don't
- * need to share that hook's state.
+ * Used by /market: reads ?run=<id> from the URL, falling back to the most
+ * recent completed run when absent. Independent of the live SSE hook
+ * (useFridayRush) on purpose -- /market shows a completed run's market
+ * intelligence, not the in-progress streaming experience, so it doesn't
+ * need to share that hook's state. (/dashboard handles its own ?run=<id>
+ * deep link directly via loadFromHistory -- P6-A26, since /operations
+ * -- the other historical consumer of this hook -- now just redirects there.)
  */
 export function useSelectedRun(): UseSelectedRunReturn {
   const searchParams = useSearchParams();

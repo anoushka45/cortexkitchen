@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import DatePicker from "@/components/dashboard/DatePicker";
-import { deriveScenarioProfile, RestaurantProfile } from "@/lib/api";
+import TodayContextStrip from "@/components/dashboard/TodayContextStrip";
+import { deriveScenarioProfile, MarketPulseResponse, RestaurantProfile } from "@/lib/api";
 import { PlanningScenarioOption, ScenarioProfile } from "@/types/planning";
 
 const AGENT_PIPELINE = [
@@ -63,12 +64,15 @@ interface Props {
   selectedProfileId: number | null;
   onSelectProfile: (id: number) => void;
   activeProfile: RestaurantProfile | null;
+  marketPulse: MarketPulseResponse | null;
+  marketLoaded: boolean;
 }
 
 export default function PlanShiftModal({
   open, onClose, onRun,
   scenarioOptions, selectedScenario, onScenarioChange, scenario,
   profiles, selectedProfileId, onSelectProfile, activeProfile,
+  marketPulse, marketLoaded,
 }: Props) {
   // P6-A25 — natural-language intake alongside the preset tiles above, not a
   // replacement of them. Deriving a profile synthesizes a 5th "custom" tile
@@ -192,6 +196,10 @@ export default function PlanShiftModal({
             )}
 
             <div className="mt-6">
+              <TodayContextStrip marketPulse={marketPulse} loaded={marketLoaded} />
+            </div>
+
+            <div className="mt-4">
               <p className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-faint)]">Choose a shift</p>
               <div className="grid grid-cols-2 gap-2">
                 {displayedOptions.map((option) => {

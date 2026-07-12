@@ -1,7 +1,7 @@
 # CortexKitchen — Claude Code Master Reference
 
 > **Read this file completely before touching any code.**
-> Last updated: P6-A21→A25 done on `feature/live-intelligence-signals` —
+> Last updated: P6-A21→A26 done on `feature/live-intelligence-signals` —
 > nine tasks (P6-A21–A29: live-
 > intelligence signals, scenario overhaul, and a real-product IA pass
 > merging `/operations` into Today and `/runs`+`/data-health` into Data)
@@ -50,12 +50,29 @@
 > the Redis plan cache. Frontend: deduplicated the two verbatim-identical
 > `SCENARIO_OPTIONS` arrays into `lib/scenarios.ts`; `PlanShiftModal.tsx` now
 > has a free-text input alongside the existing tile grid, not replacing it.
-> Full detail in `docs/PRODUCT_MODES.md`. **Not visually tested in a running
-> browser** (the user's own `npm dev` was already running) — typecheck +
-> 545 backend tests pass, but the live UI interaction itself is unverified.
-> Next: P6-A26 (Today Dashboard redesign). See the tracker for full task
-> detail (Phase 6A / Phase 6B sheets) — this file gives orientation, the
-> tracker is the source of truth for task-level status.
+> Full detail in `docs/PRODUCT_MODES.md`.
+> **P6-A26 (Today Dashboard redesign) is DONE.** `/operations` (agent cards,
+> forecast chart, critic banner) merged directly into `/dashboard`'s success
+> view — the `justTriggered`-gated redirect and transient "opening
+> Operations" screen are gone entirely; fresh triggers and history loads now
+> render one unified view. `/operations` is now a 2-line redirect page
+> (`?run=<id>` preserved as `/dashboard?run=<id>`, handled on `/dashboard`
+> itself via `loadFromHistory({id})`). `<ActionQueuePanel/>` now also
+> renders in the success view (previously idle-state only), and the
+> "Operations" nav entry is removed from `NavBar.tsx` — Today is Action
+> Queue's actual primary-nav home now. New `TodayContextStrip` component
+> (condensed weather/holiday/trends/compliance/area-occupancy badges, all 4
+> P6-A24 signals) renders inside `PlanShiftModal.tsx` above the scenario
+> tiles/free-text input, sourced from `TodayIdleState`'s already-fetched
+> `getMarketPulse()` — zero new fetch. Frontend-only task; `npx tsc --noEmit`
+> and `npx eslint` both clean. **Not visually tested in a running browser**
+> (the user's own `npm dev` was already running) — this is the second
+> frontend task in a row without hands-on browser verification; recommend
+> testing A25 + A26 together in one browser session before continuing much
+> further.
+> Next: P6-A27 (Data page redesign). See the tracker for full task detail
+> (Phase 6A / Phase 6B sheets) — this file gives orientation, the tracker is
+> the source of truth for task-level status.
 > Reference zip: cortexkitchen-dev (latest dev branch)
 
 ---

@@ -52,10 +52,16 @@ cache entirely (`apps/api/app/orchestration/graph.py`,
 descriptions would otherwise collide on the same `scenario="custom"` cache
 key.
 
-## What's explicitly out of scope here (P6-A26)
+## Page layout (P6-A26, now done)
 
 Where the natural-language input sits in the page layout, the live-signals
-context strip, and Action Queue placement all belong to the Today Dashboard
-redesign task that follows this one — P6-A25 only owns the backend
-(schema relaxation, `ScenarioProfileService`) and the input widget itself
-(`PlanShiftModal.tsx`).
+context strip, and Action Queue placement were deliberately left to the
+Today Dashboard redesign task that followed this one — P6-A25 only owned
+the backend (schema relaxation, `ScenarioProfileService`) and the input
+widget itself (`PlanShiftModal.tsx`). P6-A26 added `TodayContextStrip`
+(condensed weather/holiday/trends/compliance badges, sourced from the same
+`getMarketPulse()` call `TodayIdleState` already makes) directly above the
+scenario tiles/free-text input in `PlanShiftModal.tsx`, and merged
+`/operations` into `/dashboard` so the Action Queue and the plan-in-progress
+view both live on Today. See `docs/ARCHITECTURE.md`'s "Today Dashboard
+redesign (P6-A26)" section for the full detail.

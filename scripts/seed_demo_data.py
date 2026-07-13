@@ -1,7 +1,31 @@
 """
-CortexKitchen — demo data seed (v4, date-relative)
+CortexKitchen — demo data seed (v5, date-relative + dynamic)
 
-Changes vs v3:
+Changes vs v4:
+- random.seed() is now derived from today's date instead of a fixed integer
+  (42). v4 was fully deterministic forever -- every reseed produced the
+  exact same shortages, popular dishes, and sampled feedback text, no matter
+  when you ran it (only the calendar dates shifted). Seeding by date keeps
+  a demo session stable within one day, but genuinely different day to day.
+- Inventory: 1-4 of 18 items are randomly selected to run low each seed day
+  (was always exactly Mozzarella Cheese/Fresh Basil/Garlic, at fixed literal
+  quantities, forever). Quantities for both low and comfortable items are
+  randomized within realistic bands around each item's fixed threshold.
+- The "popular Friday pizza" set (previously a hardcoded 3-dish constant
+  biasing 70% of Friday order generation) is now a random sample of 3 pizzas
+  per seed day.
+- Decision-log/RAG memory content (what qdrant_enrichment retrieves as
+  "similar past context") is generated from whichever ingredients were
+  actually seeded low/comfortable this run, instead of literal hardcoded
+  text -- previously the memory permanently cited the same 3 ingredients
+  regardless of what the actual inventory table said.
+- Action Queue pending demo items are built from the actual seeded low
+  ingredients instead of being hardcoded to Fresh Basil/Mozzarella.
+- Vendor price quotes expanded from 3 quotes/2 ingredients to 14 quotes
+  across 10 ingredients, so procurement has real price data regardless of
+  which items this seed's random draw marks as low.
+
+Changes vs v3 (still true in v5):
 - All dates are computed relative to script run-time (SEED_AS_OF = now()),
   not hardcoded literal 2026 calendar dates. Re-running this script always
   produces a dataset anchored to "today," so scenario_coverage, the demand
@@ -11,9 +35,6 @@ Changes vs v3:
   logic the backend uses (_next_matching_service_date in runs.py), for
   10 upcoming occurrences per scenario (~2.5 months), so "Plan tonight"
   always has real reservation data to react to no matter when this runs.
-- Inventory rebalanced: 3 of 18 items genuinely low (was 11 of 18 -- a
-  permanent, date-independent shortage state), so "running low" reads as
-  a real signal instead of fixed lore.
 """
 
 import os
@@ -114,7 +135,12 @@ FUTURE_SCENARIO_TARGETS = {
 engine  = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
 session = Session()
-random.seed(42)
+# Seeded by today's date, not a fixed integer -- every "random" draw below
+# (which items run short, which dishes are popular, which feedback text gets
+# sampled, etc.) is deterministic within a single day, so a demo session
+# doesn't shift under you mid-demo, but genuinely different from one day to
+# the next instead of being frozen forever on the same 3 ingredients/3 dishes.
+random.seed(SEED_AS_OF.strftime("%Y-%m-%d"))
 
 
 # ── Hour distributions ───────────────────────────────────────────────────────
@@ -150,7 +176,7 @@ def hour_generic_weekday() -> int:
     )[0]
 
 
-print("Seeding CortexKitchen v4 demo data (date-relative)...")
+print("Seeding CortexKitchen v5 demo data (date-relative + dynamic)...")
 print(f"  As-of : {SEED_AS_OF.date()} | History: {HISTORY_DAYS} days")
 
 # ── Clear ────────────────────────────────────────────────────────────────────
@@ -208,30 +234,55 @@ session.commit()
 print(f"  Added {len(menu_items)} menu items")
 
 
-# ── 2. Inventory — realistic mix, 3 of 18 genuinely low ─────────────────────
-inventory_items = [
-    Inventory(ingredient_name="Mozzarella Cheese", unit="kg",    quantity_in_stock=2.6,   reorder_threshold=8.0,  spoilage_risk=True),   # low
-    Inventory(ingredient_name="Pizza Dough",        unit="kg",    quantity_in_stock=13.5,  reorder_threshold=10.0, spoilage_risk=True),
-    Inventory(ingredient_name="Pepperoni",          unit="kg",    quantity_in_stock=6.8,   reorder_threshold=4.0,  spoilage_risk=True),
-    Inventory(ingredient_name="Fresh Basil",        unit="kg",    quantity_in_stock=0.35,  reorder_threshold=1.0,  spoilage_risk=True),   # low
-    Inventory(ingredient_name="Burger Buns",        unit="units", quantity_in_stock=48.0,  reorder_threshold=20.0, spoilage_risk=True),
-    Inventory(ingredient_name="Garlic",             unit="kg",    quantity_in_stock=0.9,   reorder_threshold=1.5,  spoilage_risk=True),   # low
-    Inventory(ingredient_name="Pasta (dry)",        unit="kg",    quantity_in_stock=14.0,  reorder_threshold=8.0,  spoilage_risk=False),
-    Inventory(ingredient_name="Cream (cooking)",    unit="litres",quantity_in_stock=7.5,   reorder_threshold=4.0,  spoilage_risk=True),
-    Inventory(ingredient_name="Caesar Dressing",    unit="litres",quantity_in_stock=4.2,   reorder_threshold=2.0,  spoilage_risk=True),
-    Inventory(ingredient_name="Tomato Sauce",       unit="litres",quantity_in_stock=16.0,  reorder_threshold=8.0,  spoilage_risk=False),
-    Inventory(ingredient_name="Chicken",            unit="kg",    quantity_in_stock=13.5,  reorder_threshold=6.0,  spoilage_risk=True),
-    Inventory(ingredient_name="Paneer",             unit="kg",    quantity_in_stock=6.0,   reorder_threshold=3.0,  spoilage_risk=True),
-    Inventory(ingredient_name="Olive Oil",          unit="litres",quantity_in_stock=9.0,   reorder_threshold=3.0,  spoilage_risk=False),
-    Inventory(ingredient_name="Nutella",            unit="kg",    quantity_in_stock=4.5,   reorder_threshold=2.0,  spoilage_risk=False),
-    Inventory(ingredient_name="Coca Cola Cans",     unit="units", quantity_in_stock=420.0, reorder_threshold=40.0, spoilage_risk=False),
-    Inventory(ingredient_name="Tiramisu Cream",     unit="kg",    quantity_in_stock=9.0,   reorder_threshold=3.0,  spoilage_risk=True),
-    Inventory(ingredient_name="Mango Pulp",         unit="kg",    quantity_in_stock=6.0,   reorder_threshold=4.0,  spoilage_risk=True),
-    Inventory(ingredient_name="Cold Brew Coffee",   unit="litres",quantity_in_stock=5.5,   reorder_threshold=3.0,  spoilage_risk=True),
+# ── 2. Inventory — realistic mix, 1-4 of 18 randomly low each seed day ──────
+# Thresholds/units/spoilage-risk are fixed business facts (how much of X do we
+# actually need before it's a problem), but WHICH items are currently low and
+# HOW MUCH stock is on hand are randomized per day (seeded by date above) --
+# previously this was always the same 3 items (Mozzarella/Fresh Basil/Garlic)
+# at the same literal quantities, every single day, forever.
+INVENTORY_BASE = [
+    ("Mozzarella Cheese", "kg",     8.0,  True),
+    ("Pizza Dough",       "kg",     10.0, True),
+    ("Pepperoni",         "kg",     4.0,  True),
+    ("Fresh Basil",       "kg",     1.0,  True),
+    ("Burger Buns",       "units",  20.0, True),
+    ("Garlic",            "kg",     1.5,  True),
+    ("Pasta (dry)",       "kg",     8.0,  False),
+    ("Cream (cooking)",   "litres", 4.0,  True),
+    ("Caesar Dressing",   "litres", 2.0,  True),
+    ("Tomato Sauce",      "litres", 8.0,  False),
+    ("Chicken",           "kg",     6.0,  True),
+    ("Paneer",            "kg",     3.0,  True),
+    ("Olive Oil",         "litres", 3.0,  False),
+    ("Nutella",           "kg",     2.0,  False),
+    ("Coca Cola Cans",    "units",  40.0, False),
+    ("Tiramisu Cream",    "kg",     3.0,  True),
+    ("Mango Pulp",        "kg",     4.0,  True),
+    ("Cold Brew Coffee",  "litres", 3.0,  True),
 ]
+
+n_low = random.randint(1, 4)
+low_positions = set(random.sample(range(len(INVENTORY_BASE)), n_low))
+
+inventory_items = []
+low_ingredients_seeded = []        # for dynamic decision-log/RAG memory below
+comfortable_ingredients_seeded = []
+for idx, (name, unit, threshold, spoilage) in enumerate(INVENTORY_BASE):
+    if idx in low_positions:
+        qty = round(threshold * random.uniform(0.15, 0.85), 2)
+        low_ingredients_seeded.append((name, unit, qty, threshold))
+    else:
+        qty = round(threshold * random.uniform(1.3, 3.2), 2)
+        comfortable_ingredients_seeded.append((name, unit, qty, threshold))
+    inventory_items.append(Inventory(
+        ingredient_name=name, unit=unit,
+        quantity_in_stock=qty, reorder_threshold=threshold, spoilage_risk=spoilage,
+    ))
+
 session.add_all(inventory_items)
 session.commit()
-print(f"  Added {len(inventory_items)} inventory items")
+print(f"  Added {len(inventory_items)} inventory items ({n_low} below threshold: "
+      f"{', '.join(n for n, *_ in low_ingredients_seeded)})")
 
 
 # ── 3. Reservations ───────────────────────────────────────────────────────────
@@ -388,8 +439,10 @@ pasta_items   = [m for m in menu_items_db if m.category == "pasta"]
 burger_items  = [m for m in menu_items_db if m.category == "burger"]
 sides_items   = [m for m in menu_items_db if m.category == "sides"]
 other_items   = [m for m in menu_items_db if m.category not in ("pizza",)]
-popular_pizza = [m for m in pizza_items if m.name in
-                 {"Margherita", "Pepperoni Feast", "Chicken Tikka Pizza"}]
+# Which 3 pizzas are "popular" this Friday rotates per seed day instead of
+# always being the same fixed 3 -- otherwise historical "top items" data
+# converges on the same dishes no matter how many times this script runs.
+popular_pizza = random.sample(pizza_items, min(3, len(pizza_items)))
 
 FRIDAY_PEAK_DATES_SET   = {d.date() for d in FRIDAY_PEAKS}
 WEEKDAY_LUNCH_DATES_SET = {d.date() for d in WEEKDAY_LUNCH_PEAKS}
@@ -596,10 +649,14 @@ decision_logs = [
     ),
     DecisionLog(
         agent="inventory_agent",
-        input_summary="Mozzarella 2.6kg (threshold 8kg), Fresh Basil 0.35kg (threshold 1kg), Garlic 0.9kg (threshold 1.5kg) running low.",
-        retrieved_context=f"3 items below threshold. {fmt(next_friday_rush)} is the next Friday Rush service.",
-        reasoning_summary=f"Multi-ingredient shortage risk ahead of {fmt(next_friday_rush)} service.",
-        action_recommended=f"Reorder by {fmt(next_friday_rush - timedelta(days=2))}: 6kg mozzarella, 1kg basil, 1kg garlic.",
+        input_summary=", ".join(
+            f"{name} {qty}{unit} (threshold {threshold}{unit})" for name, unit, qty, threshold in low_ingredients_seeded
+        ) + " running low.",
+        retrieved_context=f"{len(low_ingredients_seeded)} item(s) below threshold. {fmt(next_friday_rush)} is the next Friday Rush service.",
+        reasoning_summary=f"{'Multi-ingredient' if len(low_ingredients_seeded) > 1 else 'Ingredient'} shortage risk ahead of {fmt(next_friday_rush)} service.",
+        action_recommended=f"Reorder by {fmt(next_friday_rush - timedelta(days=2))}: " + ", ".join(
+            f"{round(threshold - qty + threshold * 0.2, 1)}{unit} {name.lower()}" for name, unit, qty, threshold in low_ingredients_seeded
+        ) + ".",
         critic_verdict=CriticVerdict.approved, critic_score=0.96,
         critic_notes="Urgent and justified. Quantities are realistic.",
     ),
@@ -632,10 +689,13 @@ decision_logs = [
     ),
     DecisionLog(
         agent="inventory_agent",
-        input_summary="Mango Pulp 6kg (threshold 4kg), Cold Brew 5.5L (threshold 3L) — comfortable now, but beverage draw accelerates on holiday spikes.",
-        retrieved_context=f"Past holiday spikes depleted beverages faster than forecast. {fmt(next_holiday_spike)} is the next high-risk date.",
-        reasoning_summary=f"Beverage stock should be rechecked ahead of {fmt(next_holiday_spike)}.",
-        action_recommended=f"Recheck Mango Pulp and Cold Brew levels by {fmt(next_holiday_spike - timedelta(days=4))}.",
+        input_summary=", ".join(
+            f"{name} {qty}{unit} (threshold {threshold}{unit})"
+            for name, unit, qty, threshold in comfortable_ingredients_seeded[:2]
+        ) + " — comfortable now, but beverage/perishable draw accelerates on holiday spikes.",
+        retrieved_context=f"Past holiday spikes depleted stock faster than forecast. {fmt(next_holiday_spike)} is the next high-risk date.",
+        reasoning_summary=f"Stock should be rechecked ahead of {fmt(next_holiday_spike)}.",
+        action_recommended=f"Recheck {' and '.join(name for name, *_ in comfortable_ingredients_seeded[:2])} levels by {fmt(next_holiday_spike - timedelta(days=4))}.",
         critic_verdict=CriticVerdict.approved, critic_score=0.87,
         critic_notes="Proactive perishable restock — well-timed for holiday demand.",
     ),
@@ -691,14 +751,30 @@ session.commit()
 ramesh_traders = vendors[0]
 print(f"  Added {len(vendors)} vendors (Ramesh Traders, Green Valley Produce, Instamart)")
 
+# Expanded beyond the original 2-ingredient/3-quote coverage so procurement
+# recommendations have real price data no matter which ingredients this
+# seed's random draw actually marks as low -- previously only Mozzarella
+# Cheese and Fresh Basil ever had a vendor quote at all.
 vendor_price_quotes = [
     VendorPriceQuote(vendor_id=vendors[0].id, ingredient="Mozzarella Cheese", price=380.0),
     VendorPriceQuote(vendor_id=vendors[2].id, ingredient="Mozzarella Cheese", price=420.0),
-    VendorPriceQuote(vendor_id=vendors[1].id, ingredient="Fresh Basil", price=45.0),
+    VendorPriceQuote(vendor_id=vendors[0].id, ingredient="Paneer",            price=340.0),
+    VendorPriceQuote(vendor_id=vendors[0].id, ingredient="Chicken",           price=210.0),
+    VendorPriceQuote(vendor_id=vendors[0].id, ingredient="Cream (cooking)",   price=180.0),
+    VendorPriceQuote(vendor_id=vendors[0].id, ingredient="Pizza Dough",       price=90.0),
+    VendorPriceQuote(vendor_id=vendors[1].id, ingredient="Fresh Basil",       price=45.0),
+    VendorPriceQuote(vendor_id=vendors[1].id, ingredient="Garlic",           price=60.0),
+    VendorPriceQuote(vendor_id=vendors[1].id, ingredient="Tomato Sauce",      price=95.0),
+    VendorPriceQuote(vendor_id=vendors[1].id, ingredient="Mango Pulp",        price=150.0),
+    VendorPriceQuote(vendor_id=vendors[2].id, ingredient="Garlic",           price=68.0),
+    VendorPriceQuote(vendor_id=vendors[2].id, ingredient="Coca Cola Cans",    price=35.0),
+    VendorPriceQuote(vendor_id=vendors[2].id, ingredient="Nutella",           price=420.0),
+    VendorPriceQuote(vendor_id=vendors[2].id, ingredient="Cold Brew Coffee",  price=220.0),
 ]
 session.add_all(vendor_price_quotes)
 session.commit()
-print(f"  Added {len(vendor_price_quotes)} vendor price quotes")
+print(f"  Added {len(vendor_price_quotes)} vendor price quotes across "
+      f"{len({q.ingredient for q in vendor_price_quotes})} ingredients")
 
 
 # ── 9. Action Queue — historical decisions + demo pending actions ───────────
@@ -726,26 +802,36 @@ historical_actions = [
 session.add_all(historical_actions)
 session.commit()
 
-# Two realistic pending actions tied to the genuinely-low inventory items above,
-# so the Action Queue UI has real content before the workflow trigger engine
-# (P6-A11) creates one automatically on the next planning run.
+# Pending actions tied to whichever inventory items this seed's random draw
+# actually marked low, so the Action Queue UI has real content before the
+# workflow trigger engine (P6-A11) creates one automatically on the next
+# planning run -- previously hardcoded to Fresh Basil/Mozzarella specifically,
+# which no longer always match what's actually low once shortages rotate.
 action_queue_items = [
     ActionQueue(
         org_id=DEMO_ORG_ID, category="restock_alert", tier=ActionTier.recommendation,
-        status=ActionStatus.pending, title="Fresh Basil running low -- 0.35kg vs 1kg threshold",
-        payload={"ingredient": "Fresh Basil", "quantity_in_stock": 0.35, "reorder_threshold": 1.0},
-    ),
-    ActionQueue(
-        org_id=DEMO_ORG_ID, category="whatsapp_vendor_order", tier=ActionTier.approve_required,
-        status=ActionStatus.pending, title="Order Mozzarella Cheese from Ramesh Traders",
+        status=ActionStatus.pending,
+        title=f"{low_ingredients_seeded[0][0]} running low -- {low_ingredients_seeded[0][2]}{low_ingredients_seeded[0][1]} vs {low_ingredients_seeded[0][3]}{low_ingredients_seeded[0][1]} threshold",
         payload={
-            "vendor_id": ramesh_traders.id, "vendor": ramesh_traders.name, "ingredient": "Mozzarella Cheese",
-            "quantity_in_stock": 2.6, "reorder_threshold": 8.0,
-            "message_draft": "Ramesh bhai, mozzarella is almost done, only 2.6kg left. Can you send "
-                             "6kg by tomorrow morning? Same rate as usual, thanks!",
+            "ingredient": low_ingredients_seeded[0][0],
+            "quantity_in_stock": low_ingredients_seeded[0][2],
+            "reorder_threshold": low_ingredients_seeded[0][3],
         },
     ),
 ]
+if len(low_ingredients_seeded) > 1:
+    order_name, order_unit, order_qty, order_threshold = low_ingredients_seeded[1]
+    reorder_amount = round(order_threshold - order_qty + order_threshold * 0.2, 1)
+    action_queue_items.append(ActionQueue(
+        org_id=DEMO_ORG_ID, category="whatsapp_vendor_order", tier=ActionTier.approve_required,
+        status=ActionStatus.pending, title=f"Order {order_name} from Ramesh Traders",
+        payload={
+            "vendor_id": ramesh_traders.id, "vendor": ramesh_traders.name, "ingredient": order_name,
+            "quantity_in_stock": order_qty, "reorder_threshold": order_threshold,
+            "message_draft": f"Ramesh bhai, {order_name.lower()} is almost done, only {order_qty}{order_unit} left. "
+                             f"Can you send {reorder_amount}{order_unit} by tomorrow morning? Same rate as usual, thanks!",
+        },
+    ))
 session.add_all(action_queue_items)
 session.commit()
 print(f"  Added {len(historical_actions)} historical Action Queue decisions + {len(action_queue_items)} pending demo items")
@@ -757,13 +843,13 @@ print(f"  Added {len(decision_logs)} decision logs")
 
 session.close()
 
-print("\nCortexKitchen v4 demo data seeded successfully.")
+print("\nCortexKitchen v5 demo data seeded successfully.")
 print(f"  History   : {(SEED_AS_OF - timedelta(days=HISTORY_DAYS)).date()} – {SEED_AS_OF.date()}")
 print(f"  Future    : {FUTURE_SCENARIO_TARGETS['friday_rush'][0].date()} – {FUTURE_SCENARIO_TARGETS['friday_rush'][-1].date()} ({FUTURE_OCCURRENCES} occurrences per scenario)")
 print(f"  Friday peaks     : {len(FRIDAY_PEAKS)} historical peaks (108–138 orders)")
 print(f"  Weekday lunches  : {len(WEEKDAY_LUNCH_PEAKS)} historical peaks (38–52 orders)")
 print(f"  Holiday spikes   : {len(HOLIDAY_PEAKS)} historical dates")
-print(f"  Inventory        : 3 of {len(inventory_items)} items below threshold")
+print(f"  Inventory        : {n_low} of {len(inventory_items)} items below threshold ({', '.join(n for n, *_ in low_ingredients_seeded)})")
 print(f"  Feedback         : {len(feedback_list)} entries — older ~35% neg, last 28d ~27% neg (Diff 4 gray zone)")
 print(f"  High-occupancy   : {fmt(FUTURE_SCENARIO_TARGETS['friday_rush'][0])} and {fmt(FUTURE_SCENARIO_TARGETS['friday_rush'][2])} seeded >90% occupancy")
 print(f"  Expenses         : {len(expenses)} entries — rent + utilities (monthly), marketing (weekly), 1 one-time cost")

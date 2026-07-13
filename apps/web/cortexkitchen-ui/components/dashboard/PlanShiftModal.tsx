@@ -130,6 +130,11 @@ export default function PlanShiftModal({
     onClose();
   }
 
+  function todayISO(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
   return (
     <div className="fixed inset-0 z-[70]">
       <button
@@ -170,6 +175,26 @@ export default function PlanShiftModal({
               ))}
             </div>
 
+            {/* Planning is no longer tied to "next Friday" or any fixed weekday --
+                any preset (or a described scenario) can run for any date, including
+                right now. This is the fast path; the tile grid / date picker below
+                are for picking a specific preset, a future date, or describing a
+                scenario in detail instead. */}
+            <div className="mt-6 flex flex-col gap-2 rounded-2xl border border-[var(--color-accent)]/25 p-4 sm:flex-row sm:items-center sm:justify-between" style={{ background: "var(--color-accent-soft)" }}>
+              <div>
+                <p className="text-[13px] font-bold text-[var(--color-text-primary)]">Just run it for today</p>
+                <p className="mt-0.5 text-[11.5px] text-[var(--color-text-soft)]">Uses {scenario.label} as the shift shape, dated today — no need to pick a date.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleRun(todayISO())}
+                className="btn-primary shrink-0 inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-semibold transition-transform hover:scale-[1.02]"
+              >
+                Run for today
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+              </button>
+            </div>
+
             {profiles.length > 0 && (
               <div className="mt-6">
                 <p className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-faint)]">Restaurant profile</p>
@@ -199,8 +224,13 @@ export default function PlanShiftModal({
               <TodayContextStrip marketPulse={marketPulse} loaded={marketLoaded} />
             </div>
 
+            <div className="mt-6 border-t border-[var(--color-border-soft)] pt-5">
+              <p className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-faint)]">Or customize the plan</p>
+              <p className="mt-0.5 text-[11px] text-[var(--color-text-faint)]">Pick a specific shift shape, describe tonight in your own words, or choose a different date.</p>
+            </div>
+
             <div className="mt-4">
-              <p className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-faint)]">Choose a shift</p>
+              <p className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-faint)]">Shift shape</p>
               <div className="grid grid-cols-2 gap-2">
                 {displayedOptions.map((option) => {
                   const active = option.id === selectedScenario;
@@ -257,7 +287,7 @@ export default function PlanShiftModal({
             </div>
 
             <div className="mt-6">
-              <p className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-faint)]">Pick a date and run</p>
+              <p className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-faint)]">Or pick a specific date and run</p>
               <DatePicker onRun={handleRun} loading={false} scenario={scenario} />
             </div>
           </div>

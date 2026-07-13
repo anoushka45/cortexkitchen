@@ -3,61 +3,19 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  ComposedChart, Area, Line, BarChart, Bar,
-  PieChart, Pie, Cell,
+  ComposedChart, Area, Line, Bar, BarChart,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { useAuth } from "@/context/AuthContext";
 import PlanShiftModal from "@/components/dashboard/PlanShiftModal";
-import CategoryPricingChart from "@/components/dashboard/CategoryPricingChart";
-import ActionQueuePanel from "@/components/dashboard/ActionQueuePanel";
-import TodayContextStrip from "@/components/dashboard/TodayContextStrip";
 import {
-  getDataHealth, getConnectorsStatus, getMarketPulse, getBusinessPerformance,
-  listRestaurantProfiles,
-  BusinessPerformanceResponse, ConnectorStatus, MarketPulseResponse, RestaurantProfile,
+  getDataHealth, getConnectorsStatus, getMarketPulse, getBusinessPerformance, getBusinessSummary,
+  listRestaurantProfiles, getActionQueue, listPlanningRuns,
+  BusinessPerformanceResponse, BusinessSummaryResponse, ConnectorStatus, MarketPulseResponse,
+  RestaurantProfile, ActionQueueItem,
 } from "@/lib/api";
 import { SCENARIO_OPTIONS } from "@/lib/scenarios";
-import { DataHealth, PlanningScenarioOption, ScenarioProfile } from "@/types/planning";
-
-const AGENT_PIPELINE = [
-  {
-    label: "Demand Forecast",
-    capability: "Predicts how many covers to expect and how tonight compares to the same day last week.",
-    iconPath: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-    tone: "good",
-  },
-  {
-    label: "Reservation Pressure",
-    capability: "Reads your live booking list and shows when you're likely to hit capacity.",
-    iconPath: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z",
-    tone: "info",
-  },
-  {
-    label: "Guest Feedback",
-    capability: "Scans customer feedback for recurring complaints and surfaces fixes for tonight.",
-    iconPath: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
-    tone: "rose",
-  },
-  {
-    label: "Inventory",
-    capability: "Flags what's running low or overstocked, with exact reorder quantities.",
-    iconPath: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
-    tone: "caution",
-  },
-  {
-    label: "Menu Direction",
-    capability: "Only recommends dishes that are actually in stock — runs after inventory.",
-    iconPath: "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4",
-    tone: "good",
-  },
-  {
-    label: "Critic",
-    capability: "Scores every plan across safety, feasibility, evidence, and clarity before it reaches you.",
-    iconPath: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
-    tone: "good",
-  },
-] as const;
+import { DataHealth, PlanningRunSummary, PlanningScenarioOption, ScenarioProfile } from "@/types/planning";
 
 const TONE_CLASS: Record<string, { bg: string; text: string }> = {
   good:    { bg: "var(--color-good-soft)",    text: "var(--color-good)" },
@@ -67,6 +25,31 @@ const TONE_CLASS: Record<string, { bg: string; text: string }> = {
   swiggy:  { bg: "rgba(252,128,25,0.12)",      text: "#fc8019" },
 };
 
+const CONDITION_LABELS: Record<string, string> = {
+  heavy_rain: "Heavy Rain",
+  light_rain: "Light Rain",
+  very_hot:   "Very Hot",
+  clear:      "Clear",
+};
+
+const VERDICT_TONE: Record<string, { bg: string; text: string; label: string }> = {
+  approved:  { bg: "var(--color-good-soft)",     text: "var(--color-good)",     label: "Approved" },
+  revision:  { bg: "var(--color-caution-soft)",  text: "var(--color-caution)",  label: "Revised" },
+  rejected:  { bg: "var(--color-critical-soft)", text: "var(--color-critical)", label: "Rejected" },
+  unknown:   { bg: "var(--color-surface-sunken)", text: "var(--color-text-faint)", label: "Unknown" },
+};
+
+// TrendsService's digest is a multi-point paragraph/bullet list -- take just
+// the first point as a compact row headline instead of dumping the whole
+// thing (which overflowed the Live Intelligence row entirely).
+function firstDigestSnippet(digest: string): string {
+  const first = digest.split(/\n|(?<=[.;])\s*(?=[A-Z*•-])/)[0].replace(/^[*•\-\s]+/, "").trim();
+  if (first.length <= 72) return first;
+  const cut = first.slice(0, 69);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${lastSpace > 40 ? cut.slice(0, lastSpace) : cut}...`;
+}
+
 function shortDate(iso: string | null | undefined): string {
   if (!iso) return "--";
   const d = new Date(iso);
@@ -74,13 +57,29 @@ function shortDate(iso: string | null | undefined): string {
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
-function daypartLine(): string {
+function relativeTime(iso: string | null | undefined): string {
+  if (!iso) return "--";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "--";
+  const mins = Math.round((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.round(hrs / 24)}d ago`;
+}
+
+function healthLabel(score: number): string {
+  if (score >= 70) return "Excellent";
+  if (score >= 40) return "Fair";
+  return "Needs attention";
+}
+
+function greetingWord(): string {
   const h = new Date().getHours();
-  if (h < 11)  return "Prep is underway ahead of lunch service.";
-  if (h < 15)  return "Lunch service is live right now.";
-  if (h < 18)  return "Lunch has wrapped — dinner prep is ramping up.";
-  if (h < 22)  return "Dinner service is live right now.";
-  return "Service has wrapped for the day — good time to review tonight's numbers.";
+  if (h < 12) return "Good Morning";
+  if (h < 17) return "Good Afternoon";
+  return "Good Evening";
 }
 
 interface Props {
@@ -104,9 +103,15 @@ export default function TodayIdleState({
   const [connector, setConnector]       = useState<ConnectorStatus | null>(null);
   const [marketPulse, setMarketPulse]   = useState<MarketPulseResponse | null>(null);
   const [businessPerf, setBusinessPerf] = useState<BusinessPerformanceResponse | null>(null);
+  const [perfDays, setPerfDays]         = useState(14);
   const [loaded, setLoaded]             = useState(false);
   const [marketLoaded, setMarketLoaded] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
+
+  const [summary, setSummary]           = useState<BusinessSummaryResponse | null>(null);
+  const [pendingActions, setPendingActions] = useState<ActionQueueItem[]>([]);
+  const [latestRun, setLatestRun]       = useState<PlanningRunSummary | null>(null);
+  const [latestRunLoaded, setLatestRunLoaded] = useState(false);
 
   useEffect(() => {
     listRestaurantProfiles()
@@ -114,29 +119,60 @@ export default function TodayIdleState({
       .catch(() => { /* optional context */ });
   }, []);
 
-  // Fast, DB-only calls -- resolve in well under a second, drive the main "loaded" state.
+  // Fast, DB-only calls -- resolve in well under a second.
   useEffect(() => {
     let cancelled = false;
-    async function load() {
-      const [health, connectors, perf] = await Promise.all([
-        getDataHealth().catch(() => null),
-        getConnectorsStatus().catch(() => null),
-        getBusinessPerformance(14).catch(() => null),
-      ]);
+    Promise.all([
+      getDataHealth().catch(() => null),
+      getConnectorsStatus().catch(() => null),
+    ]).then(([health, connectors]) => {
       if (cancelled) return;
       setDataHealth(health);
       setConnector(connectors?.connectors.find((c) => c.type === "swiggy") ?? null);
-      setBusinessPerf(perf);
-      setLoaded(true);
-    }
-    load();
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Business performance drives most of the page -- re-fetched whenever the
+  // trend window toggle changes (Overall Performance's 7d/14d/30d control).
+  useEffect(() => {
+    let cancelled = false;
+    getBusinessPerformance(perfDays)
+      .then((perf) => { if (!cancelled) setBusinessPerf(perf); })
+      .catch(() => { if (!cancelled) setBusinessPerf(null); })
+      .finally(() => { if (!cancelled) setLoaded(true); });
+    return () => { cancelled = true; };
+  }, [perfDays]);
+
+  // AI executive summary -- its own LLM call, cached server-side, never
+  // blocks the KPIs/charts above from rendering.
+  useEffect(() => {
+    let cancelled = false;
+    getBusinessSummary()
+      .then((s) => { if (!cancelled) setSummary(s); })
+      .catch(() => { if (!cancelled) setSummary(null); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getActionQueue("pending").then((rows) => { if (!cancelled) setPendingActions(rows); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    listPlanningRuns({ limit: 1 })
+      .then((rows) => { if (!cancelled) setLatestRun(rows[0] ?? null); })
+      .catch(() => { if (!cancelled) setLatestRun(null); })
+      .finally(() => { if (!cancelled) setLatestRunLoaded(true); });
     return () => { cancelled = true; };
   }, []);
 
   // Market pulse hits live Swiggy MCP tools directly -- on a cold cache this can take
   // several seconds (real external calls). Kept in its own effect/loading flag so a
-  // slow Swiggy response never blocks the rest of the page (ops/business KPIs, charts)
-  // from rendering as soon as they're ready.
+  // slow Swiggy response never blocks the rest of the page from rendering as soon as
+  // it's ready.
   useEffect(() => {
     let cancelled = false;
     getMarketPulse()
@@ -148,8 +184,6 @@ export default function TodayIdleState({
 
   const activeProfile = profiles.find((p) => p.id === selectedProfileId) ?? profiles[0] ?? null;
 
-  const today = new Date();
-
   const coverage = dataHealth?.scenario_coverage.find((s) => s.scenario === selectedScenario) ?? null;
   const criticalShortages = dataHealth?.inventory.critical_shortages ?? 0;
   const shortageAlerts    = dataHealth?.inventory.shortage_alerts ?? 0;
@@ -157,13 +191,6 @@ export default function TodayIdleState({
   const positivePct = feedback && feedback.count > 0 ? Math.round((feedback.positive / feedback.count) * 100) : null;
 
   const occupancy = marketPulse?.area_occupancy ?? null;
-  // Category pricing (dish-name independent) is the primary, reliable market signal --
-  // see /market's own redesign. Exact dish-name matches (below) are a bonus, near-always-empty
-  // signal that should never be the sole basis for "do we have market data".
-  const categoryPricing = marketPulse?.competitor_pricing?.category_pricing ?? [];
-  // Only dishes that actually matched one of our own menu items have a real comparison --
-  // /market/pulse now also returns unmatched competitor dishes (diff_pct/direction null)
-  // for market-awareness display, which don't belong in this "pricing alert" insight.
   const pricingAlerts = (marketPulse?.competitor_pricing?.comparisons ?? []).filter(
     (a): a is typeof a & { diff_pct: number; direction: "above" | "below" } => a.your_price != null
   );
@@ -173,22 +200,28 @@ export default function TodayIdleState({
     ? [...procurement].filter((p) => p.in_stock).sort((a, b) => a.price - b.price)[0] ?? procurement[0]
     : null;
 
-  const swiggyEmptyMeta = !marketLoaded ? "checking Swiggy…" : marketPulse?.swiggy_connected === false ? "connect Swiggy to see this" : "no data available";
-
   const yesterday = businessPerf?.yesterday ?? null;
   const revenueTrend = businessPerf?.trend ?? [];
-  const healthScoreTone = !businessPerf || businessPerf.health_score >= 70
-    ? TONE_CLASS.good
-    : businessPerf.health_score >= 40
-      ? TONE_CLASS.caution
-      : TONE_CLASS.rose;
-  const dineInShare = yesterday && (yesterday.revenue > 0)
-    ? Math.round((businessPerf!.channel_split.dine_in_revenue / yesterday.revenue) * 100)
-    : null;
+  // Gross margin % by day -- a distinct profitability lens on the same
+  // already-fetched trend data, so "Business Performance" isn't just a bar
+  // version of "Overall Performance" repeating revenue/orders.
+  const marginTrend = useMemo(
+    () => revenueTrend.map((d) => ({
+      date: d.date,
+      margin_pct: d.revenue > 0 ? Math.round((d.profit / d.revenue) * 1000) / 10 : 0,
+    })),
+    [revenueTrend]
+  );
+  const healthScore = businessPerf?.health_score ?? 0;
+  // Dark, saturated tones -- the hero card is now a light orange, so the
+  // ring needs colors dark enough to read against a LIGHT background (a pale
+  // cream barely showed up at all here, unlike on the previous dark-brown card).
+  const healthRingColor = healthScore >= 70 ? "#34d399" : healthScore >= 40 ? "#FBBF24" : "#FB7185";
   const topDishes = businessPerf?.top_dishes ?? [];
-  const bottomDishes = businessPerf?.bottom_dishes ?? [];
+  const foodCostPct = yesterday && yesterday.revenue > 0
+    ? Math.round(((yesterday.revenue - yesterday.profit) / yesterday.revenue) * 100)
+    : null;
   const complaintCategories = businessPerf?.complaints_by_category ?? [];
-  const complaintMax = Math.max(1, ...complaintCategories.map((c) => c.count));
   const revenueDelta = useMemo(() => {
     if (revenueTrend.length < 2) return null;
     const last = revenueTrend[revenueTrend.length - 2]; // yesterday (last complete day)
@@ -196,38 +229,30 @@ export default function TodayIdleState({
     if (!last || !prior || !prior.revenue) return null;
     return Math.round(((last.revenue - prior.revenue) / prior.revenue) * 100);
   }, [revenueTrend]);
-
-  const aovSparkline = useMemo(() => revenueTrend.map((d) => (d.orders > 0 ? d.revenue / d.orders : 0)), [revenueTrend]);
-
-  const channelSplit = businessPerf?.channel_split ?? null;
-  const channelData = channelSplit && (channelSplit.dine_in_revenue + channelSplit.delivery_revenue) > 0 ? [
-    { name: "Dine-in", value: channelSplit.dine_in_revenue, color: "#efa345" },
-    { name: "Delivery", value: channelSplit.delivery_revenue, color: "#38bdf8" },
-  ] : [];
-
-  const sentimentData = feedback && feedback.count > 0 ? [
-    { name: "Positive", value: feedback.positive, color: "#34d399" },
-    { name: "Neutral",  value: feedback.neutral,  color: "#7B7F92" },
-    { name: "Negative", value: feedback.negative, color: "#fb7185" },
-  ] : [];
-
-  const peakHours = businessPerf?.peak_hours ?? [];
-  const peakHoursDisplay = useMemo(() =>
-    peakHours
-      .filter((h) => h.hour >= 11 && h.hour <= 23)
-      .map((h) => ({
-        hour: h.hour,
-        avg_orders: h.avg_orders,
-        label: h.hour === 12 ? "12p" : h.hour > 12 ? `${h.hour - 12}p` : `${h.hour}a`,
-      })),
-    [peakHours]);
-  const peakHourMax = Math.max(0, ...peakHoursDisplay.map((h) => h.avg_orders));
+  const ordersDelta = useMemo(() => {
+    if (revenueTrend.length < 9) return null;
+    const last = revenueTrend[revenueTrend.length - 2];
+    const prior = revenueTrend[revenueTrend.length - 9];
+    if (!last || !prior || !prior.orders) return null;
+    return Math.round(((last.orders - prior.orders) / prior.orders) * 100);
+  }, [revenueTrend]);
+  const aovDelta = useMemo(() => {
+    if (revenueTrend.length < 9) return null;
+    const last = revenueTrend[revenueTrend.length - 2];
+    const prior = revenueTrend[revenueTrend.length - 9];
+    if (!last || !prior || !last.orders || !prior.orders) return null;
+    const lastAov = last.revenue / last.orders;
+    const priorAov = prior.revenue / prior.orders;
+    if (!priorAov) return null;
+    return Math.round(((lastAov - priorAov) / priorAov) * 100);
+  }, [revenueTrend]);
 
   const inventoryTotal = dataHealth?.inventory.items ?? 0;
   const overstockAlerts = dataHealth?.inventory.overstock_alerts ?? 0;
-  const warningShortages = Math.max(0, shortageAlerts - criticalShortages);
   const healthyItems = Math.max(0, inventoryTotal - shortageAlerts - overstockAlerts);
   const reservationGaugePct = coverage ? Math.min(100, Math.round(coverage.occupancy_pct)) : null;
+
+  const risks = businessPerf?.risks ?? [];
 
   const insights: Array<{ tone: string; text: React.ReactNode }> = [];
   if (yesterday && revenueDelta !== null && revenueDelta !== 0) {
@@ -280,93 +305,313 @@ export default function TodayIdleState({
     insights.push({ tone: "swiggy", text: <><b>Swiggy isn&apos;t connected yet</b> — connect it to unlock live competitor pricing and area demand.</> });
   }
 
+  // "Today's Top Priorities" -- built entirely from real risk/demand data
+  // (BusinessAnalyticsService.get_upcoming_risks + the Swiggy area-occupancy
+  // signal), not a separate fabricated list.
+  type Priority = { title: string; detail: string; pill: string; pillTone: "critical" | "caution" | "good"; icon: string };
+  const priorities: Priority[] = [];
+  const inventoryNames: string[] = [];
+  for (const r of risks) {
+    if (r.kind === "inventory") {
+      const m = r.text.match(/^(.+?) below threshold/);
+      const name = m ? m[1] : null;
+      if (name) inventoryNames.push(name);
+      priorities.push({
+        title: name ? `${name} stock is ${r.severity === "critical" ? "critically low" : "running low"}` : r.text,
+        detail: r.text,
+        pill: r.severity === "critical" ? "Critical" : "High",
+        pillTone: r.severity === "critical" ? "critical" : "caution",
+        icon: "M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z",
+      });
+    } else if (r.kind === "occupancy") {
+      // Only surface here if the forecasted date is today/tomorrow -- these
+      // risks are computed for the next occurrence of each scenario (up to
+      // 7 days out), and labeling a 5-day-out forecast as a "Today" priority
+      // is misleading. Further-out dates still show in the Upcoming Risks
+      // card elsewhere, which is honestly framed as upcoming, not today's.
+      const dateMatch = r.text.match(/\((\d{4}-\d{2}-\d{2})\)/);
+      const daysUntil = dateMatch
+        ? Math.round((new Date(dateMatch[1]).getTime() - new Date().setHours(0, 0, 0, 0)) / 86400000)
+        : null;
+      if (daysUntil !== null && daysUntil <= 1) {
+        const m = r.text.match(/^(.+?) forecasted/);
+        priorities.push({
+          title: m ? `${m[1]} demand forecasted high` : r.text,
+          detail: r.text,
+          pill: "High",
+          pillTone: "caution",
+          icon: "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6",
+        });
+      }
+    }
+  }
+  if (occupancy?.signal === "HIGH") {
+    priorities.push({
+      title: "Area demand expected to increase tonight",
+      detail: `${occupancy.competitors_checked} nearby kitchens tracked on Swiggy`,
+      pill: "Opportunity",
+      pillTone: "good",
+      icon: "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6",
+    });
+  }
+
+  function highlightNames(text: string, names: string[]): React.ReactNode {
+    if (names.length === 0) return text;
+    const escaped = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    const pattern = new RegExp(`(${escaped.join("|")})`, "gi");
+    const parts = text.split(pattern);
+    return parts.map((part, i) =>
+      names.some((n) => n.toLowerCase() === part.toLowerCase())
+        ? <b key={i} style={{ color: "var(--color-accent)" }}>{part}</b>
+        : <span key={i}>{part}</span>
+    );
+  }
+
   return (
     <div className="py-6 space-y-5">
 
       {/* Greeting row */}
       <div>
-        <p className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-faint)]">
-          {today.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
-        </p>
-        <h1 className="display mt-1 text-[32px] leading-tight text-[var(--color-text-primary)]">
-          Welcome back, <span className="display-it text-[var(--color-accent)]">{user?.full_name?.split(" ")[0] ?? "there"}.</span>
+        <h1 className="text-[26px] font-bold leading-tight text-[var(--color-text-primary)]">
+          {greetingWord()}, {user?.full_name?.split(" ")[0] ?? "Chef"}! 
         </h1>
-        <p className="mt-1 text-sm text-[var(--color-text-soft)]">{daypartLine()}</p>
+        <p className="mt-1 text-sm text-[var(--color-text-soft)]">Here&apos;s how your restaurant is performing today.</p>
       </div>
 
-      {/* HERO: Plan your next shift, first thing after the greeting -- matches
-          the same dark card style as every other section on this page, accent
-          color reserved for the icon chip and the primary button. */}
-      <div className="card relative p-5 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={{ background: "var(--color-accent-soft)" }}>
-              <svg className="h-5 w-5" style={{ color: "var(--color-accent)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+      {/* ═══ The numbers, at a glance: 8-tile KPI strip ═══ */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
+        <MiniKpi
+          label="Revenue" hue="#efa345" icon="M12 8c-1.66 0-3 .9-3 2s1.34 2 3 2 3 .9 3 2-1.34 2-3 2m0-8V6m0 10v2m0-14a8 8 0 100 16 8 8 0 000-16z"
+          value={yesterday ? `₹${yesterday.revenue.toLocaleString("en-IN")}` : "--"}
+          delta={revenueDelta !== null ? `${revenueDelta >= 0 ? "↑" : "↓"} ${Math.abs(revenueDelta)}% vs yesterday` : undefined}
+          tone={revenueDelta !== null && revenueDelta < 0 ? "caution" : "good"}
+          hero
+        />
+        <MiniKpi
+          label="Orders" hue="#38bdf8" icon="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+          value={yesterday ? yesterday.orders.toLocaleString("en-IN") : "--"}
+          delta={ordersDelta !== null ? `${ordersDelta >= 0 ? "↑" : "↓"} ${Math.abs(ordersDelta)}% vs yesterday` : undefined}
+          tone={ordersDelta !== null && ordersDelta < 0 ? "caution" : "good"}
+        />
+        <MiniKpi
+          label="Average Order Value" hue="#818cf8" icon="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+          value={yesterday ? `₹${Math.round(yesterday.avg_order_value)}` : "--"}
+          delta={aovDelta !== null ? `${aovDelta >= 0 ? "↑" : "↓"} ${Math.abs(aovDelta)}% vs yesterday` : undefined}
+          tone={aovDelta !== null && aovDelta < 0 ? "caution" : "good"}
+        />
+        <MiniKpi
+          label="Occupancy" hue="#fb7185" icon="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+          value={reservationGaugePct !== null ? `${reservationGaugePct}%` : "--"}
+          delta={coverage ? `${coverage.waitlist} on waitlist` : undefined}
+          tone={reservationGaugePct !== null && reservationGaugePct >= 90 ? "caution" : undefined}
+        />
+        <MiniKpi
+          label="Sentiment" hue="#34d399" icon="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+          value={positivePct !== null ? `${positivePct}%` : "--"} delta="28-day positive"
+          tone={positivePct !== null && positivePct < 60 ? "caution" : undefined}
+        />
+        <MiniKpi
+          label="Food Cost" hue="#fbbf24" icon="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+          value={foodCostPct !== null ? `${foodCostPct}%` : "--"} delta="of revenue, yesterday"
+        />
+        <MiniKpi
+          label="Stock Health" hue="#B0621A" icon="M20 12V8H6a2 2 0 01-2-2c0-1.1.9-2 2-2h12v4M4 6v12a2 2 0 002 2h14v-4M18 12a2 2 0 00-2 2c0 1.1.9 2 2 2h4v-4h-4z"
+          value={inventoryTotal > 0 ? `${healthyItems}/${inventoryTotal}` : "--"}
+          delta={criticalShortages > 0 ? `${criticalShortages} critical` : "healthy"}
+          tone={criticalShortages > 0 ? "caution" : undefined}
+        />
+        <MiniKpi
+          label="Complaint Rate" hue="#f472b6" icon="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+          value={feedback && feedback.count > 0 ? `${feedback.negative_pct}%` : "--"}
+          delta="of feedback, 28d"
+          tone={feedback && feedback.negative_pct > 25 ? "caution" : undefined}
+        />
+      </div>
+
+      {/* ═══ HERO — health score + AI executive summary, paired with Live Intelligence ═══ */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_1fr] items-stretch">
+        <div className="card min-w-0 p-5 sm:p-6">
+          <p className="flex items-center gap-1.5 text-[15px] font-bold" style={{ color: "var(--color-accent)" }}>
+            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z" /></svg>
+            AI Executive Summary
+          </p>
+
+          <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-[auto_1fr]">
+            <div className="flex shrink-0 flex-col items-center gap-1 text-center">
+              <div className="relative shrink-0" style={{ width: 108, height: 108 }}>
+                <svg width={108} height={108} viewBox="0 0 92 92">
+                  <defs>
+                    <linearGradient id="healthGauge" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#34d399" />
+                      <stop offset="50%" stopColor="#fbbf24" />
+                      <stop offset="100%" stopColor="#fb7185" />
+                    </linearGradient>
+                  </defs>
+                  <circle cx={46} cy={46} r={40} fill="none" stroke="var(--color-surface-sunken)" strokeWidth={7} />
+                  <circle
+                    cx={46} cy={46} r={40} fill="none" stroke="url(#healthGauge)" strokeWidth={7} strokeLinecap="round"
+                    strokeDasharray={2 * Math.PI * 40}
+                    strokeDashoffset={loaded ? 2 * Math.PI * 40 * (1 - Math.min(100, Math.max(0, healthScore)) / 100) : 2 * Math.PI * 40}
+                    transform="rotate(-90 46 46)" style={{ transition: "stroke-dashoffset 0.6s ease" }}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="font-bold leading-none text-[var(--color-text-primary)]" style={{ fontSize: 38 }}>{loaded ? healthScore : "--"}</span>
+                  <span className="mt-1 text-[10px] leading-none uppercase tracking-wide text-[var(--color-text-faint)]">/100</span>
+                </div>
+              </div>
+              <p className="mt-1.5 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-faint)]">Overall Health</p>
+              <p className="text-[16px] font-bold leading-tight" style={{ color: healthRingColor }}>{loaded ? healthLabel(healthScore) : "Loading…"}</p>
             </div>
-            <div>
-              <p className="text-[15px] font-bold text-[var(--color-text-primary)]">Ready when you are</p>
-              <p className="mt-0.5 text-[12.5px] text-[var(--color-text-faint)]">5 specialists check your kitchen and the market, then a critic reviews the result — about 45 seconds.</p>
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-[var(--color-text-soft)]">
-                {coverage && <span>{coverage.reservations} reservations tonight</span>}
-                {shortageAlerts > 0 && <span className="font-semibold text-[var(--color-caution)]">{shortageAlerts} inventory alert{shortageAlerts !== 1 ? "s" : ""}</span>}
+
+            <div className="min-w-0">
+              <p className="text-[13.5px] leading-relaxed text-[var(--color-text-soft)]">
+                {summary?.summary
+                  ? highlightNames(summary.summary, inventoryNames)
+                  : (loaded
+                    ? "Executive summary isn't available right now — the KPIs below are still live and accurate."
+                    : "Reading today's numbers…")}
+              </p>
+            </div>
+          </div>
+
+          {priorities.length > 0 && (
+            <div className="mt-5 border-t border-[var(--color-border-soft)] pt-4">
+              <p className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-faint)]">Today&apos;s Top Priorities</p>
+              <div className="mt-2.5 space-y-2">
+                {priorities.slice(0, 3).map((p, i) => (
+                  <div key={i} className="flex items-center gap-3 rounded-xl border border-[var(--color-border-soft)] px-3.5 py-2.5">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full" style={{ background: TONE_CLASS[p.pillTone === "critical" ? "caution" : p.pillTone]?.bg ?? "var(--color-surface-sunken)", color: p.pillTone === "critical" ? "var(--color-critical)" : p.pillTone === "caution" ? "var(--color-caution)" : "var(--color-good)" }}>
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d={p.icon} /></svg>
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-semibold text-[var(--color-text-primary)]">{p.title}</p>
+                      <p className="truncate text-[11px] text-[var(--color-text-faint)]">{p.detail}</p>
+                    </div>
+                    <span
+                      className="shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-bold"
+                      style={{
+                        background: p.pillTone === "critical" ? "var(--color-critical-soft)" : p.pillTone === "caution" ? "var(--color-caution-soft)" : "var(--color-good-soft)",
+                        color: p.pillTone === "critical" ? "var(--color-critical)" : p.pillTone === "caution" ? "var(--color-caution)" : "var(--color-good)",
+                      }}
+                    >
+                      {p.pill}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-3">
-            {historyCount > 0 && (
-              <button onClick={onShowHistory} className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-faint)] transition-colors hover:text-[var(--color-text-primary)]">
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {historyCount} previous run{historyCount !== 1 ? "s" : ""}
-              </button>
-            )}
-            <button
-              onClick={() => setShowPlanModal(true)}
-              className="btn-primary inline-flex items-center gap-2 rounded-xl px-6 py-3 text-[15px] font-semibold transition-transform hover:scale-[1.02]"
+          )}
+
+          <div className="mt-4 flex items-center justify-between border-t border-[var(--color-border-soft)] pt-4">
+            <Link
+              href="/analytics"
+              className="inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-1.5 text-[12px] font-bold transition-colors"
+              style={{ borderColor: "var(--color-accent)", color: "var(--color-accent)" }}
             >
-              Plan your next shift
-              <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-            </button>
+              View Full Brief
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.6}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+            </Link>
+            <p className="flex items-center gap-1 text-[11px] text-[var(--color-text-faint)]">
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" d="M12 7v5l3 3" /></svg>
+              Refreshes hourly
+            </p>
           </div>
         </div>
 
-        {/* Today's live signals -- weather/holiday/trends/compliance/area demand,
-            full width to breathe instead of squeezed into a half-width column */}
-        <div className="mt-4 border-t border-[var(--color-border-soft)] pt-4">
-          <TodayContextStrip marketPulse={marketPulse} loaded={marketLoaded} />
+        <div className="card min-w-0 p-5">
+          <div className="flex items-center justify-between">
+            <p className="flex items-center gap-1.5 text-[15px] font-bold text-[var(--color-text-primary)]">
+              <span className="h-2 w-2 rounded-full" style={{ background: "var(--color-good)" }} />
+              Live Intelligence
+            </p>
+            <Link href="/market" className="text-[11px] font-semibold text-[var(--color-accent)]">View all insights →</Link>
+          </div>
+          <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">Real-time insights that matter</p>
+
+          <div className="mt-3 space-y-2.5">
+            {marketPulse?.weather && (
+              <LiveIntelRow
+                hue="#38bdf8" icon="M17.5 19H6a4 4 0 01-1-7.87A5.5 5.5 0 0116 8.5a4.5 4.5 0 011.5 10.5z"
+                title="Weather"
+                headline={marketPulse.weather.condition === "clear" ? "No operational impact today" : marketPulse.weather.signal}
+                detail={`${marketPulse.weather.avg_temp_celsius != null ? Math.round(marketPulse.weather.avg_temp_celsius) + "°C" : "--"} · ${CONDITION_LABELS[marketPulse.weather.condition] ?? marketPulse.weather.condition}${marketPulse.weather.avg_precipitation_pct != null ? ` · ${Math.round(marketPulse.weather.avg_precipitation_pct)}% chance of rain` : ""}`}
+                pill={marketPulse.weather.condition === "clear" ? "Good" : "Caution"}
+                pillTone={marketPulse.weather.condition === "clear" ? "good" : "caution"}
+                headlineTone={marketPulse.weather.condition === "clear" ? "good" : "caution"}
+              />
+            )}
+            {marketPulse?.area_occupancy?.signal && (
+              <LiveIntelRow
+                hue="#fc8019" icon="M13 10V3L4 14h7v7l9-11h-7z"
+                title="Demand Pulse (Swiggy)"
+                headline={`${marketPulse.area_occupancy.signal[0]}${marketPulse.area_occupancy.signal.slice(1).toLowerCase()} dinner demand expected`}
+                detail={`on Swiggy · ${marketPulse.area_occupancy.competitors_checked} nearby kitchens tracked`}
+                pill={marketPulse.area_occupancy.signal[0] + marketPulse.area_occupancy.signal.slice(1).toLowerCase()}
+                pillTone={marketPulse.area_occupancy.signal === "HIGH" ? "caution" : "good"}
+                headlineTone={marketPulse.area_occupancy.signal === "HIGH" ? "caution" : "good"}
+              />
+            )}
+            {marketPulse?.industry_trends && marketPulse.industry_trends.headline_count > 0 && (
+              <LiveIntelRow
+                hue="#818cf8" icon="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                title="Market Watch"
+                headline={firstDigestSnippet(marketPulse.industry_trends.digest)}
+                detail={`${marketPulse.industry_trends.headline_count} headlines · ${marketPulse.industry_trends.sources_used} sources tracked`}
+                pill="Watch"
+                pillTone="swiggy"
+                headlineTone="swiggy"
+              />
+            )}
+            <LiveIntelRow
+              hue="#34d399" icon="M12 3l7 4v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V7l7-4z"
+              title="Regulatory Updates"
+              headline={marketPulse?.compliance_alerts?.notice_count ? `${marketPulse.compliance_alerts.notice_count} new FSSAI notice${marketPulse.compliance_alerts.notice_count !== 1 ? "s" : ""} published` : "No action required"}
+              detail={marketPulse?.compliance_alerts?.notices[0]?.title ?? "No critical notices right now"}
+              pill={marketPulse?.compliance_alerts?.notice_count ? "Review" : "Clear"}
+              pillTone={marketPulse?.compliance_alerts?.notice_count ? "caution" : "good"}
+              headlineTone={marketPulse?.compliance_alerts?.notice_count ? "caution" : "good"}
+            />
+            {marketPulse?.upcoming_holiday && (
+              <LiveIntelRow
+                hue="#efa345" icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                title="Holiday Watch"
+                headline={marketPulse.upcoming_holiday.days_away === 0 ? `${marketPulse.upcoming_holiday.name} — today` : `No holiday today`}
+                detail={marketPulse.upcoming_holiday.days_away === 0 ? "Expect holiday demand patterns" : `Next: ${marketPulse.upcoming_holiday.name} · ${shortDate(marketPulse.upcoming_holiday.date)}`}
+                pill={marketPulse.upcoming_holiday.days_away === 0 ? "Today" : "Upcoming"}
+                pillTone={marketPulse.upcoming_holiday.days_away === 0 ? "caution" : "good"}
+                headlineTone={marketPulse.upcoming_holiday.days_away === 0 ? "caution" : "good"}
+              />
+            )}
+          </div>
+          {!marketLoaded && <p className="mt-3 text-[11px] text-[var(--color-text-faint)]">Checking live signals…</p>}
         </div>
       </div>
 
-      {/* HERO: Overall performance + Peak hours, paired so neither sits alone in empty space */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.6fr_1fr] items-stretch">
+      {/* ═══ ZONE 4 — Trend + what fed it ═══ */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3 items-stretch">
         <div className="card p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[15px] font-bold text-[var(--color-text-primary)]">Overall performance</p>
-              <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">Revenue, profit &amp; orders — last {revenueTrend.length || 14} days</p>
+              <p className="text-[15px] font-bold text-[var(--color-text-primary)]">Overall Performance</p>
+              <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">Revenue, profit &amp; orders</p>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {yesterday?.margin_pct != null && (
-                <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: "var(--color-good-soft)", color: "var(--color-good)" }}>{yesterday.margin_pct}% margin yesterday</span>
-              )}
-              {businessPerf && (
-                <span
-                  className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                  style={{
-                    background: healthScoreTone.bg,
-                    color: healthScoreTone.text,
-                  }}
-                  title={`Health score: 70% net margin (last ${businessPerf.period_days}d), 30% guest sentiment (last 28d)`}
+            <div className="flex shrink-0 items-center gap-1 rounded-lg bg-[var(--color-surface-sunken)] p-1">
+              {[7, 14, 30].map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setPerfDays(d)}
+                  className="rounded-md px-2.5 py-1 text-[10.5px] font-semibold transition-colors"
+                  style={perfDays === d ? { background: "var(--color-surface-raised)", color: "var(--color-accent)" } : { color: "var(--color-text-faint)" }}
                 >
-                  {businessPerf.health_score}/100 health
-                </span>
-              )}
+                  {d}d
+                </button>
+              ))}
             </div>
           </div>
 
           {revenueTrend.length >= 2 ? (
-            <div style={{ height: 270 }} className="mt-4">
+            <div style={{ height: 220 }} className="mt-4">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={revenueTrend} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
                   <defs>
@@ -395,7 +640,7 @@ export default function TodayIdleState({
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="mt-4 flex h-[200px] items-center justify-center rounded-xl border border-dashed border-[var(--color-border-default)] text-center">
+            <div className="mt-4 flex h-[180px] items-center justify-center rounded-xl border border-dashed border-[var(--color-border-default)] text-center">
               <p className="max-w-xs text-xs text-[var(--color-text-faint)]">{loaded ? "Not enough order history yet to show a trend." : "Loading…"}</p>
             </div>
           )}
@@ -407,336 +652,221 @@ export default function TodayIdleState({
           </div>
         </div>
 
-        <div className="card flex flex-col p-6">
-          <p className="text-[15px] font-bold text-[var(--color-text-primary)]">Tonight at a glance</p>
-          <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">Reservations &amp; inventory, right now</p>
-
-          <div className="mt-4 flex flex-1 flex-col justify-center gap-3">
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 py-3.5">
-              <div className="min-w-0">
-                <p className="text-[10.5px] font-semibold text-[var(--color-text-faint)]">Reservations tonight</p>
-                <p className="num-display mt-0.5 text-[26px] leading-none text-[var(--color-text-primary)]">{coverage ? coverage.reservations : "--"}</p>
-              </div>
-              <div className="shrink-0 text-right">
-                <p className={`text-[12px] font-bold ${coverage && coverage.waitlist > 0 ? "text-[var(--color-caution)]" : "text-[var(--color-text-faint)]"}`}>{coverage ? `${coverage.waitlist} waitlist` : "--"}</p>
-                <p className="mt-0.5 text-[11px] text-[var(--color-text-faint)]">{reservationGaugePct !== null ? `${reservationGaugePct}% capacity` : "no data yet"}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 py-3.5">
-              <div className="min-w-0">
-                <p className="text-[10.5px] font-semibold text-[var(--color-text-faint)]">Inventory status</p>
-                <p className="num-display mt-0.5 text-[26px] leading-none text-[var(--color-text-primary)]">
-                  {inventoryTotal > 0 ? healthyItems : "--"}<span className="ml-1 font-sans text-[11px] font-semibold text-[var(--color-text-faint)]">/{inventoryTotal || "--"} healthy</span>
-                </p>
-              </div>
-              <div className="shrink-0 text-right">
-                <p className={`text-[12px] font-bold ${criticalShortages > 0 ? "text-[var(--color-caution)]" : "text-[var(--color-text-faint)]"}`}>{criticalShortages > 0 ? `${criticalShortages} critical` : "all stocked"}</p>
-                {warningShortages > 0 && <p className="mt-0.5 text-[11px] text-[var(--color-text-faint)]">{warningShortages} running low</p>}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Action Queue — pending agentic recommendations awaiting approval */}
-      <ActionQueuePanel />
-
-      {/* Yesterday's business — money KPIs + channel split */}
-      <div>
-        <p className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-faint)]">Yesterday&apos;s business</p>
-        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 items-stretch">
-          <KpiTile
-            label="Revenue"
-            value={yesterday ? `₹${yesterday.revenue.toLocaleString("en-IN")}` : "--"}
-            meta={yesterday ? (revenueDelta !== null ? `${revenueDelta >= 0 ? "↑" : "↓"} ${Math.abs(revenueDelta)}% vs. last week` : `${yesterday.orders} orders`) : "no data yet"}
-            metaTone={revenueDelta !== null && revenueDelta < 0 ? "warn" : undefined}
-            icon="M12 8c-1.66 0-3 .9-3 2s1.34 2 3 2 3 .9 3 2-1.34 2-3 2m0-8V6m0 10v2m0-14a8 8 0 100 16 8 8 0 000-16z"
-            lg
-          />
-          <KpiTile
-            label="Net profit"
-            value={yesterday?.net_profit != null ? `₹${yesterday.net_profit.toLocaleString("en-IN")}` : "--"}
-            meta={yesterday?.net_margin_pct != null ? `${yesterday.net_margin_pct}% net margin · ₹${yesterday.expenses.toLocaleString("en-IN")} expenses` : "no data yet"}
-            icon="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-            lg
-          />
-          <KpiTile
-            label="Avg order value"
-            value={yesterday ? `₹${yesterday.avg_order_value.toLocaleString("en-IN")}` : "--"}
-            meta={dineInShare !== null ? `${dineInShare}% dine-in revenue` : "no data yet"}
-            icon="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-            sparkline={aovSparkline}
-            sparklineColor="#38bdf8"
-            lg
-          />
-          <div className="card p-5">
-            <p className="text-[10.5px] font-semibold text-[var(--color-text-faint)]">Channel split</p>
-            {channelData.length > 0 ? (
-              <div className="mt-1 flex items-center gap-3">
-                <div style={{ width: 64, height: 64 }} className="shrink-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={channelData} dataKey="value" nameKey="name" innerRadius={20} outerRadius={30} paddingAngle={2} stroke="none">
-                        {channelData.map((d) => <Cell key={d.name} fill={d.color} />)}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="min-w-0 space-y-1">
-                  {channelData.map((d) => (
-                    <div key={d.name} className="flex items-center gap-1.5 text-[11px]">
-                      <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: d.color }} />
-                      <span className="truncate text-[var(--color-text-soft)]">{d.name}</span>
-                      <span className="mono ml-auto shrink-0 font-semibold text-[var(--color-text-primary)]">{Math.round((d.value / (channelData[0].value + channelData[1].value)) * 100)}%</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <p className="mt-3 text-[11px] text-[var(--color-text-faint)]">{loaded ? "No data yet" : "Loading…"}</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Menu performance + smart insights */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.7fr_1fr] items-stretch">
         <div className="card p-6">
-          <p className="text-[13.5px] font-bold text-[var(--color-text-primary)]">Menu performance</p>
-          <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">By revenue, last {revenueTrend.length || 14} days</p>
-
-          {(topDishes.length > 0 || bottomDishes.length > 0) ? (
-            <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2">
-              <div>
-                <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-[var(--color-good)]">
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
-                  Top sellers
-                </p>
-                <div style={{ height: 150 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={topDishes.slice(0, 5)} layout="vertical" margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
-                      <XAxis type="number" hide />
-                      <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10.5, fill: "#6b7280" }} axisLine={false} tickLine={false} />
-                      <Tooltip formatter={(v) => `₹${Number(v).toLocaleString("en-IN")}`} contentStyle={{ background: "var(--color-surface-raised)", border: "1px solid var(--color-border-default)", borderRadius: 8, fontSize: 12 }} />
-                      <Bar dataKey="revenue" fill="var(--color-good)" radius={[0, 4, 4, 0]} barSize={14} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-              <div>
-                <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-[var(--color-caution)]">
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}><path strokeLinecap="round" strokeLinejoin="round" d="M13 17h8m0 0v-8m0 8l-8-8-4 4-6-6" /></svg>
-                  Needs attention
-                </p>
-                <div style={{ height: 150 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={bottomDishes.slice(0, 5)} layout="vertical" margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
-                      <XAxis type="number" hide />
-                      <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10.5, fill: "#6b7280" }} axisLine={false} tickLine={false} />
-                      <Tooltip formatter={(v) => `₹${Number(v).toLocaleString("en-IN")}`} contentStyle={{ background: "var(--color-surface-raised)", border: "1px solid var(--color-border-default)", borderRadius: 8, fontSize: 12 }} />
-                      <Bar dataKey="revenue" fill="var(--color-text-ghost)" radius={[0, 4, 4, 0]} barSize={14} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
+          <p className="text-[15px] font-bold text-[var(--color-text-primary)]">Profit Margin</p>
+          <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">Gross margin %, by day -- how much of each day&apos;s revenue is actually profit</p>
+          {marginTrend.length >= 2 ? (
+            <div style={{ height: 240 }} className="mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={marginTrend} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="marginFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#0E9F6E" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#0E9F6E" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-soft)" vertical={false} />
+                  <XAxis dataKey="date" tickFormatter={(d: string) => shortDate(d)} tick={{ fontSize: 9, fill: "#6b7280", fontFamily: "Space Mono" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 9, fill: "#6b7280", fontFamily: "Space Mono" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}%`} />
+                  <Tooltip
+                    labelFormatter={(d) => shortDate(d as string)}
+                    formatter={(value) => [`${value}%`, "Gross margin"]}
+                    contentStyle={{ background: "var(--color-surface-raised)", border: "1px solid var(--color-border-default)", borderRadius: 8, fontSize: 12 }}
+                  />
+                  <Area type="monotone" dataKey="margin_pct" name="Gross margin" stroke="#0E9F6E" strokeWidth={2.5} fill="url(#marginFill)" dot={false} activeDot={{ r: 4 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
             </div>
           ) : (
-            <div className="mt-3 flex h-[160px] items-center justify-center rounded-xl border border-dashed border-[var(--color-border-default)] text-center">
-              <p className="max-w-xs text-xs text-[var(--color-text-faint)]">{loaded ? "Not enough order history yet." : "Loading…"}</p>
+            <div className="mt-4 flex h-[200px] items-center justify-center rounded-xl border border-dashed border-[var(--color-border-default)] text-center">
+              <p className="max-w-xs text-xs text-[var(--color-text-faint)]">{loaded ? "Not enough order history yet to show a trend." : "Loading…"}</p>
             </div>
           )}
         </div>
 
         <div className="card p-6">
-          <p className="text-[13.5px] font-bold text-[var(--color-text-primary)]">Smart insights</p>
-          <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">Your restaurant&apos;s current state, at a glance</p>
-          <div className="mt-3">
-            {insights.length > 0 ? insights.slice(0, 5).map((item, i) => (
-              <div key={i} className={`flex items-start gap-2.5 py-2.5 ${i > 0 ? "border-t border-[var(--color-border-soft)]" : ""}`}>
-                <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TONE_CLASS[item.tone]?.text ?? "var(--color-text-faint)", marginTop: 6 }} />
-                <p className="text-[12.5px] leading-relaxed text-[var(--color-text-soft)] [&_b]:font-bold [&_b]:text-[var(--color-text-primary)]">{item.text}</p>
-              </div>
-            )) : (
-              <p className="py-4 text-xs text-[var(--color-text-faint)]">{loaded ? "Nothing to flag right now." : "Loading…"}</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Peak hours (relocated from hero) + Guest feedback (sentiment + complaint themes merged) */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1.3fr] items-stretch">
-        <div className="card p-6">
-          <p className="text-[13.5px] font-bold text-[var(--color-text-primary)]">Peak hours</p>
-          <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">Avg orders per hour, last {revenueTrend.length || 14} days</p>
-
-          {peakHours.some((h) => h.avg_orders > 0) ? (
-            <div style={{ height: 210 }} className="mt-4">
+          <p className="text-[15px] font-bold text-[var(--color-text-primary)]">Top Dishes by Revenue</p>
+          <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">Last {revenueTrend.length || perfDays} days -- what to push tonight</p>
+          {topDishes.length > 0 ? (
+            <div style={{ height: 240 }} className="mt-4">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={peakHoursDisplay} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-soft)" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 8.5, fill: "#6b7280", fontFamily: "Space Mono" }} axisLine={false} tickLine={false} interval={2} />
-                  <YAxis tick={{ fontSize: 9, fill: "#6b7280", fontFamily: "Space Mono" }} axisLine={false} tickLine={false} />
+                <BarChart data={topDishes.slice(0, 6)} layout="vertical" margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 10.5, fill: "#6b7280" }} axisLine={false} tickLine={false} />
                   <Tooltip
-                    formatter={(v) => [`${v} orders/day avg`, ""]}
+                    formatter={(v) => `₹${Number(v).toLocaleString("en-IN")}`}
                     contentStyle={{ background: "var(--color-surface-raised)", border: "1px solid var(--color-border-default)", borderRadius: 8, fontSize: 12 }}
                   />
-                  <Bar dataKey="avg_orders" radius={[3, 3, 0, 0]}>
-                    {peakHoursDisplay.map((h) => (
-                      <Cell key={h.hour} fill={h.avg_orders === peakHourMax ? "#efa345" : "rgba(230,137,42,0.35)"} />
-                    ))}
-                  </Bar>
+                  <Bar dataKey="revenue" name="Revenue" fill="var(--color-accent)" radius={[0, 4, 4, 0]} barSize={16} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="mt-4 flex h-[160px] items-center justify-center rounded-xl border border-dashed border-[var(--color-border-default)] text-center">
+            <div className="mt-4 flex h-[200px] items-center justify-center rounded-xl border border-dashed border-[var(--color-border-default)] text-center">
               <p className="max-w-xs text-xs text-[var(--color-text-faint)]">{loaded ? "Not enough order history yet." : "Loading…"}</p>
             </div>
           )}
         </div>
-
-        <div className="card p-6">
-          <p className="text-[13.5px] font-bold text-[var(--color-text-primary)]">Guest feedback</p>
-          <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">Sentiment &amp; complaint themes, last 28 days</p>
-
-          {sentimentData.length > 0 || complaintCategories.length > 0 ? (
-            <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-[auto_1fr]">
-              <div className="flex shrink-0 items-center gap-3 sm:flex-col sm:items-start sm:gap-2">
-                <div className="relative shrink-0" style={{ width: 76, height: 76 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={sentimentData} dataKey="value" nameKey="name" innerRadius={26} outerRadius={37} paddingAngle={2} stroke="none">
-                        {sentimentData.map((d) => <Cell key={d.name} fill={d.color} />)}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="absolute inset-0 grid place-items-center">
-                    <span className="num-display text-[14px] text-[var(--color-text-primary)]">{positivePct}%</span>
-                  </div>
-                </div>
-                <div className="min-w-0 space-y-1">
-                  {sentimentData.map((d) => (
-                    <div key={d.name} className="flex items-center gap-1.5 text-[11px]">
-                      <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: d.color }} />
-                      <span className="truncate text-[var(--color-text-soft)]">{d.name}</span>
-                      <span className="mono ml-auto shrink-0 font-semibold text-[var(--color-text-primary)] sm:ml-1.5">{d.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="min-w-0 border-t border-[var(--color-border-soft)] pt-3 sm:border-t-0 sm:border-l sm:border-[var(--color-border-soft)] sm:pl-5 sm:pt-0">
-                <p className="mb-2 text-[10.5px] font-semibold text-[var(--color-text-faint)]">Top complaint themes</p>
-                {complaintCategories.length > 0 ? (
-                  <div className="space-y-2.5">
-                    {complaintCategories.slice(0, 5).map((c) => (
-                      <div key={c.category} className="flex items-center gap-2.5">
-                        <span className="w-28 shrink-0 truncate text-[12px] font-medium text-[var(--color-text-soft)]">{c.category}</span>
-                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-surface-sunken)]">
-                          <div className="h-full rounded-full bg-[var(--color-caution)]" style={{ width: `${(c.count / complaintMax) * 100}%` }} />
-                        </div>
-                        <span className="mono w-6 shrink-0 text-right text-[12px] font-bold text-[var(--color-text-primary)]">{c.count}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[11px] text-[var(--color-text-faint)]">No complaints in the last 28 days.</p>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="mt-3 flex h-[160px] items-center justify-center rounded-xl border border-dashed border-[var(--color-border-default)] text-center">
-              <p className="max-w-xs text-xs text-[var(--color-text-faint)]">{loaded ? "No feedback data yet." : "Loading…"}</p>
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* Market intelligence — one consolidated card, teaser into the dedicated /market page */}
-      <div className="card relative overflow-hidden p-6">
-        <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(480px 200px at 0% -10%, rgba(252,128,25,0.08), transparent 65%)" }} />
-        <div className="relative flex items-start justify-between gap-3">
-          <div>
-            <p className="flex items-center gap-2 text-[15px] font-bold text-[var(--color-text-primary)]">
-              Market intelligence
-              <span className="flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide" style={{ background: "rgba(252,128,25,0.10)", color: "#fc8019" }}>
-                <span className="h-1 w-1 rounded-full" style={{ background: "#fc8019" }} />
-                Swiggy
-              </span>
+      {/* ═══ What to do about it: Signals / Upcoming Risks / Action Queue / Latest Run ═══ */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 items-stretch">
+        <div className="card p-5">
+          <div className="flex items-center justify-between">
+            {/* Rule-based (revenueDelta/complaint/inventory/etc. thresholds), not
+                LLM-generated -- unlike the hero's AI Executive Summary. Named
+                "Signals" rather than "AI Insights" so that distinction is honest. */}
+            <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--color-text-primary)]">
+              <svg className="h-3.5 w-3.5" fill="var(--color-accent)" viewBox="0 0 24 24"><path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z" /></svg>
+              Signals
             </p>
-            <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">Live category pricing &amp; Instamart — via Swiggy MCP</p>
+            <Link href="/analytics" className="text-[10.5px] font-semibold text-[var(--color-accent)]">View All →</Link>
           </div>
-          <Link href="/market" className="flex shrink-0 items-center gap-1 text-[12.5px] font-bold text-[var(--color-accent)]">
-            Full market intelligence
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-          </Link>
+          <div className="mt-2.5">
+            {insights.length > 0 ? insights.slice(0, 5).map((item, i) => (
+              <div key={i} className="flex items-start gap-2.5 border-t border-[var(--color-border-soft)] py-2 first:border-t-0 first:pt-0">
+                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: TONE_CLASS[item.tone]?.bg ?? "var(--color-surface-sunken)", color: TONE_CLASS[item.tone]?.text ?? "var(--color-text-faint)" }}>
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                </span>
+                <p className="text-[11.5px] leading-relaxed text-[var(--color-text-soft)] [&_b]:font-bold [&_b]:text-[var(--color-text-primary)]">{item.text}</p>
+              </div>
+            )) : (
+              <p className="py-3 text-[11px] text-[var(--color-text-faint)]">{loaded ? "Nothing to flag right now." : "Loading…"}</p>
+            )}
+          </div>
         </div>
 
-        <div className="relative mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[1.6fr_1fr]">
-          {categoryPricing.length > 0 ? (
-            <div>
-              <div className="mb-3 space-y-1.5">
-                {categoryPricing.slice(0, 3).map((c) => (
-                  <div
-                    key={c.category}
-                    className={`rounded-lg border px-3 py-2 ${
-                      c.verdict === "above" ? "border-rose-500/25 bg-rose-500/[0.06]"
-                      : c.verdict === "below" ? "border-emerald-500/25 bg-emerald-500/[0.06]"
-                      : "border-[var(--color-border-soft)] bg-[var(--color-surface-raised)]"
-                    }`}
-                  >
-                    <p className="text-xs text-[var(--color-text-primary)]">
-                      <span className="font-semibold capitalize">{c.category}</span>
-                      {": you're "}
-                      <span className={`font-semibold ${c.verdict === "above" ? "text-rose-300" : c.verdict === "below" ? "text-emerald-300" : ""}`}>
-                        {Math.abs(c.diff_pct).toFixed(0)}% {c.verdict === "in line" ? "in line with" : c.verdict}
-                      </span>{c.verdict !== "in line" ? " the area" : ""} (₹{c.your_avg} vs ₹{c.area_avg} avg)
-                    </p>
-                  </div>
-                ))}
+        <div className="card p-5">
+          <div className="flex items-center justify-between">
+            <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--color-text-primary)]">
+              <svg className="h-3.5 w-3.5" fill="var(--color-caution)" viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 6v6m0 3h.01" stroke="var(--color-surface)" strokeWidth={1.5} /></svg>
+              Upcoming Risks
+            </p>
+            <Link href="/data" className="text-[10.5px] font-semibold text-[var(--color-accent)]">View All →</Link>
+          </div>
+          <div className="mt-2.5">
+            {risks.length > 0 ? risks.slice(0, 4).map((r, i) => (
+              <div key={i} className="flex items-start gap-2.5 border-t border-[var(--color-border-soft)] py-2 first:border-t-0 first:pt-0">
+                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: "var(--color-caution-soft)", color: "var(--color-caution)" }}>
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+                </span>
+                <p className="text-[11.5px] leading-relaxed text-[var(--color-text-soft)]">{r.text}</p>
               </div>
-              <CategoryPricingChart data={categoryPricing} />
+            )) : (
+              <p className="py-3 text-[11px] text-[var(--color-text-faint)]">{loaded ? "Nothing on the horizon." : "Loading…"}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="card p-5">
+          <div className="flex items-center justify-between">
+            <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--color-text-primary)]">
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="#38bdf8" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+              Action Queue
+            </p>
+            <Link href="/action-center" className="text-[10.5px] font-semibold text-[var(--color-accent)]">View All →</Link>
+          </div>
+          <div className="mt-2.5">
+            {pendingActions.length > 0 ? pendingActions.slice(0, 3).map((a) => (
+              <div key={a.id} className="flex items-center gap-2.5 border-t border-[var(--color-border-soft)] py-2 first:border-t-0 first:pt-0">
+                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: "rgba(56,189,248,0.12)", color: "#38bdf8" }}>
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" /></svg>
+                </span>
+                <p className="min-w-0 flex-1 truncate text-[11.5px] text-[var(--color-text-soft)]">{a.title}</p>
+                <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ background: a.tier === "approve_required" ? "var(--color-caution-soft)" : "var(--color-surface-sunken)", color: a.tier === "approve_required" ? "var(--color-caution)" : "var(--color-text-faint)" }}>
+                  {a.tier === "approve_required" ? "needs approval" : a.tier === "auto" ? "auto" : "recommendation"}
+                </span>
+              </div>
+            )) : (
+              <p className="py-3 text-[11px] text-[var(--color-text-faint)]">Nothing waiting for approval.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="card p-5">
+          <div className="flex items-center justify-between">
+            <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--color-text-primary)]">
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="var(--color-accent)" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+              Latest Planning Run
+            </p>
+            {latestRun && (VERDICT_TONE[latestRun.critic_verdict ?? "unknown"] ?? VERDICT_TONE.unknown) && (
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ background: (VERDICT_TONE[latestRun.critic_verdict ?? "unknown"] ?? VERDICT_TONE.unknown).bg, color: (VERDICT_TONE[latestRun.critic_verdict ?? "unknown"] ?? VERDICT_TONE.unknown).text }}>
+                {(VERDICT_TONE[latestRun.critic_verdict ?? "unknown"] ?? VERDICT_TONE.unknown).label}
+              </span>
+            )}
+          </div>
+          {latestRun ? (
+            <div className="mt-2.5">
+              <p className="text-[11.5px] text-[var(--color-text-soft)]">
+                {SCENARIO_OPTIONS.find((s) => s.id === latestRun.scenario)?.label ?? latestRun.scenario}
+                {latestRun.target_date ? ` · ${shortDate(latestRun.target_date)}` : ""} · generated {relativeTime(latestRun.generated_at ?? latestRun.created_at)}
+              </p>
+              <div className="mt-2.5 grid grid-cols-2 gap-2">
+                <div className="rounded-lg bg-[var(--color-surface-sunken)] px-2.5 py-2">
+                  <p className="text-[9.5px] uppercase tracking-wide text-[var(--color-text-faint)]">Health Score</p>
+                  <p className="mt-0.5 text-[15px] font-bold text-[var(--color-text-primary)]">{loaded ? `${healthScore}/100` : "--"}</p>
+                </div>
+                <div className="rounded-lg bg-[var(--color-surface-sunken)] px-2.5 py-2">
+                  <p className="text-[9.5px] uppercase tracking-wide text-[var(--color-text-faint)]">Confidence</p>
+                  <p className="mt-0.5 text-[15px] font-bold text-[var(--color-text-primary)]">{latestRun.critic_score != null ? `${latestRun.critic_score}%` : "--"}</p>
+                </div>
+              </div>
+              <Link href={`/planning?run=${latestRun.id}`} className="mt-2.5 inline-flex items-center gap-1 text-[11.5px] font-semibold text-[var(--color-accent)]">
+                View Full Plan
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+              </Link>
             </div>
           ) : (
-            <div className="flex h-[160px] items-center justify-center rounded-xl border border-dashed border-[var(--color-border-default)] text-center">
-              <p className="max-w-xs text-xs text-[var(--color-text-faint)]">
-                {!marketLoaded ? "Checking Swiggy for live category pricing…" : marketPulse?.swiggy_connected === false ? "Connect Swiggy to see live category pricing for your menu." : "No category pricing data available right now."}
-              </p>
-            </div>
+            <p className="mt-2.5 text-[11px] text-[var(--color-text-faint)]">{latestRunLoaded ? "No planning runs yet." : "Loading…"}</p>
           )}
+        </div>
+      </div>
 
-          <div className="space-y-2.5">
-            <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 py-3">
-              <p className="text-[10.5px] font-semibold text-[var(--color-text-faint)]">Instamart price check</p>
-              <p className="num-display mt-0.5 text-[19px] text-[var(--color-text-primary)]">{cheapestProcurement ? `₹${cheapestProcurement.price}/${cheapestProcurement.unit}` : "--"}</p>
-              <p className="mt-0.5 text-[10.5px] text-[var(--color-text-faint)]">{cheapestProcurement ? `${cheapestProcurement.name}${cheapestProcurement.in_stock ? " · in stock" : ""}` : swiggyEmptyMeta}</p>
-            </div>
+      {/* ═══ One tap to act: quick-action band ═══ */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <button
+          onClick={() => setShowPlanModal(true)}
+          className="card flex items-center gap-3 p-4 text-left transition-transform hover:scale-[1.01]"
+        >
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
+            <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+          </span>
+          <div className="min-w-0">
+            <p className="text-[13px] font-bold text-[var(--color-text-primary)]">Run New Planning</p>
+            <p className="text-[11px] text-[var(--color-text-faint)]">Generate today&apos;s AI operational plan</p>
           </div>
-        </div>
+          <svg className="ml-auto h-4 w-4 shrink-0 text-[var(--color-text-ghost)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+        </button>
+        <Link href="/action-center" className="card flex items-center gap-3 p-4 transition-transform hover:scale-[1.01]">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ background: "rgba(56,189,248,0.12)", color: "#38bdf8" }}>
+            <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+          </span>
+          <div className="min-w-0">
+            <p className="text-[13px] font-bold text-[var(--color-text-primary)]">Go to Action Center</p>
+            <p className="text-[11px] text-[var(--color-text-faint)]">Review and approve pending actions</p>
+          </div>
+          <svg className="ml-auto h-4 w-4 shrink-0 text-[var(--color-text-ghost)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+        </Link>
+        <Link href="/chat" className="card flex items-center gap-3 p-4 transition-transform hover:scale-[1.01]">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ background: "rgba(52,211,153,0.12)", color: "#34d399" }}>
+            <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+          </span>
+          <div className="min-w-0">
+            <p className="text-[13px] font-bold text-[var(--color-text-primary)]">Ask AI Assistant</p>
+            <p className="text-[11px] text-[var(--color-text-faint)]">Get insights from your data</p>
+          </div>
+          <svg className="ml-auto h-4 w-4 shrink-0 text-[var(--color-text-ghost)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+        </Link>
       </div>
 
-      {/* Specialist intro band */}
-      <div className="card flex flex-wrap items-center gap-x-6 gap-y-3 p-5">
-        <p className="shrink-0 text-[10.5px] font-bold uppercase tracking-[0.12em] text-[var(--color-text-faint)]">How CortexKitchen works</p>
-        <div className="flex flex-1 flex-wrap items-center gap-x-5 gap-y-2.5">
-          {AGENT_PIPELINE.map((agent) => (
-            <div key={agent.label} className="flex items-center gap-2" title={agent.capability}>
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md" style={{ background: TONE_CLASS[agent.tone].bg, color: TONE_CLASS[agent.tone].text }}>
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={agent.iconPath} />
-                </svg>
-              </span>
-              <span className="text-[12px] font-semibold text-[var(--color-text-soft)]">{agent.label}</span>
-            </div>
-          ))}
-        </div>
-        <div className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] text-[var(--color-text-faint)]">
-          <img src="/swiggy-logo.png" alt="Swiggy" className="h-3.5 w-auto object-contain opacity-90" />
-          live market data
-        </div>
-      </div>
-
+      {historyCount > 0 && (
+        <button onClick={onShowHistory} className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-faint)] transition-colors hover:text-[var(--color-text-primary)]">
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {historyCount} previous run{historyCount !== 1 ? "s" : ""}
+        </button>
+      )}
       <PlanShiftModal
         open={showPlanModal}
         onClose={() => setShowPlanModal(false)}
@@ -756,48 +886,52 @@ export default function TodayIdleState({
   );
 }
 
-function Sparkline({ data, color }: { data: number[]; color: string }) {
-  if (data.length < 2 || data.every((v) => v === data[0])) return null;
-  const w = 68, h = 26;
-  const min = Math.min(...data), max = Math.max(...data);
-  const range = max - min || 1;
-  const points = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`).join(" ");
+function MiniKpi({ label, value, delta, tone, icon, hue, hero }: {
+  label: string; value: string; delta?: string; tone?: "caution" | "good"; icon: string; hue: string; hero?: boolean;
+}) {
+  const deltaColor = tone === "caution" ? "var(--color-caution)" : tone === "good" ? "var(--color-good)" : "var(--color-text-faint)";
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="shrink-0 opacity-90">
-      <polyline points={points} fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <div className={`card p-4 ${hero ? "ring-1 ring-[var(--color-accent)]/25" : ""}`}>
+      <div className="flex items-center gap-2">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg" style={{ background: hue, color: "#fff" }}>
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
+          </svg>
+        </span>
+        <p className="min-w-0 truncate text-[11.5px] font-medium text-[var(--color-text-faint)]">{label}</p>
+      </div>
+      <p
+        className={`mt-2 font-bold leading-none ${hero ? "text-[30px]" : "text-[22px] text-[var(--color-text-primary)]"}`}
+        style={hero ? { color: "var(--color-accent)" } : undefined}
+      >
+        {value}
+      </p>
+      {delta && <p className="mt-1.5 text-[11px] font-semibold" style={{ color: deltaColor }}>{delta}</p>}
+    </div>
   );
 }
 
-function KpiTile({
-  label, value, unit, meta, metaTone, icon, swiggy, sparkline, sparklineColor, lg,
-}: {
-  label: string; value: string; unit?: string; meta?: string; metaTone?: "warn"; icon: string; swiggy?: boolean;
-  sparkline?: number[]; sparklineColor?: string; lg?: boolean;
+function LiveIntelRow({ hue, icon, title, headline, detail, pill, pillTone, headlineTone }: {
+  hue: string; icon: string; title: string; headline: string; detail: string; pill: string;
+  pillTone: "good" | "caution" | "swiggy"; headlineTone: "good" | "caution" | "swiggy";
 }) {
+  const pillColors = TONE_CLASS[pillTone] ?? TONE_CLASS.good;
+  const headlineColor = TONE_CLASS[headlineTone]?.text ?? "var(--color-text-primary)";
   return (
-    <div className={`card relative overflow-hidden ${lg ? "p-5" : "p-4"}`}>
-      {swiggy && (
-        <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide" style={{ background: "rgba(252,128,25,0.10)", color: "#fc8019" }}>
-          <span className="h-1 w-1 rounded-full" style={{ background: "#fc8019" }} />
-          Swiggy
-        </span>
-      )}
-      <div className="flex items-center gap-1.5 text-[10.5px] font-semibold text-[var(--color-text-faint)]">
-        <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <div className="flex items-center gap-3 rounded-xl border border-[var(--color-border-soft)] p-3">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ background: `${hue}1a`, color: hue }}>
+        <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
         </svg>
-        {label}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-faint)]">{title}</p>
+        <p className="mt-0.5 truncate text-[13px] font-bold" style={{ color: headlineColor }}>{headline}</p>
+        <p className="mt-0.5 truncate text-[11px] text-[var(--color-text-faint)]">{detail}</p>
       </div>
-      <div className="mt-1.5 flex items-end justify-between gap-2">
-        <div className={`num-display leading-none text-[var(--color-text-primary)] ${lg ? "text-[28px]" : "text-2xl"}`}>
-          {value}{unit && <span className="ml-1 font-sans text-[11px] font-semibold text-[var(--color-text-faint)]">{unit}</span>}
-        </div>
-        {sparkline && sparklineColor && <Sparkline data={sparkline} color={sparklineColor} />}
-      </div>
-      {meta && (
-        <div className={`mt-1 text-[10.5px] ${metaTone === "warn" ? "text-[var(--color-caution)]" : "text-[var(--color-text-faint)]"}`}>{meta}</div>
-      )}
+      <span className="shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-bold" style={{ background: pillColors.bg, color: pillColors.text }}>
+        {pill}
+      </span>
     </div>
   );
 }

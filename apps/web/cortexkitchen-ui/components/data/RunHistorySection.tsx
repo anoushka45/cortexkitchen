@@ -6,7 +6,7 @@ import {
   Tooltip, XAxis, YAxis,
 } from "recharts";
 import { getPlanningRun, listPlanningRuns } from "@/lib/api";
-import { getAuthToken } from "@/lib/auth-cookies";
+import { downloadRunPdf, downloadRunExcel } from "@/lib/exportRun";
 import { FridayRushResponse, PlanningRunDetail, PlanningRunSummary } from "@/types/planning";
 import SwiggySignalBadge from "@/components/dashboard/SwiggySignalBadge";
 
@@ -334,29 +334,10 @@ export default function RunHistorySection({ initialRunId }: { initialRunId?: num
   const [exportingPdf,   setExportingPdf]   = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
 
-  async function downloadFile(url: string, filename: string) {
-    const token = getAuthToken();
-    const base  = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-    const res   = await fetch(`${base}${url}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (!res.ok) throw new Error(`Export failed: ${res.status}`);
-    const blob = await res.blob();
-    const href = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href     = href;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(href);
-  }
-
   async function downloadPdf(runId: number, scenario: string) {
     setExportingPdf(true);
     try {
-      await downloadFile(
-        `/api/v1/runs/${runId}/export`,
-        `cortexkitchen-${scenario.replace(/_/g, "-")}-${runId}.pdf`,
-      );
+      await downloadRunPdf(runId, scenario);
     } catch (err) {
       console.error("PDF export error:", err);
     } finally {
@@ -367,10 +348,7 @@ export default function RunHistorySection({ initialRunId }: { initialRunId?: num
   async function downloadExcel(runId: number, scenario: string) {
     setExportingExcel(true);
     try {
-      await downloadFile(
-        `/api/v1/runs/${runId}/export/excel`,
-        `cortexkitchen-${scenario.replace(/_/g, "-")}-${runId}.xlsx`,
-      );
+      await downloadRunExcel(runId, scenario);
     } catch (err) {
       console.error("Excel export error:", err);
     } finally {

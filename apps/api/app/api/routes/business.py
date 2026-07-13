@@ -15,9 +15,15 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, get_db
 from app.domain.services.business_analytics_service import BusinessAnalyticsService
-from app.infrastructure.db.models import MenuItem, Order
+from app.domain.services.daily_briefing_service import BriefingService
+from app.infrastructure.db.models import MenuItem, Order, Organization
 
 router = APIRouter(prefix="/business", tags=["business"])
+
+
+class BusinessSummaryResponse(BaseModel):
+    summary: str | None = None
+    generated_at: str | None = None
 
 
 class DailyPoint(BaseModel):
@@ -64,6 +70,25 @@ class HourlyDemand(BaseModel):
     avg_orders: float   # average orders placed in this hour, across the trend window
 
 
+class ForecastAccuracyPoint(BaseModel):
+    date: str
+    scenario: str
+    predicted_orders: float
+    actual_orders: int
+    error_pct: float
+
+
+class ForecastAccuracy(BaseModel):
+    points: list[ForecastAccuracyPoint] = []
+    accuracy_pct: float | None = None
+
+
+class UpcomingRisk(BaseModel):
+    kind: str        # "inventory" | "occupancy"
+    severity: str     # "critical" | "warning"
+    text: str
+
+
 class BusinessPerformanceResponse(BaseModel):
     period_days: int
     yesterday: DaySnapshot | None = None
@@ -78,6 +103,11 @@ class BusinessPerformanceResponse(BaseModel):
     net_profit: float | None = None
     net_margin_pct: float | None = None
     health_score: int = 50
+    # P6-A30 v2 -- Dashboard redesign: reconciled forecast-vs-actual and a
+    # forward-looking risk list, both computed from data every other consumer
+    # already reads (BusinessAnalyticsService, InventoryService, Reservation).
+    forecast_accuracy: ForecastAccuracy = ForecastAccuracy()
+    risks: list[UpcomingRisk] = []
 
 
 @router.get("/performance", response_model=BusinessPerformanceResponse)
@@ -183,6 +213,12 @@ def get_business_performance(
     positive_sentiment_pct = analytics.get_positive_sentiment_pct(days=28)
     health_score = analytics.compute_health_score(net_margin_pct, positive_sentiment_pct)
 
+    # ── Forecast vs Actual + upcoming risks (P6-A30 v2 Dashboard redesign) ──
+    forecast_accuracy = ForecastAccuracy(**analytics.get_forecast_accuracy(days=30))
+    org = db.query(Organization).filter(Organization.id == current["org_id"]).first()
+    org_capacity = int((org.settings or {}).get("capacity", 70)) if org else 70
+    risks = [UpcomingRisk(**r) for r in analytics.get_upcoming_risks(capacity=org_capacity)]
+
     return BusinessPerformanceResponse(
         period_days=days,
         yesterday=yesterday_snapshot,
@@ -197,4 +233,22 @@ def get_business_performance(
         net_profit=round(net_profit, 2),
         net_margin_pct=net_margin_pct,
         health_score=health_score,
+        forecast_accuracy=forecast_accuracy,
+        risks=risks,
     )
+
+
+@router.get("/summary", response_model=BusinessSummaryResponse)
+async def get_business_summary(
+    current: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> BusinessSummaryResponse:
+    """AI-generated 2-3 sentence executive summary for the Dashboard, cached
+    1 hour per org per day (P6-A30 v2). Independently-loading and non-blocking
+    on the frontend, same pattern as market pulse -- an LLM call shouldn't
+    gate the rest of the dashboard's KPIs from rendering."""
+    briefing = BriefingService(db)
+    result = await briefing.get_summary(current.get("org_id"))
+    if result is None:
+        return BusinessSummaryResponse()
+    return BusinessSummaryResponse(**result)

@@ -11,7 +11,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import SectionHeader from "@/components/dashboard/SectionHeader";
 import RunHistorySection from "@/components/data/RunHistorySection";
 import DataHealthSection from "@/components/data/DataHealthSection";
-import ActionQueueHistory from "@/components/data/ActionQueueHistory";
 
 function DataPageContent() {
   const router = useRouter();
@@ -36,7 +35,7 @@ function DataPageContent() {
             <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-accent)]">data</p>
             <h1 className="display mt-2 text-[32px] text-[var(--color-text-primary)]">Data</h1>
             <p className="mt-1 max-w-2xl text-sm text-[var(--color-text-soft)]">
-              Every plan your kitchen has run, the source data behind it, and the audit trail of every action taken.
+              Every plan your kitchen has run and the source data behind it.
             </p>
           </div>
         </header>
@@ -57,15 +56,6 @@ function DataPageContent() {
             tone="cyan"
           />
           <DataHealthSection />
-        </div>
-
-        <div className="space-y-4">
-          <SectionHeader
-            label="Action Queue History"
-            description="The audit trail of every action approved, rejected, or executed over time."
-            tone="amber"
-          />
-          <ActionQueueHistory />
         </div>
 
       </div>

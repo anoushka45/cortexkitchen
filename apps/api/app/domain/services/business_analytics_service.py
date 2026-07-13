@@ -11,8 +11,10 @@ from datetime import datetime, timedelta
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.domain.scenarios import list_scenarios
 from app.infrastructure.db.models import (
-    Expense, ExpenseRecurrence, Feedback, MenuItem, Order, SentimentType,
+    Expense, ExpenseRecurrence, Feedback, Inventory, MenuItem, Order,
+    PlanningRun, Reservation, ReservationStatus, SentimentType,
 )
 
 # Keyword buckets checked in order -- first match wins. Tuned against the
@@ -117,6 +119,27 @@ class BusinessAnalyticsService:
             total += self.get_daily_expense_total(day)
         return round(total, 2)
 
+    def get_net_margin_pct(self, days: int = 14) -> float | None:
+        """Period net margin % -- (gross profit - expenses) / revenue -- the
+        same reconciliation GET /business/performance computes inline from its
+        already-fetched daily trend. Extracted so other consumers (e.g.
+        BriefingService) reach the real number instead of a placeholder."""
+        trend_start = datetime.utcnow() - timedelta(days=days)
+        row = (
+            self.db.query(
+                func.sum(Order.total_price).label("revenue"),
+                func.sum(Order.quantity * func.coalesce(MenuItem.cost_price, 0)).label("cost"),
+            )
+            .join(MenuItem, Order.menu_item_id == MenuItem.id)
+            .filter(Order.ordered_at >= trend_start)
+            .first()
+        )
+        revenue = float(row.revenue or 0) if row else 0.0
+        cost = float(row.cost or 0) if row else 0.0
+        gross_profit = revenue - cost
+        net_profit = gross_profit - self.get_total_expenses_for_period(days)
+        return round(net_profit / revenue * 100, 1) if revenue > 0 else None
+
     def get_positive_sentiment_pct(self, days: int = 28) -> float | None:
         """Share of feedback rows in the window that are positive. None when
         there's no feedback at all, so callers can distinguish "no data" from 0%."""
@@ -137,6 +160,109 @@ class BusinessAnalyticsService:
             margin_component = max(0.0, min(100.0, (net_margin_pct / 30.0) * 100))
         sentiment_component = positive_sentiment_pct if positive_sentiment_pct is not None else 50.0
         return round(0.7 * margin_component + 0.3 * sentiment_component)
+
+    def get_forecast_accuracy(self, days: int = 30) -> dict:
+        """Reconcile past planning runs' predicted_orders against what actually
+        happened that day (real Order rows), for runs whose target_date has
+        already passed. Reads recommendations["forecast"]["data"]["predicted_orders"]
+        -- the exact same path aggregator.py's critic summary already reads --
+        no second forecasting path, just a reconciliation against real orders.
+        Returns {"points": [...], "accuracy_pct": float | None}. None means no
+        past run has both a forecast and enough elapsed time to reconcile yet.
+        """
+        window_start = datetime.utcnow() - timedelta(days=days)
+        today = datetime.utcnow().date()
+        runs = (
+            self.db.query(PlanningRun)
+            .filter(PlanningRun.generated_at >= window_start, PlanningRun.target_date.isnot(None))
+            .all()
+        )
+
+        points = []
+        for run in runs:
+            try:
+                target = datetime.strptime(run.target_date, "%Y-%m-%d").date()
+            except (ValueError, TypeError):
+                continue
+            if target >= today:
+                continue  # only reconcile dates that have actually happened
+            forecast = (run.recommendations or {}).get("forecast") or {}
+            predicted = (forecast.get("data") or {}).get("predicted_orders")
+            if predicted is None:
+                continue
+            actual = (
+                self.db.query(func.count(Order.id))
+                .filter(func.date(Order.ordered_at) == target)
+                .scalar() or 0
+            )
+            if actual == 0:
+                continue
+            points.append({
+                "date": target.isoformat(),
+                "scenario": run.scenario,
+                "predicted_orders": round(float(predicted), 1),
+                "actual_orders": actual,
+                "error_pct": round(abs(predicted - actual) / actual * 100, 1),
+            })
+
+        points.sort(key=lambda p: p["date"])
+        if not points:
+            return {"points": [], "accuracy_pct": None}
+        mean_error_pct = sum(p["error_pct"] for p in points) / len(points)
+        return {"points": points[-10:], "accuracy_pct": round(max(0.0, 100 - mean_error_pct), 1)}
+
+    def get_upcoming_risks(self, capacity: int = 70) -> list[dict]:
+        """Forward-looking risk list assembled purely from data other consumers
+        already compute -- InventoryService.compute_alerts() (same call
+        GET /data-health already makes) for shortages, and the same per-scenario
+        upcoming-occupancy pattern runs.py's _scenario_coverage uses for
+        reservations (reimplemented here, not imported, since routes -> domain
+        is the correct dependency direction, not the reverse). No LLM call --
+        deterministic templated text, cheap enough to compute on every
+        dashboard load.
+        """
+        from app.domain.services.inventory_service import InventoryService
+
+        risks: list[dict] = []
+
+        inventory_items = self.db.query(Inventory).all()
+        alerts = InventoryService(db=self.db, llm=None).compute_alerts(inventory_items)
+        for alert in alerts["shortage_alerts"]:
+            if alert["severity"] != "critical":
+                continue
+            risks.append({
+                "kind": "inventory",
+                "severity": "critical",
+                "text": (
+                    f"{alert['ingredient']} below threshold "
+                    f"({alert['quantity_in_stock']}{alert['unit']} / {alert['reorder_threshold']}{alert['unit']}) "
+                    "-- reorder before next service."
+                ),
+            })
+
+        today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        for scenario in list_scenarios():
+            days_ahead = (scenario["default_weekday"] - today.weekday()) % 7
+            days_ahead = days_ahead or 7
+            target = today + timedelta(days=days_ahead)
+            rows = self.db.query(Reservation).filter(
+                Reservation.reserved_at >= target,
+                Reservation.reserved_at <= target.replace(hour=23, minute=59, second=59),
+                Reservation.status.in_([ReservationStatus.confirmed, ReservationStatus.waitlist]),
+            ).all()
+            guests = sum(r.guest_count for r in rows)
+            occupancy_pct = round((guests / capacity) * 100, 1) if capacity else 0.0
+            if occupancy_pct >= 90:
+                risks.append({
+                    "kind": "occupancy",
+                    "severity": "warning",
+                    "text": (
+                        f"{scenario['label']} ({target.strftime('%Y-%m-%d')}) forecasted at "
+                        f"{occupancy_pct}% occupancy -- waitlist likely."
+                    ),
+                })
+
+        return risks
 
     def get_peak_hours(self, days: int = 14) -> list[dict]:
         """Average orders per hour-of-day over the trend window, from real order

@@ -539,6 +539,28 @@ export interface BusinessHourlyDemand {
   avg_orders: number;
 }
 
+// P6-A30 v2 -- forecast reconciliation (predicted vs actual, past runs only)
+// and forward-looking risks, both from BusinessAnalyticsService methods every
+// other consumer already reads (no new query paths).
+export interface BusinessForecastAccuracyPoint {
+  date: string;
+  scenario: string;
+  predicted_orders: number;
+  actual_orders: number;
+  error_pct: number;
+}
+
+export interface BusinessForecastAccuracy {
+  points: BusinessForecastAccuracyPoint[];
+  accuracy_pct: number | null;
+}
+
+export interface BusinessUpcomingRisk {
+  kind: "inventory" | "occupancy";
+  severity: "critical" | "warning";
+  text: string;
+}
+
 export interface BusinessPerformanceResponse {
   period_days: number;
   yesterday: BusinessDaySnapshot | null;
@@ -553,6 +575,24 @@ export interface BusinessPerformanceResponse {
   net_profit: number | null;
   net_margin_pct: number | null;
   health_score: number;
+  forecast_accuracy: BusinessForecastAccuracy;
+  risks: BusinessUpcomingRisk[];
+}
+
+// AI-generated executive summary for the Dashboard hero, cached 1h/org/day
+// server-side. Independently loading -- never blocks the rest of the page.
+export interface BusinessSummaryResponse {
+  summary: string | null;
+  generated_at: string | null;
+}
+
+export async function getBusinessSummary(): Promise<BusinessSummaryResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/business/summary`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Business summary API error ${res.status}`);
+  return res.json() as Promise<BusinessSummaryResponse>;
 }
 
 export async function getBusinessPerformance(days = 14): Promise<BusinessPerformanceResponse> {

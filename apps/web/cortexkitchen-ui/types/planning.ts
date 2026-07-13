@@ -25,6 +25,11 @@ export interface ForecastData {
     category: string;
     total_ordered: number;
   }>;
+  // P6-A21 -- weather/holiday demand-multiplier fields, never typed on the
+  // frontend before even though the backend has returned them since P6-A21.
+  predicted_orders_pre_adjustment?: number;
+  adjustment_multiplier?: number;
+  adjustment_reasons?: string[];
 }
 
 export interface ReservationData {
@@ -204,6 +209,60 @@ export interface MarketIntelOutput {
   pricing_alerts:     SwiggyPricingAlert[];
   tonight_busy:       boolean | null;
   fetched_at:         string | null;
+  // Condensed prose merging weather/trends/compliance/Swiggy signals
+  // (MarketIntelService._build_live_signals_text, P6-A24) -- not on every
+  // older stored run, hence optional.
+  live_signals_text?: string;
+}
+
+// P6-A30 -- per-node/per-LLM-call observability data. This has always been
+// captured in graph.py's run metadata (node_traces/llm_usage) but was never
+// typed or surfaced on the frontend before -- the only fields read anywhere
+// were a handful of run-level aggregates via untyped Record<string, unknown>
+// casts (see PlanningRunMetadata below for those).
+export interface LlmUsageRecord {
+  provider: string;
+  model: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  cost_usd: number;
+  node: string | null;
+}
+
+export interface NodeTrace {
+  node: string;
+  started_at: string;
+  ended_at: string;
+  duration_ms: number;
+  // Absent (not just empty) on some real runs -- nodes that error before
+  // recording usage, or older stored runs predating this field. Consumers
+  // must default it, not assume it's always an array.
+  llm_usage?: LlmUsageRecord[];
+  node_cost_usd: number;
+  // Only present on the error path (graph.py's exception branch) -- absence
+  // means the node completed normally, not that it's guaranteed non-null.
+  error?: string;
+}
+
+// Shape of FridayRushResponse.meta / PlanningRunDetail.metadata. Kept as an
+// index signature too since not every historical run has every field (older
+// runs predate P6-A27's session_id, etc.) and the backend may add fields
+// here without a frontend release.
+export interface PlanningRunMetadata {
+  run_id?: string;
+  session_id?: string;
+  node_traces?: NodeTrace[];
+  llm_usage?: LlmUsageRecord[];
+  total_duration_ms?: number;
+  total_tokens?: number;
+  total_cost_usd?: number;
+  llm_model?: string;
+  llm_provider?: string;
+  llm_fallback_used?: boolean;
+  llm_fallback_provider?: string;
+  planning_run_id?: number;
+  cache_hit?: boolean;
+  [key: string]: unknown;
 }
 
 export interface FridayRushResponse {

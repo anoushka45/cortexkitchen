@@ -15,6 +15,7 @@ import {
   RestaurantProfile, ActionQueueItem,
 } from "@/lib/api";
 import { SCENARIO_OPTIONS } from "@/lib/scenarios";
+import { shortDate, relativeTime, VERDICT_TONE } from "@/lib/formatters";
 import { DataHealth, PlanningRunSummary, PlanningScenarioOption, ScenarioProfile } from "@/types/planning";
 
 const TONE_CLASS: Record<string, { bg: string; text: string }> = {
@@ -32,13 +33,6 @@ const CONDITION_LABELS: Record<string, string> = {
   clear:      "Clear",
 };
 
-const VERDICT_TONE: Record<string, { bg: string; text: string; label: string }> = {
-  approved:  { bg: "var(--color-good-soft)",     text: "var(--color-good)",     label: "Approved" },
-  revision:  { bg: "var(--color-caution-soft)",  text: "var(--color-caution)",  label: "Revised" },
-  rejected:  { bg: "var(--color-critical-soft)", text: "var(--color-critical)", label: "Rejected" },
-  unknown:   { bg: "var(--color-surface-sunken)", text: "var(--color-text-faint)", label: "Unknown" },
-};
-
 // TrendsService's digest is a multi-point paragraph/bullet list -- take just
 // the first point as a compact row headline instead of dumping the whole
 // thing (which overflowed the Live Intelligence row entirely).
@@ -48,25 +42,6 @@ function firstDigestSnippet(digest: string): string {
   const cut = first.slice(0, 69);
   const lastSpace = cut.lastIndexOf(" ");
   return `${lastSpace > 40 ? cut.slice(0, lastSpace) : cut}...`;
-}
-
-function shortDate(iso: string | null | undefined): string {
-  if (!iso) return "--";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10);
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-}
-
-function relativeTime(iso: string | null | undefined): string {
-  if (!iso) return "--";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "--";
-  const mins = Math.round((Date.now() - d.getTime()) / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.round(hrs / 24)}d ago`;
 }
 
 function healthLabel(score: number): string {

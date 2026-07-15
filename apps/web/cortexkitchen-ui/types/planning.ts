@@ -325,6 +325,10 @@ export interface RunHistoryEntry {
   status:      FridayRushResponse["status"];
   verdict:     CriticResult["verdict"];
   score:       number | null;
+  // Threaded through from PlanningRunSummary.scenario (P6-A34) -- lets the
+  // Planning idle-state's recent-runs table show scenario/shift-shape
+  // columns without a second fetch per row.
+  scenario:    string;
   data?:       FridayRushResponse;
 }
 

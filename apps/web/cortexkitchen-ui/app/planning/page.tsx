@@ -26,6 +26,7 @@ import WhatIfPanel from "@/components/dashboard/WhatIfPanel";
 import RunHistory from "@/components/dashboard/RunHistory";
 import ObservabilityStrip from "@/components/planning/ObservabilityStrip";
 import EvidencePanel from "@/components/planning/EvidencePanel";
+import PlanningIdleState from "@/components/planning/PlanningIdleState";
 import { useAuth } from "@/context/AuthContext";
 import { DashStatus, useDashboardCtx } from "@/context/DashboardContext";
 import { useFridayRush } from "@/hooks/useFridayRush";
@@ -257,26 +258,6 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
   );
 }
 
-function EmptyState({ onShowHistory }: { onShowHistory: () => void }) {
-  return (
-    <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-6 py-14 flex flex-col items-center gap-3 text-center">
-      <svg className="h-8 w-8 text-[var(--color-text-ghost)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-      </svg>
-      <p className="text-sm text-[var(--color-text-faint)]">No active plan right now.</p>
-      <p className="text-xs text-[var(--color-text-ghost)] max-w-sm">
-        Trigger a plan from Dashboard to watch it run here, or pick a past run from history.
-      </p>
-      <div className="flex items-center gap-3 mt-2">
-        <Link href="/dashboard" className="text-xs text-[var(--color-accent)] underline underline-offset-4">Go to Dashboard</Link>
-        <button onClick={onShowHistory} className="text-xs text-[var(--color-text-faint)] underline underline-offset-4 hover:text-[var(--color-text-primary)]">
-          View history
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function PlanningPageContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -401,7 +382,16 @@ function PlanningPageContent() {
     <div className="min-h-screen bg-[var(--color-surface-page)] text-[var(--color-text-primary)]">
       <main className="mx-auto w-full max-w-[1520px] px-6 py-8 xl:px-14">
         <div className="space-y-6">
-          {status === "idle" && <EmptyState onShowHistory={() => setShowHistoryDrawer(true)} />}
+          {status === "idle" && (
+            <PlanningIdleState
+              onRun={handleRun}
+              selectedScenario={selectedScenario}
+              onScenarioChange={(s) => dashCtx?.setSelectedScenario(s)}
+              history={history}
+              onSelectHistory={handleHistorySelect}
+              onShowAllHistory={() => setShowHistoryDrawer(true)}
+            />
+          )}
 
           {status === "loading" && <LoadingState completedNodes={completedNodes} startedNodes={startedNodes} nodeHints={nodeHints} replanCount={replanCount} scenarioLabel={runMeta.scenarioLabel} restaurantName={runMeta.restaurantName} />}
 

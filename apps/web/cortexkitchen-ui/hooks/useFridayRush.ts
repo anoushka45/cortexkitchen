@@ -30,6 +30,7 @@ function toHistoryEntry(run: PlanningRunSummary): RunHistoryEntry {
     status: run.status,
     verdict: run.critic_verdict ?? "unknown",
     score: run.critic_score,
+    scenario: run.scenario,
   };
 }
 

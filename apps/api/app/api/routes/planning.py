@@ -12,6 +12,7 @@ from app.infrastructure.db.models import Organization, RestaurantProfile
 from app.api.schemas.planning import (
     FridayRushRequest,
     FridayRushResponse,
+    LiveScenarioCompositionResponse,
     PlanningRunRequest,
     PlanningScenarioListResponse,
     ScenarioProfilePayload,
@@ -24,6 +25,7 @@ from app.api.schemas.planning import (
 from app.core.exceptions import AppError
 from app.domain.scenarios import list_scenarios
 from app.domain.services.cost_aware_scoring import CostAwareScoringService
+from app.domain.services.live_scenario_composer import LiveScenarioComposer
 from app.domain.services.run_service import RunService
 from app.domain.services.scenario_profile_service import ScenarioProfileService
 from app.domain.services.scenario_recommender import ScenarioRecommender
@@ -432,6 +434,35 @@ async def recommend_scenario(
     recommender = ScenarioRecommender(db=db, swiggy_client=SwiggyMCPClient(), llm=llm)
     result = await recommender.recommend(org_id=current_user["org_id"], target_date=target_date)
     return ScenarioRecommendationResponse(**result)
+
+
+@router.get(
+    "/compose-live-scenario",
+    response_model=LiveScenarioCompositionResponse,
+    summary="Compose a fresh scenario profile from live signals for 'right now'",
+    description=(
+        "Backs the 'Run for today' instant path. Unlike /recommend (which picks one of "
+        "the 4 fixed presets), this composes a brand new profile from what's actually "
+        "true right now -- real day-of-week, current time, weather, holiday, inventory "
+        "shortage count, area occupancy -- so it can never produce a mismatched label "
+        "(e.g. recommending a 'weekend' preset on a Wednesday). Returns a profile shaped "
+        "like POST /planning/scenario-from-text's, safe to pass as custom_profile."
+    ),
+)
+async def compose_live_scenario(
+    target_date: str = Query(..., description="ISO date string, e.g. 2026-07-15"),
+    db: Session = Depends(get_db),
+    llm=Depends(get_llm),
+    current_user: dict = Depends(get_current_user),
+) -> LiveScenarioCompositionResponse:
+    composer = LiveScenarioComposer(db=db, swiggy_client=SwiggyMCPClient(), llm=llm)
+    result = await composer.compose(org_id=current_user["org_id"], target_date=target_date)
+    return LiveScenarioCompositionResponse(
+        profile=ScenarioProfilePayload(**result["profile"]),
+        reason=result["reason"],
+        confidence=result["confidence"],
+        signals_used=result["signals_used"],
+    )
 
 
 @router.post(

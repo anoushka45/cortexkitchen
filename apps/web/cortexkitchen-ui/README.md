@@ -1,8 +1,6 @@
 # CortexKitchen UI
 
-Next.js 16 frontend for CortexKitchen. Phase 6 in progress.
-
-Last updated: June 2026.
+Next.js frontend for CortexKitchen. Phase 6A in progress.
 
 ---
 
@@ -12,8 +10,10 @@ Last updated: June 2026.
 - React 19
 - TypeScript
 - Tailwind CSS 4
-- Recharts
-- ReactMarkdown
+- Recharts (charts)
+- react-markdown (chat rendering)
+- Fontsource: Instrument Serif, Plus Jakarta Sans, Space Mono
+- Theming is hand-rolled (`context/ThemeContext.tsx`), not a third-party theme library. A small inline script in `app/layout.tsx` reads the saved theme from `localStorage` before hydration to avoid a flash, then toggles a `.dark` class on `<html>`.
 
 ---
 
@@ -21,172 +21,89 @@ Last updated: June 2026.
 
 | Route | Auth | Purpose |
 |-------|------|---------|
-| `/` | Public | Marketing homepage — pipeline explainer, features, CTA, footer |
-| `/login` | Public | JWT sign-in |
-| `/register` | Public | Create restaurant workspace |
-| `/dashboard` | JWT | Scenario selection, SSE streaming run, full plan, what-if simulator |
-| `/runs` | JWT | Run history, critic score trend, run detail, PDF/Excel export |
-| `/chat` | JWT | Ask AI — RAG chatbot over run history and feedback |
-| `/data-health` | JWT | Database coverage + 7-day observability panel |
-| `/settings` | JWT (owner) | Workspace config — capacity, cuisine, peak hours, thresholds |
+| `/` | Public | Marketing homepage |
+| `/login` | Public | Sign in |
+| `/register` | Public | Create a restaurant workspace |
+| `/dashboard` | JWT | Daily overview: KPIs, health score, live-intelligence card, revenue and margin trends, top dishes, signals, upcoming risks, Action Queue summary, latest run. Triggering a scenario here navigates to `/planning` rather than running inline. |
+| `/planning` | JWT | The flagship experience: agent showcase, live scenario composition, streaming pipeline run, forecast chart, critic banner, manager action panel, what-if simulator, run history, exports |
+| `/action-center` | JWT | Pending approvals and full Action Queue history |
+| `/analytics` | JWT | Historical drill-down: menu performance, channel split, peak hours, complaint categories, category pricing, a market-intelligence teaser |
+| `/data` | JWT | Merged run history and data-health view, with PDF/Excel export and an observability summary |
+| `/market` | JWT | Live Swiggy market intelligence, one card per capability, plus price and occupancy trend charts |
+| `/chat` | JWT | Full-page AI Assistant, session list and suggested questions |
+| `/connectors` | JWT | Swiggy connector status and sync trigger |
 | `/restaurant-profiles` | JWT (owner) | Named restaurant profiles |
+| `/settings` | JWT (owner) | Workspace configuration and planning thresholds |
+
+`/operations`, `/runs`, `/runs/{id}`, and `/data-health` are thin client-side redirects to their current equivalents (`/planning` or `/data`), kept only so old bookmarks and links do not 404. None of them appear in navigation.
 
 ---
 
-## Homepage
+## Navigation
 
-The public marketing page (`/`) has its own `HomeNav` and `Footer` components — not the app NavBar. It does not render when the user is authenticated (redirected to `/dashboard`).
+`components/layout/Sidebar.tsx` defines the primary navigation: Dashboard, Planning, Action Center, Analytics, and AI Assistant, plus a collapsible Admin section for Market, Data, Connectors, Restaurant Profiles (owner-only), and Settings (owner-only). `components/layout/TopBar.tsx` provides the theme toggle, restaurant/location selector, and user menu.
 
-![Homepage Hero](../../../screenshots/01_homepage/hero.png)
-
-![Homepage Pipeline](../../../screenshots/01_homepage/pipeline.png)
-
-![Homepage Features](../../../screenshots/01_homepage/features.png)
-
-![Homepage Footer](../../../screenshots/01_homepage/footer_cta.png)
-
----
-
-## Auth pages
-
-Standard JWT flow. Login and register pages include a "Back to home" link. Authenticated users landing on `/login` or `/register` are redirected to `/dashboard`.
-
-![Login](../../../screenshots/02_auth/login.png)
-
-![Register](../../../screenshots/02_auth/register.png)
+The public homepage uses its own `components/layout/HomeNav.tsx`, not the authenticated app's sidebar, and does not render for already-authenticated users, who are redirected to `/dashboard`.
 
 ---
 
 ## Dashboard
 
-The core of the app. The dashboard has three states:
+`components/dashboard/TodayIdleState.tsx` is the main component. It independently fetches data health, connector status, business performance and summary, the Action Queue, recent planning runs, and market pulse (weather, area demand, industry trends, FSSAI notices), and renders a KPI strip, a health-score gauge with an AI-generated executive summary, a live-intelligence card, revenue and margin trend charts, and four bottom cards for signals, upcoming risks, the Action Queue, and the latest run.
 
-**Idle** — scenario selector, restaurant profile selector (owner only), four preset cards with scenario descriptions, and the 11-node orchestration list.
-
-![Dashboard — Idle](../../../screenshots/03_dashboard/01_idle_scenario_select.png)
-
-**Running** — SSE stream open. Branded loading screen ("Preparing your brief, [Restaurant Name]!") with a live pipeline diagram showing node status: done / running / waiting.
-
-![Dashboard — Loading Screen](../../../screenshots/03_dashboard/02_loading_screen.png)
-
-**Complete** — full plan rendered. Critic verdict banner (approved / revision / rejected), composite score, and five metric cards at the top. Below: agent output sections for service planning, menu direction, and operational risk.
-
-![Dashboard — Plan Approved (top)](../../../screenshots/03_dashboard/03_plan_approved_top.png)
-
-![Dashboard — Full Scroll](../../../screenshots/03_dashboard/04_full_plan_scroll.png)
-
-![Service Planning Section](../../../screenshots/03_dashboard/05_service_planning.png)
-
-![Menu Direction Section](../../../screenshots/03_dashboard/06_menu_direction.png)
-
-![Operational Risk Section](../../../screenshots/03_dashboard/07_operational_risk.png)
-
-**What-If Simulator** — available after a completed run. Slider to adjust cover count; cost pressure, benefit, and tradeoff scores update instantly — no LLM calls, no LangGraph, purely deterministic via `CostAwareScoringService`.
-
-![What-If Simulator](../../../screenshots/03_dashboard/08_what_if_simulator.png)
+Triggering a scenario from the dashboard sets pending-trigger state and navigates to `/planning`, where the run actually executes.
 
 ---
 
-## Runs (Plan History)
+## Planning
 
-Full audit trail of all planning runs. Left panel: run list with scenario, date, critic score, and verdict. Right panel: selected run detail with critic dimension scores, agent outputs, RAG context, and export buttons.
+`app/planning/page.tsx` is the orchestrator for the flagship experience: it owns the SSE connection via the `useFridayRush` hook and composes the agent cards, forecast chart, critic banner, manager action panel, what-if panel, run history, observability strip, and evidence panel.
 
-Export buttons:
-- **Export for your chef** — downloads the PDF chef brief
-- **Open Manager Brief** — opens the full plan detail modal
-- **Ask the AI a question** — links to the `/chat` page
-
-![Run History audit page](../../../screenshots/04_runs/runs_history_audit.png)
-
-![Run detail history panel](../../../screenshots/04_runs/run_detail_history_panel.png)
+Its idle state, `components/planning/PlanningIdleState.tsx`, renders a compact trigger panel, a live-signals context card, a specialist showcase grid (`AgentPipelineGrid`), and a recent-runs strip. The "Run a plan" button opens `PlanShiftModal` (shared with the dashboard's quick-trigger flow), which offers running for today, choosing a preset scenario, or describing the shift in natural language. The "run for today" recommendation is produced by `hooks/useScenarioRecommendation.ts`, which composes a profile from live signals rather than forcing today into the nearest fixed preset, and is cached per hour so repeated page visits do not re-trigger the underlying LLM call on every mount.
 
 ---
 
-## Ask AI (Chat)
+## Action Center
 
-RAG chatbot over the org's actual planning data. Answers come from Postgres `planning_runs` and `feedback` tables — not generic AI.
-
-**Empty state** — suggested question cards covering quality, complaints, inventory, menu, demand, and strategy.
-
-**Active conversation** — streamed token-by-token, rendered with ReactMarkdown for formatted responses.
-
-![Ask AI — Empty State](../../../screenshots/05_chat/01_empty_state.png)
-
-![Ask AI — Complaints Conversation](../../../screenshots/05_chat/02_conversation_complaints.png)
-
-![Ask AI — Performance Overview](../../../screenshots/05_chat/03_conversation_performance.png)
-
-![Ask AI — Multi-turn Responses](../../../screenshots/05_chat/04_conversation_responses.png)
-
-![Ask AI — Full App View](../../../screenshots/05_chat/05_full_app_conversation.png)
+`components/dashboard/ActionQueuePanel.tsx` renders pending approvals with the trust-ladder indicator; `components/data/ActionQueueHistory.tsx` renders the full history across all statuses.
 
 ---
 
-## Data Health
+## Analytics
 
-Two tabs — database coverage and observability.
-
-**Database coverage:** live counts for orders, reservations, feedback, inventory items, and menu items. Scenario coverage table shows the next matching date per scenario with reservation pressure.
-
-**Observability panel:** 7-day aggregate from `/api/v1/observability/summary` — total runs, success rate, average critic score, average duration, breakdown by verdict and scenario.
-
-![Data Health](../../../screenshots/06_data_health/data_health.png)
-
-![Observability Panel](../../../screenshots/06_data_health/observability_panel.png)
+`components/analytics/AnalyticsDetail.tsx` is a self-contained historical view: menu performance, channel split, peak hours, complaint categories, a category pricing chart, and a market-intelligence teaser linking to `/market`.
 
 ---
 
-## Settings
+## Data
 
-Workspace configuration for owners. Sections:
-
-- **Restaurant** — seating capacity, cuisine type, peak service hours, timezone
-- **Planning thresholds** — minimum critic score for approval, low stock warning %, overstock warning %
-
-![Settings](../../../screenshots/07_config/settings.png)
+`components/data/RunHistorySection.tsx` (run list, run detail, PDF/Excel export, agent-by-agent breakdown) and `components/data/DataHealthSection.tsx` (data coverage and an observability summary) together make up this page, replacing the previous separate `/runs` and `/data-health` pages.
 
 ---
 
-## Restaurant Profiles
+## Market
 
-Named profiles that override org-level capacity and peak hours for a specific planning run. Managed by the owner. Selected from the dashboard scenario picker.
-
-![Restaurant Profiles](../../../screenshots/07_config/restaurant_profiles.png)
+Renders `SwiggyStatusWidget`, `SwiggyLiveMarketPanel` (one card per Swiggy-backed capability: category pricing, positioning, menu breadth, cuisine crowding, veg mix, competitor deals, area occupancy, Dineout deals and slots, Instamart ingredient prices), and `MarketTrendChart` (per-dish price trend and occupancy trend across past runs).
 
 ---
 
-## Exports
+## AI Assistant (Chat)
 
-**PDF chef brief** — generated by ReportLab. Includes: run summary, scenario, date, critic verdict and score, dimension scores, action items, agent recommendations.
-
-**Excel workbook** — three sheets: Summary, Inventory & Staffing (chef view), Cost Breakdown (owner view). Generated by openpyxl.
-
-![PDF Chef Brief](../../../screenshots/08_exports/pdf_chef_brief.png)
-
-![Excel — Inventory & Staffing](../../../screenshots/08_exports/excel_inventory_chef_view.png)
-
-![Excel — Cost Breakdown](../../../screenshots/08_exports/excel_cost_breakdown_owner_view.png)
+A conversational assistant over the organization's actual planning data, not generic AI. Available both as the full `/chat` page and as a floating widget (`components/chat/FloatingChatWidget.tsx`, mounted globally in `app/layout.tsx`), sharing session state through `context/ChatSessionContext.tsx` so switching between the two never loses context.
 
 ---
 
-## Components
+## Connectors, Restaurant Profiles, Settings
 
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| `NavBar` | `components/layout/NavBar.tsx` | Sticky app nav — scenario dropdown, History, Ask AI, user dropdown |
-| `Footer` | `components/layout/Footer.tsx` | Public footer — Product/Resources/Company/Legal; homepage only |
-| `HomeNav` | `components/layout/HomeNav.tsx` | Public homepage navigation |
-| `ForecastChart` | `components/dashboard/ForecastChart.tsx` | Demand forecast bar/line chart |
-| `AuthContext` | `context/AuthContext.tsx` | JWT state, login, logout |
-| `DashboardContext` | `context/DashboardContext.tsx` | Scenario, run status, history drawer |
+Each of these is a single, self-contained page component (`app/connectors/page.tsx`, `app/restaurant-profiles/page.tsx`, `app/settings/page.tsx`) rather than split into separate components. Connectors shows Swiggy connection status and a manual sync trigger. Restaurant Profiles is owner-gated CRUD for named profiles that override organization-level capacity and peak hours for a specific run. Settings is a field-config-driven form covering restaurant details and planning thresholds (critic approval score, low-stock and overstock warning percentages).
 
 ---
 
 ## Streaming
 
-**Planning SSE** (`POST /api/v1/planning/stream`) — the dashboard opens a `fetch` ReadableStream against this endpoint. Each node emits a `node_start` event (with a human-readable hint) when it begins and a `node_complete` event when it finishes; the loading screen uses these to drive a 4-state pipeline diagram (idle → running → done). The full plan arrives in a single `complete` event and renders all at once.
+**Planning SSE** (`POST /api/v1/planning/stream`): `/planning` opens a `fetch` `ReadableStream` against this endpoint. Each node emits a `node_start` event, with a human-readable hint, when it begins, and a `node_complete` event when it finishes. The full plan arrives in a single `complete` event and renders all at once.
 
-**Chat streaming** (`POST /api/v1/chat`) — a separate mechanism. Individual tokens stream word-by-word via AsyncGroq and render progressively through ReactMarkdown.
+**Chat streaming** (`POST /api/v1/chat`): a separate mechanism. Tokens stream individually and render progressively through `react-markdown`.
 
 ---
 
@@ -213,18 +130,3 @@ Set this in `.env.local` in this directory.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8000` | Backend API base URL |
-
----
-
-## Tech stack
-
-<p>
-  <img src="../../../screenshots/logos/langgraph.png" height="22" alt="LangGraph">&nbsp;&nbsp;
-  <img src="../../../screenshots/logos/langsmith.png" height="22" alt="LangSmith">&nbsp;&nbsp;
-  <img src="../../../screenshots/logos/groq.png" height="22" alt="Groq">&nbsp;&nbsp;
-  <img src="../../../screenshots/logos/redis.png" height="22" alt="Redis">&nbsp;&nbsp;
-  <img src="../../../screenshots/logos/sentry.png" height="22" alt="Sentry">&nbsp;&nbsp;
-  <img src="../../../screenshots/logos/otel.png" height="22" alt="OpenTelemetry">&nbsp;&nbsp;
-  <img src="../../../screenshots/logos/ragas.png" height="22" alt="RAGAS">&nbsp;&nbsp;
-  <img src="../../../screenshots/logos/mcp.png" height="22" alt="MCP">
-</p>

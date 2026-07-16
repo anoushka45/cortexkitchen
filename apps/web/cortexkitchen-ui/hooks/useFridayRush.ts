@@ -29,7 +29,13 @@ function toHistoryEntry(run: PlanningRunSummary): RunHistoryEntry {
     runAt: run.created_at ?? run.generated_at ?? new Date().toISOString(),
     status: run.status,
     verdict: run.critic_verdict ?? "unknown",
-    score: run.critic_score,
+    // critic_score is stored as a 0-1 fraction everywhere in the backend --
+    // every other consumer (RunHistorySection, DataHealthSection,
+    // TodayIdleState) does Math.round(score * 100) before display; this was
+    // the one place that didn't, so RunHistoryEntry.score silently carried
+    // the raw fraction (e.g. 0.92 instead of 92) into whatever rendered it.
+    score: run.critic_score != null ? Math.round(run.critic_score * 100) : null,
+    scenario: run.scenario,
   };
 }
 

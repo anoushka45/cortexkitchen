@@ -41,7 +41,7 @@ export default function RunHistory({ history, activeId, onSelect }: Props) {
           const isActive  = entry.id === activeId;
           const colors    = VERDICT_COLOR[entry.verdict] ?? VERDICT_COLOR.unknown;
           const dot       = VERDICT_DOT[entry.verdict]  ?? VERDICT_DOT.unknown;
-          const scorePct  = entry.score == null ? null : Math.round(entry.score * 100);
+          const scorePct  = entry.score; // RunHistoryEntry.score is already 0-100 (useFridayRush.ts)
           const time      = new Date(entry.runAt).toLocaleTimeString([], {
             hour: "2-digit", minute: "2-digit",
           });

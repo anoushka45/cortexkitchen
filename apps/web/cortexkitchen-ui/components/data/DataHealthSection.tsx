@@ -1,0 +1,216 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { getDataHealth, getObservabilitySummary, ObservabilitySummary } from "@/lib/api";
+import { DataHealth } from "@/types/planning";
+
+const SCENARIO_LABELS: Record<string, string> = {
+  friday_rush:       "Friday Rush",
+  weekday_lunch:     "Weekday Lunch",
+  holiday_spike:     "Holiday Spike",
+  low_stock_weekend: "Low-Stock Weekend",
+};
+
+export default function DataHealthSection() {
+  const [data,  setData]  = useState<DataHealth | null>(null);
+  const [obs,   setObs]   = useState<ObservabilitySummary | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getDataHealth()
+      .then(setData)
+      .catch((err) => setError(err instanceof Error ? err.message : "Unable to load data health"));
+    getObservabilitySummary(7)
+      .then(setObs)
+      .catch(() => { /* observability is non-blocking */ });
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+          {error}
+        </div>
+      )}
+
+      {!data ? (
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5 animate-pulse">
+              <div className="h-2.5 w-20 rounded bg-[var(--color-surface-sunken)] mb-4" />
+              <div className="h-8 w-16 rounded bg-[var(--color-surface-sunken)] mb-3" />
+              <div className="h-2.5 w-32 rounded bg-[var(--color-surface-sunken)]" />
+            </div>
+          ))}
+        </section>
+      ) : (
+        <>
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <HealthCard title="Orders"       value={data.orders.count}       detail={range(data.orders.date_range)}                                    stagger={1} />
+            <HealthCard title="Reservations" value={data.reservations.count} detail={range(data.reservations.date_range)}                              stagger={2} />
+            <HealthCard title="Feedback"     value={data.feedback.count}     detail={`${data.feedback.negative} negative (${data.feedback.negative_pct}%)`} stagger={3} />
+            <HealthCard title="Inventory"    value={data.inventory.items}    detail={`${data.inventory.critical_shortages} critical shortages`}         stagger={4} />
+            <HealthCard title="Menu Items"   value={data.menu.items}         detail="active catalog"                                                   stagger={5} />
+          </section>
+
+          <section className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+            <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5 xl:col-span-7">
+              <h2 className="text-sm font-semibold">Scenario Coverage</h2>
+              <p className="mt-1 text-xs text-[var(--color-text-faint)]">
+                Best upcoming demo dates with reservation pressure already present in the database.
+              </p>
+              <div className="mt-4 overflow-hidden rounded-lg border border-[var(--color-border-default)]">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-[var(--color-surface-sunken)] text-xs uppercase tracking-[0.14em] text-[var(--color-text-faint)]">
+                    <tr>
+                      <th className="px-3 py-3">Scenario</th>
+                      <th className="px-3 py-3">Date</th>
+                      <th className="px-3 py-3">Bookings</th>
+                      <th className="px-3 py-3">Guests</th>
+                      <th className="px-3 py-3">Waitlist</th>
+                      <th className="px-3 py-3">Load</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--color-border-soft)]">
+                    {data.scenario_coverage.map((row) => (
+                      <tr key={`${row.scenario}-${row.date}`} className="hover:bg-[var(--color-surface-raised)] transition-colors duration-150">
+                        <td className="px-3 py-3">{row.label}</td>
+                        <td className="px-3 py-3 font-mono text-xs text-[var(--color-text-soft)]">{row.date}</td>
+                        <td className="px-3 py-3">{row.reservations}</td>
+                        <td className="px-3 py-3">{row.guests}</td>
+                        <td className="px-3 py-3">{row.waitlist}</td>
+                        <td className="px-3 py-3">{row.occupancy_pct}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5 xl:col-span-5">
+              <h2 className="text-sm font-semibold">Operational Signals</h2>
+              <div className="mt-4 space-y-3">
+                <Signal label="Shortage alerts" value={data.inventory.shortage_alerts} />
+                <Signal label="Critical shortages" value={data.inventory.critical_shortages} />
+                <Signal label="Overstock alerts" value={data.inventory.overstock_alerts} />
+                <Signal label="Positive feedback" value={data.feedback.positive} />
+                <Signal label="Neutral feedback" value={data.feedback.neutral} />
+              </div>
+            </div>
+          </section>
+
+          {/* Observability panel */}
+          {obs && (
+            <section>
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-accent)]">Observability</p>
+                  <h2 className="mt-1 text-base font-semibold text-[var(--color-text-primary)]">Your last {obs.period_days} days of planning</h2>
+                </div>
+                {obs.latest_run_at && (
+                  <span className="font-mono text-[10px] text-[var(--color-text-faint)]">
+                    latest {new Date(obs.latest_run_at).toLocaleString()}
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-4 mb-4">
+                {[
+                  { label: "Total runs",     value: obs.total_runs,                          color: "text-[var(--color-text-primary)]"        },
+                  { label: "Success rate",   value: obs.success_rate != null ? `${Math.round(obs.success_rate * 100)}%` : "--", color: obs.success_rate != null && obs.success_rate >= 0.8 ? "text-emerald-300" : "text-[var(--color-accent)]" },
+                  { label: "Avg critic score", value: obs.avg_critic_score != null ? `${Math.round(obs.avg_critic_score * 100)}/100` : "--", color: "text-[var(--color-text-primary)]" },
+                  { label: "Avg duration",   value: obs.avg_duration_ms != null ? `${(obs.avg_duration_ms / 1000).toFixed(1)}s` : "--", color: "text-[var(--color-text-primary)]" },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="rounded-lg bg-[var(--color-surface)] ring-1 ring-[var(--color-border-soft)] px-4 py-3">
+                    <p className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">{label}</p>
+                    <p className={`mt-1 text-2xl font-semibold ${color}`}>{String(value)}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {/* By verdict */}
+                <div className="rounded-lg bg-[var(--color-surface)] ring-1 ring-[var(--color-border-soft)] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-3">Runs by verdict</p>
+                  {obs.total_runs === 0 ? (
+                    <p className="text-xs text-[var(--color-text-faint)] italic">No runs yet -- run a plan to see verdict breakdown here.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {(["approved", "revision", "rejected", "unknown"] as const).map(v => {
+                        const count = obs.by_verdict[v] ?? 0;
+                        const pct   = Math.round((count / obs.total_runs) * 100);
+                        const color = v === "approved" ? "bg-emerald-400" : v === "rejected" ? "bg-rose-400" : v === "revision" ? "bg-ember-400" : "bg-[var(--color-surface-raised)]";
+                        const text  = v === "approved" ? "text-emerald-300" : v === "rejected" ? "text-rose-300" : v === "revision" ? "text-[var(--color-accent)]" : "text-[var(--color-text-faint)]";
+                        if (count === 0) return null;
+                        return (
+                          <div key={v}>
+                            <div className="flex justify-between text-[11px] text-[var(--color-text-soft)] mb-1">
+                              <span className={`capitalize ${text}`}>{v}</span>
+                              <span className="font-mono">{count} <span className="text-[var(--color-text-faint)]">({pct}%)</span></span>
+                            </div>
+                            <div className="meter">
+                              <span className={color} style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* By scenario */}
+                <div className="rounded-lg bg-[var(--color-surface)] ring-1 ring-[var(--color-border-soft)] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-3">Runs by scenario</p>
+                  {obs.total_runs === 0 ? (
+                    <p className="text-xs text-[var(--color-text-faint)] italic">No runs yet -- run a plan to see scenario breakdown here.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {Object.entries(obs.by_scenario).sort((a, b) => b[1] - a[1]).map(([scenario, count]) => {
+                        const pct = Math.round((count / obs.total_runs) * 100);
+                        return (
+                          <div key={scenario}>
+                            <div className="flex justify-between text-[11px] text-[var(--color-text-soft)] mb-1">
+                              <span>{SCENARIO_LABELS[scenario] ?? scenario}</span>
+                              <span className="font-mono">{count} <span className="text-[var(--color-text-faint)]">({pct}%)</span></span>
+                            </div>
+                            <div className="meter">
+                              <span style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function HealthCard({ title, value, detail, stagger }: { title: string; value: number; detail: string; stagger: number }) {
+  return (
+    <div className={`rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5 stagger-${stagger}`}>
+      <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-text-faint)]">{title}</p>
+      <p className="mt-3 text-3xl font-semibold tabular-nums">{value}</p>
+      <p className="mt-2 text-xs text-[var(--color-text-soft)]">{detail}</p>
+    </div>
+  );
+}
+
+function Signal({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-3 py-3">
+      <span className="text-sm text-[var(--color-text-soft)]">{label}</span>
+      <span className="font-mono text-sm text-[var(--color-text-primary)]">{value}</span>
+    </div>
+  );
+}
+
+function range(values: Array<string | null>) {
+  const [start, end] = values;
+  return `${start ?? "-"} to ${end ?? "-"}`;
+}

@@ -10,10 +10,10 @@ const CONDITION_LABEL: Record<string, string> = {
 };
 
 const CONDITION_TONE: Record<string, string> = {
-  heavy_rain: "border-rose-500/25 bg-rose-500/[0.06] text-rose-300",
-  light_rain: "border-amber-500/25 bg-amber-500/[0.06] text-amber-300",
-  very_hot:   "border-amber-500/25 bg-amber-500/[0.06] text-amber-300",
-  clear:      "border-emerald-500/25 bg-emerald-500/[0.06] text-emerald-300",
+  heavy_rain: "border-rose-500/30 bg-rose-500/[0.12] text-rose-600 dark:text-rose-300",
+  light_rain: "border-amber-500/30 bg-amber-500/[0.12] text-amber-700 dark:text-amber-300",
+  very_hot:   "border-amber-500/30 bg-amber-500/[0.12] text-amber-700 dark:text-amber-300",
+  clear:      "border-emerald-500/30 bg-emerald-500/[0.12] text-emerald-700 dark:text-emerald-300",
 };
 
 // "hero" variant renders on the orange gradient banner (TodayIdleState) --
@@ -82,25 +82,25 @@ export default function TodayContextStrip({ marketPulse, loaded, variant = "defa
       )}
 
       {holiday && (
-        <Badge tone={isHero ? HERO_TONE : "border-ember-500/25 bg-ember-500/[0.06] text-[var(--color-accent)]"}>
+        <Badge tone={isHero ? HERO_TONE : "border-ember-500/30 bg-ember-500/[0.12] text-[var(--color-accent)]"}>
           {holiday.name} {holiday.days_away === 0 ? "today" : holiday.days_away === 1 ? "tomorrow" : `in ${holiday.days_away}d`}
         </Badge>
       )}
 
       {occupancy?.signal && (
-        <Badge tone={isHero ? HERO_TONE : "border-[#fc8019]/25 bg-[#fc8019]/[0.06] text-[#fc8019]"}>
+        <Badge tone={isHero ? HERO_TONE : "border-[#fc8019]/35 bg-[#fc8019]/[0.12] text-[#c25f0e] dark:text-[#fc8019]"}>
           Area demand {occupancy.signal.toLowerCase()}
         </Badge>
       )}
 
       {trends && trends.headline_count > 0 && (
-        <Badge tone={isHero ? HERO_TONE : "border-[var(--color-border-default)] bg-[var(--color-surface-raised)] text-[var(--color-text-soft)]"}>
+        <Badge tone={isHero ? HERO_TONE : "border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] text-[var(--color-text-soft)]"}>
           Industry trends noted
         </Badge>
       )}
 
       {compliance && compliance.notice_count > 0 && (
-        <Badge tone={isHero ? HERO_TONE : "border-rose-500/25 bg-rose-500/[0.06] text-rose-300"}>
+        <Badge tone={isHero ? HERO_TONE : "border-rose-500/30 bg-rose-500/[0.12] text-rose-600 dark:text-rose-300"}>
           {compliance.notice_count} FSSAI notice{compliance.notice_count !== 1 ? "s" : ""}
         </Badge>
       )}

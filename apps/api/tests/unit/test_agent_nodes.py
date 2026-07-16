@@ -64,14 +64,8 @@ class TestDemandForecastNode:
 
         with patch(
             "app.orchestration.nodes.demand_forecast.ForecastService"
-        ) as MockService, patch(
-            "app.orchestration.nodes.demand_forecast.TrendsService"
-        ) as MockTrends, patch(
-            "app.orchestration.nodes.demand_forecast.ComplianceAlertsService"
-        ) as MockCompliance:
+        ) as MockService:
             MockService.return_value.analyse_and_recommend = AsyncMock(return_value=mock_service_result)
-            MockTrends.return_value.get_digest = AsyncMock(return_value=None)
-            MockCompliance.return_value.get_alerts = AsyncMock(return_value=None)
             result = await demand_forecast_node(base_state, db=mock_db, llm=mock_llm)
 
         assert result["forecast_output"]["data"]["predicted_orders"] == 110
@@ -82,14 +76,8 @@ class TestDemandForecastNode:
 
         with patch(
             "app.orchestration.nodes.demand_forecast.ForecastService"
-        ) as MockService, patch(
-            "app.orchestration.nodes.demand_forecast.TrendsService"
-        ) as MockTrends, patch(
-            "app.orchestration.nodes.demand_forecast.ComplianceAlertsService"
-        ) as MockCompliance:
+        ) as MockService:
             MockService.return_value.analyse_and_recommend = AsyncMock(side_effect=Exception("DB timeout"))
-            MockTrends.return_value.get_digest = AsyncMock(return_value=None)
-            MockCompliance.return_value.get_alerts = AsyncMock(return_value=None)
             result = await demand_forecast_node(base_state, db=mock_db, llm=mock_llm)
 
         output = result["forecast_output"]
@@ -99,14 +87,25 @@ class TestDemandForecastNode:
         assert result["error"] is None  # state-level error not set — node catches it
 
     @pytest.mark.asyncio
-    async def test_trends_and_compliance_signals_written_to_state(self, base_state, mock_db, mock_llm):
-        """P6-A24: trends/compliance are fetched here (not deferred to
-        market_intel_node) so they're available even though this node runs
-        before the qdrant_enrichment fan-out."""
+    async def test_reads_live_signals_from_state_instead_of_fetching(self, base_state, mock_db, mock_llm):
+        """Weather/trends/compliance/holiday are fetched by live_signals_node,
+        which runs before this node -- demand_forecast_node must read them
+        back from state (not fetch them itself) and pass them through to
+        ForecastService, and they must survive unchanged in the output state."""
         from app.orchestration.nodes.demand_forecast import demand_forecast_node
 
+        weather = {"condition": "clear", "prompt_text": "## Weather\nClear skies"}
         trends = {"digest": "- Mustard prices up", "prompt_text": "## Industry Trends\n- Mustard prices up"}
         compliance = {"notices": [{"title": "Vegan labelling rule"}], "prompt_text": "## Regulatory Alerts (FSSAI)\n- Vegan labelling rule"}
+        holiday_context = {"is_holiday": True, "holiday_name": "Diwali"}
+
+        state = {
+            **base_state,
+            "weather_signal": weather,
+            "trends_signal": trends,
+            "compliance_alerts_signal": compliance,
+            "holiday_context": holiday_context,
+        }
 
         captured_kwargs = {}
 
@@ -116,20 +115,21 @@ class TestDemandForecastNode:
 
         with patch(
             "app.orchestration.nodes.demand_forecast.ForecastService"
-        ) as MockService, patch(
-            "app.orchestration.nodes.demand_forecast.TrendsService"
-        ) as MockTrends, patch(
-            "app.orchestration.nodes.demand_forecast.ComplianceAlertsService"
-        ) as MockCompliance:
+        ) as MockService:
             MockService.return_value.analyse_and_recommend = fake_analyse
-            MockTrends.return_value.get_digest = AsyncMock(return_value=trends)
-            MockCompliance.return_value.get_alerts = AsyncMock(return_value=compliance)
-            result = await demand_forecast_node(base_state, db=mock_db, llm=mock_llm)
+            result = await demand_forecast_node(state, db=mock_db, llm=mock_llm)
 
-        assert result["trends_signal"] == trends
-        assert result["compliance_alerts_signal"] == compliance
+        # Passed through to ForecastService, not re-fetched
+        assert captured_kwargs["weather_signal"] == weather
         assert captured_kwargs["trends_signal"] == trends
         assert captured_kwargs["compliance_alerts_signal"] == compliance
+        assert captured_kwargs["is_holiday"] is True
+        assert captured_kwargs["holiday_name"] == "Diwali"
+
+        # Unchanged in the returned state -- demand_forecast_node doesn't own these anymore
+        assert result["weather_signal"] == weather
+        assert result["trends_signal"] == trends
+        assert result["compliance_alerts_signal"] == compliance
 
     @pytest.mark.asyncio
     async def test_debug_trace_appended(self, mock_db, mock_llm):

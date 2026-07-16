@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'apps', 'api')))
 
 from dotenv import load_dotenv
@@ -14,6 +15,7 @@ from app.infrastructure.vector.memory_service import MemoryService
 from app.infrastructure.db.models import Feedback
 
 # ── Setup ──────────────────────────────────────────────
+DEMO_ORG_ID  = 1   # matches seed_demo_data.py's DEMO_ORG_ID ("Casa Mia")
 DATABASE_URL = "postgresql://cortex:cortexpass@localhost:5432/cortexkitchen"
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
@@ -92,9 +94,11 @@ print(f"\n  Seeding {len(sop_rules)} SOP rules...")
 for i, rule in enumerate(sop_rules):
     memory.store_sop(
         text=rule,
+        org_id=DEMO_ORG_ID,
         metadata={"rule_index": i, "category": "operational_sop"}
     )
     print(f"    SOP {i+1:02d}: {rule[:70]}...")
+    time.sleep(0.65)  # Gemini free-tier embed_content quota is 100 req/min
 
 # ── 2. Seed complaints from Postgres into Qdrant ───────
 print(f"\n  Seeding complaints from Postgres...")
@@ -104,6 +108,7 @@ complaint_count = 0
 for feedback in feedbacks:
     memory.store_complaint(
         text=feedback.raw_text,
+        org_id=DEMO_ORG_ID,
         metadata={
             "feedback_id": feedback.id,
             "sentiment":   feedback.sentiment.value if feedback.sentiment else None,
@@ -112,10 +117,10 @@ for feedback in feedbacks:
     )
     complaint_count += 1
     print(f"    Feedback {feedback.id}: {feedback.raw_text[:65]}...")
+    time.sleep(0.65)  # Gemini free-tier embed_content quota is 100 req/min
 
 session.close()
 
 print(f"\nQdrant memory seeded successfully.")
-print(f"  {len(sop_rules)} SOP rules  → sop_memory collection")
-print(f"  {complaint_count} feedback entries → complaint_memory collection")
-print(f"\nRAG memory ready for May 17 – June 14 planning window.")
+print(f"  {len(sop_rules)} SOP rules -> sop_memory collection")
+print(f"  {complaint_count} feedback entries -> complaint_memory collection")

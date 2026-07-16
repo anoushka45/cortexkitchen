@@ -124,6 +124,59 @@ export async function deriveScenarioProfile(text: string): Promise<ScenarioProfi
   return data.profile;
 }
 
+// P6-MI10 -- ScenarioRecommender already existed server-side (calendar
+// context, live Swiggy occupancy, inventory shortage count, weather, recent
+// run history -> one LLM call, deterministic fallback) but had no frontend
+// caller anywhere -- "Run for today" always just reused whatever scenario
+// was last manually selected instead of asking what today actually calls for.
+export interface ScenarioRecommendation {
+  recommended_scenario: string;
+  reason: string;
+  confidence: "high" | "medium" | "low";
+  signals_used: string[];
+}
+
+export async function getScenarioRecommendation(targetDate: string): Promise<ScenarioRecommendation> {
+  const res = await fetch(`${BASE_URL}/api/v1/planning/recommend?target_date=${encodeURIComponent(targetDate)}`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Scenario recommendation failed ${res.status}: ${detail}`);
+  }
+
+  return res.json() as Promise<ScenarioRecommendation>;
+}
+
+// Backs the "Run for today" fast path specifically -- unlike getScenarioRecommendation
+// above (which forces a fit onto one of 4 fixed presets), this composes a fresh
+// profile from live signals (real time-of-day, weather, holiday, occupancy,
+// inventory shortage count) so the label can never mismatch reality (e.g.
+// "Weekday Lunch" during a rainy dinner service). Shaped like ScenarioProfile,
+// safe to pass straight through as FridayRushRequest.custom_profile.
+export interface LiveScenarioComposition {
+  profile: ScenarioProfile;
+  reason: string;
+  confidence: "high" | "medium" | "low";
+  signals_used: string[];
+}
+
+export async function composeLiveScenario(targetDate: string): Promise<LiveScenarioComposition> {
+  const res = await fetch(`${BASE_URL}/api/v1/planning/compose-live-scenario?target_date=${encodeURIComponent(targetDate)}`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Live scenario composition failed ${res.status}: ${detail}`);
+  }
+
+  return res.json() as Promise<LiveScenarioComposition>;
+}
+
 export interface ObservabilitySummary {
   period_days: number;
   total_runs: number;
@@ -539,6 +592,28 @@ export interface BusinessHourlyDemand {
   avg_orders: number;
 }
 
+// P6-A30 v2 -- forecast reconciliation (predicted vs actual, past runs only)
+// and forward-looking risks, both from BusinessAnalyticsService methods every
+// other consumer already reads (no new query paths).
+export interface BusinessForecastAccuracyPoint {
+  date: string;
+  scenario: string;
+  predicted_orders: number;
+  actual_orders: number;
+  error_pct: number;
+}
+
+export interface BusinessForecastAccuracy {
+  points: BusinessForecastAccuracyPoint[];
+  accuracy_pct: number | null;
+}
+
+export interface BusinessUpcomingRisk {
+  kind: "inventory" | "occupancy";
+  severity: "critical" | "warning";
+  text: string;
+}
+
 export interface BusinessPerformanceResponse {
   period_days: number;
   yesterday: BusinessDaySnapshot | null;
@@ -553,6 +628,24 @@ export interface BusinessPerformanceResponse {
   net_profit: number | null;
   net_margin_pct: number | null;
   health_score: number;
+  forecast_accuracy: BusinessForecastAccuracy;
+  risks: BusinessUpcomingRisk[];
+}
+
+// AI-generated executive summary for the Dashboard hero, cached 1h/org/day
+// server-side. Independently loading -- never blocks the rest of the page.
+export interface BusinessSummaryResponse {
+  summary: string | null;
+  generated_at: string | null;
+}
+
+export async function getBusinessSummary(): Promise<BusinessSummaryResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/business/summary`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Business summary API error ${res.status}`);
+  return res.json() as Promise<BusinessSummaryResponse>;
 }
 
 export async function getBusinessPerformance(days = 14): Promise<BusinessPerformanceResponse> {

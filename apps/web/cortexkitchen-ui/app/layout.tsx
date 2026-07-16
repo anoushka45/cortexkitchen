@@ -4,7 +4,8 @@ import { AuthProvider } from "@/context/AuthContext";
 import { DashboardProvider } from "@/context/DashboardContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { ChatSessionProvider } from "@/context/ChatSessionContext";
-import NavBar from "@/components/layout/NavBar";
+import Sidebar from "@/components/layout/Sidebar";
+import TopBar from "@/components/layout/TopBar";
 import FloatingChatWidget from "@/components/chat/FloatingChatWidget";
 
 export const metadata: Metadata = {
@@ -35,13 +36,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
-      <body className="flex min-h-screen flex-col">
+      <body className="flex min-h-screen">
         <ThemeProvider>
           <AuthProvider>
             <DashboardProvider>
               <ChatSessionProvider>
-                <NavBar />
-                <main className="flex-1">{children}</main>
+                <Sidebar />
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <TopBar />
+                  <main className="flex-1">{children}</main>
+                </div>
                 <FloatingChatWidget />
               </ChatSessionProvider>
             </DashboardProvider>

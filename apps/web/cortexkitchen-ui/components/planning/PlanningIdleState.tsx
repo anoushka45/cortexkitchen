@@ -70,15 +70,19 @@ const MARKET_LOADING_MESSAGES = [
   "Checking FSSAI notices…",
 ];
 
-function ContextRow({ hue, iconPath, text, badge }: { hue: string; iconPath: string; text: string; badge?: number }) {
+// Stat tile, not a list row -- a 2x2 grid of these reads as live telemetry
+// at a glance, caps the card's height regardless of how many signals fire on
+// a given day, and matches the "AI workspace" feel elsewhere on this page
+// better than a plain notification-style list did.
+function ContextTile({ hue, iconPath, text, badge }: { hue: string; iconPath: string; text: string; badge?: number }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-white" style={{ background: hue }}>
+    <div className="relative flex flex-col items-center gap-1.5 rounded-xl p-2.5 text-center" style={{ background: "var(--color-surface-raised)" }}>
+      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full" style={{ background: `${hue}1F`, color: hue }}>
         <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d={iconPath} /></svg>
       </span>
-      <p className="flex-1 text-[12px] font-bold text-[var(--color-text-primary)]">{text}</p>
+      <p className="line-clamp-2 text-[11px] font-bold leading-tight text-[var(--color-text-primary)]">{text}</p>
       {badge != null && (
-        <span className="grid h-5 min-w-[20px] shrink-0 place-items-center rounded-full px-1 text-[10px] font-bold text-white" style={{ background: hue }}>{badge}</span>
+        <span className="absolute -right-1 -top-1 grid h-4.5 min-w-[18px] shrink-0 place-items-center rounded-full px-1 text-[9px] font-bold text-white" style={{ background: hue }}>{badge}</span>
       )}
     </div>
   );
@@ -102,19 +106,23 @@ const DELIVERABLES: { label: string; iconPath: string; tone: keyof typeof AGENT_
 // one-line note folded into the forecast's own text (see agentPipeline.ts).
 function DeliverablesCard() {
   return (
-    <div className="card p-2.5" style={{ borderWidth: "1.5px" }}>
-      <p className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-primary)]">Your AI Plan Also Includes</p>
-      <div className="mt-1.5 grid grid-cols-2 gap-1">
-        {DELIVERABLES.map(({ label, tone, iconPath }, i) => {
-          const t = AGENT_TONE_CLASS[tone];
+    <div
+      className="card p-3"
+      style={{
+        borderWidth: "1.5px",
+        background: "linear-gradient(160deg, rgba(56,132,255,0.07) 0%, var(--color-surface-raised) 70%)",
+      }}
+    >
+      <p className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-primary)]">Walk Away With More.</p>
+      <div className="mt-2 grid grid-cols-2 gap-1.5">
+        {DELIVERABLES.map(({ label }, i) => {
           const isLast = i === DELIVERABLES.length - 1 && DELIVERABLES.length % 2 === 1;
           return (
-            <div key={label} className={`flex items-center gap-1.5 rounded-lg p-1 ${isLast ? "col-span-2" : ""}`} style={{ background: t.bg }}>
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-white" style={{ background: t.fill }}>
-                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.9}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={iconPath} />
-                </svg>
-              </span>
+            <div
+              key={label}
+              className={`flex items-center justify-center rounded-lg border p-1.5 text-center transition-transform duration-150 hover:-translate-y-0.5 hover:shadow-sm ${isLast ? "col-span-2" : ""}`}
+              style={{ background: "rgba(56,132,255,0.08)", borderColor: "rgba(56,132,255,0.18)" }}
+            >
               <span className="text-[11px] font-semibold leading-tight text-[var(--color-text-primary)]">{label}</span>
             </div>
           );
@@ -263,7 +271,7 @@ export default function PlanningIdleState({
                 "linear-gradient(180deg, rgba(20,12,8,0.12) 0%, rgba(20,12,8,0.18) 60%, rgba(15,9,6,0.55) 100%), url(/planning-hero.png)",
             }}
           >
-            <p className="relative text-[11.5px] font-bold uppercase tracking-[0.14em] text-white"> Your AI Planning Team</p>
+            <p className="relative text-[11.5px] font-bold uppercase tracking-[0.14em] text-white"> From Signals to Service.</p>
             <button
               type="button"
               onClick={() => setModalOpen(true)}
@@ -309,38 +317,37 @@ export default function PlanningIdleState({
             style={{ borderColor: "var(--context-card-border)", background: "var(--context-card-gradient)" }}
           >
             <p className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-primary)]">Today&apos;s context</p>
-            <div className="mt-2.5 flex min-h-[136px] flex-col gap-2">
+            <div className="mt-2.5 min-h-[136px]">
               {!marketLoaded ? (
-                <div className="flex h-full flex-col items-center justify-center gap-2 py-4">
+                <div className="flex h-full min-h-[136px] flex-col items-center justify-center gap-2 py-4">
                   <svg className="h-6 w-6 animate-spin" style={{ color: "var(--color-accent)" }} fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
                     <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
                   <span className="text-[12px] font-semibold text-[var(--color-text-soft)]">{MARKET_LOADING_MESSAGES[marketMessageIndex]}</span>
                 </div>
+              ) : !marketPulse?.weather && !marketPulse?.area_occupancy?.signal ? (
+                <p className="text-[13px] font-semibold text-[var(--color-text-primary)]">Nothing unusual today.</p>
               ) : (
-                <>
+                <div className="grid grid-cols-2 gap-2">
                   {marketPulse?.weather && (
-                    <ContextRow hue="#38bdf8" iconPath={CONTEXT_ICON.weather} text={WEATHER_LABEL[marketPulse.weather.condition] ?? marketPulse.weather.signal} />
+                    <ContextTile hue="#38bdf8" iconPath={CONTEXT_ICON.weather} text={WEATHER_LABEL[marketPulse.weather.condition] ?? marketPulse.weather.signal} />
                   )}
                   {marketPulse?.area_occupancy?.signal && (
-                    <ContextRow hue="#fb7185" iconPath={CONTEXT_ICON.occupancy} text={`Area demand ${marketPulse.area_occupancy.signal.toLowerCase()}`} />
+                    <ContextTile hue="#fb7185" iconPath={CONTEXT_ICON.occupancy} text={`Area demand ${marketPulse.area_occupancy.signal.toLowerCase()}`} />
                   )}
                   {marketPulse?.industry_trends && marketPulse.industry_trends.headline_count > 0 && (
-                    <ContextRow hue="#fbbf24" iconPath={CONTEXT_ICON.trends} text="Industry trends noted" />
+                    <ContextTile hue="#fbbf24" iconPath={CONTEXT_ICON.trends} text="Industry trends noted" />
                   )}
                   {!!marketPulse?.compliance_alerts?.notice_count && (
-                    <ContextRow
+                    <ContextTile
                       hue="#f97316"
                       iconPath={CONTEXT_ICON.compliance}
-                      text={`${marketPulse.compliance_alerts.notice_count} FSSAI notice${marketPulse.compliance_alerts.notice_count !== 1 ? "s" : ""}`}
+                      text="FSSAI notices"
                       badge={marketPulse.compliance_alerts.notice_count}
                     />
                   )}
-                  {!marketPulse?.weather && !marketPulse?.area_occupancy?.signal && (
-                    <p className="text-[13px] font-semibold text-[var(--color-text-primary)]">Nothing unusual today.</p>
-                  )}
-                </>
+                </div>
               )}
             </div>
           </div>
@@ -352,8 +359,12 @@ export default function PlanningIdleState({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="display text-[24px] font-medium  text-[var(--color-text-primary)]">
-                Your Smartest Shift Starts Here.
+              <p className="display text-[28px] leading-tight text-[var(--color-text-primary)]">
+                Your{" "}
+                <span style={{ color: "var(--color-accent)" }}>
+                  Smartest Shift
+                </span>{" "}
+                Starts Here.
               </p>
               <p className="mt-1 max-w-[520px] text-[12.5px] leading-relaxed text-[var(--color-text-faint)]">
                 AI specialists analyze demand, inventory, reservations, guests and market signals before delivering one execution-ready plan.

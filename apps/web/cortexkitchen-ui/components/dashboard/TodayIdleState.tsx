@@ -16,7 +16,13 @@ import {
 } from "@/lib/api";
 import { SCENARIO_OPTIONS } from "@/lib/scenarios";
 import { shortDate, relativeTime, VERDICT_TONE } from "@/lib/formatters";
+import { hourCacheKey, readHourCache, writeHourCache } from "@/lib/hourCache";
 import { DataHealth, PlanningRunSummary, PlanningScenarioOption, PlanTriggerHandler } from "@/types/planning";
+
+// Same prefix usePlanTriggerData uses -- Dashboard and /planning share one
+// cache entry, so switching between them doesn't re-fetch market pulse at
+// all within the same hour, not just independently cache their own copies.
+const MARKET_PULSE_CACHE_PREFIX = "ck:market-pulse:";
 
 const TONE_CLASS: Record<string, { bg: string; text: string }> = {
   good:    { bg: "var(--color-good-soft)",    text: "var(--color-good)" },
@@ -80,11 +86,15 @@ export default function TodayIdleState({
 
   const [dataHealth, setDataHealth]     = useState<DataHealth | null>(null);
   const [connector, setConnector]       = useState<ConnectorStatus | null>(null);
-  const [marketPulse, setMarketPulse]   = useState<MarketPulseResponse | null>(null);
+  // Lazy initializers -- an hour-cache hit hydrates synchronously on first
+  // render rather than via a setState call inside the effect below.
+  const [marketPulse, setMarketPulse]   = useState<MarketPulseResponse | null>(
+    () => readHourCache(hourCacheKey(MARKET_PULSE_CACHE_PREFIX)),
+  );
   const [businessPerf, setBusinessPerf] = useState<BusinessPerformanceResponse | null>(null);
   const [perfDays, setPerfDays]         = useState(14);
   const [loaded, setLoaded]             = useState(false);
-  const [marketLoaded, setMarketLoaded] = useState(false);
+  const [marketLoaded, setMarketLoaded] = useState(() => readHourCache(hourCacheKey(MARKET_PULSE_CACHE_PREFIX)) !== null);
   const [showPlanModal, setShowPlanModal] = useState(false);
 
   const [summary, setSummary]           = useState<BusinessSummaryResponse | null>(null);
@@ -151,11 +161,17 @@ export default function TodayIdleState({
   // Market pulse hits live Swiggy MCP tools directly -- on a cold cache this can take
   // several seconds (real external calls). Kept in its own effect/loading flag so a
   // slow Swiggy response never blocks the rest of the page from rendering as soon as
-  // it's ready.
+  // it's ready. Hour-cached (shared with /planning's usePlanTriggerData) so toggling
+  // between Dashboard and /planning doesn't re-fetch it at all within the same hour.
   useEffect(() => {
+    if (readHourCache(hourCacheKey(MARKET_PULSE_CACHE_PREFIX)) !== null) return;
     let cancelled = false;
     getMarketPulse()
-      .then((pulse) => { if (!cancelled) setMarketPulse(pulse); })
+      .then((pulse) => {
+        if (cancelled) return;
+        setMarketPulse(pulse);
+        writeHourCache(MARKET_PULSE_CACHE_PREFIX, hourCacheKey(MARKET_PULSE_CACHE_PREFIX), pulse);
+      })
       .catch(() => { if (!cancelled) setMarketPulse(null); })
       .finally(() => { if (!cancelled) setMarketLoaded(true); });
     return () => { cancelled = true; };

@@ -125,7 +125,9 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
     return "idle";
   };
 
-  const anyStarted     = startedNodes.size > 0 || completedNodes.size > 0;
+  const anyStarted       = startedNodes.size > 0 || completedNodes.size > 0;
+  const liveSignalsState: NodeState = ns("live_signals");
+  const liveSignalsDone  = completedNodes.has("live_signals");
   const forecastDone   = completedNodes.has("forecast");
   const enrichmentDone = completedNodes.has("enrichment");
   const menuDone       = completedNodes.has("menu");
@@ -150,8 +152,8 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
     { key: "reservation",     label: "Reservations",     subLabel: "Bookings & capacity",     dot: "bg-cyan-400",    swiggy: false },
     { key: "complaint",       label: "Guest Feedback",   subLabel: "Complaints & sentiment",  dot: "bg-rose-400",    swiggy: false },
     { key: "inventory",       label: "Inventory",        subLabel: "Shortage detection",      dot: "bg-emerald-400", swiggy: false },
-    { key: "market_intel",    label: "Competitor Prices",subLabel: "Live Swiggy pricing",     dot: "bg-orange-400",  swiggy: true  },
-    { key: "dineout_manager", label: "Area Demand",      subLabel: "Dineout slot signals",    dot: "bg-orange-400",  swiggy: true  },
+    { key: "market_intel",    label: "Market Intelligence", subLabel: "Live Swiggy pricing & area occupancy", dot: "bg-orange-400", swiggy: true },
+    { key: "dineout_manager", label: "Dineout Availability", subLabel: "Your own slot visibility tonight",     dot: "bg-orange-400", swiggy: true },
   ];
 
   const isReplanning = replanCount > 0 && !allAgentsDone;
@@ -168,7 +170,8 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
     : parallelDone                            ? "Building your menu guidance…"
     : enrichmentDone && parallelRemaining > 0 ? `${parallelRemaining} of 5 checks still running…`
     : forecastDone                            ? "Loading context from past plans…"
-    : anyStarted                              ? "Checking tonight's demand…"
+    : liveSignalsDone                         ? "Checking tonight's demand…"
+    : anyStarted                              ? "Checking weather, trends & regulatory notices…"
     :                                           "Getting started…";
 
   return (
@@ -221,6 +224,7 @@ function LoadingState({ completedNodes, startedNodes, nodeHints, replanCount, sc
       )}
 
       <div className="mx-auto max-w-[480px] rounded-2xl bg-[var(--color-surface)] ring-1 ring-[var(--color-border-soft)] px-5 py-4 divide-y divide-[var(--color-border-soft)]">
+        <StepRow label="Checking weather, trends & regulatory notices" hint={nodeHints["live_signals"]} state={liveSignalsState} />
         <StepRow label="Checking tonight's demand" hint={nodeHints["forecast"]} state={forecastState} />
         <StepRow label="Loading context from past plans" hint={nodeHints["enrichment"]} state={enrichmentState} />
         {parallelAgents.map((agent) => (
@@ -365,13 +369,14 @@ function PlanningPageContent() {
     setShowHistoryDrawer(false);
   };
 
-  const handleRun = (date?: string, restaurantName?: string, restaurantId?: number, customProfile?: import("@/types/planning").ScenarioProfile) => {
+  const handleRun = (date?: string, restaurantName?: string, restaurantId?: number, customProfile?: import("@/types/planning").ScenarioProfile, scenarioOverride?: string) => {
+    const effectiveScenario = scenarioOverride ?? selectedScenario;
     setActiveHistoryId(undefined);
     setRunMeta({
-      scenarioLabel: customProfile?.label ?? SCENARIO_OPTIONS.find(s => s.id === selectedScenario)?.label ?? selectedScenario,
+      scenarioLabel: customProfile?.label ?? SCENARIO_OPTIONS.find(s => s.id === effectiveScenario)?.label ?? effectiveScenario,
       restaurantName: restaurantName ?? user?.org_name ?? null,
     });
-    trigger(date, selectedScenario, restaurantId, customProfile);
+    trigger(date, effectiveScenario, restaurantId, customProfile);
   };
 
   if (authLoading || !user) return null;

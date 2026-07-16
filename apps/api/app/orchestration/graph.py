@@ -25,6 +25,7 @@ from langgraph.graph import StateGraph, END
 from app.orchestration.state import OrchestratorState, make_initial_state
 from app.orchestration.nodes import (
     ops_manager_node,
+    live_signals_node,
     demand_forecast_node,
     reservation_node,
     complaint_intelligence_node,
@@ -45,6 +46,7 @@ from app.infrastructure.llm.base import bind_llm_usage_node, reset_llm_usage_nod
 # ── Node name constants ──────────────────────────────────────────────────────
 
 OPS_MANAGER = "ops_manager"
+LIVE_SIGNALS = "live_signals"
 DEMAND_FORECAST = "demand_forecast"
 QDRANT_ENRICHMENT = "qdrant_enrichment"
 RESERVATION = "reservation"
@@ -255,7 +257,7 @@ def _flush_langfuse(langfuse_callbacks: list) -> None:
 def _route_after_ops_manager(state: OrchestratorState) -> str:
     if state.get("error"):
         return FINAL_ASSEMBLER
-    return DEMAND_FORECAST
+    return LIVE_SIGNALS
 
 
 def _route_after_critic(state: OrchestratorState) -> str:
@@ -305,6 +307,7 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
 
     graph.add_node(OPS_MANAGER, _log_node(ops_manager_node, tr))
 
+    graph.add_node(LIVE_SIGNALS,           _inject(live_signals_node,           tr))
     graph.add_node(DEMAND_FORECAST,        _inject(demand_forecast_node,        tr, db=db, llm=llm))
     graph.add_node(QDRANT_ENRICHMENT,      _inject(qdrant_enrichment_node,      tr, memory=memory, planning_memory=planning_memory))
     # Parallel fan-out nodes use db_factory so each creates its own session.
@@ -330,10 +333,15 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
         OPS_MANAGER,
         _route_after_ops_manager,
         {
-            DEMAND_FORECAST: DEMAND_FORECAST,
+            LIVE_SIGNALS:    LIVE_SIGNALS,
             FINAL_ASSEMBLER: FINAL_ASSEMBLER,
         },
     )
+
+    # Live signals (weather/holiday, trends, FSSAI) before demand_forecast,
+    # which needs weather for its multiplier -- everything else downstream
+    # reads these back from state rather than any node re-fetching.
+    graph.add_edge(LIVE_SIGNALS, DEMAND_FORECAST)
 
     # Qdrant pre-enrichment before parallel fan-out
     graph.add_edge(DEMAND_FORECAST, QDRANT_ENRICHMENT)
@@ -588,6 +596,7 @@ async def run_planning_scenario(
 
 # ── SSE node names → state field mapping ─────────────────────────────────────
 _NODE_SSE_MAP: dict[str, str] = {
+    "live_signals":           "live_signals",
     "demand_forecast":        "forecast",
     "qdrant_enrichment":      "enrichment",
     "reservation":            "reservation",
@@ -613,6 +622,7 @@ _NODE_OUTPUT_FIELD: dict[str, str] = {
 
 # Human-readable hints emitted when a node STARTS — shown in the loading pipeline
 _NODE_START_HINTS: dict[str, str] = {
+    "live_signals":           "Checking weather, industry trends, and FSSAI notices…",
     "demand_forecast":        "Running Prophet model on 90 days of order history…",
     "qdrant_enrichment":      "Searching Qdrant memory for relevant SOPs and past incidents…",
     "reservation":            "Querying confirmed bookings and mapping peak-hour pressure…",
@@ -630,6 +640,24 @@ _NODE_START_HINTS: dict[str, str] = {
 def _completion_hint(node_name: str, state_update: dict) -> str:
     """Extract a brief human-readable hint from a node's completed state update."""
     try:
+        if node_name == "live_signals":
+            weather    = state_update.get("weather_signal") or {}
+            trends     = state_update.get("trends_signal") or {}
+            compliance = state_update.get("compliance_alerts_signal") or {}
+            holiday    = state_update.get("holiday_context") or {}
+            parts = []
+            if weather.get("condition"):
+                parts.append(weather["condition"].replace("_", " "))
+            if holiday.get("is_holiday"):
+                parts.append(holiday.get("holiday_name") or "holiday")
+            n_trends = trends.get("headline_count") or 0
+            if n_trends:
+                parts.append(f"{n_trends} trend headline{'s' if n_trends != 1 else ''}")
+            n_notices = compliance.get("notice_count") or 0
+            if n_notices:
+                parts.append(f"{n_notices} FSSAI notice{'s' if n_notices != 1 else ''}")
+            return " · ".join(parts) if parts else "No unusual signals today"
+
         if node_name == "demand_forecast":
             data = (state_update.get("forecast_output") or {}).get("data") or {}
             pred = data.get("predicted_orders") or data.get("predicted_covers")

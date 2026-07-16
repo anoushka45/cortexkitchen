@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import AgentPipelineGrid from "@/components/planning/AgentPipelineGrid";
-import PlanTriggerPanel from "@/components/planning/PlanTriggerPanel";
+import PlanShiftModal from "@/components/dashboard/PlanShiftModal";
+import AgentPipelineGrid, { PipelineFlowStrip } from "@/components/planning/AgentPipelineGrid";
 import { usePlanTriggerData } from "@/hooks/usePlanTriggerData";
-import { getDataHealth, getPlanningRun } from "@/lib/api";
+import { useScenarioRecommendation } from "@/hooks/useScenarioRecommendation";
+import { getPlanningRun } from "@/lib/api";
 import { downloadRunPdf } from "@/lib/exportRun";
 import { relativeTime, shortDate, VERDICT_TONE } from "@/lib/formatters";
 import { SCENARIO_OPTIONS } from "@/lib/scenarios";
-import { DataHealth, PlanningRunMetadata, PlanningScenarioOption, RunHistoryEntry, ScenarioProfile } from "@/types/planning";
+import { PlanningRunMetadata, PlanningScenarioOption, PlanTriggerHandler, RunHistoryEntry } from "@/types/planning";
 
 interface Props {
-  onRun: (date?: string, restaurantName?: string, restaurantId?: number, customProfile?: ScenarioProfile) => void;
+  onRun: PlanTriggerHandler;
   selectedScenario: PlanningScenarioOption["id"];
   onScenarioChange: (scenario: PlanningScenarioOption["id"]) => void;
   history: RunHistoryEntry[];
@@ -19,47 +20,184 @@ interface Props {
   onShowAllHistory: () => void;
 }
 
-function ContextRow({ hue, icon, text }: { hue: string; icon: string; text: string }) {
+const WEATHER_LABEL: Record<string, string> = {
+  heavy_rain: "Heavy rain expected",
+  light_rain: "Light rain expected",
+  very_hot: "Very hot conditions",
+  clear: "Clear conditions",
+};
+
+// Shared with the loading-skeleton rows below, so the placeholder and the
+// real row for the same signal always show the same icon -- no shape change
+// once the data actually arrives.
+const CONTEXT_ICON = {
+  weather: "M17.5 19H6a4 4 0 01-1-7.87A5.5 5.5 0 0116 8.5a4.5 4.5 0 011.5 10.5z",
+  occupancy: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
+  trends: "M2.25 18L9 11.25l4.306 4.306a11.95 11.95 0 015.814-5.518l2.74-1.22m0 0l-5.94-2.281m5.94 2.28l-2.28 5.941",
+  compliance: "M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z",
+} as const;
+
+const GRADIENT = {
+  purple: "linear-gradient(135deg,#c4b5fd,#7c3aed)",
+  orange: "linear-gradient(135deg,#fdba74,#ea580c)",
+} as const;
+
+const SCENARIO_ICON: Record<string, { gradient: string; iconPath: string }> = {
+  friday_rush: { gradient: GRADIENT.orange, iconPath: "M17 20h5v-2a3 3 0 00-5.356-1.857M9 20H4v-2a3 3 0 015.356-1.857M9 20v-2c0-.653.126-1.277.356-1.857M9 20a3 3 0 016 0m-6-1.857A3 3 0 0112 15a3 3 0 013 3.143M13 7a4 4 0 11-8 0 4 4 0 018 0zm6 3a4 4 0 11-8 0 4 4 0 018 0z" },
+  weekday_lunch: { gradient: GRADIENT.orange, iconPath: "M12 3v1.5M12 19.5V21M4.219 4.219l1.061 1.06M18.72 18.72l1.06 1.06M3 12h1.5M19.5 12H21M4.219 19.781l1.061-1.06M18.72 5.28l1.06-1.06M16.5 12a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" },
+  holiday_spike: { gradient: GRADIENT.purple, iconPath: "M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" },
+  low_stock_weekend: { gradient: GRADIENT.orange, iconPath: "M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" },
+};
+const DEFAULT_SCENARIO_ICON = { gradient: GRADIENT.orange, iconPath: "M13 10V3L4 14h7v7l9-11h-7z" };
+
+// Rotates while LiveScenarioComposer is still thinking -- names the actual
+// signals it's weighing (real behavior, not filler) instead of one static
+// "loading…" line, so the wait reads as work happening, not a stall.
+const COMPOSING_MESSAGES = [
+  "Checking tonight's weather…",
+  "Reading last night's shortages…",
+  "Peeking at area demand nearby…",
+  "Scanning today's FSSAI notices…",
+  "Weighing your recent runs…",
+];
+
+// Same idea, for the Today's Context card while /market/pulse is in flight.
+const MARKET_LOADING_MESSAGES = [
+  "Checking the skies…",
+  "Reading nearby demand…",
+  "Scanning industry headlines…",
+  "Checking FSSAI notices…",
+];
+
+function ContextRow({ hue, iconPath, text, badge }: { hue: string; iconPath: string; text: string; badge?: number }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: `${hue}1a`, color: hue }}>
-        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d={icon} /></svg>
+    <div className="flex items-center gap-2.5">
+      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-white" style={{ background: hue }}>
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d={iconPath} /></svg>
       </span>
-      <p className="text-[11.5px] text-[var(--color-text-soft)]">{text}</p>
+      <p className="flex-1 text-[13.5px] font-bold text-[var(--color-text-primary)]">{text}</p>
+      {badge != null && (
+        <span className="grid h-5 min-w-[20px] shrink-0 place-items-center rounded-full px-1 text-[10.5px] font-bold text-white" style={{ background: hue }}>{badge}</span>
+      )}
     </div>
   );
 }
 
-function AnalyzeChip({ label }: { label: string }) {
+// A single card next to the specialist grid, filling the spot the old
+// "choose a scenario / describe tonight" chooser used to -- that flow now
+// lives inside the "Run a plan" modal (PlanShiftModal). No icon, so it reads
+// as a quiet aside rather than another functional tile; .card (not .tile)
+// gives it the same real depth as the agent cards, over a faint accent
+// gradient instead of a flat surface fill.
+function FunFactCard() {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-2.5 py-1 text-[11px] text-[var(--color-text-soft)]">
-      <svg className="h-3 w-3 shrink-0 text-[var(--color-good)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-      {label}
-    </span>
+    <div
+      className="card flex flex-col gap-1 p-3.5"
+      style={{ borderWidth: "1.5px", background: "linear-gradient(160deg, var(--color-accent-soft) 0%, var(--color-surface-raised) 65%)" }}
+    >
+      <p className="text-[13.5px] font-bold text-[var(--color-text-primary)]">Good Food Deserves Good Decisions.</p>
+      <p className="text-[11.5px] leading-snug text-[var(--color-text-soft)]">
+        Every great service starts with thoughtful planning.
+        We'll help you make the right call before the rush.
+      </p>
+    </div>
   );
 }
 
-// The idle state for the flagship /planning page (P6-A34) -- everything
-// needed to decide what to run and see what's run before, without
-// repeating anything that lives on Dashboard (health score, priorities,
-// live-signal cards), Action Center (action management), Analytics (menu/
-// complaint deep dives), or /market (competitor pricing detail).
+// Compact horizontal row (not a card) -- several fit in one line, matching
+// how little space a "recent activity" glance actually deserves next to the
+// agent showcase above it.
+function RunCard({ entry, onSelect, onExport }: { entry: RunHistoryEntry; onSelect: () => void; onExport: () => void }) {
+  const opt = SCENARIO_OPTIONS.find((s) => s.id === entry.scenario);
+  const icon = SCENARIO_ICON[entry.scenario] ?? DEFAULT_SCENARIO_ICON;
+  const tone = VERDICT_TONE[entry.verdict ?? "unknown"] ?? VERDICT_TONE.unknown;
+  return (
+    <button type="button" onClick={onSelect} className="card flex min-w-[220px] flex-1 items-center gap-3 p-3 text-left">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-white" style={{ background: icon.gradient }}>
+        <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d={icon.iconPath} /></svg>
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <p className="truncate text-[13.5px] font-bold text-[var(--color-text-primary)]">{opt?.label ?? entry.scenario}</p>
+          <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[9.5px] font-bold uppercase" style={{ background: tone.bg, color: tone.text }}>{tone.label}</span>
+        </div>
+        <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">{shortDate(entry.runAt)} · {relativeTime(entry.runAt)}</p>
+      </div>
+      <span
+        onClick={(e) => { e.stopPropagation(); onExport(); }}
+        role="button"
+        title="Export PDF"
+        className="shrink-0 rounded-md p-1.5 text-[var(--color-text-faint)] transition-colors hover:bg-[var(--color-surface-sunken)] hover:text-[var(--color-accent)]"
+      >
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" /></svg>
+      </span>
+      <svg className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-ghost)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+    </button>
+  );
+}
+
+function ViewHistoryCard({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-w-[160px] items-center gap-2 rounded-xl border px-3.5 py-3 text-left transition-colors"
+      style={{ borderColor: "rgba(252,128,25,0.25)", background: "rgba(252,128,25,0.04)" }}
+    >
+      <p className="text-[13.5px] font-bold" style={{ color: "var(--color-accent)" }}>View all runs</p>
+      <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="var(--color-accent)" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+    </button>
+  );
+}
+
+// The idle state for the flagship /planning page: a compact control panel
+// (trigger card + live-signals card + a fun-fact card) beside the agent
+// showcase (flow strip + 3x3 specialist grid), then a compact recent-runs
+// row underneath. "Run a plan" opens PlanShiftModal -- the same run-today /
+// choose-a-scenario / describe-it-yourself flow Dashboard's quick-trigger
+// uses -- rather than expanding an inline chooser on this page.
 export default function PlanningIdleState({
   onRun, selectedScenario, onScenarioChange, history, onSelectHistory, onShowAllHistory,
 }: Props) {
   const { profiles, selectedProfileId, setSelectedProfileId, activeProfile, marketPulse, marketLoaded } = usePlanTriggerData();
   const scenario = SCENARIO_OPTIONS.find((s) => s.id === selectedScenario) ?? SCENARIO_OPTIONS[0];
+  const [modalOpen, setModalOpen] = useState(false);
 
-  const [dataHealth, setDataHealth] = useState<DataHealth | null>(null);
+  // "Run today's plan" no longer just reuses whatever scenario was last
+  // manually selected -- ScenarioRecommender (already built server-side,
+  // never previously called from the frontend) picks the shift shape that
+  // actually fits today: holiday -> Holiday Spike, 3+ shortages -> Low-Stock
+  // Weekend, weekend -> dinner-rush pattern, weekday -> Weekday Lunch. Fetched
+  // once on mount so the hero caption reflects the real pick before the user
+  // even clicks, not just at click time.
+  const { composition, loaded: compositionLoaded } = useScenarioRecommendation();
+
+  // Cycles COMPOSING_MESSAGES while waiting, so the loading state feels like
+  // active work rather than a stuck spinner.
+  const [composingMessageIndex, setComposingMessageIndex] = useState(0);
   useEffect(() => {
-    getDataHealth().then(setDataHealth).catch(() => {});
-  }, []);
+    if (compositionLoaded) return;
+    const interval = setInterval(() => {
+      setComposingMessageIndex((i) => (i + 1) % COMPOSING_MESSAGES.length);
+    }, 1600);
+    return () => clearInterval(interval);
+  }, [compositionLoaded]);
+
+  // Same idea for the Today's Context card's /market/pulse fetch.
+  const [marketMessageIndex, setMarketMessageIndex] = useState(0);
+  useEffect(() => {
+    if (marketLoaded) return;
+    const interval = setInterval(() => {
+      setMarketMessageIndex((i) => (i + 1) % MARKET_LOADING_MESSAGES.length);
+    }, 1600);
+    return () => clearInterval(interval);
+  }, [marketLoaded]);
 
   // Honest expectation-setter -- averaged from the last few real runs
-  // (duration_ms/cost_usd from each run's stored metadata), not a fabricated
-  // pre-run guess. A bounded fan-out (at most 5 detail fetches, once) rather
-  // than one call per historical run.
-  const [estimate, setEstimate] = useState<{ seconds: number; cost: number } | null>(null);
+  // (duration_ms from each run's stored metadata), not a fabricated pre-run
+  // guess. A bounded fan-out (at most 5 detail fetches, once) rather than
+  // one call per historical run.
+  const [estimateSeconds, setEstimateSeconds] = useState<number | null>(null);
   useEffect(() => {
     if (history.length === 0) return;
     let cancelled = false;
@@ -67,17 +205,12 @@ export default function PlanningIdleState({
       .then((details) => {
         if (cancelled) return;
         const durations: number[] = [];
-        const costs: number[] = [];
         for (const d of details) {
           const meta = d?.metadata as PlanningRunMetadata | undefined;
           if (typeof meta?.total_duration_ms === "number") durations.push(meta.total_duration_ms);
-          if (typeof meta?.total_cost_usd === "number") costs.push(meta.total_cost_usd);
         }
-        if (durations.length > 0 && costs.length > 0) {
-          setEstimate({
-            seconds: Math.round(durations.reduce((a, b) => a + b, 0) / durations.length / 1000),
-            cost: costs.reduce((a, b) => a + b, 0) / costs.length,
-          });
+        if (durations.length > 0) {
+          setEstimateSeconds(Math.round(durations.reduce((a, b) => a + b, 0) / durations.length / 1000));
         }
       });
     return () => { cancelled = true; };
@@ -89,204 +222,157 @@ export default function PlanningIdleState({
 
   return (
     <div className="space-y-6 py-2">
-      <div>
-        <h1 className="display text-[28px] text-[var(--color-text-primary)]">Planning</h1>
-        <p className="mt-1 text-sm text-[var(--color-text-soft)]">
-          5 specialists analyse your kitchen and market data, then a critic checks the plan before you see it.
-        </p>
-      </div>
-
-      {/* Hero -- quick-run CTA, paired with the context that's actually
-          feeding it (live signals + restaurant profile) so the decision and
-          the data behind it sit side by side. */}
-      <div className="card overflow-hidden p-0">
-        <div className="grid grid-cols-1 gap-5 p-5 sm:p-6 xl:grid-cols-[1.5fr_1fr]">
-          <div>
-            <p className="flex items-center gap-1.5 text-[17px] font-bold text-[var(--color-text-primary)]">
-              Plan your next shift
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="var(--color-accent)" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-            </p>
-            <p className="mt-1 text-[12.5px] leading-relaxed text-[var(--color-text-soft)] max-w-md">
-              Generate an AI-powered operational plan using your restaurant data, live market intelligence, weather, customer feedback and inventory.
-            </p>
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => onRun(undefined, activeProfile?.name ?? undefined, activeProfile?.id ?? undefined)}
-                className="btn-primary inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-semibold transition-transform hover:scale-[1.02]"
-              >
-                Run for today
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-              </button>
-              {estimate && (
-                <div className="flex items-center gap-3 text-[11px] text-[var(--color-text-faint)]">
-                  <span className="flex items-center gap-1"><svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" d="M12 7v5l3 3" /></svg>~{estimate.seconds}s</span>
-                  <span className="flex items-center gap-1"><svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.66 0-3 .9-3 2s1.34 2 3 2 3 .9 3 2-1.34 2-3 2m0-8V6m0 10v2m0-14a8 8 0 100 16 8 8 0 000-16z" /></svg>~${estimate.cost.toFixed(2)}</span>
-                </div>
+      {/* ═══ Side by side: a compact control panel (trigger + live signals +
+          how-to-plan) next to the agent showcase -- both visible in one
+          viewport. The left panel triggers a run, the right side sells the
+          team. ═══ */}
+      <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
+        {/* ── Left: control panel ── */}
+        <div className="flex w-full flex-col gap-4 xl:w-[340px] xl:shrink-0">
+          <div
+            className="relative overflow-hidden rounded-2xl bg-cover bg-[center_35%] p-4"
+            style={{
+              backgroundImage:
+                "linear-gradient(160deg, rgba(26,16,10,0.62) 0%, rgba(64,28,26,0.42) 45%, rgba(178,98,24,0.55) 100%), url(/planning-hero.png)",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setModalOpen(true)}
+              className="relative flex w-full items-center justify-center gap-2 rounded-full bg-white px-4 py-2.5 text-[14.5px] font-bold shadow-[0_10px_24px_-8px_rgba(0,0,0,0.35)] transition-transform hover:scale-[1.02]"
+              style={{ color: "var(--color-accent)" }}
+            >
+              <span className="grid h-5 w-5 place-items-center rounded-full" style={{ background: "var(--color-accent)" }}>
+                <svg className="h-2.5 w-2.5" fill="white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+              </span>
+              Run a plan
+            </button>
+            <div className="relative mt-2.5 flex items-center justify-between text-[12px] font-medium text-white/85">
+              <span className="inline-flex items-center gap-1">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" d="M12 7v5l3 3" /></svg>
+                ~{estimateSeconds ?? 20}s
+              </span>
+              <span className="inline-flex items-center gap-1.5 font-semibold text-white">
+                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                {activeProfile?.name ?? "Your restaurant"}
+              </span>
+            </div>
+            <div className="relative mt-2.5 flex min-h-[54px] items-start border-t border-white/25 pt-2.5 text-[12px] leading-relaxed text-white/85">
+              {!compositionLoaded ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="flex gap-0.5">
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/70" style={{ animationDelay: "0ms" }} />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/70" style={{ animationDelay: "150ms" }} />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/70" style={{ animationDelay: "300ms" }} />
+                  </span>
+                  {COMPOSING_MESSAGES[composingMessageIndex]}
+                </span>
+              ) : composition ? (
+                <p>Recommended: <span className="font-semibold text-white">{composition.profile.label}</span> — {composition.reason}</p>
+              ) : (
+                <p>Uses {scenario.label} as the shift shape, dated today.</p>
               )}
             </div>
-            <p className="mt-2 text-[11px] text-[var(--color-text-faint)]">
-              Uses {scenario.label} as the shift shape, dated today — no need to pick a date.
-            </p>
           </div>
 
-          <div className="flex flex-col gap-3">
-            <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3.5">
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-faint)]">Today&apos;s context</p>
+          <div
+            className="rounded-2xl border p-4"
+            style={{ borderColor: "var(--context-card-border)", background: "var(--context-card-gradient)" }}
+          >
+            <p className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-primary)]">Today&apos;s context</p>
+            <div className="mt-2.5 flex min-h-[136px] flex-col gap-2">
               {!marketLoaded ? (
-                <p className="text-[11px] text-[var(--color-text-faint)]">Checking live signals…</p>
+                <div className="flex h-full flex-col items-center justify-center gap-2 py-4">
+                  <svg className="h-6 w-6 animate-spin text-sky-500" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                    <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span className="text-[12px] font-semibold text-[var(--color-text-soft)]">{MARKET_LOADING_MESSAGES[marketMessageIndex]}</span>
+                </div>
               ) : (
-                <div className="space-y-1.5">
+                <>
                   {marketPulse?.weather && (
-                    <ContextRow hue="#38bdf8" icon="M17.5 19H6a4 4 0 01-1-7.87A5.5 5.5 0 0116 8.5a4.5 4.5 0 011.5 10.5z" text={marketPulse.weather.condition === "clear" ? "Clear conditions" : marketPulse.weather.signal} />
+                    <ContextRow hue="#38bdf8" iconPath={CONTEXT_ICON.weather} text={WEATHER_LABEL[marketPulse.weather.condition] ?? marketPulse.weather.signal} />
                   )}
                   {marketPulse?.area_occupancy?.signal && (
-                    <ContextRow hue="#fc8019" icon="M13 10V3L4 14h7v7l9-11h-7z" text={`Area demand ${marketPulse.area_occupancy.signal.toLowerCase()}`} />
+                    <ContextRow hue="#fb7185" iconPath={CONTEXT_ICON.occupancy} text={`Area demand ${marketPulse.area_occupancy.signal.toLowerCase()}`} />
                   )}
                   {marketPulse?.industry_trends && marketPulse.industry_trends.headline_count > 0 && (
-                    <ContextRow hue="#818cf8" icon="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10" text="Industry trends noted" />
+                    <ContextRow hue="#fbbf24" iconPath={CONTEXT_ICON.trends} text="Industry trends noted" />
                   )}
-                  {marketPulse?.compliance_alerts?.notice_count ? (
-                    <ContextRow hue="#fb7185" icon="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" text={`${marketPulse.compliance_alerts.notice_count} FSSAI notice${marketPulse.compliance_alerts.notice_count !== 1 ? "s" : ""}`} />
-                  ) : null}
+                  {!!marketPulse?.compliance_alerts?.notice_count && (
+                    <ContextRow
+                      hue="#f97316"
+                      iconPath={CONTEXT_ICON.compliance}
+                      text={`${marketPulse.compliance_alerts.notice_count} FSSAI notice${marketPulse.compliance_alerts.notice_count !== 1 ? "s" : ""}`}
+                      badge={marketPulse.compliance_alerts.notice_count}
+                    />
+                  )}
                   {!marketPulse?.weather && !marketPulse?.area_occupancy?.signal && (
-                    <p className="text-[11px] text-[var(--color-text-faint)]">Nothing unusual today.</p>
+                    <p className="text-[13px] font-semibold text-[var(--color-text-primary)]">Nothing unusual today.</p>
                   )}
-                </div>
+                </>
               )}
             </div>
+          </div>
 
-            {activeProfile && (
-              <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3.5">
-                <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-faint)]">Restaurant profile</p>
-                <div className="flex items-center gap-2">
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md" style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3" /></svg>
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-[12.5px] font-semibold text-[var(--color-text-primary)]">{activeProfile.name}</p>
-                    <p className="text-[10.5px] text-[var(--color-text-faint)]">{activeProfile.capacity} covers · {activeProfile.peak_hours}</p>
-                  </div>
-                </div>
-              </div>
-            )}
+          <FunFactCard />
+        </div>
+
+        {/* ── Right: the specialist showcase -- 9 AI agent cards, 3 per row. ── */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="display text-[24px] font-medium  text-[var(--color-text-primary)]">
+                Your Smartest Shift Starts Here.
+              </p>
+              <p className="mt-1 text-[12.5px] text-[var(--color-text-faint)]">Specialized intelligence. One actionable plan.</p>
+            </div>
+            <span className="mt-1 inline-flex shrink-0 items-center gap-1 text-[12px] font-semibold" style={{ color: "var(--color-accent)" }}>
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              Learn how it works
+            </span>
+          </div>
+          <div className="mt-3">
+            <PipelineFlowStrip />
+          </div>
+          <div className="mt-3">
+            <AgentPipelineGrid variant="full" columns={3} />
           </div>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border-soft)] bg-[var(--color-surface-sunken)] px-5 py-3 sm:px-6">
-          <p className="mr-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-faint)]">Today&apos;s plan will analyze</p>
-          {dataHealth && <AnalyzeChip label={`${dataHealth.orders.count.toLocaleString("en-IN")} historical orders`} />}
-          <AnalyzeChip label="Live weather" />
-          <AnalyzeChip label="Swiggy market signals" />
-          <AnalyzeChip label="Inventory" />
-          <AnalyzeChip label="Reservations" />
-          <AnalyzeChip label="Customer feedback" />
-          <AnalyzeChip label="Industry trends" />
-          <AnalyzeChip label="FSSAI advisories" />
-        </div>
       </div>
 
-      {/* Choose how you want to plan -- the full trigger form (shift-shape
-          tiles, natural-language intake, date picker). Restaurant profile /
-          live signals are suppressed here since the hero above already
-          shows them. */}
-      <div>
-        <p className="text-[15px] font-bold text-[var(--color-text-primary)]">Choose how you want to plan</p>
-        <div className="card mt-3 p-5 sm:p-6">
-          <PlanTriggerPanel
-            onRun={onRun}
-            scenarioOptions={SCENARIO_OPTIONS}
-            selectedScenario={selectedScenario}
-            onScenarioChange={onScenarioChange}
-            scenario={scenario}
-            profiles={profiles}
-            selectedProfileId={selectedProfileId}
-            onSelectProfile={setSelectedProfileId}
-            activeProfile={activeProfile}
-            marketPulse={marketPulse}
-            marketLoaded={marketLoaded}
-            showContext={false}
-          />
-        </div>
-      </div>
-
-      <div>
-        <p className="text-[15px] font-bold text-[var(--color-text-primary)]">Meet your planning team</p>
-        <p className="mt-0.5 text-[12.5px] text-[var(--color-text-faint)]">What each specialist actually checks before the plan reaches you.</p>
-        <div className="mt-3">
-          <AgentPipelineGrid variant="full" />
-        </div>
-      </div>
-
-      <div>
-        <p className="text-[15px] font-bold text-[var(--color-text-primary)]">What you&apos;ll receive</p>
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            { label: "Operational Plan", desc: "Complete shift strategy with demand, staffing and menu recommendations.", hue: "#38bdf8", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
-            { label: "Demand & Inventory Guidance", desc: "Exact reorder quantities and shortage alerts against tonight's forecast.", hue: "#34d399", icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" },
-            { label: "Risk Flags", desc: "Capacity, overbooking, and demand-absorption risks the critic caught.", hue: "#fb7185", icon: "M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" },
-            { label: "Action Queue", desc: "Ready-to-approve actions for you and your team to execute.", hue: "#fbbf24", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" },
-          ].map((item) => (
-            <div key={item.label} className="card p-4">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ background: `${item.hue}1a`, color: item.hue }}>
-                <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d={item.icon} /></svg>
-              </span>
-              <p className="mt-2.5 text-[13px] font-bold text-[var(--color-text-primary)]">{item.label}</p>
-              <p className="mt-1 text-[11.5px] leading-relaxed text-[var(--color-text-faint)]">{item.desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
+      {/* ═══ Recent planning runs ═══ */}
       {history.length > 0 && (
         <div>
-          <div className="flex items-center justify-between">
-            <p className="text-[15px] font-bold text-[var(--color-text-primary)]">Recent planning runs</p>
-            <button onClick={onShowAllHistory} className="text-[11.5px] font-semibold text-[var(--color-accent)]">View all →</button>
+          <div>
+            <p className="text-[16.5px] font-bold text-[var(--color-text-primary)]">Recent planning runs</p>
+            <p className="mt-0.5 text-[13px] text-[var(--color-text-faint)]">A glimpse of your recent runs</p>
           </div>
-          <div className="card mt-3 overflow-x-auto p-0">
-            <table className="w-full min-w-[720px] text-left text-[12.5px]">
-              <thead>
-                <tr className="border-b border-[var(--color-border-soft)] text-[10.5px] uppercase tracking-wide text-[var(--color-text-faint)]">
-                  <th className="px-4 py-3 font-semibold">Date &amp; Time</th>
-                  <th className="px-4 py-3 font-semibold">Scenario</th>
-                  <th className="px-4 py-3 font-semibold">Shift Shape</th>
-                  <th className="px-4 py-3 font-semibold">Critic Score</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.slice(0, 6).map((entry) => {
-                  const opt = SCENARIO_OPTIONS.find((s) => s.id === entry.scenario);
-                  const tone = VERDICT_TONE[entry.verdict ?? "unknown"] ?? VERDICT_TONE.unknown;
-                  return (
-                    <tr key={entry.id} className="border-b border-[var(--color-border-soft)] last:border-0 hover:bg-[var(--color-surface-sunken)]">
-                      <td className="px-4 py-3 text-[var(--color-text-soft)]">{shortDate(entry.runAt)} · {relativeTime(entry.runAt)}</td>
-                      <td className="px-4 py-3 font-medium text-[var(--color-text-primary)]">{opt?.label ?? entry.scenario}</td>
-                      <td className="px-4 py-3 font-mono text-[11px] text-[var(--color-text-faint)]">{opt?.service_window ?? "--"}</td>
-                      <td className="px-4 py-3 font-mono text-[var(--color-text-soft)]">{entry.score != null ? `${entry.score}%` : "--"}</td>
-                      <td className="px-4 py-3">
-                        <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ background: tone.bg, color: tone.text }}>{tone.label}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button onClick={() => onSelectHistory(entry)} title="View" className="rounded-md p-1.5 text-[var(--color-text-faint)] transition-colors hover:bg-[var(--color-surface-sunken)] hover:text-[var(--color-accent)]">
-                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                          </button>
-                          <button onClick={() => handleExportRow(entry)} title="Export PDF" className="rounded-md p-1.5 text-[var(--color-text-faint)] transition-colors hover:bg-[var(--color-surface-sunken)] hover:text-[var(--color-accent)]">
-                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" /></svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="mt-3 flex flex-wrap gap-3">
+            {history.slice(0, 3).map((entry) => (
+              <RunCard key={entry.id} entry={entry} onSelect={() => onSelectHistory(entry)} onExport={() => handleExportRow(entry)} />
+            ))}
+            <ViewHistoryCard onClick={onShowAllHistory} />
           </div>
         </div>
       )}
+
+      <PlanShiftModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onRun={onRun}
+        scenarioOptions={SCENARIO_OPTIONS}
+        selectedScenario={selectedScenario}
+        onScenarioChange={onScenarioChange}
+        scenario={scenario}
+        profiles={profiles}
+        selectedProfileId={selectedProfileId}
+        onSelectProfile={setSelectedProfileId}
+        activeProfile={activeProfile}
+        marketPulse={marketPulse}
+        marketLoaded={marketLoaded}
+      />
     </div>
   );
 }

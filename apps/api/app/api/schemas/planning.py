@@ -286,3 +286,16 @@ class ScenarioRecommendationResponse(BaseModel):
     reason: str
     confidence: Literal["high", "medium", "low"]
     signals_used: list[str] = Field(default_factory=list)
+
+
+# ── Live scenario composition -- the "Run for today" instant path ───────────
+# Not constrained to the 4 presets (see ScenarioRecommendationResponse above)
+# -- composes a fresh profile from real signals instead of picking one of a
+# fixed set, so it can never produce a mismatched label like recommending
+# "low_stock_weekend" on a Wednesday.
+
+class LiveScenarioCompositionResponse(BaseModel):
+    profile: ScenarioProfilePayload
+    reason: str
+    confidence: Literal["high", "medium", "low"]
+    signals_used: list[str] = Field(default_factory=list)

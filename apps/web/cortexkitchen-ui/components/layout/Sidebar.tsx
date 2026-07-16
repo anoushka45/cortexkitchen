@@ -50,7 +50,7 @@ export default function Sidebar() {
           sidebar width so it lines up with TopBar's own border-b across the
           corner instead of leaving a floating, unaligned gap there. */}
       <Link href="/dashboard" className="flex h-14 shrink-0 items-center gap-2.5 border-b border-[var(--color-border-default)] px-4">
-        <div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg shadow-[0_4px_12px_-3px_rgba(176,98,26,0.5)]" style={{ background: "linear-gradient(155deg, var(--color-accent), #7a4212)" }}>
+        <div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-black ring-1 ring-[var(--color-border-default)]">
           <Image src="/ck-logo.png" alt="CortexKitchen" width={30} height={30} className="h-[30px] w-[30px] object-contain" priority />
         </div>
         <div className="leading-tight">

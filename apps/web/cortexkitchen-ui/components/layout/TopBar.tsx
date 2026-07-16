@@ -85,11 +85,11 @@ export default function TopBar() {
           <div className="relative shrink-0" ref={profileMenuRef}>
             <button
               onClick={() => setProfileMenuOpen((v) => !v)}
-              className="hidden items-center gap-2 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-soft)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-text-primary)] md:flex"
+              className="btn-primary hidden items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold md:flex"
             >
-              <svg className="h-3.5 w-3.5 shrink-0 text-[var(--color-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
               <span className="max-w-[160px] truncate font-medium">{activeProfile?.name ?? user.org_name}</span>
-              <svg className="h-3 w-3 text-[var(--color-text-ghost)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+              <svg className="h-3 w-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
             </button>
             {profileMenuOpen && profiles.length > 1 && (
               <div className="absolute left-0 top-full mt-1.5 w-56 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] py-1.5 shadow-xl z-50">

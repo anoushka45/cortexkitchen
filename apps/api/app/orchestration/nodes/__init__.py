@@ -1,4 +1,5 @@
 from app.orchestration.nodes.ops_manager import ops_manager_node
+from app.orchestration.nodes.live_signals import live_signals_node
 from app.orchestration.nodes.demand_forecast import demand_forecast_node
 from app.orchestration.nodes.reservation import reservation_node
 from app.orchestration.nodes.complaint_intelligence import complaint_intelligence_node
@@ -14,6 +15,7 @@ from app.orchestration.nodes.replan_orchestrator import replan_orchestrator_node
 
 __all__ = [
     "ops_manager_node",
+    "live_signals_node",
     "demand_forecast_node",
     "reservation_node",
     "complaint_intelligence_node",

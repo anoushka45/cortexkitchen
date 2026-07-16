@@ -4,12 +4,12 @@ import { useEffect } from "react";
 import AgentPipelineGrid from "@/components/planning/AgentPipelineGrid";
 import PlanTriggerPanel from "@/components/planning/PlanTriggerPanel";
 import { MarketPulseResponse, RestaurantProfile } from "@/lib/api";
-import { PlanningScenarioOption, ScenarioProfile } from "@/types/planning";
+import { PlanningScenarioOption, PlanTriggerHandler } from "@/types/planning";
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  onRun: (date?: string, restaurantName?: string, restaurantId?: number, customProfile?: ScenarioProfile) => void;
+  onRun: PlanTriggerHandler;
   scenarioOptions: PlanningScenarioOption[];
   selectedScenario: PlanningScenarioOption["id"];
   onScenarioChange: (scenario: PlanningScenarioOption["id"]) => void;

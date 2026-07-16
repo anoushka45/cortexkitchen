@@ -294,6 +294,22 @@ export interface ScenarioProfile {
   cuisine?: string | null;
 }
 
+// Shared callback shape for every "trigger a plan" entry point (Dashboard's
+// PlanShiftModal, /planning's hero + accordion) -- one definition instead of
+// four near-identical inline copies. scenarioOverride exists specifically
+// for ScenarioRecommender-driven "run for today" fast paths: DashboardContext's
+// selectedScenario only reflects a setSelectedScenario() call after the next
+// render, so a handler can't call setSelectedScenario() then immediately
+// trigger() in the same synchronous click handler and expect the new value --
+// it must pass the recommended scenario id through explicitly instead.
+export type PlanTriggerHandler = (
+  date?: string,
+  restaurantName?: string,
+  restaurantId?: number,
+  customProfile?: ScenarioProfile,
+  scenarioOverride?: string,
+) => void;
+
 export interface FridayRushRequest {
   target_date?: string | null;
   simulation_mode?: boolean;

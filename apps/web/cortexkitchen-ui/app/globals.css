@@ -51,11 +51,11 @@
      Warm stone/parchment neutrals (not cool blue-gray) so light mode
      reads as considered/warm rather than generic SaaS gray-on-white --
      matches the ink+ember warmth already established in dark mode. */
-  --color-surface-page:    #F7F4EC;
+  --color-surface-page:    #FFFF;
   --color-surface:         #FFFEFB;
   --color-surface-raised:  #FFFFFF;
   --color-surface-sunken:  #F0ECE0;
-  --color-border-default:  #E2D9C4;
+  --color-border-default:  #DDD0AC;
   --color-border-soft:     #EBE5D4;
   --color-text-primary:    #1D1810;
   --color-text-soft:       #5C5340;
@@ -81,6 +81,12 @@
   --color-caution-soft:    rgba(180,83,9,0.10);
   --color-critical:        #E11D48;
   --color-critical-soft:   rgba(225,29,72,0.08);
+
+  /* /planning's "Today's context" card -- a light sky-blue gradient, kept
+     as real CSS vars (not a Tailwind arbitrary bg-[...] class) since that
+     class wasn't rendering reliably. */
+  --context-card-gradient: linear-gradient(160deg, rgba(224,242,254,0.9) 0%, rgba(191,219,254,0.55) 100%);
+  --context-card-border:   rgba(56,132,255,0.22);
 }
 
 .dark {
@@ -108,6 +114,9 @@
   --color-caution-soft:    rgba(245,190,115,0.10);
   --color-critical:        #fb7185;
   --color-critical-soft:   rgba(251,113,133,0.10);
+
+  --context-card-gradient: linear-gradient(160deg, rgba(30,58,95,0.55) 0%, rgba(12,32,56,0.8) 100%);
+  --context-card-border:   rgba(56,132,255,0.3);
 }
 
 /* ── Reset & base ────────────────────────────────────────────── */
@@ -300,13 +309,17 @@ body {
 
 .card {
   /* --color-surface-raised, not --color-surface -- surface (#FFFEFB) sits
-     almost indistinguishable from the page bg (#F7F4EC); raised is pure
+     almost indistinguishable from the page bg (#FAF8F2); raised is pure
      white in light mode and a full step lighter than the page in dark
-     mode, which is what actually makes a card read as "lifted." */
+     mode, which is what actually makes a card read as "lifted." Border and
+     shadow are both a step stronger than a first pass here (was
+     rgba(...,0.06)/rgba(...,0.20)) -- too faint against the near-white page
+     to actually register as elevation, reading as a flat grey mass instead
+     of distinct lifted cards. */
   background: var(--color-surface-raised);
   border: 1px solid var(--color-border-default);
   border-radius: 12px;
-  box-shadow: 0 2px 4px rgba(60,40,15,0.06), 0 16px 40px -10px rgba(60,40,15,0.20);
+  box-shadow: 0 1px 2px rgba(60,40,15,0.05), 0 2px 6px rgba(60,40,15,0.09), 0 18px 44px -12px rgba(60,40,15,0.24);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
   will-change: transform;
 }
@@ -323,6 +336,28 @@ body {
 
 .dark .card:hover {
   box-shadow: 0 0 0 1px rgba(230,137,42,0.12), 0 12px 40px rgba(0,0,0,0.6);
+}
+
+/* ── Tile (lighter elevation for small tinted cards) ────────────
+   .card hardcodes background/border for the common white-card case; tiles
+   like the pipeline/chooser cards need a custom per-tone background and
+   border color (set inline) but the same "lifted off the page" shadow --
+   without this they're flat bordered boxes with zero elevation, which is
+   what reads as a bare dev-panel grid instead of a real product surface. */
+.tile {
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(60,40,15,0.04), 0 6px 16px -6px rgba(60,40,15,0.16);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.tile:hover {
+  box-shadow: 0 2px 4px rgba(60,40,15,0.06), 0 10px 24px -8px rgba(60,40,15,0.22);
+  transform: translateY(-2px);
+}
+.dark .tile {
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.04), 0 6px 20px rgba(0,0,0,0.4);
+}
+.dark .tile:hover {
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.07), 0 10px 28px rgba(0,0,0,0.5);
 }
 
 .card:focus-within {

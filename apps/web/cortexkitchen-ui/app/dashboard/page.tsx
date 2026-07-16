@@ -40,10 +40,10 @@ function DashboardPageContent() {
   const selectedScenario    = (dashCtx?.selectedScenario ?? "friday_rush") as PlanningScenarioOption["id"];
   const setSelectedScenario = (s: PlanningScenarioOption["id"]) => dashCtx?.setSelectedScenario(s as typeof dashCtx.selectedScenario);
 
-  const handleRun = (date?: string, restaurantName?: string, restaurantId?: number, customProfile?: ScenarioProfile) => {
+  const handleRun = (date?: string, restaurantName?: string, restaurantId?: number, customProfile?: ScenarioProfile, scenarioOverride?: string) => {
     dashCtx?.setPendingTrigger({
       targetDate: date,
-      scenario: selectedScenario,
+      scenario: scenarioOverride ?? selectedScenario,
       restaurantId,
       restaurantName: restaurantName ?? user?.org_name ?? null,
       customProfile,

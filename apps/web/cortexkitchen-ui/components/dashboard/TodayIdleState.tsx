@@ -16,7 +16,7 @@ import {
 } from "@/lib/api";
 import { SCENARIO_OPTIONS } from "@/lib/scenarios";
 import { shortDate, relativeTime, VERDICT_TONE } from "@/lib/formatters";
-import { DataHealth, PlanningRunSummary, PlanningScenarioOption, ScenarioProfile } from "@/types/planning";
+import { DataHealth, PlanningRunSummary, PlanningScenarioOption, PlanTriggerHandler } from "@/types/planning";
 
 const TONE_CLASS: Record<string, { bg: string; text: string }> = {
   good:    { bg: "var(--color-good-soft)",    text: "var(--color-good)" },
@@ -57,8 +57,12 @@ function greetingWord(): string {
   return "Good Evening";
 }
 
+function todayLabel(): string {
+  return new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
+}
+
 interface Props {
-  onRun: (date?: string, restaurantName?: string, restaurantId?: number, customProfile?: ScenarioProfile) => void;
+  onRun: PlanTriggerHandler;
   selectedScenario: PlanningScenarioOption["id"];
   onScenarioChange: (scenario: PlanningScenarioOption["id"]) => void;
   historyCount: number;
@@ -345,13 +349,16 @@ export default function TodayIdleState({
   return (
     <div className="py-6 space-y-5">
 
-      {/* Greeting row */}
-      <div>
-        <h1 className="text-[26px] font-bold leading-tight text-[var(--color-text-primary)]">
-          {greetingWord()}, {user?.full_name?.split(" ")[0] ?? "Chef"}! 
+      {/* Greeting row -- matches the display-serif eyebrow/h1 header pattern
+          used on Analytics/Action Center/Data (AnalyticsDetail.tsx etc.),
+          which this was the one page not yet following. */}
+      <header className="border-b border-[var(--color-border-default)] pb-5">
+        <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--color-accent)]">{todayLabel()}</p>
+        <h1 className="display mt-1 text-[32px] text-[var(--color-text-primary)]">
+          {greetingWord()}, <span style={{ color: "var(--color-accent)" }}>{user?.full_name?.split(" ")[0] ?? "Chef"}</span>
         </h1>
         <p className="mt-1 text-sm text-[var(--color-text-soft)]">Here&apos;s how your restaurant is performing today.</p>
-      </div>
+      </header>
 
       {/* ═══ The numbers, at a glance: 8-tile KPI strip ═══ */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
@@ -876,7 +883,7 @@ function MiniKpi({ label, value, delta, tone, icon, hue, hero }: {
         <p className="min-w-0 truncate text-[11.5px] font-medium text-[var(--color-text-faint)]">{label}</p>
       </div>
       <p
-        className={`mt-2 font-bold leading-none ${hero ? "text-[30px]" : "text-[22px] text-[var(--color-text-primary)]"}`}
+        className={`mt-2 text-[22px] font-bold leading-none ${hero ? "" : "text-[var(--color-text-primary)]"}`}
         style={hero ? { color: "var(--color-accent)" } : undefined}
       >
         {value}

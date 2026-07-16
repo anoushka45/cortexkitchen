@@ -60,15 +60,19 @@ class OrchestratorState(TypedDict):
     menu_output:        Annotated[Optional[Dict[str, Any]], keep_last]
     inventory_output:   Annotated[Optional[Dict[str, Any]], keep_last]
 
-    # Live-intelligence signals (P6-A21/A22/A23) — not Swiggy MCP, no consent/
-    # compliance gating. weather_signal populated by demand_forecast_node via
-    # WeatherService (Open-Meteo). trends_signal (curated RSS) and
-    # compliance_alerts_signal (FSSAI notices) are populated by their
-    # respective services but not yet wired into the planning pipeline proper
-    # — that's P6-A24, which unifies all four signals into market_intel_node.
+    # Live-intelligence signals — not Swiggy MCP, no consent/compliance
+    # gating. All three populated by live_signals_node, the first node in
+    # the graph (runs before demand_forecast), which demand_forecast then
+    # reads back from state rather than fetching itself. market_intel_node
+    # also reads them back from state (never re-fetches) and merges their
+    # prompt_text alongside its own Swiggy signals into live_signals_text.
     weather_signal:            Annotated[Optional[Dict[str, Any]], keep_last]
     trends_signal:             Annotated[Optional[Dict[str, Any]], keep_last]
     compliance_alerts_signal:  Annotated[Optional[Dict[str, Any]], keep_last]
+    # {"is_holiday": bool, "holiday_name": str | None} -- computed alongside
+    # weather_signal by live_signals_node (same calendar lookup weather's
+    # own multiplier needs), read back by demand_forecast_node.
+    holiday_context:           Annotated[Optional[Dict[str, Any]], keep_last]
 
     # Per-node assumption dicts — populated by each domain node after its service call.
     # Used by EvaluationSanityChecker to diff cross-agent assumptions against actual state.
@@ -167,6 +171,7 @@ def make_initial_state(
         weather_signal=None,
         trends_signal=None,
         compliance_alerts_signal=None,
+        holiday_context=None,
 
         # Per-node assumptions (populated after each domain node completes)
         menu_assumptions=None,

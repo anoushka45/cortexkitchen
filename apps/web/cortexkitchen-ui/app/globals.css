@@ -82,11 +82,13 @@
   --color-critical:        #E11D48;
   --color-critical-soft:   rgba(225,29,72,0.08);
 
-  /* /planning's "Today's context" card -- a light sky-blue gradient, kept
-     as real CSS vars (not a Tailwind arbitrary bg-[...] class) since that
-     class wasn't rendering reliably. */
-  --context-card-gradient: linear-gradient(160deg, rgba(224,242,254,0.9) 0%, rgba(191,219,254,0.55) 100%);
-  --context-card-border:   rgba(56,132,255,0.22);
+  /* /planning's "Today's context" card -- warm cream/ivory to match the rest
+     of the page's palette (a sky-blue version broke the visual language --
+     everything else on this page is warm). Kept as real CSS vars (not a
+     Tailwind arbitrary bg-[...] class) since that class wasn't rendering
+     reliably. */
+  --context-card-gradient: linear-gradient(160deg, rgba(255,247,237,0.95) 0%, rgba(253,230,199,0.55) 100%);
+  --context-card-border:   rgba(230,137,42,0.22);
 }
 
 .dark {
@@ -115,8 +117,8 @@
   --color-critical:        #fb7185;
   --color-critical-soft:   rgba(251,113,133,0.10);
 
-  --context-card-gradient: linear-gradient(160deg, rgba(30,58,95,0.55) 0%, rgba(12,32,56,0.8) 100%);
-  --context-card-border:   rgba(56,132,255,0.3);
+  --context-card-gradient: linear-gradient(160deg, rgba(64,40,20,0.5) 0%, rgba(35,22,12,0.8) 100%);
+  --context-card-border:   rgba(230,137,42,0.3);
 }
 
 /* ── Reset & base ────────────────────────────────────────────── */

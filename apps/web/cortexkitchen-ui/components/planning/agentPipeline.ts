@@ -95,19 +95,6 @@ export const AGENT_PIPELINE: AgentCapability[] = [
   },
 ];
 
-// Not a real specialist -- it's the aggregator+final_assembler's output, not
-// a node with its own reasoning -- shown as the last card only so the grid
-// ends on the payoff ("here's what all of this adds up to") rather than
-// stopping at Critic. AgentPipelineGrid renders this one with an "Output"
-// tag instead of "Agent" so it never reads as a 9th specialist.
-export const FINAL_PLAN_AGENT: AgentCapability = {
-  label: "Your Final Plan",
-  capability: "One complete brief, ready for you in the next few lines.",
-  capabilities: ["Executive brief", "Full shift plan", "Ready for your Action Queue"],
-  iconPath: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
-  tone: "good",
-};
-
 // `bg`/`text` tint pills and chip backgrounds (kept pale so body text stays
 // readable). `fill` is a solid, deliberately DESATURATED color for the icon
 // badge itself -- a full-color square reads as more premium than a

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import PlanShiftModal from "@/components/dashboard/PlanShiftModal";
-import AgentPipelineGrid, { PipelineFlowStrip } from "@/components/planning/AgentPipelineGrid";
+import AgentPipelineGrid from "@/components/planning/AgentPipelineGrid";
+import { AGENT_TONE_CLASS } from "@/components/planning/agentPipeline";
 import { usePlanTriggerData } from "@/hooks/usePlanTriggerData";
 import { useScenarioRecommendation } from "@/hooks/useScenarioRecommendation";
 import { getPlanningRun } from "@/lib/api";
@@ -71,35 +72,54 @@ const MARKET_LOADING_MESSAGES = [
 
 function ContextRow({ hue, iconPath, text, badge }: { hue: string; iconPath: string; text: string; badge?: number }) {
   return (
-    <div className="flex items-center gap-2.5">
-      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-white" style={{ background: hue }}>
-        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d={iconPath} /></svg>
+    <div className="flex items-center gap-2">
+      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-white" style={{ background: hue }}>
+        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d={iconPath} /></svg>
       </span>
-      <p className="flex-1 text-[13.5px] font-bold text-[var(--color-text-primary)]">{text}</p>
+      <p className="flex-1 text-[12px] font-bold text-[var(--color-text-primary)]">{text}</p>
       {badge != null && (
-        <span className="grid h-5 min-w-[20px] shrink-0 place-items-center rounded-full px-1 text-[10.5px] font-bold text-white" style={{ background: hue }}>{badge}</span>
+        <span className="grid h-5 min-w-[20px] shrink-0 place-items-center rounded-full px-1 text-[10px] font-bold text-white" style={{ background: hue }}>{badge}</span>
       )}
     </div>
   );
 }
 
-// A single card next to the specialist grid, filling the spot the old
-// "choose a scenario / describe tonight" chooser used to -- that flow now
-// lives inside the "Run a plan" modal (PlanShiftModal). No icon, so it reads
-// as a quiet aside rather than another functional tile; .card (not .tile)
-// gives it the same real depth as the agent cards, over a faint accent
-// gradient instead of a flat surface fill.
-function FunFactCard() {
+const DELIVERABLES: { label: string; iconPath: string; tone: keyof typeof AGENT_TONE_CLASS }[] = [
+  { label: "Executive Brief",  tone: "purple", iconPath: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
+  { label: "PDF Export",       tone: "amber",  iconPath: "M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" },
+  { label: "Customer Experience", tone: "info", iconPath: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" },
+  { label: "Risk Assessment",  tone: "rose",   iconPath: "M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" },
+  { label: "Action Queue",     tone: "good",   iconPath: "M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
+];
+
+// Aligned visually with the agent cards (same icon-badge language, muted
+// tone palette) but deliberately not repeating what those cards already say
+// -- Demand Forecast/Inventory/Menu Strategy are agent names already shown
+// above, so this only lists the *other* things a run produces: the brief,
+// a real PDF export (downloadRunPdf, already live on every run card),
+// guest-facing notes, risk flags, and the action queue. No "Staffing Plan"
+// -- no node actually produces a structured staffing recommendation, only a
+// one-line note folded into the forecast's own text (see agentPipeline.ts).
+function DeliverablesCard() {
   return (
-    <div
-      className="card flex flex-col gap-1 p-3.5"
-      style={{ borderWidth: "1.5px", background: "linear-gradient(160deg, var(--color-accent-soft) 0%, var(--color-surface-raised) 65%)" }}
-    >
-      <p className="text-[13.5px] font-bold text-[var(--color-text-primary)]">Good Food Deserves Good Decisions.</p>
-      <p className="text-[11.5px] leading-snug text-[var(--color-text-soft)]">
-        Every great service starts with thoughtful planning.
-        We'll help you make the right call before the rush.
-      </p>
+    <div className="card p-2.5" style={{ borderWidth: "1.5px" }}>
+      <p className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-primary)]">Your AI Plan Also Includes</p>
+      <div className="mt-1.5 grid grid-cols-2 gap-1">
+        {DELIVERABLES.map(({ label, tone, iconPath }, i) => {
+          const t = AGENT_TONE_CLASS[tone];
+          const isLast = i === DELIVERABLES.length - 1 && DELIVERABLES.length % 2 === 1;
+          return (
+            <div key={label} className={`flex items-center gap-1.5 rounded-lg p-1 ${isLast ? "col-span-2" : ""}`} style={{ background: t.bg }}>
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-white" style={{ background: t.fill }}>
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.9}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d={iconPath} />
+                </svg>
+              </span>
+              <span className="text-[11px] font-semibold leading-tight text-[var(--color-text-primary)]">{label}</span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -221,45 +241,51 @@ export default function PlanningIdleState({
   }
 
   return (
-    <div className="space-y-6 py-2">
+    <div className="space-y-8 py-6">
       {/* ═══ Side by side: a compact control panel (trigger + live signals +
           how-to-plan) next to the agent showcase -- both visible in one
           viewport. The left panel triggers a run, the right side sells the
           team. ═══ */}
-      <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
-        {/* ── Left: control panel ── */}
-        <div className="flex w-full flex-col gap-4 xl:w-[340px] xl:shrink-0">
+      <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[340px_1fr] xl:items-stretch">
+        {/* ── Left: control panel -- one real grid track (340px, not a
+            flex-basis floating free of the right column's own layout), so
+            the two sides read as one coherent grid instead of two
+            independently-sized blocks. items-stretch on the row makes this
+            column match the right column's actual rendered height, and
+            justify-between spreads the extra space as breathing room
+            between the 3 cards (on top of the gap-4 minimum) instead of
+            manually guessing paddings until the heights happen to match. ── */}
+        <div className="flex w-full flex-col gap-4 xl:justify-between">
           <div
-            className="relative overflow-hidden rounded-2xl bg-cover bg-[center_35%] p-4"
+            className="relative overflow-hidden rounded-2xl bg-cover bg-[center_30%] p-3.5 shadow-[0_20px_44px_-16px_rgba(196,110,27,0.5)]"
             style={{
               backgroundImage:
-                "linear-gradient(160deg, rgba(26,16,10,0.62) 0%, rgba(64,28,26,0.42) 45%, rgba(178,98,24,0.55) 100%), url(/planning-hero.png)",
+                "linear-gradient(180deg, rgba(20,12,8,0.12) 0%, rgba(20,12,8,0.18) 60%, rgba(15,9,6,0.55) 100%), url(/planning-hero.png)",
             }}
           >
+            <p className="relative text-[11.5px] font-bold uppercase tracking-[0.14em] text-white"> Your AI Planning Team</p>
             <button
               type="button"
               onClick={() => setModalOpen(true)}
-              className="relative flex w-full items-center justify-center gap-2 rounded-full bg-white px-4 py-2.5 text-[14.5px] font-bold shadow-[0_10px_24px_-8px_rgba(0,0,0,0.35)] transition-transform hover:scale-[1.02]"
-              style={{ color: "var(--color-accent)" }}
+              className="relative mt-3 flex w-full items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[14.5px] font-bold text-white transition-transform hover:scale-[1.02]"
+              style={{
+                background: "linear-gradient(180deg, #f0a648 0%, #de7e1d 100%)",
+                boxShadow: "0 0 0 1px rgba(255,255,255,0.25), 0 10px 24px -6px rgba(0,0,0,0.45), 0 0 26px rgba(255,180,90,0.5)",
+              }}
             >
-              <span className="grid h-5 w-5 place-items-center rounded-full" style={{ background: "var(--color-accent)" }}>
+              <span className="grid h-5 w-5 place-items-center rounded-full bg-white/25">
                 <svg className="h-2.5 w-2.5" fill="white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
               </span>
               Run a plan
             </button>
-            <div className="relative mt-2.5 flex items-center justify-between text-[12px] font-medium text-white/85">
+            <div className="relative mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] font-semibold text-white/90">
               <span className="inline-flex items-center gap-1">
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" d="M12 7v5l3 3" /></svg>
                 ~{estimateSeconds ?? 20}s
               </span>
-              <span className="inline-flex items-center gap-1.5 font-semibold text-white">
-                <span className="h-1.5 w-1.5 rounded-full bg-white" />
-                {activeProfile?.name ?? "Your restaurant"}
-              </span>
-            </div>
-            <div className="relative mt-2.5 flex min-h-[54px] items-start border-t border-white/25 pt-2.5 text-[12px] leading-relaxed text-white/85">
+              <span className="text-white/40">•</span>
               {!compositionLoaded ? (
-                <span className="inline-flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1.5 font-medium text-white/80">
                   <span className="flex gap-0.5">
                     <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/70" style={{ animationDelay: "0ms" }} />
                     <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/70" style={{ animationDelay: "150ms" }} />
@@ -267,11 +293,14 @@ export default function PlanningIdleState({
                   </span>
                   {COMPOSING_MESSAGES[composingMessageIndex]}
                 </span>
-              ) : composition ? (
-                <p>Recommended: <span className="font-semibold text-white">{composition.profile.label}</span> — {composition.reason}</p>
               ) : (
-                <p>Uses {scenario.label} as the shift shape, dated today.</p>
+                <span>{composition?.profile.label ?? scenario.label}</span>
               )}
+              <span className="text-white/40">•</span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                {activeProfile?.name ?? "Your restaurant"}
+              </span>
             </div>
           </div>
 
@@ -283,7 +312,7 @@ export default function PlanningIdleState({
             <div className="mt-2.5 flex min-h-[136px] flex-col gap-2">
               {!marketLoaded ? (
                 <div className="flex h-full flex-col items-center justify-center gap-2 py-4">
-                  <svg className="h-6 w-6 animate-spin text-sky-500" fill="none" viewBox="0 0 24 24">
+                  <svg className="h-6 w-6 animate-spin" style={{ color: "var(--color-accent)" }} fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
                     <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
@@ -316,7 +345,7 @@ export default function PlanningIdleState({
             </div>
           </div>
 
-          <FunFactCard />
+          <DeliverablesCard />
         </div>
 
         {/* ── Right: the specialist showcase -- 9 AI agent cards, 3 per row. ── */}
@@ -326,17 +355,16 @@ export default function PlanningIdleState({
               <p className="display text-[24px] font-medium  text-[var(--color-text-primary)]">
                 Your Smartest Shift Starts Here.
               </p>
-              <p className="mt-1 text-[12.5px] text-[var(--color-text-faint)]">Specialized intelligence. One actionable plan.</p>
+              <p className="mt-1 max-w-[520px] text-[12.5px] leading-relaxed text-[var(--color-text-faint)]">
+                AI specialists analyze demand, inventory, reservations, guests and market signals before delivering one execution-ready plan.
+              </p>
             </div>
             <span className="mt-1 inline-flex shrink-0 items-center gap-1 text-[12px] font-semibold" style={{ color: "var(--color-accent)" }}>
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               Learn how it works
             </span>
           </div>
-          <div className="mt-3">
-            <PipelineFlowStrip />
-          </div>
-          <div className="mt-3">
+          <div className="mt-4">
             <AgentPipelineGrid variant="full" columns={3} />
           </div>
         </div>

@@ -1,8 +1,6 @@
 # Tests
 
-Test documentation for CortexKitchen. Phase 5 complete.
-
-Last updated: June 2026.
+Test documentation for CortexKitchen. Phase 6A in progress.
 
 ## Test locations
 
@@ -25,6 +23,8 @@ pytest tests/ -q --ignore=tests/integration/test_langgraph_flow.py
 
 `test_langgraph_flow.py` references a removed module and is excluded until rewritten.
 
+RAGAS and DeepEval currently evaluate against static hand-written fixtures. `scripts/build_ragas_dataset.py` and `scripts/build_deepeval_dataset.py` extract fresh candidate samples from real planning runs, but their output has not yet been promoted into the golden fixtures used by these test suites.
+
 ## LLM quality evals
 
 These require a live `GROQ_API_KEY` and make real LLM calls. Do not include in standard CI.
@@ -34,7 +34,7 @@ These require a live `GROQ_API_KEY` and make real LLM calls. Do not include in s
 # Run from apps/api/
 python ../../scripts/build_golden_dataset.py
 
-# Run regression gate against local fixture — requires 90% pass rate
+# Run regression gate against local fixture: requires 90% pass rate
 pytest tests/unit/test_langsmith_evals.py -v
 
 # RAGAS faithfulness on complaint RAG

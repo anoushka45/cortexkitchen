@@ -2,19 +2,22 @@
 
 This folder contains the web application for CortexKitchen. The active frontend lives in `apps/web/cortexkitchen-ui`.
 
-Last updated: June 2026. Phase 6 in progress.
+Phase 6A in progress.
 
 ## What the frontend includes
 
-- Public marketing homepage with pipeline explainer, features, and footer
-- JWT auth flow — login and register with org creation
-- Planning dashboard — scenario selection, SSE streaming pipeline, full plan view, what-if simulator
-- Run history page — audit trail with score trend chart, run detail panel, PDF/Excel export buttons
-- Ask AI chat page — RAG chatbot over run history and guest feedback, streamed responses
-- Data Health page — database coverage table and 7-day observability panel
-- Workspace settings — capacity, cuisine, peak hours, planning thresholds
-- Restaurant profiles — named profiles for per-run capacity and peak-hour overrides
-- Multi-tenant isolation — all views scoped to the authenticated org
+- Public marketing homepage with a pipeline explainer, feature grid, and footer
+- JWT auth flow: login and register with organization creation
+- Dashboard: daily overview, KPIs, health score, live-intelligence card, revenue and margin trends
+- Planning: the flagship trigger-and-watch experience, agent showcase, live scenario composition, SSE streaming pipeline, what-if simulator
+- Action Center: pending approvals and full Action Queue history
+- Analytics: historical drill-down across menu performance, channels, peak hours, and complaints
+- Data: merged run history and data-health view, audit trail, PDF and Excel export
+- AI Assistant chat: a conversational assistant over run history and guest feedback, streamed responses, plus a floating widget available on every page
+- Market: live Swiggy market intelligence, one card per capability, with trend charts
+- Workspace settings: capacity, cuisine, peak hours, planning thresholds
+- Restaurant profiles: named profiles for per-run capacity and peak-hour overrides
+- Multi-tenant isolation: all views scoped to the authenticated organization
 
 ## Start the app
 
@@ -32,4 +35,4 @@ Set `NEXT_PUBLIC_API_BASE_URL` in `.env.local` if the backend runs elsewhere.
 
 ## More detail
 
-See [`cortexkitchen-ui/README.md`](cortexkitchen-ui/README.md) for the full page-by-page breakdown with screenshots.
+See [`cortexkitchen-ui/README.md`](cortexkitchen-ui/README.md) for the full page-by-page breakdown.

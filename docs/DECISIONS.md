@@ -1,7 +1,7 @@
 # Architecture and Product Decisions
 # CortexKitchen
 
-Last updated: June 2026. Phase 5 complete. Phase 6 in progress.
+Phase 6A in progress.
 
 ---
 
@@ -115,7 +115,7 @@ PostgreSQL, Qdrant, and Redis run via Docker Compose with persistent volumes. Da
 
 ---
 
-## D-009 — Qdrant collection strategy: shared collection with payload filters
+## D-009: Qdrant collection strategy: shared collection with payload filters
 **Date:** 31 May 2026  
 **Status:** Accepted
 
@@ -123,8 +123,8 @@ PostgreSQL, Qdrant, and Redis run via Docker Compose with persistent volumes. Da
 Use a single shared Qdrant collection with payload pre-filters instead of per-tenant collections.
 
 Filter pattern:
-- `org_id` — tenant isolation
-- `doc_type` — semantic separation (`complaint` / `sop`)
+- `org_id`: tenant isolation
+- `doc_type`: semantic separation (`complaint` / `sop`)
 
 ### Rationale
 Per-tenant collections cause collection sprawl at multi-tenant scale (100 restaurants = 200+ collections). Qdrant payload pre-filtering on a shared collection is the recommended production pattern.
@@ -134,7 +134,7 @@ Implemented in P5-11. All Qdrant retrieval calls include an `org_id` payload fil
 
 ---
 
-## D-010 — Groq as default LLM provider (replacing Gemini default)
+## D-010: Groq as default LLM provider (replacing Gemini default)
 **Date:** June 2026  
 **Status:** Accepted
 
@@ -150,7 +150,7 @@ Groq free tier has higher RPM limits than Gemini, making development and demo ru
 
 ---
 
-## D-011 — RAGAS + DeepEval for LLM output quality gating
+## D-011: RAGAS + DeepEval for LLM output quality gating
 **Date:** June 2026  
 **Status:** Accepted
 
@@ -168,7 +168,7 @@ Use RAGAS for complaint RAG faithfulness evaluation and DeepEval for hallucinati
 
 ---
 
-## D-012 — MCP server via stdio, not HTTP
+## D-012: MCP server via stdio, not HTTP
 **Date:** June 2026  
 **Status:** Accepted
 
@@ -185,7 +185,7 @@ stdio is the standard transport for local MCP servers in Claude Code and Claude 
 
 ---
 
-## D-013 — Static eval datasets
+## D-013: Static eval datasets
 **Date:** June 2026  
 **Status:** Accepted
 
@@ -201,7 +201,7 @@ Live capture requires a full running stack during test collection and produces n
 
 ---
 
-## D-014 — LangSmith golden dataset as primary regression quality gate
+## D-014: LangSmith golden dataset as primary regression quality gate
 **Date:** June 2026  
 **Status:** Accepted
 
@@ -209,15 +209,15 @@ Live capture requires a full running stack during test collection and produces n
 Build `cortexkitchen-golden-v1` (50 curated planning runs) in LangSmith and use a pytest CI gate (`tests/unit/test_langsmith_evals.py`) running against a local JSON fixture, requiring ≥ 90% pass rate.
 
 ### Rationale
-RAGAS/DeepEval cover individual component quality. The golden dataset gate covers end-to-end plan quality — catching regressions that pass component evals but produce worse plans overall.
+RAGAS/DeepEval cover individual component quality. The golden dataset gate covers end-to-end plan quality: catching regressions that pass component evals but produce worse plans overall.
 
 ### Consequences
 - `build_golden_dataset.py` must be re-run when the system changes significantly
-- 90% threshold is intentionally strict — allows one or two borderline runs in 50
+- 90% threshold is intentionally strict: allows one or two borderline runs in 50
 
 ---
 
-## D-015 — Prompts centralised in `prompt_utils.py`
+## D-015: Prompts centralised in `prompt_utils.py`
 **Date:** June 2026  
 **Status:** Accepted
 
@@ -233,7 +233,7 @@ Scattered prompt strings in service files make prompt iteration, testing, and au
 
 ---
 
-## D-017 — Assumption diffing in EvaluationSanityChecker instead of enumerated contradiction pairs
+## D-017: Assumption diffing in EvaluationSanityChecker instead of enumerated contradiction pairs
 **Date:** June 2026  
 **Status:** Accepted
 
@@ -241,74 +241,74 @@ Scattered prompt strings in service files make prompt iteration, testing, and au
 The original `EvaluationSanityChecker` caught cross-agent contradictions via hardcoded rule pairs (e.g. "if inventory flags item X as low, the menu shouldn't promote X"). As the menu and agent set grow, enumerating every possible pair becomes a combinatorial explosion that is impossible to maintain exhaustively.
 
 ### Decision
-Each domain node now declares the assumptions it acted on when producing its output. These assumptions are derived from the node's own computed values — not hardcoded — and written as a small dict to `OrchestratorState` alongside the node's output (`menu_assumptions`, `inventory_assumptions`, `reservation_assumptions`, `complaint_assumptions`). The aggregator collects these into the recommendation bundle. `EvaluationSanityChecker.check_bundle()` then cross-diffs the assumptions: for each assumption in node A, it checks whether it is contradicted by a known fact in node B's output.
+Each domain node now declares the assumptions it acted on when producing its output. These assumptions are derived from the node's own computed values: not hardcoded: and written as a small dict to `OrchestratorState` alongside the node's output (`menu_assumptions`, `inventory_assumptions`, `reservation_assumptions`, `complaint_assumptions`). The aggregator collects these into the recommendation bundle. `EvaluationSanityChecker.check_bundle()` then cross-diffs the assumptions: for each assumption in node A, it checks whether it is contradicted by a known fact in node B's output.
 
-The result is a `stale_assumptions` list returned alongside the existing `issues` list. Conflicts surface automatically from structural mismatch — no enumeration of pairs is needed. The critic receives the stale assumptions explicitly in its prompt so it can reason about *why* a contradiction exists rather than detecting it from raw data.
+The result is a `stale_assumptions` list returned alongside the existing `issues` list. Conflicts surface automatically from structural mismatch: no enumeration of pairs is needed. The critic receives the stale assumptions explicitly in its prompt so it can reason about *why* a contradiction exists rather than detecting it from raw data.
 
 ### Rationale
-The combinatorial explosion problem: N agents → O(N²) contradiction pairs to enumerate. The assumption-diff approach scales linearly with agent count — adding a new agent requires only that the new node writes its own assumptions dict. No changes to the checker or other nodes.
+The combinatorial explosion problem: N agents → O(N²) contradiction pairs to enumerate. The assumption-diff approach scales linearly with agent count: adding a new agent requires only that the new node writes its own assumptions dict. No changes to the checker or other nodes.
 
 A secondary benefit: assumptions make node reasoning explicit and auditable. If a node made recommendations based on a stale belief, that belief is now visible in the run output rather than implicit in the LLM's prompt context.
 
-The hardcoded checks are **kept as a secondary layer** — they catch concrete policy violations (capacity limits, impossible inventory quantities, long-horizon actions) that are structural rather than assumption-based.
+The hardcoded checks are **kept as a secondary layer**: they catch concrete policy violations (capacity limits, impossible inventory quantities, long-horizon actions) that are structural rather than assumption-based.
 
 ### Consequences
-- Each domain node must derive and write its own `assumptions` dict — this is a new contract for any future domain node added to the pipeline
+- Each domain node must derive and write its own `assumptions` dict: this is a new contract for any future domain node added to the pipeline
 - Graceful degradation: if a node errored and its assumptions dict is `None`, the checker skips diffing for that node without crashing
-- `stale_assumptions` is always present in `check_bundle()` output (may be an empty list) — callers that previously only used `passed`, `issues`, and `summary` are unaffected
+- `stale_assumptions` is always present in `check_bundle()` output (may be an empty list): callers that previously only used `passed`, `issues`, and `summary` are unaffected
 
 ### Post-implementation note (June 2026)
 
-**Diff 1 removed.** The original implementation included a fourth diff (`assumed_no_active_stockouts` in `menu_intelligence` vs the inventory node's shortage list). This was dropped after discovering it would always agree: `MenuService.analyse_and_recommend()` contains a self-healing fallback that directly instantiates `InventoryService` and queries the DB whenever `inventory_data=None`. Although `menu_intelligence` now runs after `reservation`, `complaint_intelligence`, and `inventory` complete (LangGraph fan-in), `MenuService` still queries the DB directly — both nodes use the same demand ratio and the same DB, so they always agree on shortage status. The `assumed_no_active_stockouts` field has been removed from `menu_assumptions`. Three diffs remain active: Diff 2 (menu covers capacity vs reservation occupancy), Diff 3 (high-occupancy planning on weak forecast), and Diff 4 (complaint volume gray zone).
+**Diff 1 removed.** The original implementation included a fourth diff (`assumed_no_active_stockouts` in `menu_intelligence` vs the inventory node's shortage list). This was dropped after discovering it would always agree: `MenuService.analyse_and_recommend()` contains a self-healing fallback that directly instantiates `InventoryService` and queries the DB whenever `inventory_data=None`. Although `menu_intelligence` now runs after `reservation`, `complaint_intelligence`, and `inventory` complete (LangGraph fan-in), `MenuService` still queries the DB directly: both nodes use the same demand ratio and the same DB, so they always agree on shortage status. The `assumed_no_active_stockouts` field has been removed from `menu_assumptions`. Three diffs remain active: Diff 2 (menu covers capacity vs reservation occupancy), Diff 3 (high-occupancy planning on weak forecast), and Diff 4 (complaint volume gray zone).
 
 ---
 
-## D-019 — Connector layer design: BaseConnector ABC with sync() and enrich() methods
+## D-019: Connector layer design: BaseConnector ABC with sync() and enrich() methods
 **Date:** June 2026
 **Status:** Accepted
 
 ### Context
-Phase 6 adds Swiggy MCP as a live data source. Future phases will add Zomato, Google Reviews, Square POS, and EazyDiner. Without a common interface, each integration would be a bespoke pile of HTTP calls with no shared error handling, token management, or degradation contract.
+Phase 6 adds Swiggy MCP as a live data source. Without a common interface, each integration would be a bespoke pile of HTTP calls with no shared error handling, token management, or degradation contract.
 
 ### Decision
-All external platform integrations implement `BaseConnector` (ABC defined in `infrastructure/swiggy/base_connector.py`) with two methods:
+All external platform integrations implement `BaseConnector` (ABC defined in `infrastructure/base_connector.py`, shared across all connector types, not Swiggy-specific) with two methods:
 
-- `sync()` — nightly job. Pulls historical data from the platform and writes it to the unified Postgres layer (orders, reservations, feedback). Side effects are allowed. Returns a summary dict.
-- `enrich()` — at planning time. Fetches live market signals (competitor prices, area occupancy, ingredient availability). Must NOT write to the DB. Must return `None` on any failure. Nodes fall back to synthetic data when `enrich()` returns `None`.
+- `sync()`: nightly job. Pulls historical data from the platform and writes it to the unified Postgres layer (orders, reservations, feedback). Side effects are allowed. Returns a summary dict.
+- `enrich()`: at planning time. Fetches live market signals (competitor prices, area occupancy, ingredient availability). Must NOT write to the DB. Must return `None` on any failure. Nodes fall back to synthetic data when `enrich()` returns `None`.
 
-`SwiggyConnector` is the reference implementation. Every future connector (Zomato, Google, POS) adds one file implementing the same interface.
+`SwiggyConnector` is the reference implementation. Extending this pattern to a food-delivery, dining-out, or quick-commerce competitor (Zomato, EazyDiner) is not permitted while the signed Swiggy Integration Agreement's exclusivity clause is in effect: see D-023. Future connectors are scoped to non-competing categories: POS systems, loyalty and rewards platforms, accounting and inventory tools, review aggregators, payment processors. `pos_square` and `google_reviews` already prove the pattern extends cleanly to these.
 
-OAuth tokens are stored encrypted per `org_id` in the `connectors` table, managed by `ConnectorRepository`. `SWIGGY_ACCESS_TOKEN` in `.env` is a dev-only convenience for single-org testing — production always reads from the connectors table.
+OAuth tokens are stored encrypted per `org_id` in the `connectors` table, managed by `ConnectorRepository`. `SWIGGY_ACCESS_TOKEN` in `.env` is a dev-only convenience for single-org testing: production always reads from the connectors table.
 
 ### Rationale
 - Single interface means one error-handling pattern across all integrations.
 - The sync/enrich split keeps planning-time code read-only and fast; nightly jobs handle slow writes.
-- `enrich()` returning `None` as the degradation contract means no try/except in LangGraph nodes — they just check `if enrichment is None`.
+- `enrich()` returning `None` as the degradation contract means no try/except in LangGraph nodes: they just check `if enrichment is None`.
 - Per-org token storage in the DB (not env vars) is required for true multi-tenancy.
 
 ### Consequences
-- Every new connector must implement both `sync()` and `enrich()` — even if one is a no-op for that platform.
-- `ConnectorRepository.list_active()` is the entry point for nightly sync jobs — it returns only connectors with a token set.
+- Every new connector must implement both `sync()` and `enrich()`: even if one is a no-op for that platform.
+- `ConnectorRepository.list_active()` is the entry point for nightly sync jobs: it returns only connectors with a token set.
 - The `connectors` table unique constraint `(org_id, connector_type)` prevents duplicate registrations.
 
 ---
 
-## D-016 — SSE streaming for planning runs and chat
+## D-016: SSE streaming for planning runs and chat
 **Date:** June 2026  
 **Status:** Accepted
 
 ### Decision
-`POST /api/v1/planning/stream` and `POST /api/v1/chat` return `text/event-stream` responses. `POST /api/v1/planning/run` is a standard JSON endpoint — no streaming.
+`POST /api/v1/planning/stream` and `POST /api/v1/chat` return `text/event-stream` responses. `POST /api/v1/planning/run` is a standard JSON endpoint: no streaming.
 
-- **Planning SSE (`/planning/stream`)** — emits `node_complete` events carrying only the node name as each LangGraph node finishes; the loading screen pipeline diagram updates in real time. The full plan arrives in a single final `complete` event and renders all at once.
-- **Chat SSE (`/chat`)** — streams individual tokens word-by-word via AsyncGroq. Entirely separate mechanism.
+- **Planning SSE (`/planning/stream`)**: emits `node_complete` events carrying only the node name as each LangGraph node finishes; the loading screen pipeline diagram updates in real time. The full plan arrives in a single final `complete` event and renders all at once.
+- **Chat SSE (`/chat`)**: streams individual tokens word-by-word via AsyncGroq. Entirely separate mechanism.
 
 ### Rationale
-The planning pipeline takes 10–30 seconds. Emitting node status as each completes makes the experience feel interactive — the user sees the pipeline progress rather than a blank loading spinner.
+The planning pipeline takes 10–30 seconds. Emitting node status as each completes makes the experience feel interactive: the user sees the pipeline progress rather than a blank loading spinner.
 
 ### Consequences
 - FastAPI returns a `StreamingResponse` for `/planning/stream` and `/chat`
-- Planning `node_complete` events carry `{"node": "nodename"}` only — no output data in the stream
+- Planning `node_complete` events carry `{"node": "nodename"}` only: no output data in the stream
 - The full plan renders all at once from the single `complete` event
 - Frontend must handle stream teardown and error events
 
@@ -321,13 +321,13 @@ The planning pipeline takes 10–30 seconds. Emitting node status as each comple
 Swiggy MCP servers can experience transient degradation or be temporarily unreachable. Without protection, every planning run that uses a Swiggy enricher would block on the timeout for every call, cascading latency into the planning pipeline.
 
 ### Decision
-Implement a Redis-backed circuit breaker per Swiggy endpoint (`food`, `im`, `dineout`). Three failures within 5 minutes opens the circuit for 30 minutes. `SwiggyMCPClient.call_tool()` checks the circuit before every HTTP call and records outcomes. The provider registry's async method also checks the circuit before routing.
+Implement a Redis-backed circuit breaker per Swiggy endpoint (`food`, `im`, `dineout`). Five or more failures within a 5-minute window opens the circuit for a 10-minute window. `SwiggyMCPClient.call_tool()` checks the circuit before every HTTP call and records outcomes. The provider registry's async method also checks the circuit before routing.
 
 ### Consequences
 - Degraded Swiggy endpoints fail fast instead of blocking the pipeline
-- Circuit state is observable via `GET /health/circuits`
+- Circuit state is observable via `GET /api/v1/health/circuits`
 - Fail-open policy: if Redis is down, `is_open()` returns False so calls are attempted rather than blocked
-- No code changes needed to add a new endpoint — the circuit key is derived from the URL
+- No code changes needed to add a new endpoint: the circuit key is derived from the URL
 
 ---
 
@@ -344,7 +344,7 @@ Store approved run insights in a Qdrant `planning_memory` collection. At retriev
 - Recent runs strongly influence future planning; old runs fade gracefully
 - The decay formula is interpretable: a 14-day-old run has half the weight of today's, a 28-day-old run has a quarter
 - 90-day cutoff prevents very old operational contexts from surfacing (restaurant conditions change)
-- No database migration needed — pure Qdrant
+- No database migration needed: pure Qdrant
 
 ---
 
@@ -352,12 +352,77 @@ Store approved run insights in a Qdrant `planning_memory` collection. At retriev
 **Status:** Accepted
 
 ### Context
-Using the same text for both storage and retrieval embeddings in the plan cache causes precision loss. At storage time we know the actual run conditions (demand_ratio, occupancy, shortages); at query time we only know scenario + date. Using the same embedding for both means rich storage context is "wasted" — the query can't match on conditions it doesn't yet know.
+Using the same text for both storage and retrieval embeddings in the plan cache causes precision loss. At storage time we know the actual run conditions (demand_ratio, occupancy, shortages); at query time we only know scenario + date. Using the same embedding for both means rich storage context is "wasted": the query can't match on conditions it doesn't yet know.
 
 ### Decision
-Use two distinct embeddings: `_query_text()` (lightweight, retrieval-side: `"org:{id} scenario:{scenario} date:{date}"`) and `_storage_text()` (enriched, write-side: same base + `demand_ratio`, `occupancy%`, `shortages`, `verdict`). This is an intentional asymmetry — the storage embedding is richer so future queries with similar scenarios on similar dates can score higher when conditions were similar, without requiring the caller to know those conditions at query time.
+Use two distinct embeddings: `_query_text()` (lightweight, retrieval-side: `"org:{id} scenario:{scenario} date:{date}"`) and `_storage_text()` (enriched, write-side: same base + `demand_ratio`, `occupancy%`, `shortages`, `verdict`). This is an intentional asymmetry: the storage embedding is richer so future queries with similar scenarios on similar dates can score higher when conditions were similar, without requiring the caller to know those conditions at query time.
 
 ### Consequences
 - Future runs under similar pressure (high demand, same shortages) will match historical runs more accurately
-- The retrieval-side embedding stays simple — no caller changes needed
+- The retrieval-side embedding stays simple: no caller changes needed
 - Approved-only writes ensure the cache only returns plans that passed quality review
+
+---
+
+## D-023: Remove the Zomato stub connector for exclusivity compliance
+**Date:** July 2026
+**Status:** Accepted
+
+### Context
+A signed Swiggy Integration Agreement (effective 2026-07-09) includes an exclusivity clause barring partnership with any other food delivery, dining-out, or quick-commerce platform for a similar solution, enforceable by injunctive relief, not just damages. A codebase audit found more than a name in one file: a genuine no-op `ZomatoConnector` stub, `zomato` listed alongside `swiggy` in `provider_registry.py`'s capability-to-provider lists, `eazydiner` listed under reservation data, and a live "Zomato" card on the `/connectors` page.
+
+### Decision
+Remove `apps/api/app/infrastructure/zomato/` entirely, remove `zomato` and `eazydiner` from `provider_registry.py`'s capability lists, remove the frontend connector card, remove `ConnectorType.zomato` from `models.py`, and delete the Zomato connector test file. Leave `FeedbackSource.zomato` untouched: it is a provenance tag for feedback that originated from a Zomato review, not a live Zomato connection.
+
+### Consequences
+- The multi-provider connector architecture (`BaseConnector`, `provider_registry.py`, `ConnectorType`) stays fully intact; only the specific competing-platform provider was removed
+- No Alembic migration needed: `connector_type` is a plain `String(50)` column, not a database enum
+- Future connectors must not be a food delivery, dining-out, or quick-commerce platform while the exclusivity clause is in effect (see D-019)
+
+---
+
+## D-024: Anonymise market intelligence to area-level aggregates
+**Date:** July 2026
+**Status:** Accepted
+
+### Context
+The same Swiggy Integration Agreement prohibits using the Swiggy MCP, directly or indirectly, to gather competitive intelligence on Swiggy restaurants or sellers, or to benchmark a competing product. `CompetitorEnricher` and the competitor-facing calls in `OccupancyEnricher` did exactly this: named restaurants, named prices, named deals, surfaced in the result dict, the LLM prompt, the `/market/pulse` API response, the operator chat assistant's Swiggy tools, and the `/market` page UI.
+
+### Decision
+Replace every named-restaurant output with area-level aggregates only: `area_restaurant_count`, `deals_active_count` and `deals_summary`, `landscape_summary` (count, average rating, cost-for-two range, offers count). `category_pricing`'s `cheapest_dish`/`priciest_dish` keep the dish name, which is not restaurant-identifying, but drop which restaurant serves it.
+
+### Consequences
+- Every consumer of market intelligence data was updated to match: `market_intel_service.py`, the `market_intel` node, `workflow_trigger_service.py`, `mcp_server.py`'s `get_market_brief`, `chat_service.py`'s Swiggy tools, `market.py`'s Pydantic models, and the frontend market panel
+- The planning pipeline's competitive signal is weaker in specificity but compliant; the critic and menu intelligence node still receive directional signal (an area is crowded, deals are active) without naming a competitor
+
+---
+
+## D-025: Live-intelligence signals fetched independently of the Swiggy MCP
+**Date:** July 2026
+**Status:** Accepted
+
+### Context
+Weather, industry trends, and regulatory alerts are valuable planning signals that do not require Swiggy data at all, and are not subject to the Integration Agreement's consent or competitive-intelligence constraints.
+
+### Decision
+Build three independently fail-open services under `infrastructure/external/`: `WeatherService` (Open-Meteo, free and keyless), `TrendsService` (curated Indian food and beverage RSS feeds, summarised via the existing LLM provider factory), and `ComplianceAlertsService` (FSSAI's public notifications page, parsed with BeautifulSoup). Each returns `None` on failure and never raises, matching the Swiggy enricher contract. A new `live_signals` node fetches all three once, early in the graph, so `demand_forecast` and `market_intel` both read the same fetch instead of calling the same services twice. Weather also applies a real deterministic multiplier to the Prophet forecast number, not just narrative prompt text.
+
+### Consequences
+- `GET /market/pulse` returns weather, trends, and compliance alerts independently of whether Swiggy is connected
+- All five signal sources (competitor, occupancy, weather, trends, compliance) are independently optional through the whole pipeline: any subset being unavailable never blocks the others
+
+---
+
+## D-026: Langfuse session scoped to the individual run, not the organisation
+**Date:** July 2026
+**Status:** Accepted
+
+### Context
+Kindred's replay debugging tool matches an original trace to its replay by polling Langfuse trace metadata, keyed by `session_id`. The original implementation set `session_id = f"org-{org_id}"`, pooling every run from one organisation into a single Langfuse session. Live testing found this actively broke Kindred's original-to-replay matching: one session had pooled 199 unrelated observations across many unrelated runs.
+
+### Decision
+Scope `session_id` to the individual `run_id` instead of the organisation.
+
+### Consequences
+- Original and replay trace-tree structure now line up one to one
+- Kindred's own Reproducibility comparison view still does not render the original output for the "Agent Output" step even with the session fix; this was directly verified via Langfuse's public API to be a gap in Kindred's own matching and rendering, not a data problem on this side

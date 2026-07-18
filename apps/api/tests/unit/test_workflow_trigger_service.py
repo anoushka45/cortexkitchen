@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.infrastructure.db.models import ActionQueue, ActionStatus
+from app.infrastructure.db.models import ActionQueue, ActionStatus, Vendor, VendorPriceQuote
 from app.domain.services.workflow_trigger_service import WorkflowTriggerService
 
 
@@ -13,6 +13,8 @@ from app.domain.services.workflow_trigger_service import WorkflowTriggerService
 def engine():
     eng = create_engine("sqlite:///:memory:")
     ActionQueue.__table__.create(bind=eng)
+    Vendor.__table__.create(bind=eng)
+    VendorPriceQuote.__table__.create(bind=eng)
     yield eng
     eng.dispose()
 
@@ -23,23 +25,31 @@ def db(engine):
         yield session
         session.rollback()
         session.query(ActionQueue).delete()
+        session.query(VendorPriceQuote).delete()
+        session.query(Vendor).delete()
         session.commit()
 
 
 ORG_ID = 1
 
 
-def _plan_with_shortages(*ingredients_with_severity):
+def _plan_with_shortages(*ingredients_with_severity, forecast_data=None):
     return {
         "recommendations": {
             "inventory": {
                 "data": {
                     "shortage_alerts": [
-                        {"ingredient": name, "severity": severity}
+                        {
+                            "ingredient": name, "severity": severity,
+                            "unit": "kg", "quantity_in_stock": 1.0,
+                            "reorder_threshold": 1.5, "shortfall": 0.5,
+                            "recommended_restock_qty": 0.5,
+                        }
                         for name, severity in ingredients_with_severity
                     ]
                 }
-            }
+            },
+            **({"forecast": {"data": forecast_data}} if forecast_data else {}),
         },
         "market_intel": {},
     }
@@ -89,6 +99,59 @@ def test_repeated_run_does_not_duplicate_pending_restock_alert(db):
     service.evaluate_and_queue(ORG_ID, plan)
     second_run = service.evaluate_and_queue(ORG_ID, plan)
     assert second_run == []
+
+
+def test_restock_alert_payload_carries_full_shortage_detail(db):
+    """P6-A31: Action Center's hero card + list need real per-ingredient
+    numbers, not just names."""
+    plan = _plan_with_shortages(("Mozzarella", "critical"), ("Basil", "critical"))
+    service = WorkflowTriggerService(db)
+    created = service.evaluate_and_queue(ORG_ID, plan)
+
+    shortages = created[0].payload["shortages"]
+    assert len(shortages) == 2
+    first = shortages[0]
+    assert first["ingredient"] == "Mozzarella"
+    assert first["quantity_in_stock"] == 1.0
+    assert first["reorder_threshold"] == 1.5
+    assert first["recommended_restock_qty"] == 0.5
+    assert first["suggested_vendor"] is None  # no VendorPriceQuote seeded
+    assert "usual minimum" in first["reason"]  # generic fallback reason, plain language
+
+
+def test_restock_alert_suggests_real_cheapest_vendor(db):
+    vendor_a = Vendor(org_id=ORG_ID, name="Ramesh Traders", category="produce")
+    vendor_b = Vendor(org_id=ORG_ID, name="Sharma Supplies", category="produce")
+    db.add_all([vendor_a, vendor_b])
+    db.flush()
+    db.add_all([
+        VendorPriceQuote(vendor_id=vendor_a.id, ingredient="Mozzarella", price=180.0),
+        VendorPriceQuote(vendor_id=vendor_b.id, ingredient="Mozzarella", price=210.0),
+    ])
+    db.commit()
+
+    plan = _plan_with_shortages(("Mozzarella", "critical"), ("Basil", "critical"))
+    service = WorkflowTriggerService(db)
+    created = service.evaluate_and_queue(ORG_ID, plan)
+
+    shortages = created[0].payload["shortages"]
+    mozzarella = next(s for s in shortages if s["ingredient"] == "Mozzarella")
+    assert mozzarella["suggested_vendor"] == "Ramesh Traders"  # cheapest quote wins
+
+
+def test_restock_alert_reason_uses_real_forecast_adjustment(db):
+    plan = _plan_with_shortages(
+        ("Mozzarella", "critical"), ("Basil", "critical"),
+        forecast_data={
+            "adjustment_multiplier": 1.32,
+            "adjustment_reasons": ["weather (rain): x1.3"],
+        },
+    )
+    service = WorkflowTriggerService(db)
+    created = service.evaluate_and_queue(ORG_ID, plan)
+
+    shortages = created[0].payload["shortages"]
+    assert all("32%" in s["reason"] and "higher" in s["reason"] for s in shortages)
 
 
 # ── Trigger 2: busy + competitor deals ───────────────────────────────────────

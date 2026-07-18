@@ -2,32 +2,122 @@
 
 import { useEffect, useState } from "react";
 import { getActionQueue, approveAction, rejectAction, type ActionQueueItem } from "@/lib/api";
+import {
+  AGENT_LABELS, CATEGORY_LABELS, CATEGORY_TONE, CATEGORY_TONE_SOFT,
+  CategoryIcon, CheckIcon, InfoIcon, XIcon, priorityLabel, shortagesOf,
+} from "@/components/actioncenter/actionQueueMeta";
 
-const CATEGORY_LABELS: Record<string, string> = {
-  whatsapp_vendor_order: "WhatsApp vendor order",
-  restock_alert: "Restock",
-};
+export function ActionDetailsModal({
+  action, busy, error, onClose, onApprove,
+}: {
+  action: ActionQueueItem;
+  busy: boolean;
+  error?: string;
+  onClose: () => void;
+  onApprove: (action: ActionQueueItem) => void;
+}) {
+  const shortages = shortagesOf(action);
 
-const TIER_LABELS: Record<string, string> = {
-  auto: "Auto",
-  approve_required: "Needs approval",
-  recommendation: "Recommendation",
-};
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-md rounded-2xl bg-[var(--color-surface-raised)] p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-[14px] font-bold text-[var(--color-text-primary)]">{action.title}</p>
 
-export default function ActionQueuePanel() {
-  const [actions, setActions] = useState<ActionQueueItem[]>([]);
-  const [loaded, setLoaded] = useState(false);
+        {action.category === "whatsapp_vendor_order" && (
+          <>
+            <p className="mt-1 text-[11.5px] text-[var(--color-text-faint)]">
+              To: {String(action.payload.vendor ?? "Vendor")}
+            </p>
+            <div className="mt-3 rounded-xl bg-[#dcf8c6] p-3 text-[13px] leading-snug text-[#111]">
+              {String(action.payload.message_draft ?? "")}
+            </div>
+          </>
+        )}
+
+        {action.category === "restock_alert" && shortages.length > 0 && (
+          <div className="mt-3 max-h-80 space-y-3 overflow-y-auto">
+            {shortages.map((s) => (
+              <div key={s.ingredient} className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] p-3">
+                <p className="text-[13px] font-semibold text-[var(--color-text-primary)]">{s.ingredient}</p>
+                {s.quantity_in_stock !== undefined && (
+                  <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">
+                    {s.quantity_in_stock}{s.unit} in stock, vs {s.reorder_threshold}{s.unit} threshold
+                  </p>
+                )}
+                {s.recommended_restock_qty !== undefined && (
+                  <p className="mt-1 text-[12px] font-medium" style={{ color: "var(--color-accent)" }}>
+                    Restock {s.recommended_restock_qty}{s.unit}{s.suggested_vendor ? ` from ${s.suggested_vendor}` : ""}
+                  </p>
+                )}
+                {s.reason && <p className="mt-0.5 text-[11px] text-[var(--color-text-soft)]">{s.reason}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {action.category === "pricing_promo_review" && (
+          <p className="mt-2 text-[12px] text-[var(--color-text-soft)]">
+            {String(action.payload.area_deals_count ?? 0)} area deal(s) live tonight while occupancy is high.
+          </p>
+        )}
+
+        {error && (
+          <p className="mt-2 text-[11px]" style={{ color: "var(--color-caution)" }}>Couldn&apos;t send: {error}</p>
+        )}
+
+        <div className="mt-4 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-lg px-4 py-2 text-[12px] font-semibold text-[var(--color-text-faint)]">
+            Cancel
+          </button>
+          <button
+            onClick={() => onApprove(action)}
+            disabled={busy}
+            className="btn-primary rounded-lg px-4 py-2 text-[12px] font-semibold disabled:opacity-50"
+          >
+            Approve
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function ActionQueuePanel({
+  actions: controlledActions,
+  onActionTaken,
+  emptyMessage,
+}: {
+  actions?: ActionQueueItem[];
+  onActionTaken?: () => void;
+  emptyMessage?: string;
+} = {}) {
+  const [actions, setActions] = useState<ActionQueueItem[]>(controlledActions ?? []);
+  const [loaded, setLoaded] = useState(!!controlledActions);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
-  const [previewAction, setPreviewAction] = useState<ActionQueueItem | null>(null);
+  const [detailsAction, setDetailsAction] = useState<ActionQueueItem | null>(null);
   const [actionErrors, setActionErrors] = useState<Record<number, string>>({});
 
+  // Uncontrolled mode (e.g. /planning): self-fetch pending actions once.
   useEffect(() => {
+    if (controlledActions) return;
     getActionQueue("pending")
       .then((data) => { setActions(data); setLoadError(null); })
       .catch((err) => { console.error("Action Queue load failed:", err); setLoadError(err instanceof Error ? err.message : "Failed to load."); })
       .finally(() => setLoaded(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Controlled mode (Action Center): mirror whatever the parent already fetched.
+  useEffect(() => {
+    if (controlledActions) {
+      setActions(controlledActions);
+      setLoaded(true);
+    }
+  }, [controlledActions]);
 
   const handleApprove = async (action: ActionQueueItem) => {
     setBusyId(action.id);
@@ -46,12 +136,13 @@ export default function ActionQueuePanel() {
           delete next[action.id];
           return next;
         });
+        onActionTaken?.();
       }
     } catch (err) {
       setActionErrors((prev) => ({ ...prev, [action.id]: err instanceof Error ? err.message : "Approve failed." }));
     } finally {
       setBusyId(null);
-      setPreviewAction(null);
+      setDetailsAction(null);
     }
   };
 
@@ -60,6 +151,7 @@ export default function ActionQueuePanel() {
     try {
       await rejectAction(action.id);
       setActions((prev) => prev.filter((a) => a.id !== action.id));
+      onActionTaken?.();
     } catch {
       // leave the item in the list on failure
     } finally {
@@ -70,9 +162,16 @@ export default function ActionQueuePanel() {
   return (
     <div className="card p-6">
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[15px] font-bold text-[var(--color-text-primary)]">Action Queue</p>
-          <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">Recommendations awaiting your approval</p>
+        <div className="flex items-center gap-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
+            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </span>
+          <div>
+            <p className="text-[15px] font-bold text-[var(--color-text-primary)]">Action Queue</p>
+            <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">Recommendations awaiting your approval</p>
+          </div>
         </div>
         {actions.length > 0 && (
           <span
@@ -89,110 +188,111 @@ export default function ActionQueuePanel() {
       ) : loadError ? (
         <p className="mt-4 text-[11px]" style={{ color: "var(--color-caution)" }}>Couldn&apos;t load the Action Queue ({loadError}).</p>
       ) : actions.length === 0 ? (
-        <p className="mt-4 text-[11px] text-[var(--color-text-faint)]">Nothing waiting for approval right now.</p>
+        <p className="mt-4 text-[11px] text-[var(--color-text-faint)]">{emptyMessage ?? "Nothing waiting for approval right now."}</p>
       ) : (
         <div className="mt-4 space-y-2.5">
-          {actions.map((action) => (
-            <div
-              key={action.id}
-              className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 py-3"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
+          {actions.map((action) => {
+            const shortages = shortagesOf(action);
+            const subtitle =
+              shortages.length === 1
+                ? `${shortages[0].quantity_in_stock ?? "?"}${shortages[0].unit ?? ""} vs ${shortages[0].reorder_threshold ?? "?"}${shortages[0].unit ?? ""} threshold`
+                : shortages.length > 1
+                ? `${shortages.length} ingredients below threshold`
+                : null;
+
+            return (
+              <div
+                key={action.id}
+                className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-4 py-3.5"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-3">
                     <span
-                      className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-                      style={{ background: "rgba(56,189,248,0.10)", color: "#38bdf8" }}
+                      className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                      style={{ background: CATEGORY_TONE_SOFT[action.category] ?? "var(--color-surface-sunken)", color: CATEGORY_TONE[action.category] ?? "var(--color-text-faint)" }}
                     >
-                      {CATEGORY_LABELS[action.category] ?? action.category}
+                      <CategoryIcon category={action.category} className="h-[18px] w-[18px]" />
                     </span>
-                    <span className="text-[10px] text-[var(--color-text-faint)]">{TIER_LABELS[action.tier]}</span>
-                    {action.approval_streak > 0 && (
-                      <span
-                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                        style={{ background: "var(--color-good-soft)", color: "var(--color-good)" }}
-                        title={`You've approved ${CATEGORY_LABELS[action.category] ?? action.category} ${action.approval_streak} time${action.approval_streak !== 1 ? "s" : ""} in a row`}
-                      >
-                        Approved {action.approval_streak}x in a row
-                      </span>
-                    )}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                          style={{ background: CATEGORY_TONE_SOFT[action.category] ?? "var(--color-surface-sunken)", color: CATEGORY_TONE[action.category] ?? "var(--color-text-faint)" }}
+                        >
+                          {CATEGORY_LABELS[action.category] ?? action.category}
+                        </span>
+                        {action.approval_streak > 0 && (
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                            style={{ background: "var(--color-good-soft)", color: "var(--color-good)" }}
+                            title={`You've approved ${CATEGORY_LABELS[action.category] ?? action.category} ${action.approval_streak} time${action.approval_streak !== 1 ? "s" : ""} in a row`}
+                          >
+                            Approved {action.approval_streak}x in a row
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 truncate text-[13px] font-medium text-[var(--color-text-primary)]">{action.title}</p>
+                      {subtitle && <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">{subtitle}</p>}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <span className="rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-2 py-0.5 text-[10px] font-medium text-[var(--color-text-soft)]">
+                          {AGENT_LABELS[action.category] ?? "Agent"}
+                        </span>
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                          style={{ background: "var(--color-caution-soft)", color: "var(--color-caution)" }}
+                        >
+                          {priorityLabel(action)}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <p className="mt-1 truncate text-[13px] font-medium text-[var(--color-text-primary)]">{action.title}</p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  {action.category === "whatsapp_vendor_order" ? (
-                    <button
-                      onClick={() => setPreviewAction(action)}
-                      disabled={busyId === action.id}
-                      className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
-                      style={{ background: "var(--color-good)" }}
-                    >
-                      Review &amp; approve
-                    </button>
-                  ) : (
+                  <div className="flex shrink-0 items-center gap-2">
                     <button
                       onClick={() => handleApprove(action)}
                       disabled={busyId === action.id}
-                      className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
+                      className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
                       style={{ background: "var(--color-good)" }}
                     >
+                      <CheckIcon className="h-3 w-3" />
                       Approve
                     </button>
-                  )}
-                  <button
-                    onClick={() => handleReject(action)}
-                    disabled={busyId === action.id}
-                    className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-[var(--color-text-faint)] disabled:opacity-50"
-                    style={{ background: "var(--color-surface-sunken)" }}
-                  >
-                    Dismiss
-                  </button>
+                    <button
+                      onClick={() => handleReject(action)}
+                      disabled={busyId === action.id}
+                      className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[12px] font-semibold text-[var(--color-text-faint)] disabled:opacity-50"
+                      style={{ background: "var(--color-surface-sunken)" }}
+                    >
+                      <XIcon className="h-3 w-3" />
+                      Dismiss
+                    </button>
+                    <button
+                      onClick={() => setDetailsAction(action)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-border-default)] px-3 py-1.5 text-[12px] font-semibold text-[var(--color-text-soft)] transition-colors hover:text-[var(--color-text-primary)]"
+                    >
+                      <InfoIcon className="h-3 w-3" />
+                      Details
+                    </button>
+                  </div>
                 </div>
+                {actionErrors[action.id] && (
+                  <p className="mt-2 text-[11px]" style={{ color: "var(--color-caution)" }}>
+                    Couldn&apos;t send: {actionErrors[action.id]}
+                  </p>
+                )}
               </div>
-              {actionErrors[action.id] && (
-                <p className="mt-2 text-[11px]" style={{ color: "var(--color-caution)" }}>
-                  Couldn&apos;t send: {actionErrors[action.id]}
-                </p>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {previewAction && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setPreviewAction(null)}
-        >
-          <div
-            className="w-full max-w-md rounded-2xl bg-[var(--color-surface-raised)] p-6 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="text-[14px] font-bold text-[var(--color-text-primary)]">WhatsApp message preview</p>
-            <p className="mt-1 text-[11.5px] text-[var(--color-text-faint)]">
-              To: {String(previewAction.payload.vendor ?? "Vendor")}
-            </p>
-            <div className="mt-3 rounded-xl bg-[#dcf8c6] p-3 text-[13px] leading-snug text-[#111]">
-              {String(previewAction.payload.message_draft ?? "")}
-            </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => setPreviewAction(null)}
-                className="rounded-lg px-4 py-2 text-[12px] font-semibold text-[var(--color-text-faint)]"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleApprove(previewAction)}
-                disabled={busyId === previewAction.id}
-                className="rounded-lg px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
-                style={{ background: "var(--color-good)" }}
-              >
-                Approve &amp; send
-              </button>
-            </div>
-          </div>
-        </div>
+      {detailsAction && (
+        <ActionDetailsModal
+          action={detailsAction}
+          busy={busyId === detailsAction.id}
+          error={actionErrors[detailsAction.id]}
+          onClose={() => setDetailsAction(null)}
+          onApprove={handleApprove}
+        />
       )}
     </div>
   );

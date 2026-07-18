@@ -43,6 +43,15 @@ const GRADIENT = {
   orange: "linear-gradient(135deg,#fdba74,#ea580c)",
 } as const;
 
+const LIVE_BORDER_STYLE = (
+  <style jsx global>{`
+    @keyframes contextBorderSweep {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 200% 50%; }
+    }
+  `}</style>
+);
+
 const SCENARIO_ICON: Record<string, { gradient: string; iconPath: string }> = {
   friday_rush: { gradient: GRADIENT.orange, iconPath: "M17 20h5v-2a3 3 0 00-5.356-1.857M9 20H4v-2a3 3 0 015.356-1.857M9 20v-2c0-.653.126-1.277.356-1.857M9 20a3 3 0 016 0m-6-1.857A3 3 0 0112 15a3 3 0 013 3.143M13 7a4 4 0 11-8 0 4 4 0 018 0zm6 3a4 4 0 11-8 0 4 4 0 018 0z" },
   weekday_lunch: { gradient: GRADIENT.orange, iconPath: "M12 3v1.5M12 19.5V21M4.219 4.219l1.061 1.06M18.72 18.72l1.06 1.06M3 12h1.5M19.5 12H21M4.219 19.781l1.061-1.06M18.72 5.28l1.06-1.06M16.5 12a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" },
@@ -249,7 +258,9 @@ export default function PlanningIdleState({
   }
 
   return (
-    <div className="space-y-8 py-6">
+    <>
+      {LIVE_BORDER_STYLE}
+      <div className="space-y-8 py-6">
       {/* ═══ Side by side: a compact control panel (trigger + live signals +
           how-to-plan) next to the agent showcase -- both visible in one
           viewport. The left panel triggers a run, the right side sells the
@@ -313,9 +324,17 @@ export default function PlanningIdleState({
           </div>
 
           <div
-            className="rounded-2xl border p-4"
-            style={{ borderColor: "var(--context-card-border)", background: "var(--context-card-gradient)" }}
+            className="rounded-2xl p-[1px]"
+            style={{
+              background: "linear-gradient(90deg, rgba(56,132,255,0.15), rgba(249,115,22,0.55), rgba(56,132,255,0.15))",
+              backgroundSize: "200% 100%",
+              animation: "contextBorderSweep 2.2s linear infinite",
+            }}
           >
+            <div
+              className="rounded-[15px] border p-4"
+              style={{ borderColor: "var(--context-card-border)", background: "var(--context-card-gradient)" }}
+            >
             <p className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-primary)]">Today&apos;s context</p>
             <div className="mt-2.5 min-h-[136px]">
               {!marketLoaded ? (
@@ -350,6 +369,7 @@ export default function PlanningIdleState({
                 </div>
               )}
             </div>
+            </div>
           </div>
 
           <DeliverablesCard />
@@ -359,7 +379,7 @@ export default function PlanningIdleState({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="display text-[28px] leading-tight text-[var(--color-text-primary)]">
+              <p className="text-[28px] font-bold leading-tight text-[var(--color-text-primary)]">
                 Your{" "}
                 <span style={{ color: "var(--color-accent)" }}>
                   Smartest Shift
@@ -412,6 +432,7 @@ export default function PlanningIdleState({
         marketPulse={marketPulse}
         marketLoaded={marketLoaded}
       />
-    </div>
+      </div>
+    </>
   );
 }

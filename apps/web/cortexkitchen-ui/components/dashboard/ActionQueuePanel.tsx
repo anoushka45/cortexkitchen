@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getActionQueue, approveAction, rejectAction, type ActionQueueItem } from "@/lib/api";
 import {
   AGENT_LABELS, CATEGORY_LABELS, CATEGORY_TONE, CATEGORY_TONE_SOFT,
-  CategoryIcon, CheckIcon, InfoIcon, XIcon, priorityLabel, shortagesOf,
+  CategoryIcon, ChannelIcon, CheckIcon, InfoIcon, XIcon, channelOf, priorityLabel, shortagesOf,
 } from "@/components/actioncenter/actionQueueMeta";
+
+type ChannelTab = "all" | "instamart" | "whatsapp";
+const CHANNEL_TABS: { key: ChannelTab; label: string }[] = [
+  { key: "all", label: "All channels" },
+  { key: "instamart", label: "Instamart" },
+  { key: "whatsapp", label: "WhatsApp" },
+];
 
 export function ActionDetailsModal({
   action, busy, error, onClose, onApprove,
@@ -49,7 +56,7 @@ export function ActionDetailsModal({
                 )}
                 {s.recommended_restock_qty !== undefined && (
                   <p className="mt-1 text-[12px] font-medium" style={{ color: "var(--color-accent)" }}>
-                    Restock {s.recommended_restock_qty}{s.unit}{s.suggested_vendor ? ` from ${s.suggested_vendor}` : ""}
+                    Restock {s.recommended_restock_qty}{s.unit}{s.whatsapp_vendor ? ` — message ${s.whatsapp_vendor} on WhatsApp, or check Instamart` : ""}
                   </p>
                 )}
                 {s.reason && <p className="mt-0.5 text-[11px] text-[var(--color-text-soft)]">{s.reason}</p>}
@@ -100,6 +107,7 @@ export default function ActionQueuePanel({
   const [busyId, setBusyId] = useState<number | null>(null);
   const [detailsAction, setDetailsAction] = useState<ActionQueueItem | null>(null);
   const [actionErrors, setActionErrors] = useState<Record<number, string>>({});
+  const [channelTab, setChannelTab] = useState<ChannelTab>("all");
 
   // Uncontrolled mode (e.g. /planning): self-fetch pending actions once.
   useEffect(() => {
@@ -159,6 +167,17 @@ export default function ActionQueuePanel({
     }
   };
 
+  const channelCounts = useMemo(() => {
+    const c: Record<ChannelTab, number> = { all: actions.length, instamart: 0, whatsapp: 0 };
+    for (const a of actions) {
+      const ch = channelOf(a);
+      if (ch) c[ch] += 1;
+    }
+    return c;
+  }, [actions]);
+
+  const visibleActions = channelTab === "all" ? actions : actions.filter((a) => channelOf(a) === channelTab);
+
   return (
     <div className="card p-6">
       <div className="flex items-center justify-between gap-3">
@@ -183,15 +202,44 @@ export default function ActionQueuePanel({
         )}
       </div>
 
+      {loaded && !loadError && actions.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-1.5">
+          {CHANNEL_TABS.map((tab) => {
+            const active = channelTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setChannelTab(tab.key)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11.5px] font-medium transition-colors ${
+                  active
+                    ? "border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-text-primary)]"
+                    : "border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] text-[var(--color-text-faint)] hover:text-[var(--color-text-soft)]"
+                }`}
+              >
+                {tab.key !== "all" && <ChannelIcon channel={tab.key} className="h-3.5 w-3.5" />}
+                {tab.label}
+                <span className={active ? "text-[var(--color-text-soft)]" : "text-[var(--color-text-ghost)]"}>
+                  {channelCounts[tab.key]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {!loaded ? (
         <p className="mt-4 text-[11px] text-[var(--color-text-faint)]">Loading…</p>
       ) : loadError ? (
         <p className="mt-4 text-[11px]" style={{ color: "var(--color-caution)" }}>Couldn&apos;t load the Action Queue ({loadError}).</p>
       ) : actions.length === 0 ? (
         <p className="mt-4 text-[11px] text-[var(--color-text-faint)]">{emptyMessage ?? "Nothing waiting for approval right now."}</p>
+      ) : visibleActions.length === 0 ? (
+        <p className="mt-4 text-[11px] text-[var(--color-text-faint)]">
+          Nothing via {channelTab === "instamart" ? "Instamart" : "WhatsApp"} right now.
+        </p>
       ) : (
         <div className="mt-4 space-y-2.5">
-          {actions.map((action) => {
+          {visibleActions.map((action) => {
             const shortages = shortagesOf(action);
             const subtitle =
               shortages.length === 1
@@ -208,10 +256,10 @@ export default function ActionQueuePanel({
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
                     <span
-                      className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                      className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
                       style={{ background: CATEGORY_TONE_SOFT[action.category] ?? "var(--color-surface-sunken)", color: CATEGORY_TONE[action.category] ?? "var(--color-text-faint)" }}
                     >
-                      <CategoryIcon category={action.category} className="h-[18px] w-[18px]" />
+                      <CategoryIcon category={action.category} className="h-[22px] w-[22px]" />
                     </span>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -221,6 +269,7 @@ export default function ActionQueuePanel({
                         >
                           {CATEGORY_LABELS[action.category] ?? action.category}
                         </span>
+                        <ChannelIcon channel={channelOf(action)} className="h-3.5 w-3.5" />
                         {action.approval_streak > 0 && (
                           <span
                             className="rounded-full px-2 py-0.5 text-[10px] font-semibold"

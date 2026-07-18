@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { getOrgSettings, updateOrgSettings, OrgSettings } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import PageHeading from "@/components/ui/PageHeading";
 
 interface FieldDef {
   key: keyof OrgSettings;
@@ -93,12 +94,13 @@ export default function SettingsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[var(--color-surface)] px-4 py-10 text-[var(--color-text-primary)]">
+    <div className="min-h-screen page-canvas px-4 py-10 text-[var(--color-text-primary)]">
       <div className="max-w-2xl mx-auto">
         <div className="mb-8 stagger-1">
-          <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-accent)]">configuration</p>
-          <h1 className="display mt-2 text-[28px] text-[var(--color-text-primary)]">Workspace Settings</h1>
-          <p className="text-[var(--color-text-faint)] text-sm mt-1">{user?.org_name}  -  {user?.role}</p>
+          <PageHeading
+            title="Workspace Settings"
+            description={`${user?.org_name ?? ""}${user?.org_name && user?.role ? "  -  " : ""}${user?.role ?? ""}`}
+          />
         </div>
 
         <form onSubmit={handleSave} className="space-y-6">

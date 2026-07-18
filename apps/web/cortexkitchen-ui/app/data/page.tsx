@@ -11,6 +11,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import SectionHeader from "@/components/dashboard/SectionHeader";
 import RunHistorySection from "@/components/data/RunHistorySection";
 import DataHealthSection from "@/components/data/DataHealthSection";
+import PageHeading from "@/components/ui/PageHeading";
 
 function DataPageContent() {
   const router = useRouter();
@@ -27,18 +28,13 @@ function DataPageContent() {
   }, [searchParams]);
 
   return (
-    <main className="min-h-screen bg-[var(--color-surface)] px-5 py-6 text-[var(--color-text-primary)] xl:px-8">
+    <main className="min-h-screen page-canvas px-5 py-6 text-[var(--color-text-primary)] xl:px-8">
       <div className="mx-auto max-w-[1520px] space-y-8">
 
-        <header className="flex flex-col gap-4 border-b border-[var(--color-border-default)] pb-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-accent)]">data</p>
-            <h1 className="display mt-2 text-[32px] text-[var(--color-text-primary)]">Data</h1>
-            <p className="mt-1 max-w-2xl text-sm text-[var(--color-text-soft)]">
-              Every plan your kitchen has run and the source data behind it.
-            </p>
-          </div>
-        </header>
+        <PageHeading
+          title="Data"
+          description="Every plan your kitchen has run and the source data behind it."
+        />
 
         <div className="space-y-4">
           <SectionHeader

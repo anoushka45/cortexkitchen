@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ConnectorStatus, getConnectorsStatus, triggerSwiggySync } from "@/lib/api";
+import PageHeading from "@/components/ui/PageHeading";
 
 function formatRelativeTime(isoString: string | null): string {
   if (!isoString) return "Never";
@@ -243,27 +244,22 @@ export default function ConnectorsPage() {
   const swiggy = data?.connectors.find((c) => c.type === "swiggy");
 
   return (
-    <main className="min-h-screen bg-[var(--color-surface)] px-5 py-6 text-[var(--color-text-primary)] xl:px-8">
+    <main className="min-h-screen page-canvas px-5 py-6 text-[var(--color-text-primary)] xl:px-8">
       <div className="mx-auto max-w-3xl space-y-8">
 
         {/* Page header */}
-        <header className="flex flex-col gap-4 border-b border-[var(--color-border-default)] pb-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-accent)]">
-              platform integrations
-            </p>
-            <h1 className="display mt-2 text-[32px] text-[var(--color-text-primary)]">Connectors</h1>
-            <p className="mt-1 max-w-xl text-sm text-[var(--color-text-soft)]">
-              Live data from Swiggy powers your planning pipeline — real orders, delivery feedback, competitor pricing, and Instamart procurement.
-            </p>
-          </div>
-          <Link
-            href="/dashboard"
-            className="shrink-0 rounded-lg border border-[var(--color-border-default)] px-3 py-2 text-xs text-[var(--color-text-soft)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-primary)] transition-colors"
-          >
-            ← dashboard
-          </Link>
-        </header>
+        <PageHeading
+          title="Connectors"
+          description="Live data from Swiggy powers your planning pipeline — real orders, delivery feedback, competitor pricing, and Instamart procurement."
+          action={
+            <Link
+              href="/dashboard"
+              className="shrink-0 rounded-lg border border-[var(--color-border-default)] px-3 py-2 text-xs text-[var(--color-text-soft)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-primary)] transition-colors"
+            >
+              ← dashboard
+            </Link>
+          }
+        />
 
         {/* Error */}
         {error && (

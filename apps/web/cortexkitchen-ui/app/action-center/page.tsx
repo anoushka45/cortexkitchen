@@ -16,7 +16,27 @@ import ActionQueuePanel, { ActionDetailsModal } from "@/components/dashboard/Act
 import ActionQueueHistory, { type StatusTab } from "@/components/data/ActionQueueHistory";
 import ActionQueueStats, { type StatusKey } from "@/components/actioncenter/ActionQueueStats";
 import ActionAttentionHero from "@/components/actioncenter/ActionAttentionHero";
+import { shortagesOf } from "@/components/actioncenter/actionQueueMeta";
+import PageHeading from "@/components/ui/PageHeading";
 import { approveAction, getActionQueue, type ActionQueueItem } from "@/lib/api";
+
+const SNOOZE_KEY = "ck_snoozed_actions";
+const SNOOZE_MS = 60 * 60 * 1000;
+
+function loadSnoozed(): Record<number, number> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(SNOOZE_KEY) ?? "{}");
+    const now = Date.now();
+    const fresh: Record<number, number> = {};
+    for (const [id, expiry] of Object.entries(raw)) {
+      if (typeof expiry === "number" && expiry > now) fresh[Number(id)] = expiry;
+    }
+    return fresh;
+  } catch {
+    return {};
+  }
+}
 
 export default function ActionCenterPage() {
   const [allActions, setAllActions] = useState<ActionQueueItem[]>([]);
@@ -25,6 +45,7 @@ export default function ActionCenterPage() {
   const [detailsAction, setDetailsAction] = useState<ActionQueueItem | null>(null);
   const [detailsBusy, setDetailsBusy] = useState(false);
   const [detailsError, setDetailsError] = useState<string | undefined>(undefined);
+  const [snoozed, setSnoozed] = useState<Record<number, number>>({});
   const historyRef = useRef<HTMLDivElement | null>(null);
 
   const refetch = useCallback(() => {
@@ -34,13 +55,29 @@ export default function ActionCenterPage() {
       .finally(() => setLoaded(true));
   }, []);
 
-  useEffect(() => { refetch(); }, [refetch]);
+  useEffect(() => { refetch(); setSnoozed(loadSnoozed()); }, [refetch]);
+
+  const handleSnooze = (id: number) => {
+    const next = { ...snoozed, [id]: Date.now() + SNOOZE_MS };
+    setSnoozed(next);
+    window.localStorage.setItem(SNOOZE_KEY, JSON.stringify(next));
+  };
 
   const pendingActions = allActions.filter((a) => a.status === "pending");
-  const heroAction = pendingActions[0];
+  const featurable = pendingActions.filter((a) => !snoozed[a.id]);
+  // The hero is for the most critical thing right now -- a critical-shortage
+  // restock alert -- not just whichever pending item is newest or highest-tier.
+  const heroAction = featurable.find((a) => a.category === "restock_alert") ?? featurable[0];
+  // A restock_alert's top shortage may already have a linked WhatsApp draft
+  // (same ingredient, created alongside it) -- the hero's "message vendor"
+  // button opens that exact pending action instead of inventing a new one.
+  const heroTopIngredient = heroAction ? shortagesOf(heroAction)[0]?.ingredient : undefined;
+  const linkedWhatsappAction = heroTopIngredient
+    ? pendingActions.find((a) => a.category === "whatsapp_vendor_order" && a.payload.ingredient === heroTopIngredient)
+    : undefined;
   // The hero already gives the top item full-detail treatment -- don't show
-  // it a second time in the list right below it.
-  const queueActions = pendingActions.filter((a) => a.id !== heroAction?.id);
+  // it (or its linked WhatsApp draft) a second time in the list right below it.
+  const queueActions = pendingActions.filter((a) => a.id !== heroAction?.id && a.id !== linkedWhatsappAction?.id);
   const queueEmptyMessage = heroAction && queueActions.length === 0
     ? "The one item that needs a decision is featured above."
     : undefined;
@@ -71,35 +108,33 @@ export default function ActionCenterPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--color-surface-sunken)] px-5 py-6 text-[var(--color-text-primary)] xl:px-8">
+    <main className="min-h-screen page-canvas px-5 py-6 text-[var(--color-text-primary)] xl:px-8">
       <div className="mx-auto max-w-[1200px] space-y-6">
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-[34px] font-bold text-[var(--color-text-primary)]">Action Center</h1>
-            <div className="mt-2 h-1 w-12 rounded-full" style={{ background: "var(--color-accent)" }} />
-            <p className="mt-3 max-w-2xl text-sm text-[var(--color-text-soft)]">
-              Everything waiting on your approval, in one place. Approve it, dismiss it, or look back at what you&apos;ve already decided.
-            </p>
-          </div>
-          {loaded && pendingActions.length > 0 && (
-            <span
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-semibold"
-              style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
-                <path d="M11.983 1.5a.75.75 0 01.75.75v.06a8.25 8.25 0 016.75 8.108v3.05l1.2 2.4a.75.75 0 01-.67 1.087H4.987a.75.75 0 01-.67-1.087l1.2-2.4v-3.05a8.25 8.25 0 016.75-8.109v-.06a.75.75 0 01.716-.75zM12 21a2.25 2.25 0 002.236-2h-4.472A2.25 2.25 0 0012 21z" />
-              </svg>
-              {pendingActions.length} Pending Approval{pendingActions.length !== 1 ? "s" : ""}
-            </span>
-          )}
-        </header>
+        <PageHeading
+          title="Action Center"
+          description="Everything waiting on your approval, in one place. Approve it, dismiss it, or look back at what you've already decided."
+          action={
+            loaded && pendingActions.length > 0 && (
+              <span
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-semibold"
+                style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
+                  <path d="M11.983 1.5a.75.75 0 01.75.75v.06a8.25 8.25 0 016.75 8.108v3.05l1.2 2.4a.75.75 0 01-.67 1.087H4.987a.75.75 0 01-.67-1.087l1.2-2.4v-3.05a8.25 8.25 0 016.75-8.109v-.06a.75.75 0 01.716-.75zM12 21a2.25 2.25 0 002.236-2h-4.472A2.25 2.25 0 0012 21z" />
+                </svg>
+                {pendingActions.length} Pending Approval{pendingActions.length !== 1 ? "s" : ""}
+              </span>
+            )
+          }
+        />
 
         {loaded && heroAction && (
           <ActionAttentionHero
             action={heroAction}
-            onApproved={refetch}
+            linkedWhatsappAction={linkedWhatsappAction}
             onDismissed={refetch}
-            onViewDetails={() => { setDetailsError(undefined); setDetailsAction(heroAction); }}
+            onOpenAction={(a) => { setDetailsError(undefined); setDetailsAction(a); }}
+            onSnoozed={() => handleSnooze(heroAction.id)}
           />
         )}
 

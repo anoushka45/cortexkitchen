@@ -9,21 +9,21 @@ export type StatusKey = "pending" | "executed" | "approved" | "rejected";
 // the card's own background -- a plain white card with a faint tinted
 // circle read as lifeless, so color now carries the whole tile, not just a
 // small icon accent.
-const STAT_META: Record<StatusKey, { label: string; color: string; wash: string; washDark: string }> = {
-  pending:  { label: "Pending",  color: "var(--color-caution)",  wash: "rgba(180,83,9,0.10)",  washDark: "rgba(245,190,115,0.09)" },
-  executed: { label: "Executed", color: "var(--color-good)",     wash: "rgba(14,159,110,0.10)", washDark: "rgba(52,211,153,0.09)" },
-  approved: { label: "Approved", color: "var(--color-accent)",   wash: "rgba(176,98,26,0.10)",  washDark: "rgba(230,137,42,0.10)" },
-  rejected: { label: "Rejected", color: "var(--color-critical)", wash: "rgba(225,29,72,0.09)",  washDark: "rgba(251,113,133,0.09)" },
+const STAT_META: Record<StatusKey, { label: string; color: string; wash: string; washDark: string; iconWash: string; iconWashDark: string }> = {
+  pending:  { label: "Pending",  color: "var(--color-caution)",  wash: "rgba(180,83,9,0.10)",  washDark: "rgba(245,190,115,0.09)", iconWash: "rgba(180,83,9,0.28)",  iconWashDark: "rgba(245,190,115,0.30)" },
+  executed: { label: "Executed", color: "var(--color-good)",     wash: "rgba(14,159,110,0.10)", washDark: "rgba(52,211,153,0.09)", iconWash: "rgba(14,159,110,0.28)", iconWashDark: "rgba(52,211,153,0.30)" },
+  approved: { label: "Approved", color: "var(--color-accent)",   wash: "rgba(176,98,26,0.10)",  washDark: "rgba(230,137,42,0.10)", iconWash: "rgba(176,98,26,0.28)",  iconWashDark: "rgba(230,137,42,0.30)" },
+  rejected: { label: "Rejected", color: "var(--color-critical)", wash: "rgba(225,29,72,0.09)",  washDark: "rgba(251,113,133,0.09)", iconWash: "rgba(225,29,72,0.26)",  iconWashDark: "rgba(251,113,133,0.28)" },
 };
 
 const STAT_ORDER: StatusKey[] = ["pending", "executed", "approved", "rejected"];
 
 function StatIcon({ status }: { status: StatusKey }) {
-  const cls = "h-5 w-5 text-white";
-  if (status === "pending") return <HourglassIcon className={cls} strokeWidth={2.4} />;
-  if (status === "executed") return <CheckIcon className={cls} strokeWidth={3} />;
-  if (status === "approved") return <ThumbUpIcon className={cls} strokeWidth={2.4} />;
-  return <XIcon className={cls} strokeWidth={3} />;
+  const cls = "h-3.5 w-3.5";
+  if (status === "pending") return <HourglassIcon className={cls} strokeWidth={2.2} />;
+  if (status === "executed") return <CheckIcon className={cls} strokeWidth={2.6} />;
+  if (status === "approved") return <ThumbUpIcon className={cls} strokeWidth={2.2} />;
+  return <XIcon className={cls} strokeWidth={2.6} />;
 }
 
 export default function ActionQueueStats({
@@ -58,8 +58,8 @@ export default function ActionQueueStats({
           >
             <div className="flex min-w-0 items-center gap-3">
               <span
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full shadow-sm"
-                style={{ background: meta.color }}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                style={{ background: isDark ? meta.iconWashDark : meta.iconWash, color: meta.color }}
               >
                 <StatIcon status={key} />
               </span>

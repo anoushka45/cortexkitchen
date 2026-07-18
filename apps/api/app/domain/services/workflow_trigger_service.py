@@ -34,9 +34,10 @@ class WorkflowTriggerService:
         and creates an Action Queue row for each one that fires. Returns the
         list of created actions (empty if neither condition holds)."""
         created = []
-        shortage_action = self._check_critical_shortages(org_id, plan_result)
+        shortage_action, whatsapp_drafts = self._check_critical_shortages(org_id, plan_result)
         if shortage_action:
             created.append(shortage_action)
+        created.extend(whatsapp_drafts)
         pricing_action = self._check_busy_plus_competitor_deals(org_id, plan_result)
         if pricing_action:
             created.append(pricing_action)
@@ -52,68 +53,129 @@ class WorkflowTriggerService:
         """Trigger 1: 2+ critical shortages found -> queue an urgent restock action.
 
         The action carries full per-ingredient detail (stock/threshold/shortfall/
-        recommended restock qty, a real cheapest-vendor suggestion when a
-        VendorPriceQuote exists, and the real forecast demand reason when a
-        weather/holiday signal adjusted it) -- all of it was already computed by
-        InventoryService/ForecastService for this run, just not previously
-        attached to the stored action row (P6-A31: Action Center hero card +
-        list needed this to show real numbers, not placeholders).
+        recommended restock qty, a real local-vendor name when a VendorPriceQuote
+        exists, and the real forecast demand reason when a weather/holiday signal
+        adjusted it) -- all of it was already computed by InventoryService/
+        ForecastService for this run, just not previously attached to the stored
+        action row (P6-A31: Action Center hero card + list needed this to show
+        real numbers, not placeholders).
+
+        Deliberately does NOT auto-pick a fulfillment channel: a restaurant
+        owner decides per shortage whether to check Instamart's live price or
+        message their usual local vendor on WhatsApp, based on their own
+        relationship/urgency/mood -- the system's job is to surface both real
+        options, not silently choose one. Instamart is always checkable live
+        (a separate on-demand search, not something to pre-fetch here); when a
+        local vendor genuinely carries this ingredient (real VendorPriceQuote,
+        never fabricated), a WhatsApp order draft to that vendor is created
+        alongside the restock alert so approving it is one click away, instead
+        of the owner having to start that conversation from scratch.
+
+        Returns (restock_action, whatsapp_draft_actions).
         """
         if self._has_pending(org_id, "restock_alert"):
-            return None
+            return None, []
         inv_data = ((plan_result.get("recommendations") or {}).get("inventory") or {}).get("data") or {}
         critical = [
             a for a in (inv_data.get("shortage_alerts") or [])
             if isinstance(a, dict) and a.get("severity") == "critical" and a.get("ingredient")
         ]
         if len(critical) < 2:
-            return None
+            return None, []
 
         reason = self._demand_reason(plan_result)
-        shortages = [
-            {
+        shortages = []
+        whatsapp_drafts = []
+        for a in critical:
+            vendor = self._find_whatsapp_vendor(org_id, a["ingredient"])
+            shortages.append({
                 "ingredient": a["ingredient"],
                 "unit": a.get("unit"),
                 "quantity_in_stock": a.get("quantity_in_stock"),
                 "reorder_threshold": a.get("reorder_threshold"),
                 "shortfall": a.get("shortfall"),
                 "recommended_restock_qty": a.get("recommended_restock_qty"),
-                "suggested_vendor": self._suggest_vendor(org_id, a["ingredient"]),
+                "whatsapp_vendor": vendor.name if vendor else None,
                 "reason": reason or f"Stock is running below your usual minimum of {a.get('reorder_threshold')}{a.get('unit') or ''}.",
-            }
-            for a in critical
-        ]
+            })
+            if vendor:
+                whatsapp_drafts.append(self._create_whatsapp_draft(org_id, vendor, a))
         names = [s["ingredient"] for s in shortages]
         shown = names[:3]
         title = f"{_join_naturally(shown)} {'is' if len(shown) == 1 else 'are'} running low"
         if len(names) > len(shown):
             title += f" (and {len(names) - len(shown)} more)"
-        return self.action_queue.create_action(
+        restock_action = self.action_queue.create_action(
             org_id=org_id, category="restock_alert", tier=ActionTier.recommendation,
             title=title,
             payload={"ingredients": names, "shortages": shortages},
         )
+        return restock_action, whatsapp_drafts
 
-    def _suggest_vendor(self, org_id: int, ingredient: str) -> str | None:
-        """Real cheapest-vendor lookup via VendorPriceQuote -- None (never a
-        fabricated name) when no quote exists for this ingredient yet. Never
-        raises: a lookup failure should still let the restock alert itself
-        get created, just without a vendor suggestion attached."""
+    def _find_whatsapp_vendor(self, org_id: int, ingredient: str) -> Vendor | None:
+        """An OFFLINE vendor (phone/WhatsApp, not Instamart) to message about
+        this ingredient -- the cheapest one with a real quote on file for it
+        if one exists, otherwise ANY offline vendor this org already works
+        with. None only when the org has no offline vendor at all.
+
+        A restaurant orders whatever's actually low from whichever vendor they
+        already talk to -- a WhatsApp order was never meant to require a
+        pre-recorded price quote for that exact item first. Gating the
+        WhatsApp option on an ingredient-specific VendorPriceQuote match would
+        mean it silently disappears for anything that vendor hasn't been
+        quoted on before, which defeats the point: both real fulfillment
+        paths (Instamart price check, WhatsApp to a known vendor) should
+        always be available side by side, not conditionally hidden.
+
+        Never raises: a lookup failure should still let the restock alert
+        itself get created, just without a WhatsApp draft attached."""
         try:
             quote = (
                 self.db.query(VendorPriceQuote)
                 .join(Vendor, Vendor.id == VendorPriceQuote.vendor_id)
-                .filter(Vendor.org_id == org_id, VendorPriceQuote.ingredient.ilike(ingredient))
+                .filter(
+                    Vendor.org_id == org_id,
+                    VendorPriceQuote.ingredient.ilike(ingredient),
+                    Vendor.is_online.is_(False),
+                )
                 .order_by(VendorPriceQuote.price.asc())
                 .first()
             )
-            if not quote:
-                return None
-            vendor = self.db.query(Vendor).filter(Vendor.id == quote.vendor_id).first()
-            return vendor.name if vendor else None
+            if quote:
+                return self.db.query(Vendor).filter(Vendor.id == quote.vendor_id).first()
+            return (
+                self.db.query(Vendor)
+                .filter(Vendor.org_id == org_id, Vendor.is_online.is_(False))
+                .order_by(Vendor.id.asc())
+                .first()
+            )
         except Exception:
             self.db.rollback()
             return None
+
+    def _create_whatsapp_draft(self, org_id: int, vendor: Vendor, shortage: dict):
+        """Approve-gated WhatsApp order draft for one shortage -- approving it
+        triggers the real Twilio send (action_execution_service.py), same path
+        as any other whatsapp_vendor_order action."""
+        ingredient = shortage["ingredient"]
+        unit = shortage.get("unit") or ""
+        qty = shortage.get("quantity_in_stock")
+        threshold = shortage.get("reorder_threshold")
+        restock_qty = shortage.get("recommended_restock_qty")
+        greeting = "Ramesh bhai" if vendor.name == "Ramesh Traders" else f"Hi {vendor.name}"
+        message = (
+            f"{greeting}, {ingredient.lower()} is running low, only {qty}{unit} left. "
+            f"Can you send {restock_qty}{unit} by tomorrow morning? Let me know the rate, thanks!"
+        )
+        return self.action_queue.create_action(
+            org_id=org_id, category="whatsapp_vendor_order", tier=ActionTier.approve_required,
+            title=f"Order {ingredient} from {vendor.name}",
+            payload={
+                "vendor_id": vendor.id, "vendor": vendor.name, "ingredient": ingredient,
+                "quantity_in_stock": qty, "reorder_threshold": threshold,
+                "message_draft": message,
+            },
+        )
 
     def _demand_reason(self, plan_result: dict) -> str | None:
         """Real forecast-adjustment reason (weather/holiday demand multiplier)

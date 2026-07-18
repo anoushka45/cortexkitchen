@@ -4,9 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { getActionQueue, type ActionQueueItem } from "@/lib/api";
 import Badge from "@/components/ui/Badge";
 import { relativeTime } from "@/lib/formatters";
-import { CATEGORY_LABELS, CATEGORY_TONE, CheckIcon, HourglassIcon, XIcon } from "@/components/actioncenter/actionQueueMeta";
+import {
+  CATEGORY_LABELS, CATEGORY_TONE, ChannelIcon, CheckIcon, HourglassIcon, XIcon, channelOf,
+} from "@/components/actioncenter/actionQueueMeta";
 
 export type StatusTab = "all" | "pending" | "approved" | "executed" | "rejected" | "expired";
+type ChannelTab = "all" | "instamart" | "whatsapp";
 
 const TABS: { key: StatusTab; label: string; dot: string }[] = [
   { key: "all", label: "All", dot: "bg-[var(--color-text-faint)]" },
@@ -15,6 +18,12 @@ const TABS: { key: StatusTab; label: string; dot: string }[] = [
   { key: "executed", label: "Executed", dot: "bg-emerald-400" },
   { key: "rejected", label: "Rejected", dot: "bg-rose-400" },
   { key: "expired", label: "Expired", dot: "bg-rose-400" },
+];
+
+const CHANNEL_TABS: { key: ChannelTab; label: string }[] = [
+  { key: "all", label: "All channels" },
+  { key: "instamart", label: "Instamart" },
+  { key: "whatsapp", label: "WhatsApp" },
 ];
 
 const STATUS_TONE: Record<string, string> = {
@@ -44,6 +53,7 @@ export default function ActionQueueHistory({
   const [loaded, setLoaded] = useState(!!controlledActions);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [internalTab, setInternalTab] = useState<StatusTab>("all");
+  const [channelTab, setChannelTab] = useState<ChannelTab>("all");
 
   const activeTab = controlledTab ?? internalTab;
   const setActiveTab = onTabChange ?? setInternalTab;
@@ -73,7 +83,18 @@ export default function ActionQueueHistory({
     return c;
   }, [actions]);
 
-  const visible = activeTab === "all" ? actions : actions.filter((a) => a.status === activeTab);
+  const channelCounts = useMemo(() => {
+    const c: Record<ChannelTab, number> = { all: actions.length, instamart: 0, whatsapp: 0 };
+    for (const a of actions) {
+      const ch = channelOf(a);
+      if (ch) c[ch] += 1;
+    }
+    return c;
+  }, [actions]);
+
+  const visible = actions
+    .filter((a) => activeTab === "all" || a.status === activeTab)
+    .filter((a) => channelTab === "all" || channelOf(a) === channelTab);
 
   return (
     <div className="card p-6">
@@ -121,6 +142,31 @@ export default function ActionQueueHistory({
         </div>
       )}
 
+      {loaded && !loadError && actions.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {CHANNEL_TABS.map((tab) => {
+            const active = channelTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setChannelTab(tab.key)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11.5px] font-medium transition-colors ${
+                  active
+                    ? "border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-text-primary)]"
+                    : "border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] text-[var(--color-text-faint)] hover:text-[var(--color-text-soft)]"
+                }`}
+              >
+                {tab.key !== "all" && <ChannelIcon channel={tab.key} className="h-3.5 w-3.5" />}
+                {tab.label}
+                <span className={active ? "text-[var(--color-text-soft)]" : "text-[var(--color-text-ghost)]"}>
+                  {channelCounts[tab.key]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {!loaded ? (
         <p className="mt-4 text-[11px] text-[var(--color-text-faint)]">Loading…</p>
       ) : loadError ? (
@@ -128,7 +174,9 @@ export default function ActionQueueHistory({
       ) : actions.length === 0 ? (
         <p className="mt-4 text-[11px] text-[var(--color-text-faint)]">No actions recorded yet.</p>
       ) : visible.length === 0 ? (
-        <p className="mt-4 text-[11px] text-[var(--color-text-faint)]">No {activeTab} actions.</p>
+        <p className="mt-4 text-[11px] text-[var(--color-text-faint)]">
+          No {activeTab === "all" ? "" : `${activeTab} `}actions{channelTab === "all" ? "" : ` via ${channelTab === "instamart" ? "Instamart" : "WhatsApp"}`}.
+        </p>
       ) : (
         <div className="mt-4">
           {visible.map((action, idx) => {
@@ -152,6 +200,7 @@ export default function ActionQueueHistory({
                       <span className="text-[11px] font-semibold" style={{ color: CATEGORY_TONE[action.category] ?? "var(--color-text-faint)" }}>
                         {CATEGORY_LABELS[action.category] ?? action.category}
                       </span>
+                      <ChannelIcon channel={channelOf(action)} className="h-3.5 w-3.5" />
                       <Badge variant={action.status} />
                     </div>
                     {timestamp && (

@@ -38,7 +38,11 @@ export type Shortage = {
   reorder_threshold?: number;
   shortfall?: number;
   recommended_restock_qty?: number;
-  suggested_vendor?: string | null;
+  // The real, local (WhatsApp/phone) vendor for this ingredient, when one is
+  // on file -- Instamart is deliberately NOT here: its price is checked live,
+  // on demand, never pre-picked as "the" channel. The owner chooses per
+  // shortage, the system just surfaces the real WhatsApp option when it exists.
+  whatsapp_vendor?: string | null;
   reason?: string | null;
   severity?: string;
 };
@@ -46,6 +50,37 @@ export type Shortage = {
 export function shortagesOf(action: ActionQueueItem): Shortage[] {
   const raw = action.payload?.shortages;
   return Array.isArray(raw) ? (raw as Shortage[]) : [];
+}
+
+export type Channel = "instamart" | "whatsapp";
+
+export const CHANNEL_LABELS: Record<Channel, string> = {
+  instamart: "Instamart",
+  whatsapp: "WhatsApp",
+};
+
+/** Which channel an action actually WAS/IS placed through -- only ever
+ * "whatsapp" (a whatsapp_vendor_order is a WhatsApp order by definition).
+ * A restock_alert is not itself placed through either channel: it just
+ * surfaces both real options (an on-demand Instamart price check, and a
+ * WhatsApp draft when a real local vendor is on file) for the owner to pick
+ * from, so it has no single channel of its own -- there's no "instamart"
+ * category yet since real checkout is still blocked on staging creds. */
+export function channelOf(action: ActionQueueItem): Channel | null {
+  if (action.category === "whatsapp_vendor_order") return "whatsapp";
+  return null;
+}
+
+export function ChannelIcon({ channel, className = "h-4 w-4" }: { channel?: Channel | null; className?: string }) {
+  if (channel === "instamart") {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src="/icons/instamart-icon.png" alt="" aria-hidden="true" className={`${className} object-contain`} />;
+  }
+  if (channel === "whatsapp") {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src="/icons/whatsapp-icon.png" alt="" aria-hidden="true" className={`${className} object-contain`} />;
+  }
+  return null;
 }
 
 /** "High Priority" for anything approve-gated or carrying a critical shortage,
@@ -58,11 +93,8 @@ export function priorityLabel(action: ActionQueueItem): "High Priority" | "Mediu
 
 export function CategoryIcon({ category, className = "h-5 w-5" }: { category: string; className?: string }) {
   if (category === "whatsapp_vendor_order") {
-    return (
-      <svg viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor" strokeWidth={1.8}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-      </svg>
-    );
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src="/icons/whatsapp-icon.png" alt="" aria-hidden="true" className={`${className} object-contain`} />;
   }
   if (category === "pricing_promo_review") {
     return (
@@ -124,6 +156,31 @@ export function ThumbUpIcon({ className = "h-4 w-4", strokeWidth = 1.8 }: { clas
   return (
     <svg viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor" strokeWidth={strokeWidth}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6.633 10.5c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.904M6.633 10.5H5.904m0 0H3.375A1.125 1.125 0 002.25 11.625v6.75A1.125 1.125 0 003.375 19.5h1.638a.75.75 0 00.75-.75v-7.5a.75.75 0 00-.75-.75z" />
+    </svg>
+  );
+}
+
+export function BagIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12l1 13H5L6 7z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 10V6a3 3 0 016 0v4" />
+    </svg>
+  );
+}
+
+export function ClockIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3.5 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
+}
+
+export function ArrowRightIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor" strokeWidth={2.2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
     </svg>
   );
 }

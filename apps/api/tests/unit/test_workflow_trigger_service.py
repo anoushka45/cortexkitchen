@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.infrastructure.db.models import ActionQueue, ActionStatus, Vendor, VendorPriceQuote
+from app.infrastructure.db.models import ActionQueue, ActionStatus, ActionTier, Vendor, VendorPriceQuote
 from app.domain.services.workflow_trigger_service import WorkflowTriggerService
 
 
@@ -108,18 +108,44 @@ def test_restock_alert_payload_carries_full_shortage_detail(db):
     service = WorkflowTriggerService(db)
     created = service.evaluate_and_queue(ORG_ID, plan)
 
-    shortages = created[0].payload["shortages"]
+    restock = next(a for a in created if a.category == "restock_alert")
+    shortages = restock.payload["shortages"]
     assert len(shortages) == 2
     first = shortages[0]
     assert first["ingredient"] == "Mozzarella"
     assert first["quantity_in_stock"] == 1.0
     assert first["reorder_threshold"] == 1.5
     assert first["recommended_restock_qty"] == 0.5
-    assert first["suggested_vendor"] is None  # no VendorPriceQuote seeded
+    assert first["whatsapp_vendor"] is None  # no VendorPriceQuote seeded
     assert "usual minimum" in first["reason"]  # generic fallback reason, plain language
 
 
-def test_restock_alert_suggests_real_cheapest_vendor(db):
+def test_restock_alert_never_picks_a_channel_both_stay_options(db):
+    """The system doesn't decide Instamart vs. WhatsApp for the owner -- it
+    surfaces both real options and lets them choose. Instamart is always
+    checkable live (not something this trigger pre-fetches or gates on), so
+    an online VendorPriceQuote shouldn't show up as a "suggested" pick here
+    at all -- only the offline (WhatsApp) vendor is ever attached."""
+    online = Vendor(org_id=ORG_ID, name="Instamart", category="general", is_online=True)
+    db.add(online)
+    db.flush()
+    db.add(VendorPriceQuote(vendor_id=online.id, ingredient="Mozzarella", price=150.0))
+    db.commit()
+
+    plan = _plan_with_shortages(("Mozzarella", "critical"), ("Basil", "critical"))
+    service = WorkflowTriggerService(db)
+    created = service.evaluate_and_queue(ORG_ID, plan)
+
+    restock = next(a for a in created if a.category == "restock_alert")
+    mozzarella = next(s for s in restock.payload["shortages"] if s["ingredient"] == "Mozzarella")
+    assert mozzarella["whatsapp_vendor"] is None
+    assert not any(a.category == "whatsapp_vendor_order" for a in created)
+
+
+def test_restock_alert_drafts_whatsapp_order_for_real_offline_vendor(db):
+    """A real local (offline) vendor carrying the ingredient gets an
+    approve-gated WhatsApp draft created alongside the restock alert, so the
+    owner has a one-click way to message them -- not just a name shown."""
     vendor_a = Vendor(org_id=ORG_ID, name="Ramesh Traders", category="produce")
     vendor_b = Vendor(org_id=ORG_ID, name="Sharma Supplies", category="produce")
     db.add_all([vendor_a, vendor_b])
@@ -134,9 +160,36 @@ def test_restock_alert_suggests_real_cheapest_vendor(db):
     service = WorkflowTriggerService(db)
     created = service.evaluate_and_queue(ORG_ID, plan)
 
-    shortages = created[0].payload["shortages"]
-    mozzarella = next(s for s in shortages if s["ingredient"] == "Mozzarella")
-    assert mozzarella["suggested_vendor"] == "Ramesh Traders"  # cheapest quote wins
+    restock = next(a for a in created if a.category == "restock_alert")
+    mozzarella = next(s for s in restock.payload["shortages"] if s["ingredient"] == "Mozzarella")
+    assert mozzarella["whatsapp_vendor"] == "Ramesh Traders"  # cheapest offline quote wins
+
+    draft = next(a for a in created if a.category == "whatsapp_vendor_order")
+    assert draft.tier == ActionTier.approve_required
+    assert draft.payload["vendor"] == "Ramesh Traders"
+    assert draft.payload["ingredient"] == "Mozzarella"
+    assert "Ramesh bhai" in draft.payload["message_draft"]
+
+
+def test_whatsapp_draft_falls_back_to_any_offline_vendor_without_a_quote(db):
+    """The WhatsApp option must never disappear just because this exact
+    ingredient has no price history with this vendor -- an owner can message
+    whoever they already order from about anything running low."""
+    vendor = Vendor(org_id=ORG_ID, name="Green Valley Produce", category="produce")
+    db.add(vendor)
+    db.flush()
+    # Deliberately no VendorPriceQuote for "Mozzarella" at all.
+    db.commit()
+
+    plan = _plan_with_shortages(("Mozzarella", "critical"), ("Basil", "critical"))
+    service = WorkflowTriggerService(db)
+    created = service.evaluate_and_queue(ORG_ID, plan)
+
+    restock = next(a for a in created if a.category == "restock_alert")
+    mozzarella = next(s for s in restock.payload["shortages"] if s["ingredient"] == "Mozzarella")
+    assert mozzarella["whatsapp_vendor"] == "Green Valley Produce"
+    draft = next(a for a in created if a.category == "whatsapp_vendor_order")
+    assert draft.payload["vendor"] == "Green Valley Produce"
 
 
 def test_restock_alert_reason_uses_real_forecast_adjustment(db):

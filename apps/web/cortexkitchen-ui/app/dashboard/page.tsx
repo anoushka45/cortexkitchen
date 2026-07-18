@@ -54,7 +54,7 @@ function DashboardPageContent() {
   if (authLoading || !user) return null;
 
   return (
-    <div className="min-h-screen bg-[var(--color-surface-page)] text-[var(--color-text-primary)]">
+    <div className="min-h-screen page-canvas text-[var(--color-text-primary)]">
       <main className="mx-auto w-full max-w-[1520px] px-6 py-8 xl:px-14">
         <TodayIdleState
           onRun={handleRun}

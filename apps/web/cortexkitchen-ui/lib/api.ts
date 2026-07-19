@@ -508,10 +508,11 @@ export async function getActionQueue(status?: string): Promise<ActionQueueItem[]
   return res.json() as Promise<ActionQueueItem[]>;
 }
 
-export async function approveAction(id: number): Promise<ActionQueueItem> {
+export async function approveAction(id: number, messageOverride?: string): Promise<ActionQueueItem> {
   const res = await fetch(`${BASE_URL}/api/v1/action-queue/${id}/approve`, {
     method: "POST",
     headers: authHeaders(),
+    body: JSON.stringify({ message_override: messageOverride ?? null }),
   });
   if (!res.ok) {
     const detail = await res.json().catch(() => ({ detail: "Approve failed." }));
@@ -528,6 +529,50 @@ export async function rejectAction(id: number): Promise<ActionQueueItem> {
   if (!res.ok) {
     const detail = await res.json().catch(() => ({ detail: "Reject failed." }));
     throw new Error(detail.detail ?? `Reject failed: ${res.status}`);
+  }
+  return res.json() as Promise<ActionQueueItem>;
+}
+
+// ── Vendors — real, org-scoped WhatsApp/phone vendor directory ───────────────
+
+export interface VendorSummary {
+  id: number;
+  name: string;
+  category: string | null;
+  supplies: string[];
+}
+
+export async function getVendors(): Promise<VendorSummary[]> {
+  const res = await fetch(`${BASE_URL}/api/v1/vendors`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Vendors API error ${res.status}: ${detail}`);
+  }
+  return res.json() as Promise<VendorSummary[]>;
+}
+
+export interface VendorMessageRequest {
+  vendor_id: number;
+  ingredient: string;
+  unit?: string | null;
+  quantity_in_stock?: number | null;
+  reorder_threshold?: number | null;
+  recommended_restock_qty?: number | null;
+  reason?: string | null;
+}
+
+export async function createVendorMessage(body: VendorMessageRequest): Promise<ActionQueueItem> {
+  const res = await fetch(`${BASE_URL}/api/v1/action-queue/vendor-message`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({ detail: "Couldn't draft that message." }));
+    throw new Error(detail.detail ?? `Vendor message failed: ${res.status}`);
   }
   return res.json() as Promise<ActionQueueItem>;
 }

@@ -1,19 +1,25 @@
 """Built-in workflow triggers -- evaluates a finished planning run's response and
 auto-creates Action Queue rows when certain conditions hold. Deliberately NOT a
-full owner-defined trigger/condition/action builder -- just 2 fixed conditions,
+full owner-defined trigger/condition/action builder -- just 3 fixed conditions,
 matching the scope call in P6-A11 (a general builder is a much bigger UI/DB
 investment for marginal demo value beyond having these triggers exist).
 
-Both triggers create recommendation-tier actions only -- neither one auto-executes
-anything. A restock alert or a "review your pricing" flag always needs a human to
-actually act on it; this is a level below the WhatsApp-order flow (P6-A9), which is
-approve_required rather than a passive recommendation.
+All three triggers create recommendation-tier actions only -- none of them
+auto-execute anything. A restock alert, a "review your pricing" flag, or an
+overstock/spoilage warning always needs a human to actually act on it; this is a
+level below the WhatsApp-order flow (P6-A9), which is approve_required rather
+than a passive recommendation.
 """
 
 import re
 
+import structlog
+
 from app.domain.services.action_queue_service import ActionQueueService
 from app.infrastructure.db.models import ActionStatus, ActionTier, Vendor, VendorPriceQuote
+from app.infrastructure.llm.base import BaseLLMProvider
+
+log = structlog.get_logger()
 
 
 def _join_naturally(items: list[str]) -> str:
@@ -25,19 +31,23 @@ def _join_naturally(items: list[str]) -> str:
 
 
 class WorkflowTriggerService:
-    def __init__(self, db):
+    def __init__(self, db, llm: BaseLLMProvider | None = None):
         self.db = db
+        self.llm = llm
         self.action_queue = ActionQueueService(db)
 
-    def evaluate_and_queue(self, org_id: int, plan_result: dict) -> list:
-        """Runs both built-in triggers against a finished plan's response dict
+    async def evaluate_and_queue(self, org_id: int, plan_result: dict) -> list:
+        """Runs all built-in triggers against a finished plan's response dict
         and creates an Action Queue row for each one that fires. Returns the
-        list of created actions (empty if neither condition holds)."""
+        list of created actions (empty if none fired)."""
         created = []
-        shortage_action, whatsapp_drafts = self._check_critical_shortages(org_id, plan_result)
+        shortage_action, whatsapp_drafts = await self._check_critical_shortages(org_id, plan_result)
         if shortage_action:
             created.append(shortage_action)
         created.extend(whatsapp_drafts)
+        overstock_action = self._check_overstock(org_id, plan_result)
+        if overstock_action:
+            created.append(overstock_action)
         pricing_action = self._check_busy_plus_competitor_deals(org_id, plan_result)
         if pricing_action:
             created.append(pricing_action)
@@ -49,7 +59,7 @@ class WorkflowTriggerService:
         pending = self.action_queue.list_actions(org_id, status=ActionStatus.pending)
         return any(a.category == category for a in pending)
 
-    def _check_critical_shortages(self, org_id: int, plan_result: dict):
+    async def _check_critical_shortages(self, org_id: int, plan_result: dict):
         """Trigger 1: 2+ critical shortages found -> queue an urgent restock action.
 
         The action carries full per-ingredient detail (stock/threshold/shortfall/
@@ -99,7 +109,7 @@ class WorkflowTriggerService:
                 "reason": reason or f"Stock is running below your usual minimum of {a.get('reorder_threshold')}{a.get('unit') or ''}.",
             })
             if vendor:
-                whatsapp_drafts.append(self._create_whatsapp_draft(org_id, vendor, a))
+                whatsapp_drafts.append(await self._create_whatsapp_draft(org_id, vendor, a, reason))
         names = [s["ingredient"] for s in shortages]
         shown = names[:3]
         title = f"{_join_naturally(shown)} {'is' if len(shown) == 1 else 'are'} running low"
@@ -111,6 +121,23 @@ class WorkflowTriggerService:
             payload={"ingredients": names, "shortages": shortages},
         )
         return restock_action, whatsapp_drafts
+
+    async def create_vendor_message(self, org_id: int, vendor_id: int, shortage: dict, reason: str | None = None):
+        """On-demand WhatsApp draft to a vendor the OWNER picked themselves --
+        the "Message Your Vendors" picker (a restaurant has multiple real
+        vendors by category: produce, dairy, general grocery, etc., and the
+        owner decides who to message for a given shortage, same as they
+        would in real life). Reuses the identical drafting path (LLM +
+        deterministic template fallback) as the automatic critical-shortage
+        trigger's _create_whatsapp_draft -- only the vendor selection differs
+        (owner-chosen here vs. cheapest-quote-match there).
+
+        Raises ValueError if the vendor doesn't exist / isn't this org's.
+        """
+        vendor = self.db.query(Vendor).filter(Vendor.id == vendor_id, Vendor.org_id == org_id).first()
+        if not vendor:
+            raise ValueError("Vendor not found")
+        return await self._create_whatsapp_draft(org_id, vendor, shortage, reason)
 
     def _find_whatsapp_vendor(self, org_id: int, ingredient: str) -> Vendor | None:
         """An OFFLINE vendor (phone/WhatsApp, not Instamart) to message about
@@ -153,29 +180,77 @@ class WorkflowTriggerService:
             self.db.rollback()
             return None
 
-    def _create_whatsapp_draft(self, org_id: int, vendor: Vendor, shortage: dict):
+    async def _create_whatsapp_draft(self, org_id: int, vendor: Vendor, shortage: dict, reason: str | None):
         """Approve-gated WhatsApp order draft for one shortage -- approving it
         triggers the real Twilio send (action_execution_service.py), same path
         as any other whatsapp_vendor_order action."""
         ingredient = shortage["ingredient"]
-        unit = shortage.get("unit") or ""
-        qty = shortage.get("quantity_in_stock")
         threshold = shortage.get("reorder_threshold")
-        restock_qty = shortage.get("recommended_restock_qty")
-        greeting = "Ramesh bhai" if vendor.name == "Ramesh Traders" else f"Hi {vendor.name}"
-        message = (
-            f"{greeting}, {ingredient.lower()} is running low, only {qty}{unit} left. "
-            f"Can you send {restock_qty}{unit} by tomorrow morning? Let me know the rate, thanks!"
-        )
+        message = await self._draft_whatsapp_message(vendor, shortage, reason)
         return self.action_queue.create_action(
             org_id=org_id, category="whatsapp_vendor_order", tier=ActionTier.approve_required,
             title=f"Order {ingredient} from {vendor.name}",
             payload={
                 "vendor_id": vendor.id, "vendor": vendor.name, "ingredient": ingredient,
-                "quantity_in_stock": qty, "reorder_threshold": threshold,
+                "quantity_in_stock": shortage.get("quantity_in_stock"), "reorder_threshold": threshold,
                 "message_draft": message,
             },
         )
+
+    def _template_whatsapp_message(self, vendor: Vendor, shortage: dict) -> str:
+        """Deterministic fallback -- always available, no LLM required."""
+        ingredient = shortage["ingredient"]
+        unit = shortage.get("unit") or ""
+        qty = shortage.get("quantity_in_stock")
+        restock_qty = shortage.get("recommended_restock_qty")
+        greeting = "Ramesh bhai" if vendor.name == "Ramesh Traders" else f"Hi {vendor.name}"
+        return (
+            f"{greeting}, {ingredient.lower()} is running low, only {qty}{unit} left. "
+            f"Can you send {restock_qty}{unit} by tomorrow morning? Let me know the rate, thanks!"
+        )
+
+    async def _draft_whatsapp_message(self, vendor: Vendor, shortage: dict, reason: str | None) -> str:
+        """LLM-drafted vendor message using this shortage's real numbers (and
+        the real demand-forecast reason, when one fired) instead of always
+        sending the same canned template. Never raises and never blocks the
+        restock alert on an LLM failure or malformed output -- falls straight
+        back to the deterministic template, same never-raise +
+        deterministic-fallback pattern as ScenarioProfileService."""
+        fallback = self._template_whatsapp_message(vendor, shortage)
+        if not self.llm:
+            return fallback
+        ingredient = shortage["ingredient"]
+        unit = shortage.get("unit") or ""
+        prompt = f"""
+A restaurant owner needs to message their vendor, {vendor.name}, on WhatsApp
+about an ingredient running low. Real details -- do not invent anything not
+listed here:
+- Ingredient: {ingredient}
+- Current stock: {shortage.get("quantity_in_stock")}{unit}
+- Roughly needs to reorder: {shortage.get("recommended_restock_qty")}{unit}
+{f"- Context: {reason}" if reason else ""}
+
+Write a short WhatsApp message (2-3 sentences max) from the owner to the
+vendor: warm and casual, the way an Indian restaurant owner actually texts a
+vendor they know personally (natural to mix in a Hindi word like "bhai" if
+it fits, but not required). Ask them to send the ingredient by tomorrow
+morning and ask what the rate is -- never state or guess a price yourself.
+Respond with JSON: {{"message": "..."}}
+"""
+        try:
+            result = await self.llm.complete_json(
+                prompt=prompt,
+                system_prompt=(
+                    "You draft short, natural WhatsApp messages from a restaurant "
+                    "owner to their local supply vendor, grounded only in the real "
+                    "numbers given -- never inventing a price or quantity."
+                ),
+            )
+            message = str(result.get("message") or "").strip() if isinstance(result, dict) else ""
+            return message or fallback
+        except Exception as exc:
+            log.warning("whatsapp_draft_llm_error", error=str(exc), ingredient=ingredient)
+            return fallback
 
     def _demand_reason(self, plan_result: dict) -> str | None:
         """Real forecast-adjustment reason (weather/holiday demand multiplier)
@@ -196,6 +271,51 @@ class WorkflowTriggerService:
         direction = "higher" if pct > 0 else "lower"
         causes = [m.group(1) for r in raw_reasons if (m := re.search(r"\(([^)]+)\)", r))] or raw_reasons
         return f"Demand is expected to be {abs(pct)}% {direction} than usual because of {_join_naturally(causes)}."
+
+    def _check_overstock(self, org_id: int, plan_result: dict):
+        """Trigger 3: any overstock item that's also a spoilage risk -> queue a
+        "use it up or discard" recommendation. Gated on spoilage_risk, not just
+        any overstock -- a shelf-stable item sitting above its usual stock level
+        isn't urgent, it's just extra inventory; a spoilage-risk one left to sit
+        is real, avoidable waste. InventoryService already computes this
+        (overstock_alerts, stock > 3x threshold) but it was previously only ever
+        shown passively on the Dashboard, never surfaced as something to
+        actually act on."""
+        if self._has_pending(org_id, "overstock_alert"):
+            return None
+        inv_data = ((plan_result.get("recommendations") or {}).get("inventory") or {}).get("data") or {}
+        at_risk = [
+            a for a in (inv_data.get("overstock_alerts") or [])
+            if isinstance(a, dict) and a.get("spoilage_risk") and a.get("ingredient")
+        ]
+        if not at_risk:
+            return None
+
+        overstock_items = [
+            {
+                "ingredient": a["ingredient"],
+                "unit": a.get("unit"),
+                "quantity_in_stock": a.get("quantity_in_stock"),
+                "reorder_threshold": a.get("reorder_threshold"),
+                "excess": a.get("excess"),
+                "reason": (
+                    f"Holding {a.get('excess')}{a.get('unit') or ''} more than usual, and it's spoilage-risk -- "
+                    "feature it in today's specials, use it in a staff meal, donate it to a local food bank, "
+                    "or discard it if it's no longer safe to serve."
+                ),
+            }
+            for a in at_risk
+        ]
+        names = [item["ingredient"] for item in overstock_items]
+        shown = names[:3]
+        title = f"{_join_naturally(shown)} {'is' if len(shown) == 1 else 'are'} overstocked and at risk of spoiling"
+        if len(names) > len(shown):
+            title += f" (and {len(names) - len(shown)} more)"
+        return self.action_queue.create_action(
+            org_id=org_id, category="overstock_alert", tier=ActionTier.recommendation,
+            title=title,
+            payload={"ingredients": names, "overstock_items": overstock_items},
+        )
 
     def _check_busy_plus_competitor_deals(self, org_id: int, plan_result: dict):
         """Trigger 2: tonight_busy + 2+ Dineout deals live in the area -> queue a

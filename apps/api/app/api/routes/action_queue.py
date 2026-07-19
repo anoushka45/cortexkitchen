@@ -12,11 +12,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_current_user, get_db
+from app.api.dependencies import get_current_user, get_db, get_llm
 from app.domain.services.action_execution_service import approve_and_execute
 from app.domain.services.action_queue_service import ActionQueueService
 from app.domain.services.trust_ladder_service import TrustLadderService
+from app.domain.services.workflow_trigger_service import WorkflowTriggerService
 from app.infrastructure.db.models import ActionStatus
+from app.infrastructure.llm.base import BaseLLMProvider
 
 router = APIRouter(prefix="/action-queue", tags=["action-queue"])
 
@@ -61,9 +63,18 @@ def list_actions(
     ]
 
 
+class ApproveActionRequest(BaseModel):
+    # Lets the owner edit a drafted (LLM or template) WhatsApp message before
+    # it actually sends -- a draft is a starting point, not something that
+    # goes out verbatim without a last human look. Ignored for any other
+    # action category.
+    message_override: str | None = None
+
+
 @router.post("/{action_id}/approve", response_model=ActionQueueItem)
 def approve_action(
     action_id: int,
+    body: ApproveActionRequest = ApproveActionRequest(),
     current: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ActionQueueItem:
@@ -71,7 +82,7 @@ def approve_action(
     existing = service.get(action_id)
     if existing is None or existing.org_id != current["org_id"]:
         raise HTTPException(status_code=404, detail="Action not found.")
-    action = approve_and_execute(db, action_id, current["user_id"])
+    action = approve_and_execute(db, action_id, current["user_id"], body.message_override)
     return _to_item(action)
 
 
@@ -86,4 +97,42 @@ def reject_action(
     if action is None or action.org_id != current["org_id"]:
         raise HTTPException(status_code=404, detail="Action not found.")
     action = service.reject(action_id, current["user_id"])
+    return _to_item(action)
+
+
+class VendorMessageRequest(BaseModel):
+    vendor_id: int
+    ingredient: str
+    unit: str | None = None
+    quantity_in_stock: float | None = None
+    reorder_threshold: float | None = None
+    recommended_restock_qty: float | None = None
+    reason: str | None = None
+
+
+@router.post("/vendor-message", response_model=ActionQueueItem)
+async def create_vendor_message(
+    body: VendorMessageRequest,
+    current: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    llm: BaseLLMProvider = Depends(get_llm),
+) -> ActionQueueItem:
+    """Owner picked a specific vendor from the "Message Your Vendors" list --
+    drafts a real WhatsApp order for it (same pending, approve-to-send flow
+    as any other whatsapp_vendor_order action)."""
+    service = WorkflowTriggerService(db, llm)
+    try:
+        action = await service.create_vendor_message(
+            current["org_id"], body.vendor_id,
+            {
+                "ingredient": body.ingredient,
+                "unit": body.unit,
+                "quantity_in_stock": body.quantity_in_stock,
+                "reorder_threshold": body.reorder_threshold,
+                "recommended_restock_qty": body.recommended_restock_qty,
+            },
+            body.reason,
+        )
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Vendor not found.")
     return _to_item(action)

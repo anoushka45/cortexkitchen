@@ -76,6 +76,17 @@ class ActionQueueService:
         self.db.refresh(action)
         return action
 
+    def update_payload(self, action_id: int, updates: dict) -> ActionQueue:
+        """Merges `updates` into the action's payload -- e.g. an owner editing
+        an LLM-drafted WhatsApp message before approving it. Reassigns the
+        whole dict (not an in-place mutation) so SQLAlchemy's change tracking
+        actually picks it up on the JSON column."""
+        action = self._require(action_id)
+        action.payload = {**action.payload, **updates}
+        self.db.commit()
+        self.db.refresh(action)
+        return action
+
     def _require(self, action_id: int) -> ActionQueue:
         action = self.get(action_id)
         if action is None:

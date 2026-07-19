@@ -135,3 +135,28 @@ def test_non_whatsapp_category_just_approves_without_touching_twilio(db):
 
 def test_returns_none_for_missing_action(db):
     assert approve_and_execute(db, 9999, user_id=1) is None
+
+
+def test_message_override_is_sent_instead_of_the_original_draft(db):
+    """The owner can edit a drafted (LLM or template) message before it
+    actually sends -- the draft is a starting point, not final."""
+    vendor = _vendor(db)
+    action = _pending_whatsapp_action(db, vendor.id, message_draft="original draft")
+
+    with patch("app.domain.services.action_execution_service.WhatsAppService") as mock_cls:
+        mock_cls.return_value.send_message.return_value = "SM123"
+        result = approve_and_execute(db, action.id, user_id=1, message_override="owner-edited text")
+
+    mock_cls.return_value.send_message.assert_called_once_with("owner-edited text")
+    assert result.status == ActionStatus.executed
+    assert result.payload["message_draft"] == "owner-edited text"
+
+
+def test_message_override_ignored_for_non_whatsapp_category(db):
+    aq_service = ActionQueueService(db)
+    action = aq_service.create_action(
+        org_id=ORG_ID, category="restock_alert", tier=ActionTier.recommendation,
+        title="Low basil", payload={"ingredient": "Fresh Basil"},
+    )
+    result = approve_and_execute(db, action.id, user_id=1, message_override="should not apply")
+    assert "message_draft" not in result.payload

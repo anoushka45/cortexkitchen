@@ -2,33 +2,60 @@
 // pending panel, and history timeline -- kept in one place so all three
 // surfaces render the same category identical to each other.
 
+import type { ReactNode } from "react";
 import type { ActionQueueItem } from "@/lib/api";
+
+/** Shared filter-chip look for Action Queue/History's status + channel
+ * tabs -- solid fill when active, outlined ghost otherwise, instead of each
+ * file hand-rolling its own slightly-different pill classes. */
+export function FilterChip({
+  active, onClick, children,
+}: { active: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11.5px] font-semibold transition-all ${
+        active
+          ? "bg-[var(--color-accent)] text-white shadow-sm"
+          : "border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] text-[var(--color-text-soft)] hover:border-[var(--color-text-faint)] hover:text-[var(--color-text-primary)]"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
 
 export const CATEGORY_LABELS: Record<string, string> = {
   whatsapp_vendor_order: "WhatsApp vendor order",
   restock_alert: "Restock",
   pricing_promo_review: "Pricing Review",
+  overstock_alert: "Overstock",
 };
 
 export const AGENT_LABELS: Record<string, string> = {
   whatsapp_vendor_order: "Procurement Agent",
   restock_alert: "Inventory Agent",
   pricing_promo_review: "Market Intel Agent",
+  overstock_alert: "Inventory Agent",
 };
 
 // Text/icon tone per category -- WhatsApp reads green (brand-consistent),
 // Restock reads amber (matches the existing caution/inventory language),
-// Pricing Review gets a distinct cyan so all three are never confusable.
+// Pricing Review gets a distinct cyan, Overstock gets a distinct violet so
+// all four are never confusable at a glance.
 export const CATEGORY_TONE: Record<string, string> = {
   whatsapp_vendor_order: "var(--color-good)",
   restock_alert: "var(--color-caution)",
   pricing_promo_review: "#38bdf8",
+  overstock_alert: "#a855f7",
 };
 
 export const CATEGORY_TONE_SOFT: Record<string, string> = {
   whatsapp_vendor_order: "var(--color-good-soft)",
   restock_alert: "var(--color-caution-soft)",
   pricing_promo_review: "rgba(56,189,248,0.10)",
+  overstock_alert: "rgba(168,85,247,0.10)",
 };
 
 export type Shortage = {
@@ -50,6 +77,20 @@ export type Shortage = {
 export function shortagesOf(action: ActionQueueItem): Shortage[] {
   const raw = action.payload?.shortages;
   return Array.isArray(raw) ? (raw as Shortage[]) : [];
+}
+
+export type OverstockItem = {
+  ingredient: string;
+  unit?: string;
+  quantity_in_stock?: number;
+  reorder_threshold?: number;
+  excess?: number;
+  reason?: string | null;
+};
+
+export function overstockOf(action: ActionQueueItem): OverstockItem[] {
+  const raw = action.payload?.overstock_items;
+  return Array.isArray(raw) ? (raw as OverstockItem[]) : [];
 }
 
 export type Channel = "instamart" | "whatsapp";
@@ -103,6 +144,14 @@ export function CategoryIcon({ category, className = "h-5 w-5" }: { category: st
       </svg>
     );
   }
+  if (category === "overstock_alert") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2m-9 0l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10 11v6M14 11v6" />
+      </svg>
+    );
+  }
   // restock_alert / default
   return (
     <svg viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor" strokeWidth={1.8}>
@@ -140,6 +189,14 @@ export function EyeIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
     <svg viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  );
+}
+
+export function AlertTriangleIcon({ className = "h-4 w-4", strokeWidth = 1.8 }: { className?: string; strokeWidth?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor" strokeWidth={strokeWidth}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
     </svg>
   );
 }

@@ -11,6 +11,7 @@ from app.api.routes.planning import router as planning_router
 from app.api.routes.restaurant_profiles import router as restaurant_profiles_router
 from app.api.routes.runs import router as runs_router
 from app.api.routes.settings import router as settings_router
+from app.api.routes.vendors import router as vendors_router
 from app.core.settings import get_settings
 
 
@@ -29,5 +30,6 @@ def get_api_router() -> APIRouter:
     router.include_router(restaurant_profiles_router)
     router.include_router(runs_router)
     router.include_router(settings_router)
+    router.include_router(vendors_router)
 
     return router

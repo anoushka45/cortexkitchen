@@ -159,7 +159,7 @@ async def run_planning(
             # before this feature existed (or whose action was since dismissed)
             # would never get re-flagged as long as the plan keeps hitting cache.
             try:
-                WorkflowTriggerService(deps["db"]).evaluate_and_queue(current_user["org_id"], cached)
+                await WorkflowTriggerService(deps["db"], deps["llm"]).evaluate_and_queue(current_user["org_id"], cached)
             except Exception:
                 pass
             return FridayRushResponse(**cached)
@@ -231,7 +231,7 @@ async def run_planning(
     # cache hits, which already evaluated this on their original run). Never lets
     # a trigger-evaluation failure break the planning response itself.
     try:
-        WorkflowTriggerService(deps["db"]).evaluate_and_queue(current_user["org_id"], result)
+        await WorkflowTriggerService(deps["db"], deps["llm"]).evaluate_and_queue(current_user["org_id"], result)
     except Exception as exc:
         meta.setdefault("workflow_trigger_error", str(exc))
 

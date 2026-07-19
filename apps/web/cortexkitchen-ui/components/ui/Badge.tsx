@@ -2,7 +2,7 @@
 
 type Variant = "ready" | "needs_review" | "blocked" | "unknown" |
                "approved" | "rejected" | "revision" |
-               "pending" | "executed" | "expired";
+               "pending" | "executed" | "expired" | "failed";
 
 const STYLES: Record<Variant, string> = {
   ready:        "pill pill-ready",
@@ -14,6 +14,7 @@ const STYLES: Record<Variant, string> = {
   blocked:      "pill pill-blocked",
   rejected:     "pill pill-blocked",
   expired:      "pill pill-blocked",
+  failed:       "pill pill-blocked",
   unknown:      "pill pill-unknown",
 };
 
@@ -27,6 +28,7 @@ const DOTS: Record<Variant, string> = {
   blocked:      "bg-rose-400",
   rejected:     "bg-rose-400",
   expired:      "bg-rose-400",
+  failed:       "bg-rose-400",
   unknown:      "bg-slate-400",
 };
 
@@ -40,6 +42,7 @@ const LABELS: Record<Variant, string> = {
   blocked:      "Blocked",
   rejected:     "Rejected",
   expired:      "Expired",
+  failed:       "Failed",
   unknown:      "Unknown",
 };
 

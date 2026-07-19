@@ -16,7 +16,6 @@ import ActionQueuePanel, { ActionDetailsModal } from "@/components/dashboard/Act
 import ActionQueueHistory, { type StatusTab } from "@/components/data/ActionQueueHistory";
 import ActionQueueStats, { type StatusKey } from "@/components/actioncenter/ActionQueueStats";
 import ActionAttentionHero from "@/components/actioncenter/ActionAttentionHero";
-import { shortagesOf } from "@/components/actioncenter/actionQueueMeta";
 import PageHeading from "@/components/ui/PageHeading";
 import { approveAction, getActionQueue, type ActionQueueItem } from "@/lib/api";
 
@@ -42,6 +41,10 @@ export default function ActionCenterPage() {
   const [allActions, setAllActions] = useState<ActionQueueItem[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [historyTab, setHistoryTab] = useState<StatusTab>("all");
+  // History is collapsed by default -- most of this page's real estate
+  // should go to the Action Queue (what needs a decision now), not to a
+  // record of past decisions most people only check occasionally.
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [detailsAction, setDetailsAction] = useState<ActionQueueItem | null>(null);
   const [detailsBusy, setDetailsBusy] = useState(false);
   const [detailsError, setDetailsError] = useState<string | undefined>(undefined);
@@ -68,16 +71,9 @@ export default function ActionCenterPage() {
   // The hero is for the most critical thing right now -- a critical-shortage
   // restock alert -- not just whichever pending item is newest or highest-tier.
   const heroAction = featurable.find((a) => a.category === "restock_alert") ?? featurable[0];
-  // A restock_alert's top shortage may already have a linked WhatsApp draft
-  // (same ingredient, created alongside it) -- the hero's "message vendor"
-  // button opens that exact pending action instead of inventing a new one.
-  const heroTopIngredient = heroAction ? shortagesOf(heroAction)[0]?.ingredient : undefined;
-  const linkedWhatsappAction = heroTopIngredient
-    ? pendingActions.find((a) => a.category === "whatsapp_vendor_order" && a.payload.ingredient === heroTopIngredient)
-    : undefined;
   // The hero already gives the top item full-detail treatment -- don't show
-  // it (or its linked WhatsApp draft) a second time in the list right below it.
-  const queueActions = pendingActions.filter((a) => a.id !== heroAction?.id && a.id !== linkedWhatsappAction?.id);
+  // it a second time in the list right below it.
+  const queueActions = pendingActions.filter((a) => a.id !== heroAction?.id);
   const queueEmptyMessage = heroAction && queueActions.length === 0
     ? "The one item that needs a decision is featured above."
     : undefined;
@@ -85,19 +81,25 @@ export default function ActionCenterPage() {
   const counts: Record<StatusKey, number> = {
     pending: pendingActions.length,
     executed: allActions.filter((a) => a.status === "executed").length,
-    approved: allActions.filter((a) => a.status === "approved").length,
+    // A failed WhatsApp send stays at status "approved" with an error
+    // attached (whatsapp_vendor_order approves and executes in the same
+    // request, so it never rests at a plain "approved" state) -- this is
+    // what that failure actually shows up as, not a separate "approved" tile.
+    failed: allActions.filter((a) => a.status === "approved" && !!a.error).length,
     rejected: allActions.filter((a) => a.status === "rejected").length,
   };
 
   const handleStatSelect = (status: StatusKey) => {
     setHistoryTab(status);
-    historyRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setHistoryOpen(true);
+    // Wait a tick for History to actually mount before scrolling to it.
+    requestAnimationFrame(() => historyRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
-  const handleHeroApprove = async (action: ActionQueueItem) => {
+  const handleHeroApprove = async (action: ActionQueueItem, messageOverride?: string) => {
     setDetailsBusy(true);
     try {
-      const result = await approveAction(action.id);
+      const result = await approveAction(action.id, messageOverride);
       if (result.error) setDetailsError(result.error);
       else { setDetailsAction(null); refetch(); }
     } catch (err) {
@@ -131,7 +133,6 @@ export default function ActionCenterPage() {
         {loaded && heroAction && (
           <ActionAttentionHero
             action={heroAction}
-            linkedWhatsappAction={linkedWhatsappAction}
             onDismissed={refetch}
             onOpenAction={(a) => { setDetailsError(undefined); setDetailsAction(a); }}
             onSnoozed={() => handleSnooze(heroAction.id)}
@@ -142,7 +143,8 @@ export default function ActionCenterPage() {
           <ActionQueueStats
             counts={counts}
             activeStatus={
-              historyTab === "pending" || historyTab === "approved" || historyTab === "executed" || historyTab === "rejected"
+              historyTab === "pending" || historyTab === "executed"
+                || historyTab === "failed" || historyTab === "rejected"
                 ? historyTab
                 : undefined
             }
@@ -150,30 +152,34 @@ export default function ActionCenterPage() {
           />
         )}
 
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-          {loaded ? (
-            <ActionQueuePanel actions={queueActions} onActionTaken={refetch} emptyMessage={queueEmptyMessage} />
-          ) : (
-            <div className="card p-6"><p className="text-[11px] text-[var(--color-text-faint)]">Loading…</p></div>
-          )}
+        {loaded ? (
+          <ActionQueuePanel actions={queueActions} onActionTaken={refetch} emptyMessage={queueEmptyMessage} />
+        ) : (
+          <div className="card p-6"><p className="text-[11px] text-[var(--color-text-faint)]">Loading…</p></div>
+        )}
 
+        {loaded && (
           <div ref={historyRef} className="scroll-mt-6">
-            {loaded ? (
-              <ActionQueueHistory actions={allActions} activeTab={historyTab} onTabChange={setHistoryTab} />
-            ) : (
-              <div className="card p-6"><p className="text-[11px] text-[var(--color-text-faint)]">Loading…</p></div>
-            )}
+            <ActionQueueHistory
+              actions={allActions}
+              activeTab={historyTab}
+              onTabChange={setHistoryTab}
+              open={historyOpen}
+              onOpenChange={setHistoryOpen}
+            />
           </div>
-        </div>
+        )}
       </div>
 
       {detailsAction && (
         <ActionDetailsModal
+          key={detailsAction.id}
           action={detailsAction}
           busy={detailsBusy}
           error={detailsError}
           onClose={() => setDetailsAction(null)}
           onApprove={handleHeroApprove}
+          onSwitchAction={(a) => { setDetailsError(undefined); setDetailsAction(a); }}
         />
       )}
     </main>

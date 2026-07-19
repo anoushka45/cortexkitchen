@@ -107,3 +107,14 @@ def test_operations_on_missing_action_raise(db):
     service = ActionQueueService(db)
     with pytest.raises(ValueError):
         service.approve(9999, user_id=1)
+
+
+def test_update_payload_merges_without_dropping_other_keys(db):
+    service = ActionQueueService(db)
+    action = service.create_action(
+        org_id=ORG_ID, category="whatsapp_vendor_order", title="a",
+        payload={"vendor": "Ramesh Traders", "message_draft": "original draft"},
+    )
+    updated = service.update_payload(action.id, {"message_draft": "owner-edited text"})
+    assert updated.payload["message_draft"] == "owner-edited text"
+    assert updated.payload["vendor"] == "Ramesh Traders"  # untouched keys survive

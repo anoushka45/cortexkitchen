@@ -7,6 +7,8 @@ personal Swiggy consumer account's own purchase history, not restaurant procurem
 data) -- there is no test coverage for it here on purpose.
 """
 
+import json
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
@@ -179,3 +181,49 @@ async def test_exception_returns_none_never_raises():
     enricher = _enricher(c)
     result = await enricher.enrich(CONTEXT)
     assert result is None
+
+
+# ── text-wrapped structuredContent (confirmed live 2026-07-19) ──────────────
+# client.call_tool() falls back to {"text": "<json string>"} when
+# structuredContent comes back empty -- confirmed live for search_products in
+# this account/sandbox (same fallback path already documented for Dineout
+# tools), so the real {"success": true, "data": {"products": [...]}} payload
+# arrives as a JSON string inside "text", not as a top-level "products" key.
+
+TEXT_WRAPPED_RESPONSE = {
+    "text": json.dumps({
+        "success": True,
+        "data": {
+            "nextOffset": "1",
+            "products": [
+                {"displayName": "Garlic (Lahsun)", "brand": "Fruits & Vegetables Category",
+                 "variations": [VARIANT_IN_STOCK]},
+            ],
+        },
+    }),
+}
+
+
+@pytest.mark.asyncio
+async def test_enrich_unwraps_text_wrapped_structured_content():
+    enricher = _enricher(_client(search_data=TEXT_WRAPPED_RESPONSE))
+    result = await enricher.enrich(CONTEXT)
+    assert result is not None
+    assert result["procurement_options"][0]["spinId"] == "spin_42"
+
+
+@pytest.mark.asyncio
+async def test_search_live_unwraps_text_wrapped_structured_content():
+    enricher = _enricher(_client(search_data=TEXT_WRAPPED_RESPONSE))
+    results = await enricher.search_live("addr_abc", "garlic")
+    assert results is not None
+    assert results[0]["name"] == "Garlic (Lahsun)"
+    assert results[0]["category"] == "Fruits & Vegetables Category"
+    assert results[0]["spinId"] == "spin_42"
+
+
+@pytest.mark.asyncio
+async def test_search_live_handles_malformed_text_field():
+    enricher = _enricher(_client(search_data={"text": "not valid json"}))
+    results = await enricher.search_live("addr_abc", "garlic")
+    assert results is None

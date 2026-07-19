@@ -299,6 +299,7 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
         from app.api.dependencies import get_db_factory
         db_factory = get_db_factory()
     swiggy_client   = deps.get("swiggy_client") or SwiggyMCPClient()
+    checkpointer    = deps.get("checkpointer")
     tr              = traces if traces is not None else []
 
     graph = StateGraph(OrchestratorState)
@@ -385,7 +386,7 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
     graph.add_edge(REPLAN_ORCHESTRATOR, MENU_INTELLIGENCE)
     graph.add_edge(FINAL_ASSEMBLER, END)
 
-    return graph.compile()
+    return graph.compile(checkpointer=checkpointer)
 
 
 # ── Convenience runner ───────────────────────────────────────────────────────
@@ -511,6 +512,7 @@ async def run_planning_scenario(
         tags=[scenario, "planning_run"],
         metadata={"scenario": scenario, "target_date": target_date or "", "run_id": run_id, **llm_metadata, **langfuse_metadata},
         callbacks=langfuse_callbacks,
+        configurable={"thread_id": run_id},
     )
     t0 = time.perf_counter()
     log.info("graph_start", target_date=target_date or "next", **llm_metadata)
@@ -818,6 +820,7 @@ async def stream_planning_scenario(
         tags=[scenario, "planning_run", "stream"],
         metadata={"scenario": scenario, "target_date": target_date or "", "run_id": run_id, **llm_metadata, **langfuse_metadata},
         callbacks=langfuse_callbacks,
+        configurable={"thread_id": run_id},
     )
 
     t0 = time.perf_counter()

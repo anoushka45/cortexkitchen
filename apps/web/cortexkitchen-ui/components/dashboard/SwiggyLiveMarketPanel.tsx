@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { getMarketPulse, MarketPulseResponse, MarketWeather, MarketUpcomingHoliday, MarketIndustryTrends, MarketComplianceAlerts } from "@/lib/api";
 import CategoryPricingChart from "./CategoryPricingChart";
-import PricingImpactChart from "./PricingImpactChart";
 import OccupancyBySlotChart from "./OccupancyBySlotChart";
 import IngredientPriceLookup from "./IngredientPriceLookup";
 
@@ -19,12 +18,24 @@ function SwiggyBadge() {
   );
 }
 
-function Card({ title, source, children, wide, swiggy = true }: { title: string; source: string; children: React.ReactNode; wide?: boolean; swiggy?: boolean }) {
+function ConceptBadge() {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--color-caution)] bg-[var(--color-caution-soft)] px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[var(--color-caution)] shadow-sm">
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-caution)]" />
+      Concept · Pending Consent
+    </span>
+  );
+}
+
+function Card({ title, source, children, wide, swiggy = true, concept = false }: { title: string; source: string; children: React.ReactNode; wide?: boolean; swiggy?: boolean; concept?: boolean }) {
   return (
     <div className={`rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5 ${wide ? "lg:col-span-2" : ""}`}>
       <div className="flex items-start justify-between mb-1 flex-wrap gap-2">
         <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)]">{title}</p>
-        {swiggy && <SwiggyBadge />}
+        <div className="flex items-center gap-2">
+          {concept && <ConceptBadge />}
+          {swiggy && <SwiggyBadge />}
+        </div>
       </div>
       <p className="mb-3 font-mono text-[9px] text-[var(--color-text-ghost)]">via {source}</p>
       {children}
@@ -103,23 +114,19 @@ export default function SwiggyLiveMarketPanel() {
 
   const pricing = data.competitor_pricing;
   const occupancy = data.area_occupancy;
-  const procurement = data.procurement ?? [];
   const comparisons = pricing?.comparisons ?? [];
   const dealsActiveCount = pricing?.deals_active_count ?? 0;
-  const impacts = pricing?.pricing_impact ?? [];
   const categoryPricing = pricing?.category_pricing ?? [];
   const landscapeSummary = pricing?.landscape_summary ?? null;
   const positioning = pricing?.positioning ?? null;
   const menuBreadth = pricing?.menu_breadth ?? null;
   const cuisineCrowding = pricing?.cuisine_crowding ?? null;
   const vegMix = pricing?.veg_mix ?? null;
-  const dineoutDealsCount = occupancy?.dineout_deals_count ?? 0;
-  const slotDeals = occupancy?.slot_deals_found ?? [];
   const slotAvailability = occupancy?.slot_availability_by_time ?? [];
 
   const hasAnything =
-    categoryPricing.length > 0 || comparisons.length > 0 || occupancy?.signal || procurement.length > 0 ||
-    dineoutDealsCount > 0 || slotDeals.length > 0 || dealsActiveCount > 0 || landscapeSummary !== null ||
+    categoryPricing.length > 0 || comparisons.length > 0 || occupancy?.signal ||
+    dealsActiveCount > 0 || landscapeSummary !== null ||
     weather !== null || upcomingHoliday !== null || industryTrends !== null || complianceAlerts !== null;
 
   if (!hasAnything) {
@@ -150,95 +157,84 @@ export default function SwiggyLiveMarketPanel() {
         {/* 0c. Regulatory Alerts -- FSSAI public notices, not Swiggy-sourced */}
         {complianceAlerts && <ComplianceAlertsCard alerts={complianceAlerts} />}
 
-        {/* 1. Category Pricing Intelligence (derived, leads with verdict) */}
-        {categoryPricing.length > 0 && (
-          <Card title="Category Pricing Intelligence" source="derived analysis (dish-name independent)" wide>
-            <div className="space-y-1.5 mb-4">
-              {categoryPricing.map((c) => (
-                <div
-                  key={c.category}
-                  className={`rounded-lg border px-3 py-2 ${
-                    c.verdict === "above" ? "border-rose-500/25 bg-rose-500/[0.06]"
-                    : c.verdict === "below" ? "border-emerald-500/25 bg-emerald-500/[0.06]"
-                    : "border-[var(--color-border-soft)] bg-[var(--color-surface-raised)]"
-                  }`}
-                >
-                  <p className="text-xs text-[var(--color-text-primary)]">
-                    <span className="font-semibold capitalize">{c.category}</span>
-                    {": "}
-                    you&apos;re <span className={`font-semibold ${c.verdict === "above" ? "text-rose-300" : c.verdict === "below" ? "text-emerald-300" : ""}`}>
-                      {Math.abs(c.diff_pct).toFixed(0)}% {c.verdict === "in line" ? "in line with" : c.verdict}
-                    </span>{c.verdict !== "in line" ? " the area" : ""} (₹{c.your_avg} vs ₹{c.area_avg} avg)
-                  </p>
-                  <p className="mt-0.5 text-[10px] text-[var(--color-text-ghost)]">
-                    based on {c.competitor_dishes_sampled} nearby {c.category} dish{c.competitor_dishes_sampled !== 1 ? "es" : ""}
-                  </p>
-                  <p className="mt-1 text-[10px] text-[var(--color-text-faint)]">
-                    cheapest: <span className="text-emerald-300">{c.cheapest_dish.name} ₹{c.cheapest_dish.price}</span>
-                    {" · "}
-                    priciest: <span className="text-rose-300">{c.priciest_dish.name} ₹{c.priciest_dish.price}</span>
-                  </p>
-                </div>
-              ))}
-            </div>
-            <CategoryPricingChart data={categoryPricing} />
-          </Card>
-        )}
-
-        {/* 2. Market Context -- menu breadth, cuisine crowding, veg mix */}
-        {(menuBreadth || cuisineCrowding || vegMix) && (
-          <Card title="Market Context" source="search_restaurants + get_restaurant_menu (derived)" wide>
+        {/* 1. Menu & Pricing Positioning -- merged category pricing + market context,
+               per-dish cheapest/priciest detail dropped (aggregate-only, more compliant) */}
+        {(categoryPricing.length > 0 || menuBreadth || cuisineCrowding || vegMix) && (
+          <Card title="Menu & Pricing Positioning" source="derived aggregate analysis" wide concept>
             {pricing && pricing.restaurants_checked_count > 0 && (
               <p className="mb-3 text-[10px] text-[var(--color-text-faint)]">
                 {pricing.restaurants_checked_count} nearby restaurant{pricing.restaurants_checked_count !== 1 ? "s" : ""} checked
               </p>
             )}
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {menuBreadth && (
-                <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
-                  <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Menu breadth</p>
-                  <p className="mt-1 text-sm text-[var(--color-text-primary)]">
-                    <span className="font-mono font-semibold">{menuBreadth.your_item_count}</span> items on your menu
-                  </p>
-                  <p className="text-[10px] text-[var(--color-text-faint)]">
-                    vs {menuBreadth.competitor_avg_item_count} avg across {menuBreadth.competitors_sampled} nearby competitor(s)
-                  </p>
+            {categoryPricing.length > 0 && (
+              <>
+                <div className="space-y-1.5 mb-4">
+                  {categoryPricing.map((c) => (
+                    <div
+                      key={c.category}
+                      className={`rounded-lg border px-3 py-2 ${
+                        c.verdict === "above" ? "border-rose-500/25 bg-rose-500/[0.06]"
+                        : c.verdict === "below" ? "border-emerald-500/25 bg-emerald-500/[0.06]"
+                        : "border-[var(--color-border-soft)] bg-[var(--color-surface-raised)]"
+                      }`}
+                    >
+                      <p className="text-xs text-[var(--color-text-primary)]">
+                        <span className="font-semibold capitalize">{c.category}</span>
+                        {": "}
+                        you&apos;re <span className={`font-semibold ${c.verdict === "above" ? "text-rose-300" : c.verdict === "below" ? "text-emerald-300" : ""}`}>
+                          {Math.abs(c.diff_pct).toFixed(0)}% {c.verdict === "in line" ? "in line with" : c.verdict}
+                        </span>{c.verdict !== "in line" ? " the area" : ""} (₹{c.your_avg} vs ₹{c.area_avg} avg)
+                      </p>
+                      <p className="mt-0.5 text-[10px] text-[var(--color-text-ghost)]">
+                        based on {c.competitor_dishes_sampled} nearby {c.category} dish{c.competitor_dishes_sampled !== 1 ? "es" : ""}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              )}
-              {cuisineCrowding && (
-                <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
-                  <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Cuisine crowding</p>
-                  <p className="mt-1 text-sm text-[var(--color-text-primary)]">
-                    <span className="font-mono font-semibold">{cuisineCrowding.matching_count}</span> of {cuisineCrowding.total_checked} nearby
-                  </p>
-                  <p className="text-[10px] text-[var(--color-text-faint)]">
-                    also serve <span className="capitalize">{cuisineCrowding.cuisine}</span>
-                  </p>
-                </div>
-              )}
-              {vegMix && (
-                <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
-                  <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Veg/non-veg mix</p>
-                  <p className="mt-1 text-sm text-[var(--color-text-primary)]">
-                    <span className="font-mono font-semibold">{vegMix.veg_count}</span> of {vegMix.total} nearby
-                  </p>
-                  <p className="text-[10px] text-[var(--color-text-faint)]">are pure-veg only</p>
-                </div>
-              )}
-            </div>
-          </Card>
-        )}
-
-        {/* 3. Exact Menu Matches (bonus, dish-name matched only) */}
-        {impacts.length > 0 && (
-          <Card title={`Exact Menu Matches (${impacts.length})`} source="exact dish-name match, bonus detail">
-            <PricingImpactChart data={impacts} />
+                <CategoryPricingChart data={categoryPricing} />
+              </>
+            )}
+            {(menuBreadth || cuisineCrowding || vegMix) && (
+              <div className={`grid grid-cols-1 gap-2 sm:grid-cols-3 ${categoryPricing.length > 0 ? "mt-4 border-t border-[var(--color-border-soft)] pt-4" : ""}`}>
+                {menuBreadth && (
+                  <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
+                    <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Menu breadth</p>
+                    <p className="mt-1 text-sm text-[var(--color-text-primary)]">
+                      <span className="font-mono font-semibold">{menuBreadth.your_item_count}</span> items on your menu
+                    </p>
+                    <p className="text-[10px] text-[var(--color-text-faint)]">
+                      vs {menuBreadth.competitor_avg_item_count} avg across {menuBreadth.competitors_sampled} nearby competitor(s)
+                    </p>
+                  </div>
+                )}
+                {cuisineCrowding && (
+                  <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
+                    <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Cuisine crowding</p>
+                    <p className="mt-1 text-sm text-[var(--color-text-primary)]">
+                      <span className="font-mono font-semibold">{cuisineCrowding.matching_count}</span> of {cuisineCrowding.total_checked} nearby
+                    </p>
+                    <p className="text-[10px] text-[var(--color-text-faint)]">
+                      also serve <span className="capitalize">{cuisineCrowding.cuisine}</span>
+                    </p>
+                  </div>
+                )}
+                {vegMix && (
+                  <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
+                    <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Veg/non-veg mix</p>
+                    <p className="mt-1 text-sm text-[var(--color-text-primary)]">
+                      <span className="font-mono font-semibold">{vegMix.veg_count}</span> of {vegMix.total} nearby
+                    </p>
+                    <p className="text-[10px] text-[var(--color-text-faint)]">are pure-veg only</p>
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
         )}
 
         {/* 4. Area Deals -- aggregate count/summary, no restaurant names */}
         {dealsActiveCount > 0 && (
-          <Card title="Area Deals Tonight" source="fetch_food_coupons (area aggregate)">
+          <Card title="Area Deals Tonight" source="fetch_food_coupons (area aggregate)" concept>
             <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2.5 text-xs">
               <p className="font-medium text-amber-200">{dealsActiveCount} deal{dealsActiveCount !== 1 ? "s" : ""} active nearby</p>
               <p className="mt-1 text-[10px] text-amber-300/90">{pricing?.deals_summary}</p>
@@ -248,7 +244,7 @@ export default function SwiggyLiveMarketPanel() {
 
         {/* 5. Nearby Market Landscape -- area aggregate, no named restaurants */}
         {landscapeSummary && (
-          <Card title="Nearby Market Landscape" source="search_restaurants (area aggregate)" wide>
+          <Card title="Nearby Market Landscape" source="search_restaurants (area aggregate)" wide concept>
             {positioning && (
               <div className="mb-3 rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-3 py-2.5">
                 <p className="text-sm text-[var(--color-text-primary)]">
@@ -289,7 +285,7 @@ export default function SwiggyLiveMarketPanel() {
         )}
 
         {/* 6. Area Occupancy -- signal + full by-slot detail */}
-        <Card title="Area Occupancy" source="search_restaurants_dineout + get_available_slots">
+        <Card title="Area Occupancy" source="search_restaurants_dineout + get_available_slots" concept>
           {occupancy?.signal ? (
             <div className="space-y-2">
               <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${
@@ -330,50 +326,7 @@ export default function SwiggyLiveMarketPanel() {
           )}
         </Card>
 
-        {/* 7. Dineout Deals -- aggregate count/summary, no restaurant names */}
-        {dineoutDealsCount > 0 && (
-          <Card title="Dineout Deals Tonight" source="get_restaurant_details (area aggregate)">
-            <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2.5 text-xs">
-              <p className="font-medium text-amber-200">{dineoutDealsCount} deal{dineoutDealsCount !== 1 ? "s" : ""} active nearby</p>
-              <p className="mt-1 text-[10px] text-amber-300/90">{occupancy?.dineout_deals_summary}</p>
-            </div>
-          </Card>
-        )}
-
-        {/* 8. Dineout Slot Deals Tonight -- full list */}
-        {slotDeals.length > 0 && (
-          <Card title={`Dineout Slot Deals Tonight (${slotDeals.length})`} source="get_available_slots (deals[])">
-            <div className="space-y-1">
-              {slotDeals.map((s, i) => (
-                <div key={i} className="flex items-center justify-between rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-3 py-1.5 text-xs">
-                  <span className="text-[var(--color-text-soft)]">{s.time}</span>
-                  <span className="text-[var(--color-text-primary)]">{s.deal_title} ({s.discount_pct.toFixed(0)}%)</span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-
-        {/* 9. Instamart Shortage Prices -- full list */}
-        <Card title={`Instamart Shortage Prices (${procurement.length})`} source="search_products">
-          {procurement.length > 0 ? (
-            <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin">
-              {procurement.map((item, i) => (
-                <div key={i} className="flex items-center justify-between rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-3 py-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${item.in_stock ? "bg-emerald-400" : "bg-slate-600"}`} />
-                    <span className="text-xs text-[var(--color-text-soft)] truncate capitalize">{item.name}</span>
-                  </div>
-                  <span className="font-mono text-xs font-semibold text-[var(--color-text-primary)] shrink-0">₹{item.price}/{item.unit}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-[var(--color-text-ghost)] italic">No shortage items identified yet — run a plan to compute current shortages.</p>
-          )}
-        </Card>
-
-        {/* 10. Ingredient Price Lookup -- on-demand */}
+        {/* Ingredient Price Lookup -- on-demand, your own procurement, not competitor data */}
         <IngredientPriceLookup />
       </div>
     </div>

@@ -9,7 +9,24 @@ export default function AnalyticsPage() {
       <div className="mx-auto max-w-[1520px] space-y-6">
         <PageHeading
           title="Analytics"
-          description="Menu performance, demand patterns, guest sentiment, and market positioning -- historical trends, not a daily trigger-time decision."
+          description={
+            <>
+              <span className="flex flex-wrap gap-1.5">
+                {["Menu performance", "Demand patterns", "Guest sentiment", "Market positioning"].map((t) => (
+                  <span
+                    key={t}
+                    className="rounded-full px-2.5 py-1 text-[11.5px] font-semibold"
+                    style={{ background: "rgba(255,82,0,0.08)", color: "var(--color-accent)" }}
+                  >
+                    {t}
+                  </span>
+                ))}
+              </span>
+              <span className="mt-2 block text-[13px] text-[var(--color-text-faint)]">
+                Historical trends, not a daily trigger-time decision.
+              </span>
+            </>
+          }
         />
 
         <AnalyticsDetail />

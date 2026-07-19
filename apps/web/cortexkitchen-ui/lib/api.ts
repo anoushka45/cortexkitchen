@@ -666,6 +666,9 @@ export interface BusinessPerformanceResponse {
   trend: BusinessDailyPoint[];
   top_dishes: BusinessDishPerformance[];
   bottom_dishes: BusinessDishPerformance[];
+  // Full margin-aware dish list (unsliced) -- the Menu Engineering Matrix
+  // plots every dish, not just the top/bottom 5 above.
+  all_dishes: BusinessDishPerformance[];
   channel_split: BusinessChannelSplit;
   complaints_by_category: BusinessComplaintCategory[];
   peak_hours: BusinessHourlyDemand[];
@@ -705,6 +708,53 @@ export async function getBusinessPerformance(days = 14): Promise<BusinessPerform
   }
 
   return res.json() as Promise<BusinessPerformanceResponse>;
+}
+
+// ── Inventory snapshot (live current-state, not a trend -- Analytics'
+// Inventory section) ──────────────────────────────────────────────────────
+
+export interface InventoryShortageAlert {
+  ingredient: string;
+  unit: string;
+  quantity_in_stock: number;
+  reorder_threshold: number;
+  shortfall: number;
+  spoilage_risk: boolean;
+  severity: string;
+  baseline_stock: number;
+  projected_drawdown: number;
+  scenario_adjustment_reason: string | null;
+}
+
+export interface InventoryOverstockAlert {
+  ingredient: string;
+  unit: string;
+  quantity_in_stock: number;
+  reorder_threshold: number;
+  excess: number;
+  spoilage_risk: boolean;
+  severity: string;
+  baseline_stock: number;
+  projected_drawdown: number;
+  scenario_adjustment_reason: string | null;
+}
+
+export interface InventorySnapshotResponse {
+  total_items_checked: number;
+  shortage_alerts: InventoryShortageAlert[];
+  overstock_alerts: InventoryOverstockAlert[];
+}
+
+export async function getInventorySnapshot(): Promise<InventorySnapshotResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/business/inventory-snapshot`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Inventory snapshot API error ${res.status}: ${detail}`);
+  }
+  return res.json() as Promise<InventorySnapshotResponse>;
 }
 
 // ── Market pulse (live, independent of any planning run) ──────────────────────

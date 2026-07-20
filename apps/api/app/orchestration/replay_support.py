@@ -56,14 +56,21 @@ NODE_OUTPUT_KEY: dict[str, str] = {
 
 
 def identify_node(system_content: str | None) -> str | None:
-    """Match an incoming system prompt against known node prompts (exact,
-    whitespace-insensitive match -- Kindred replays the captured prompt
-    verbatim, so this should hit exactly or not at all)."""
+    """Match an incoming system prompt against known node prompts.
+
+    Containment, not equality: every node calls llm.complete_json(), and
+    every provider's complete_json() prepends a fixed
+    "You must respond with valid JSON only..." instruction ahead of the
+    real system_prompt (see groq.py/gemini.py/comet.py's identical
+    `combined_system = f"{json_system}\n{system_prompt}"`) before it ever
+    reaches the LLM -- so what Kindred captures and replays back is always
+    that prefix + the raw node prompt, never the raw prompt alone. An
+    exact-equality check here would silently never match any node."""
     if not system_content:
         return None
     normalized = system_content.strip()
     for node_name, prompt in NODE_SYSTEM_PROMPTS.items():
-        if normalized == prompt.strip():
+        if prompt.strip() in normalized:
             return node_name
     return None
 

@@ -100,9 +100,16 @@ async def get_checkpointer():
                     saver = AsyncPostgresSaver(pool)
                     await saver.setup()
                     _checkpointer = saver
-                except Exception:
-                    import structlog
-                    structlog.get_logger().warning("checkpointer_setup_failed", exc_info=True)
+                except Exception as exc:
+                    # str(exc) only, no exc_info -- a raw traceback can contain
+                    # non-ASCII bytes that crash structlog's print() under
+                    # Windows' default cp1252 console encoding, which would
+                    # otherwise mask the real error with an unrelated one.
+                    try:
+                        import structlog
+                        structlog.get_logger().warning("checkpointer_setup_failed", error=str(exc)[:300])
+                    except Exception:
+                        pass
                     return None
     return _checkpointer
 

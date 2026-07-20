@@ -158,8 +158,14 @@ async def replay_turn(
                         db_session.close()
                     if reexecuted_output is not None:
                         node_reexecuted = node_name
-        except Exception:
-            structlog.get_logger().warning("kindred_true_reexecution_failed", exc_info=True)
+        except Exception as exc:
+            # str(exc) only, no exc_info -- see dependencies.py's get_checkpointer()
+            # for why: a raw traceback can crash structlog's Windows console
+            # print (cp1252 encoding), masking the real error entirely.
+            try:
+                structlog.get_logger().warning("kindred_true_reexecution_failed", error=str(exc)[:300])
+            except Exception:
+                pass
 
     if node_reexecuted:
         return {

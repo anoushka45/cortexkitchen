@@ -3,9 +3,48 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { getMarketPulse, MarketPulseResponse, MarketWeather, MarketUpcomingHoliday, MarketIndustryTrends, MarketComplianceAlerts } from "@/lib/api";
+import { hourCacheKey, readHourCache, writeHourCache } from "@/lib/hourCache";
 import CategoryPricingChart from "./CategoryPricingChart";
 import OccupancyBySlotChart from "./OccupancyBySlotChart";
 import IngredientPriceLookup from "./IngredientPriceLookup";
+
+// Same prefix TodayIdleState.tsx uses -- shares one hour-bucketed cache
+// entry across Dashboard and this page, so visiting whichever one first
+// is the only one that actually hits the network within a given hour.
+const MARKET_PULSE_CACHE_PREFIX = "ck:market-pulse:";
+
+// One warm family only (Swiggy orange / gold / brown), matching Analytics'
+// SECTION_COLOR convention -- literal hex, not var(--color-accent), since
+// CardHeader appends an alpha suffix directly to this string for its
+// gradient (`${color}cc`), which only produces valid CSS for a literal hex.
+const MARKET_COLOR = {
+  weather:    "#C2410C",
+  trends:     "#D97706",
+  alerts:     "#92400E",
+  pricing:    "#FF5200",
+  landscape:  "#A16207",
+  occupancy:  "#D97706",
+  ingredient: "#C2410C",
+} as const;
+
+function IconCloud({ className = "h-4.5 w-4.5" }: { className?: string }) {
+  return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M6.5 19a4.5 4.5 0 01-.5-8.98A5.5 5.5 0 0116.9 8.02 4.5 4.5 0 0117.5 19h-11z" /></svg>;
+}
+function IconNewspaper({ className = "h-4.5 w-4.5" }: { className?: string }) {
+  return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v12a2 2 0 01-2 2zM7 8h10M7 12h10M7 16h6" /></svg>;
+}
+function IconShieldAlert({ className = "h-4.5 w-4.5" }: { className?: string }) {
+  return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3zM12 8v4m0 3h.007" /></svg>;
+}
+function IconTagPrice({ className = "h-4.5 w-4.5" }: { className?: string }) {
+  return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5.586a1 1 0 01.707.293l7.414 7.414a1 1 0 010 1.414l-8.586 8.586a1 1 0 01-1.414 0L3.293 13.293A1 1 0 013 12.586V7a4 4 0 014-4z" /></svg>;
+}
+function IconStorefront({ className = "h-4.5 w-4.5" }: { className?: string }) {
+  return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M13 21v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4M3 9h18M4 9l1.5-5h13L20 9M4 9v9a2 2 0 002 2h12a2 2 0 002-2V9" /></svg>;
+}
+function IconClock({ className = "h-4.5 w-4.5" }: { className?: string }) {
+  return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3.5 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+}
 
 function SwiggyBadge() {
   return (
@@ -27,18 +66,60 @@ function ConceptBadge() {
   );
 }
 
-function Card({ title, source, children, wide, swiggy = true, concept = false }: { title: string; source: string; children: React.ReactNode; wide?: boolean; swiggy?: boolean; concept?: boolean }) {
+// One StatSquare-style tinted mini-tile, matching AnalyticsDetail.tsx's
+// "at a glance" stat convention -- an icon badge + label + big value, instead
+// of a plain bordered box with tiny uppercase text.
+function StatTile({ label, value, sub, color }: { label: string; value: React.ReactNode; sub?: string; color: string }) {
   return (
-    <div className={`rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5 ${wide ? "lg:col-span-2" : ""}`}>
-      <div className="flex items-start justify-between mb-1 flex-wrap gap-2">
-        <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)]">{title}</p>
-        <div className="flex items-center gap-2">
-          {concept && <ConceptBadge />}
-          {swiggy && <SwiggyBadge />}
+    <div className="rounded-xl border p-3" style={{ background: `${color}14`, borderColor: `${color}40` }}>
+      <p className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: `${color}` }}>{label}</p>
+      <p className="mt-1 font-mono text-lg font-bold text-[var(--color-text-primary)]">{value}</p>
+      {sub && <p className="mt-0.5 text-[10px] text-[var(--color-text-faint)]">{sub}</p>}
+    </div>
+  );
+}
+
+function CardHeader({ title, sub, icon, color, titleIcon, concept, swiggy }: {
+  title: string; sub: string; icon?: React.ReactNode; color?: string; titleIcon?: React.ReactNode; concept?: boolean; swiggy?: boolean;
+}) {
+  return (
+    <div className="mb-4 flex items-start justify-between gap-3 flex-wrap">
+      <div className="flex min-w-0 items-center gap-3">
+        {icon && (
+          <span
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-sm"
+            style={{ background: `linear-gradient(135deg, ${color}, ${color}cc)` }}
+          >
+            {icon}
+          </span>
+        )}
+        <div className="min-w-0">
+          <p className="flex items-center gap-1.5 truncate text-[15px] font-bold text-[var(--color-text-primary)]">
+            {title}
+            {titleIcon}
+          </p>
+          <p className="mt-0.5 truncate text-[11.5px] font-medium text-[var(--color-text-soft)]">{sub}</p>
         </div>
       </div>
-      <p className="mb-3 font-mono text-[9px] text-[var(--color-text-ghost)]">via {source}</p>
-      {children}
+      <div className="flex shrink-0 items-center gap-2">
+        {concept && <ConceptBadge />}
+        {swiggy && <SwiggyBadge />}
+      </div>
+    </div>
+  );
+}
+
+function Card({ title, source, children, wide, swiggy = true, concept = false, icon, color, titleIcon }: {
+  title: string; source: string; children: React.ReactNode; wide?: boolean; swiggy?: boolean; concept?: boolean;
+  icon?: React.ReactNode; color?: string; titleIcon?: React.ReactNode;
+}) {
+  return (
+    <div className={`card card-lift flex h-full flex-col p-5 ${wide ? "lg:col-span-2" : ""}`}>
+      <CardHeader title={title} sub={`via ${source}`} icon={icon} color={color} titleIcon={titleIcon} concept={concept} swiggy={swiggy} />
+      {/* flex column so a footer element inside children can use mt-auto to
+          pin itself to the bottom of the stretched card height, instead of
+          leaving a dead gap under shorter content. */}
+      <div className="flex flex-1 flex-col">{children}</div>
     </div>
   );
 }
@@ -46,15 +127,26 @@ function Card({ title, source, children, wide, swiggy = true, concept = false }:
 type Status = "loading" | "success" | "error";
 
 export default function SwiggyLiveMarketPanel() {
-  const [data, setData] = useState<MarketPulseResponse | null>(null);
-  const [status, setStatus] = useState<Status>("loading");
+  // Lazy initializers read the cache synchronously on first render, so a
+  // cache hit never shows the loading state at all -- not even a flash.
+  const [data, setData] = useState<MarketPulseResponse | null>(
+    () => readHourCache<MarketPulseResponse>(hourCacheKey(MARKET_PULSE_CACHE_PREFIX)),
+  );
+  const [status, setStatus] = useState<Status>(
+    () => (readHourCache(hourCacheKey(MARKET_PULSE_CACHE_PREFIX)) !== null ? "success" : "loading"),
+  );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Already have this hour's data (from cache or a previous mount this
+    // session) -- skip the network round trip entirely.
+    if (readHourCache(hourCacheKey(MARKET_PULSE_CACHE_PREFIX)) !== null) return;
+
     let cancelled = false;
     getMarketPulse()
       .then((res) => {
         if (cancelled) return;
+        writeHourCache(MARKET_PULSE_CACHE_PREFIX, hourCacheKey(MARKET_PULSE_CACHE_PREFIX), res);
         setData(res);
         setStatus("success");
       })
@@ -68,7 +160,7 @@ export default function SwiggyLiveMarketPanel() {
 
   if (status === "loading") {
     return (
-      <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-6">
+      <div className="card p-6">
         <p className="text-sm text-[var(--color-text-faint)]">Loading live market intelligence…</p>
       </div>
     );
@@ -76,7 +168,7 @@ export default function SwiggyLiveMarketPanel() {
 
   if (status === "error") {
     return (
-      <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-6">
+      <div className="card p-6">
         <p className="text-sm text-rose-400">{error}</p>
       </div>
     );
@@ -96,13 +188,13 @@ export default function SwiggyLiveMarketPanel() {
     return (
       <div className="space-y-4">
         {(weather || upcomingHoliday || industryTrends || complianceAlerts) && (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <WeatherHolidayCard weather={weather} upcomingHoliday={upcomingHoliday} />
             {industryTrends && <IndustryTrendsCard trends={industryTrends} />}
             {complianceAlerts && <ComplianceAlertsCard alerts={complianceAlerts} />}
           </div>
         )}
-        <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-6 py-10 text-center">
+        <div className="card px-6 py-10 text-center">
           <p className="text-sm font-medium text-[var(--color-text-primary)]">Swiggy not connected</p>
           <p className="mt-1 text-sm text-[var(--color-text-faint)]">
             Connect your Swiggy account from Connectors to see live competitor pricing, occupancy, and procurement data.
@@ -131,36 +223,38 @@ export default function SwiggyLiveMarketPanel() {
 
   if (!hasAnything) {
     return (
-      <div className="space-y-4">
-        <PanelHeader fetchedAt={pricing?.fetched_at ?? occupancy?.fetched_at} />
-        <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-6 py-10 text-center">
-          <p className="text-sm text-[var(--color-text-faint)] italic">No live market data available right now.</p>
-        </div>
+      <div className="card px-6 py-10 text-center">
+        <p className="text-sm text-[var(--color-text-faint)] italic">No live market data available right now.</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <PanelHeader fetchedAt={pricing?.fetched_at ?? occupancy?.fetched_at} />
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-
-        {/* 0. Weather & Holidays -- not Swiggy-sourced, shown alongside the rest */}
-        {(weather || upcomingHoliday) && (
-          <WeatherHolidayCard weather={weather} upcomingHoliday={upcomingHoliday} />
-        )}
-
-        {/* 0b. Industry Trends -- curated RSS, not Swiggy-sourced */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 [grid-auto-flow:dense]">
+        {(weather || upcomingHoliday) && <WeatherHolidayCard weather={weather} upcomingHoliday={upcomingHoliday} />}
         {industryTrends && <IndustryTrendsCard trends={industryTrends} />}
-
-        {/* 0c. Regulatory Alerts -- FSSAI public notices, not Swiggy-sourced */}
         {complianceAlerts && <ComplianceAlertsCard alerts={complianceAlerts} />}
 
-        {/* 1. Menu & Pricing Positioning -- merged category pricing + market context,
-               per-dish cheapest/priciest detail dropped (aggregate-only, more compliant) */}
+        {/* Area Deals -- aggregate count/summary, no restaurant names. Not
+            always present (fetch_food_coupons data). */}
+        {dealsActiveCount > 0 && (
+          <Card title="Area Deals Tonight" source="Swiggy live coupons, area aggregate" concept icon={<IconTagPrice />} color={MARKET_COLOR.pricing}>
+            <div className="flex items-start gap-3 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] p-3">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500 text-white shadow-sm">
+                <IconTagPrice className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-amber-700 dark:text-amber-200">{dealsActiveCount} deal{dealsActiveCount !== 1 ? "s" : ""} active nearby</p>
+                <p className="mt-0.5 text-[11px] text-amber-600 dark:text-amber-300/90">{pricing?.deals_summary}</p>
+              </div>
+            </div>
+          </Card>
+        )}
+
         {(categoryPricing.length > 0 || menuBreadth || cuisineCrowding || vegMix) && (
-          <Card title="Menu & Pricing Positioning" source="derived aggregate analysis" wide concept>
+          <div className="lg:col-span-2">
+          <Card title="Menu & Pricing Positioning" source="derived aggregate analysis" swiggy concept icon={<IconTagPrice />} color={MARKET_COLOR.pricing}>
             {pricing && pricing.restaurants_checked_count > 0 && (
               <p className="mb-3 text-[10px] text-[var(--color-text-faint)]">
                 {pricing.restaurants_checked_count} nearby restaurant{pricing.restaurants_checked_count !== 1 ? "s" : ""} checked
@@ -169,27 +263,37 @@ export default function SwiggyLiveMarketPanel() {
             {categoryPricing.length > 0 && (
               <>
                 <div className="space-y-1.5 mb-4">
-                  {categoryPricing.map((c) => (
-                    <div
-                      key={c.category}
-                      className={`rounded-lg border px-3 py-2 ${
-                        c.verdict === "above" ? "border-rose-500/25 bg-rose-500/[0.06]"
-                        : c.verdict === "below" ? "border-emerald-500/25 bg-emerald-500/[0.06]"
-                        : "border-[var(--color-border-soft)] bg-[var(--color-surface-raised)]"
-                      }`}
-                    >
-                      <p className="text-xs text-[var(--color-text-primary)]">
-                        <span className="font-semibold capitalize">{c.category}</span>
-                        {": "}
-                        you&apos;re <span className={`font-semibold ${c.verdict === "above" ? "text-rose-300" : c.verdict === "below" ? "text-emerald-300" : ""}`}>
-                          {Math.abs(c.diff_pct).toFixed(0)}% {c.verdict === "in line" ? "in line with" : c.verdict}
-                        </span>{c.verdict !== "in line" ? " the area" : ""} (₹{c.your_avg} vs ₹{c.area_avg} avg)
-                      </p>
-                      <p className="mt-0.5 text-[10px] text-[var(--color-text-ghost)]">
-                        based on {c.competitor_dishes_sampled} nearby {c.category} dish{c.competitor_dishes_sampled !== 1 ? "es" : ""}
-                      </p>
-                    </div>
-                  ))}
+                  {categoryPricing.map((c) => {
+                    const color = c.verdict === "above" ? "#E11D48" : c.verdict === "below" ? "#059669" : "#60A5FA";
+                    return (
+                      <div
+                        key={c.category}
+                        className="flex items-center gap-3 rounded-lg border p-2.5"
+                        style={{ background: `${color}0d`, borderColor: `${color}30` }}
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white shadow-sm" style={{ background: color }}>
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
+                            {c.verdict === "above" ? (
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            ) : c.verdict === "below" ? (
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M13 17h8m0 0v-8m0 8l-8-8-4 4-6-6" />
+                            ) : (
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
+                            )}
+                          </svg>
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-semibold capitalize text-[var(--color-text-primary)]">{c.category}</p>
+                          <p className="mt-0.5 truncate text-[10px] text-[var(--color-text-faint)]">
+                            based on {c.competitor_dishes_sampled} nearby dish{c.competitor_dishes_sampled !== 1 ? "es" : ""}
+                          </p>
+                        </div>
+                        <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: `${color}1a`, color }}>
+                          {c.verdict === "in line" ? "on par" : `${Math.abs(c.diff_pct).toFixed(0)}%`}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
                 <CategoryPricingChart data={categoryPricing} />
               </>
@@ -197,169 +301,172 @@ export default function SwiggyLiveMarketPanel() {
             {(menuBreadth || cuisineCrowding || vegMix) && (
               <div className={`grid grid-cols-1 gap-2 sm:grid-cols-3 ${categoryPricing.length > 0 ? "mt-4 border-t border-[var(--color-border-soft)] pt-4" : ""}`}>
                 {menuBreadth && (
-                  <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
-                    <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Menu breadth</p>
-                    <p className="mt-1 text-sm text-[var(--color-text-primary)]">
-                      <span className="font-mono font-semibold">{menuBreadth.your_item_count}</span> items on your menu
-                    </p>
-                    <p className="text-[10px] text-[var(--color-text-faint)]">
-                      vs {menuBreadth.competitor_avg_item_count} avg across {menuBreadth.competitors_sampled} nearby competitor(s)
-                    </p>
-                  </div>
+                  <StatTile
+                    label="Menu breadth" color={MARKET_COLOR.pricing}
+                    value={<>{menuBreadth.your_item_count} <span className="text-xs font-normal text-[var(--color-text-faint)]">items</span></>}
+                    sub={`vs ${menuBreadth.competitor_avg_item_count} avg across ${menuBreadth.competitors_sampled} nearby`}
+                  />
                 )}
                 {cuisineCrowding && (
-                  <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
-                    <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Cuisine crowding</p>
-                    <p className="mt-1 text-sm text-[var(--color-text-primary)]">
-                      <span className="font-mono font-semibold">{cuisineCrowding.matching_count}</span> of {cuisineCrowding.total_checked} nearby
-                    </p>
-                    <p className="text-[10px] text-[var(--color-text-faint)]">
-                      also serve <span className="capitalize">{cuisineCrowding.cuisine}</span>
-                    </p>
-                  </div>
+                  <StatTile
+                    label="Cuisine crowding" color={MARKET_COLOR.trends}
+                    value={<>{cuisineCrowding.matching_count}<span className="text-xs font-normal text-[var(--color-text-faint)]">/{cuisineCrowding.total_checked}</span></>}
+                    sub={`also serve ${cuisineCrowding.cuisine}`}
+                  />
                 )}
                 {vegMix && (
-                  <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
-                    <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Veg/non-veg mix</p>
-                    <p className="mt-1 text-sm text-[var(--color-text-primary)]">
-                      <span className="font-mono font-semibold">{vegMix.veg_count}</span> of {vegMix.total} nearby
-                    </p>
-                    <p className="text-[10px] text-[var(--color-text-faint)]">are pure-veg only</p>
-                  </div>
+                  <StatTile
+                    label="Veg / non-veg mix" color="#16A34A"
+                    value={<>{vegMix.veg_count}<span className="text-xs font-normal text-[var(--color-text-faint)]">/{vegMix.total}</span></>}
+                    sub="are pure-veg only"
+                  />
                 )}
               </div>
             )}
           </Card>
+          </div>
         )}
 
-        {/* 4. Area Deals -- aggregate count/summary, no restaurant names */}
-        {dealsActiveCount > 0 && (
-          <Card title="Area Deals Tonight" source="fetch_food_coupons (area aggregate)" concept>
-            <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2.5 text-xs">
-              <p className="font-medium text-amber-200">{dealsActiveCount} deal{dealsActiveCount !== 1 ? "s" : ""} active nearby</p>
-              <p className="mt-1 text-[10px] text-amber-300/90">{pricing?.deals_summary}</p>
-            </div>
-          </Card>
-        )}
-
-        {/* 5. Nearby Market Landscape -- area aggregate, no named restaurants */}
-        {landscapeSummary && (
-          <Card title="Nearby Market Landscape" source="search_restaurants (area aggregate)" wide concept>
+        {(landscapeSummary || occupancy) && (
+          <div className="flex flex-col gap-4">
+          {landscapeSummary && (
+          <Card title="Nearby Market Landscape" source="Swiggy nearby restaurants, area aggregate" concept icon={<IconStorefront />} color={MARKET_COLOR.landscape}>
             {positioning && (
-              <div className="mb-3 rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-3 py-2.5">
-                <p className="text-sm text-[var(--color-text-primary)]">
+              <div className="rounded-lg border border-blue-400/25 bg-blue-400/[0.07] p-4">
+                <p className="text-base text-[var(--color-text-primary)]">
                   Estimated <span className="font-mono font-semibold">₹{positioning.your_cost_for_two_estimate}</span> for two
                   ranks <span className="font-semibold text-[var(--color-accent)]">#{positioning.rank} of {positioning.total}</span> nearby options
                 </p>
-                <p className="mt-0.5 text-[10px] text-[var(--color-text-faint)]">
+                {/* Position bar -- fills space with a genuine visualisation
+                    instead of leaving the card looking sparse next to the
+                    chart-heavy Menu & Pricing tile it's stretched to match. */}
+                <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[var(--color-border-soft)]">
+                  <div
+                    className="h-full rounded-full bg-[var(--color-accent)]"
+                    style={{ width: `${Math.max(6, 100 - ((positioning.rank - 1) / Math.max(1, positioning.total - 1)) * 100)}%` }}
+                  />
+                </div>
+                <p className="mt-1.5 text-[10px] text-[var(--color-text-faint)]">
                   cheaper than {positioning.cheaper_than_count} · pricier than {positioning.pricier_than_count}
                 </p>
               </div>
             )}
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
-                <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Nearby options</p>
-                <p className="mt-1 font-mono text-sm font-semibold text-[var(--color-text-primary)]">{landscapeSummary.count}</p>
-              </div>
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <StatTile label="Nearby options" color={MARKET_COLOR.landscape} value={landscapeSummary.count} />
               {landscapeSummary.avg_rating !== null && (
-                <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
-                  <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Avg rating</p>
-                  <p className="mt-1 font-mono text-sm font-semibold text-[var(--color-text-primary)]">{landscapeSummary.avg_rating}★</p>
-                </div>
+                <StatTile label="Avg rating" color={MARKET_COLOR.landscape} value={<>{landscapeSummary.avg_rating}★</>} />
               )}
               {landscapeSummary.cost_for_two_min !== null && (
-                <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
-                  <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Cost for two range</p>
-                  <p className="mt-1 font-mono text-sm font-semibold text-[var(--color-text-primary)]">
-                    ₹{landscapeSummary.cost_for_two_min}–₹{landscapeSummary.cost_for_two_max}
+                <StatTile label="Cost for two range" color={MARKET_COLOR.landscape} value={<>₹{landscapeSummary.cost_for_two_min}–₹{landscapeSummary.cost_for_two_max}</>} />
+              )}
+            </div>
+
+            {/* mt-auto -- pins to the bottom of the stretched card height
+                regardless of whether the content above filled it. */}
+            <div className="mt-auto pt-4">
+              {landscapeSummary.offers_count > 0 ? (
+                <div className="flex items-center gap-3 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] p-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500 text-white shadow-sm">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5.586a1 1 0 01.707.293l6.414 6.414a1 1 0 010 1.414l-8.586 8.586a1 1 0 01-1.414 0l-6.414-6.414A1 1 0 013 12.586V7a4 4 0 014-4z" />
+                    </svg>
+                  </span>
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-200">
+                    {landscapeSummary.offers_count} nearby option{landscapeSummary.offers_count !== 1 ? "s" : ""} running an active offer
                   </p>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 rounded-lg border border-blue-400/25 bg-blue-400/[0.07] px-3 py-2.5">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                  <p className="text-xs text-[var(--color-text-faint)]">No active offers reported nearby right now.</p>
                 </div>
               )}
             </div>
-            {landscapeSummary.offers_count > 0 && (
-              <p className="mt-2 text-[10px] text-amber-300">
-                {landscapeSummary.offers_count} nearby option{landscapeSummary.offers_count !== 1 ? "s" : ""} running an active offer
-              </p>
-            )}
           </Card>
+          )}
+
+          {occupancy && (
+          <Card title="Area Occupancy" source="Swiggy Dineout availability, area aggregate" concept icon={<IconClock />} color={MARKET_COLOR.occupancy}>
+            <div className="space-y-4">
+              {occupancy.signal ? (
+                <div className="space-y-2 rounded-lg border border-blue-400/25 bg-blue-400/[0.07] p-4">
+                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+                    occupancy.signal === "HIGH" ? "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300"
+                    : occupancy.signal === "MEDIUM" ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300"
+                    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
+                  }`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${
+                      occupancy.signal === "HIGH" ? "bg-rose-400" : occupancy.signal === "MEDIUM" ? "bg-amber-400" : "bg-emerald-400"
+                    }`} />
+                    {occupancy.signal} occupancy area
+                  </span>
+                  <p className="text-xs text-[var(--color-text-soft)]">
+                    {occupancy.signal === "HIGH"
+                      ? "Nearby restaurants are nearly full, so expect walk-in overflow tonight."
+                      : occupancy.signal === "MEDIUM"
+                      ? "Nearby restaurants have moderate availability tonight."
+                      : "Nearby restaurants have ample availability, so no unusual demand pressure is expected."}
+                  </p>
+                  <p className="text-[10px] text-[var(--color-text-ghost)]">{occupancy.competitors_checked} restaurant(s) checked</p>
+                </div>
+              ) : (
+                <p className="text-xs text-[var(--color-text-ghost)] italic">Occupancy data unavailable, add a Dineout saved location to your Swiggy account.</p>
+              )}
+              {slotAvailability.length > 0 && (
+                <div className="border-t border-[var(--color-border-soft)] pt-4">
+                  <OccupancyBySlotChart data={slotAvailability} />
+                </div>
+              )}
+            </div>
+          </Card>
+          )}
+          </div>
         )}
-
-        {/* 6. Area Occupancy -- signal + full by-slot detail */}
-        <Card title="Area Occupancy" source="search_restaurants_dineout + get_available_slots" concept>
-          {occupancy?.signal ? (
-            <div className="space-y-2">
-              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-                occupancy.signal === "HIGH" ? "border-rose-500/30 bg-rose-500/10 text-rose-300"
-                : occupancy.signal === "MEDIUM" ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-              }`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${
-                  occupancy.signal === "HIGH" ? "bg-rose-400" : occupancy.signal === "MEDIUM" ? "bg-amber-400" : "bg-emerald-400"
-                }`} />
-                {occupancy.signal} occupancy area
-              </span>
-              <p className="text-xs text-[var(--color-text-soft)]">
-                {occupancy.signal === "HIGH"
-                  ? "Nearby restaurants are nearly full — expect walk-in overflow tonight."
-                  : occupancy.signal === "MEDIUM"
-                  ? "Nearby restaurants have moderate availability tonight."
-                  : "Nearby restaurants have ample availability — no unusual demand pressure expected."}
-              </p>
-              <p className="text-[10px] text-[var(--color-text-ghost)]">{occupancy.competitors_checked} restaurant(s) checked</p>
-            </div>
-          ) : (
-            <p className="text-xs text-[var(--color-text-ghost)] italic">Occupancy data unavailable — add a Dineout saved location to your Swiggy account.</p>
-          )}
-
-          {slotAvailability.length > 0 && (
-            <div className="mt-3 border-t border-[var(--color-border-soft)] pt-3">
-              <OccupancyBySlotChart data={slotAvailability} />
-              <div className="mt-2 space-y-1">
-                {slotAvailability.map((s) => (
-                  <div key={s.time} className="flex items-center justify-between text-[10px] text-[var(--color-text-faint)]">
-                    <span>{s.time}</span>
-                    <span className="font-mono">{s.avg_availability} avg · {s.signal}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </Card>
-
-        {/* Ingredient Price Lookup -- on-demand, your own procurement, not competitor data */}
-        <IngredientPriceLookup />
       </div>
+
+      {/* Ingredient Price Lookup -- on-demand, your own procurement, not competitor data */}
+      <IngredientPriceLookup />
     </div>
   );
 }
 
-function PanelHeader({ fetchedAt }: { fetchedAt?: string | null }) {
-  return (
-    <div className="px-1 flex items-center gap-3">
-      <div className="h-10 w-1 rounded-full flex-shrink-0 bg-orange-400/70" />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-3 flex-wrap">
-          <p className="text-xs uppercase tracking-[0.18em] text-orange-300/80">Live Market Intelligence</p>
-          <SwiggyBadge />
-          {fetchedAt && (
-            <span className="text-[9px] font-mono text-[var(--color-text-ghost)]">fetched {fetchedAt}</span>
-          )}
-        </div>
-        <p className="mt-1 text-sm text-[var(--color-text-soft)]">
-          Always-on Swiggy signal — updates independently of any plan run. This is the same data
-          that gets injected into your next plan when you run one.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-const CONDITION_STYLES: Record<MarketWeather["condition"], { label: string; className: string }> = {
-  heavy_rain: { label: "Heavy rain expected", className: "border-rose-500/30 bg-rose-500/10 text-rose-300" },
-  light_rain: { label: "Light rain possible", className: "border-amber-500/30 bg-amber-500/10 text-amber-300" },
-  very_hot:   { label: "Hot evening", className: "border-amber-500/30 bg-amber-500/10 text-amber-300" },
-  clear:      { label: "Clear", className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" },
+const CONDITION_STYLES: Record<MarketWeather["condition"], { label: string; tile: string }> = {
+  heavy_rain: { label: "Heavy rain expected", tile: "from-blue-300/20 to-rose-400/20" },
+  light_rain: { label: "Light rain possible",  tile: "from-blue-300/20 to-amber-400/20" },
+  very_hot:   { label: "Hot evening",          tile: "from-amber-400/20 to-orange-400/20" },
+  clear:      { label: "Clear",                tile: "from-sky-400/20 to-emerald-400/20" },
 };
+
+function WeatherIcon({ condition }: { condition: MarketWeather["condition"] }) {
+  const showRain = condition === "heavy_rain" || condition === "light_rain";
+  const showBolt = condition === "heavy_rain";
+  const showSun  = condition === "very_hot" || condition === "clear";
+
+  return (
+    <div className={`grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-gradient-to-br ${CONDITION_STYLES[condition].tile}`}>
+      <svg viewBox="0 0 64 64" className="h-10 w-10" aria-hidden="true">
+        {showSun && (
+          <circle cx="32" cy="26" r="11" fill="#f5be73" />
+        )}
+        <path
+          d="M20 34c-5 0-9-4-9-9s4-9 9-9c1.5-4.5 5.7-8 10.8-8 6.1 0 11.1 4.6 11.8 10.5 4.6.7 8.1 4.6 8.1 9.3 0 5.2-4.2 9.4-9.4 9.4H20z"
+          fill="#93B4E0"
+          opacity={showSun ? 0.5 : 0.85}
+        />
+        {showRain && (
+          <>
+            <path d="M22 40l-3 7" stroke="#60a5fa" strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M32 40l-3 7" stroke="#60a5fa" strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M42 40l-3 7" stroke="#60a5fa" strokeWidth="2.5" strokeLinecap="round" />
+          </>
+        )}
+        {showBolt && (
+          <path d="M33 38l-6 10h5l-2 8 8-11h-5l3-7z" fill="#f5be73" stroke="#c98a1f" strokeWidth="0.5" />
+        )}
+      </svg>
+    </div>
+  );
+}
 
 function WeatherHolidayCard({
   weather,
@@ -368,79 +475,248 @@ function WeatherHolidayCard({
   weather: MarketWeather | null | undefined;
   upcomingHoliday: MarketUpcomingHoliday | null | undefined;
 }) {
+  const holidaySoon = upcomingHoliday && upcomingHoliday.days_away > 0 && upcomingHoliday.days_away <= 7;
+
   return (
-    <Card title="Weather & Holidays" source="Open-Meteo + internal calendar" wide swiggy={false}>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {weather && (
-          <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
-            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${CONDITION_STYLES[weather.condition].className}`}>
-              {CONDITION_STYLES[weather.condition].label}
-            </span>
-            <p className="mt-2 text-xs text-[var(--color-text-soft)]">{weather.signal}</p>
-            <p className="mt-1 text-[10px] text-[var(--color-text-faint)]">
-              Delivery: {weather.delivery_impact} · Dine-in: {weather.dinein_impact}
+    <Card title="Weather & Holidays" source="Open-Meteo + internal calendar" swiggy={false} titleIcon={<IconCloud className="h-4 w-4 shrink-0 text-[var(--color-text-faint)]" />}>
+      {weather && (
+        <div className="flex items-start gap-4">
+          <WeatherIcon condition={weather.condition} />
+          <div className="min-w-0 flex-1">
+            <p className="text-lg font-bold text-[var(--color-text-primary)]">{CONDITION_STYLES[weather.condition].label}</p>
+            <p className="mt-2 text-[13px] leading-relaxed text-[var(--color-text-soft)]">{weather.signal}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Real numbers, not just prose -- gives the card the same tinted
+          stat-tile texture as every other card on the page instead of
+          reading as two boxes with a wall of plain text between them. */}
+      {weather && (weather.avg_precipitation_pct !== null || weather.avg_temp_celsius !== null) && (
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {weather.avg_precipitation_pct !== null && (
+            <StatTile label="Rain chance" color={MARKET_COLOR.weather} value={`${weather.avg_precipitation_pct.toFixed(0)}%`} />
+          )}
+          {weather.avg_temp_celsius !== null && (
+            <StatTile label="Avg temp" color={MARKET_COLOR.weather} value={`${weather.avg_temp_celsius.toFixed(0)}°C`} />
+          )}
+        </div>
+      )}
+
+      {/* Always show a holiday line -- previously this box vanished
+          entirely on any day with no holiday due today or very soon, which
+          read as if the signal just hadn't loaded. Styled by proximity:
+          today is the loudest, within a week gets a warm highlight, further
+          out is a quiet mention -- rather than one flat neutral box always. */}
+      <div
+        className={`mt-4 flex items-center gap-2.5 rounded-lg border px-3 py-2.5 ${
+          upcomingHoliday && upcomingHoliday.days_away === 0
+            ? "border-[var(--color-accent)]/40 bg-[var(--color-accent-soft)]"
+            : holidaySoon
+            ? "border-amber-500/30 bg-amber-500/[0.08]"
+            : "border-blue-400/25 bg-blue-400/[0.07]"
+        }`}
+      >
+        <span
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+          style={{
+            background: upcomingHoliday && upcomingHoliday.days_away === 0 ? "var(--color-accent)" : holidaySoon ? "#D97706" : "rgba(96,165,250,0.16)",
+            color: upcomingHoliday && (upcomingHoliday.days_away === 0 || holidaySoon) ? "#fff" : "#60A5FA",
+          }}
+        >
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </span>
+        {upcomingHoliday && upcomingHoliday.days_away === 0 ? (
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Holiday today</p>
+            <p className="text-[13px] font-medium text-[var(--color-text-primary)]">{upcomingHoliday.name}</p>
+          </div>
+        ) : holidaySoon ? (
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400">Coming up</p>
+            <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
+              {upcomingHoliday!.name} · {upcomingHoliday!.days_away === 1 ? "tomorrow" : `in ${upcomingHoliday!.days_away} days`}
             </p>
           </div>
-        )}
-        {upcomingHoliday && (
-          <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-3">
-            <p className="text-[9px] uppercase tracking-widest text-[var(--color-text-ghost)]">Upcoming holiday</p>
-            <p className="mt-1 text-sm text-[var(--color-text-primary)]">
-              <span className="font-semibold">{upcomingHoliday.name}</span>
-            </p>
-            <p className="mt-0.5 text-[10px] text-[var(--color-text-faint)]">
-              {upcomingHoliday.days_away === 0
-                ? "Today"
-                : upcomingHoliday.days_away === 1
-                ? "Tomorrow"
-                : `In ${upcomingHoliday.days_away} days`}
-              {" "}({upcomingHoliday.date})
-            </p>
+        ) : (
+          <div className="min-w-0">
+            <p className="text-[13px] text-[var(--color-text-faint)]">No holiday today</p>
+            {upcomingHoliday && (
+              <p className="text-[10px] text-[var(--color-text-ghost)]">
+                Next: {upcomingHoliday.name} (in {upcomingHoliday.days_away} days)
+              </p>
+            )}
           </div>
         )}
       </div>
+
+      {/* mt-auto -- pins this to the bottom of the card's stretched height
+          (Card's children wrapper is a flex column) instead of leaving a
+          dead gap under it whenever a row-sibling's content runs longer. */}
+      {weather && (
+        <div className="mt-auto grid grid-cols-2 gap-2 pt-4">
+          <TrendStat label="Delivery" value={weather.delivery_impact} />
+          <TrendStat label="Dine-in" value={weather.dinein_impact} />
+        </div>
+      )}
     </Card>
+  );
+}
+
+// SaaS-style trend stat: icon direction + color derived from the sign of
+// the value itself (e.g. "+35%" vs "-20%"), tinted tile instead of a flat
+// divided box -- matches the StatTile language used on every other card.
+function TrendStat({ label, value }: { label: string; value: string }) {
+  const isUp = value.trim().startsWith("+");
+  const isDown = value.trim().startsWith("-");
+  const color = isUp ? "#059669" : isDown ? "#E11D48" : "#60A5FA";
+
+  return (
+    <div className="flex items-center gap-2.5 rounded-lg border p-3" style={{ background: `${color}0f`, borderColor: `${color}30` }}>
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white shadow-sm" style={{ background: color }}>
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
+          {isUp ? (
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+          ) : isDown ? (
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 17h8m0 0v-8m0 8l-8-8-4 4-6-6" />
+          ) : (
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
+          )}
+        </svg>
+      </span>
+      <div className="min-w-0">
+        <p className="text-[9px] font-semibold uppercase tracking-widest text-[var(--color-text-faint)]">{label}</p>
+        <p className="mt-0.5 text-lg font-bold" style={{ color }}>{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function TrendBullets({ bullets }: { bullets: string[] }) {
+  return (
+    <ul className="space-y-4">
+      {bullets.map((line, i) => (
+        <li key={i} className="flex gap-3 text-[13px] leading-relaxed text-[var(--color-text-soft)]">
+          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-accent)]" />
+          <span>{line.replace(/^[-•*]\s*/, "")}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// Lightweight modal for the full trends list -- matches the app's existing
+// modal language (backdrop + card, modalIn/backdropIn keyframes already in
+// globals.css) without pulling in DashboardDetailModal's heavier agent-detail
+// chrome (eyebrow label, meta chips, key-takeaways grid) that doesn't apply here.
+function TrendsModal({ bullets, onClose }: { bullets: string[]; onClose: () => void }) {
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[70]">
+      <button
+        aria-label="Close industry trends modal"
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-[backdropIn_0.15s_ease_both]"
+        onClick={onClose}
+      />
+      <div className="absolute inset-x-4 top-10 mx-auto max-w-xl md:inset-x-auto md:left-1/2 md:-translate-x-1/2">
+        <div className="card max-h-[80vh] flex flex-col rounded-2xl overflow-hidden border-[var(--color-border-default)] shadow-2xl animate-[modalIn_0.2s_ease-out_both]">
+          <div className="flex items-start justify-between gap-4 border-b border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-5 py-4">
+            <div>
+              <p className="text-[15px] font-bold text-[var(--color-text-primary)]">Industry Trends</p>
+              <p className="text-[11.5px] font-medium text-[var(--color-text-soft)]">via curated RSS trade press</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-3 py-1.5 text-xs text-[var(--color-text-soft)] hover:bg-[var(--color-surface-sunken)] transition-colors"
+            >
+              close
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 py-5">
+            <TrendBullets bullets={bullets} />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
 function IndustryTrendsCard({ trends }: { trends: MarketIndustryTrends }) {
+  const [showAll, setShowAll] = useState(false);
   const bullets = trends.digest.split("\n").map((line) => line.trim()).filter(Boolean);
+  const visible = bullets.slice(0, 5);
 
   return (
-    <Card title="Industry Trends" source="curated RSS trade press" wide swiggy={false}>
-      <ul className="space-y-2">
-        {bullets.map((line, i) => (
-          <li key={i} className="flex gap-2 text-xs text-[var(--color-text-soft)]">
-            <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-[var(--color-text-faint)]" />
-            <span>{line.replace(/^[-•*]\s*/, "")}</span>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-3 text-[10px] text-[var(--color-text-ghost)]">
-        {trends.headline_count} headlines across {trends.sources_used} source{trends.sources_used !== 1 ? "s" : ""}
-      </p>
+    <Card title="Industry Trends" source="curated RSS trade press" swiggy={false} titleIcon={<IconNewspaper className="h-4 w-4 shrink-0 text-[var(--color-text-faint)]" />}>
+      <TrendBullets bullets={visible} />
+      {bullets.length > 5 && (
+        <div className="mt-auto pt-3">
+          <button
+            onClick={() => setShowAll(true)}
+            className="text-xs font-medium text-[var(--color-accent)] hover:underline"
+          >
+            View all →
+          </button>
+        </div>
+      )}
+      {showAll && <TrendsModal bullets={bullets} onClose={() => setShowAll(false)} />}
     </Card>
   );
 }
 
-function ComplianceAlertsCard({ alerts }: { alerts: MarketComplianceAlerts }) {
+function AlertDocIcon() {
   return (
-    <Card title="Regulatory Alerts" source="FSSAI public notices" wide swiggy={false}>
-      <ul className="space-y-2.5">
-        {alerts.notices.map((n, i) => (
-          <li key={i} className="text-xs text-[var(--color-text-soft)]">
-            <a
-              href={n.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-[var(--color-text-primary)] hover:text-[var(--color-accent)] hover:underline"
-            >
-              {n.title}
-            </a>
-            <span className="ml-1.5 text-[10px] text-[var(--color-text-ghost)]">uploaded {n.uploaded_on}</span>
+    <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg" style={{ background: `${MARKET_COLOR.alerts}14` }}>
+      <svg className="h-4 w-4" style={{ color: MARKET_COLOR.alerts }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    </div>
+  );
+}
+
+function ComplianceAlertsCard({ alerts }: { alerts: MarketComplianceAlerts }) {
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? alerts.notices : alerts.notices.slice(0, 5);
+
+  return (
+    <Card title="Regulatory Alerts" source="FSSAI public notices" swiggy={false} titleIcon={<IconShieldAlert className="h-4 w-4 shrink-0 text-[var(--color-text-faint)]" />}>
+      <ul className="space-y-3">
+        {visible.map((n, i) => (
+          <li key={i} className="flex items-start gap-2.5">
+            <AlertDocIcon />
+            <div className="min-w-0 flex-1">
+              <a
+                href={n.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="line-clamp-2 text-[13px] font-medium text-[var(--color-text-primary)] hover:text-[var(--color-accent)] hover:underline"
+              >
+                {n.title}
+              </a>
+              <p className="mt-0.5 text-[10px] text-[var(--color-text-ghost)]">uploaded {n.uploaded_on}</p>
+            </div>
           </li>
         ))}
       </ul>
+      <div className="mt-auto pt-3">
+        {alerts.notices.length > 5 ? (
+          <button
+            onClick={() => setShowAll((v) => !v)}
+            className="flex items-center gap-1 text-xs font-medium text-[var(--color-accent)] hover:underline"
+          >
+            {showAll ? "Show fewer alerts" : "View all alerts"} →
+          </button>
+        ) : (
+          <p className="text-[10px] text-[var(--color-text-ghost)]">{alerts.notice_count} notice{alerts.notice_count !== 1 ? "s" : ""} tracked</p>
+        )}
+      </div>
     </Card>
   );
 }

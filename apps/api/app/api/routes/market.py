@@ -200,20 +200,25 @@ class MarketPulseResponse(BaseModel):
     compliance_alerts: ComplianceAlerts | None = None
 
 
-def _get_upcoming_holiday(days_ahead: int = 14) -> UpcomingHoliday | None:
+def _get_upcoming_holiday() -> UpcomingHoliday | None:
     """Cheap dict scan against INDIAN_HOLIDAYS_2026 -- no API call, independent
-    of Swiggy connection status. Returns the nearest holiday within the window."""
-    from datetime import timedelta
-
+    of Swiggy connection status. Always returns the nearest holiday from today
+    onward, however far out -- the frontend styles it differently depending on
+    days_away (highlighted if within a week, a plain mention otherwise), but
+    the section should never just go empty because nothing was imminent."""
     from app.core.constants import INDIAN_HOLIDAYS_2026
 
     today = date.today()
-    for i in range(days_ahead + 1):
-        check = today + timedelta(days=i)
-        name = INDIAN_HOLIDAYS_2026.get(check.isoformat())
-        if name:
-            return UpcomingHoliday(date=check.isoformat(), name=name, days_away=i)
-    return None
+    upcoming = [
+        (parsed, name)
+        for iso, name in INDIAN_HOLIDAYS_2026.items()
+        if (parsed := date.fromisoformat(iso)) >= today
+    ]
+    if not upcoming:
+        return None
+    nearest_date, nearest_name = min(upcoming, key=lambda pair: pair[0])
+    days_away = (nearest_date - today).days
+    return UpcomingHoliday(date=nearest_date.isoformat(), name=nearest_name, days_away=days_away)
 
 
 @router.get("/pulse", response_model=MarketPulseResponse)

@@ -134,20 +134,20 @@ class WeatherService:
         temp_str = f"{avg_temp:.0f}°C" if avg_temp is not None else "unknown"
         descriptions = {
             "heavy_rain": (
-                f"Heavy rain expected ({avg_precip:.0f}% chance) during dinner service -- "
-                f"expect a shift toward delivery, reduced walk-in/outdoor capacity."
+                f"Heavy rain is expected during dinner service tonight ({avg_precip:.0f}% chance), "
+                f"so expect more delivery orders and less walk-in or outdoor dine-in demand."
             ),
             "light_rain": (
-                f"Light rain possible ({avg_precip:.0f}% chance) during dinner service -- "
-                f"some shift toward delivery expected."
+                f"Light rain is possible during dinner service tonight ({avg_precip:.0f}% chance), "
+                f"which could nudge a few more orders toward delivery."
             ),
             "very_hot": (
-                f"Hot evening expected (~{temp_str}) -- may reduce outdoor dine-in, "
-                f"slight delivery uptick."
+                f"It's shaping up to be a hot evening (around {temp_str}), which may soften "
+                f"outdoor dine-in a little and lift delivery slightly."
             ),
             "clear": (
-                f"Clear conditions expected (~{temp_str}, {avg_precip:.0f}% rain chance) -- "
-                f"no unusual weather-driven demand shift."
+                f"Conditions look clear tonight (around {temp_str}, {avg_precip:.0f}% rain chance), "
+                f"so no unusual weather-driven shift in demand is expected."
             ),
         }
         return descriptions[condition]

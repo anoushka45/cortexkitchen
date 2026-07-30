@@ -374,6 +374,62 @@ body {
   box-shadow: 0 0 0 1px rgba(255,255,255,0.04), 0 10px 32px rgba(0,0,0,0.45);
 }
 
+/* ── Moving-border card (hero treatment) ──────────────────────────
+   A rotating gradient "beam" traces the card's edge instead of a static
+   shadow -- used sparingly (one hero per page, not every card) for a bit
+   of AI-briefing motion. Rotates an actual pseudo-element via `transform`
+   (not a CSS custom-property angle, which needs @property + relies on
+   support/toolchain behavior that didn't animate reliably here) --
+   `transform: rotate()` needs no interpolation trick and just works.
+   ::before is an oversized rotating conic disc; ::after re-covers the
+   center with the real card surface, leaving only a ring visible. */
+.moving-border-card {
+  position: relative;
+  isolation: isolate;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: 1.5rem; /* matches rounded-3xl -- explicit, not inherited,
+    since overflow:hidden on this element is what actually clips the
+    rotating disc below to this shape. */
+}
+.moving-border-card::before {
+  /* A rotated rectangle's own bounding box is bigger than the rectangle
+     itself (its corners swing outward at in-between angles) -- rotating
+     a box that was only ~card-sized let its corners fly outside the card
+     with nothing clipping them. Fix: this box is 2x the card in both
+     dimensions, centered, so rotation never exposes a gap or an edge --
+     and overflow:hidden above now actually clips it to the card shape. */
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 220%;
+  height: 220%;
+  z-index: -2;
+  transform: translate(-50%, -50%); /* base/reduced-motion frame -- keeps it
+    centered even when the keyframe animation below isn't running. */
+  background: conic-gradient(from 0deg, transparent 0deg, transparent 250deg, #F59E0B 300deg, #FF5200 335deg, #FF5200 360deg);
+  animation: moving-border-spin 6s linear infinite;
+  will-change: transform; /* hints the browser to composite this on its own
+    GPU layer instead of repainting the rotated gradient every frame --
+    without this a rotating conic-gradient can visibly stutter. */
+}
+.moving-border-card::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  z-index: -1;
+  border-radius: calc(1.5rem - 2px);
+  /* Static (not animated) warm wash -- the "light color" touch on the card
+     itself, separate from the moving border so there's only one moving
+     element, not two competing for attention. */
+  background: radial-gradient(ellipse 700px 340px at 15% 0%, rgba(255,130,40,0.09), transparent 65%), var(--color-surface-raised);
+}
+@keyframes moving-border-spin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
 /* ── Page canvas (clean white, cards carry the depth via their own
    gold border/shadow now -- not a tinted/gray page wash). ────── */
 .page-canvas {
@@ -514,6 +570,7 @@ body {
   .bar  { animation: none !important; transform: scaleY(1) !important; }
   .sparkline { animation: none !important; stroke-dashoffset: 0 !important; }
   .marquee-track { animation: none !important; }
+  .moving-border-card::before { animation: none !important; background: #FF5200 !important; }
 }
 
 /* ── Font mono utility ───────────────────────────────────────── */

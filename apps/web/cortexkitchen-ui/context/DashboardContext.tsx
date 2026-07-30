@@ -29,8 +29,6 @@ interface DashboardCtx {
   setDashStatus: (s: DashStatus) => void;
   doReset: () => void;
   registerReset: (fn: () => void) => void;
-  openHistory: () => void;
-  registerOpenHistory: (fn: () => void) => void;
   pendingTrigger: PendingTrigger | null;
   setPendingTrigger: (t: PendingTrigger | null) => void;
 }
@@ -42,7 +40,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [dashStatus, setDashStatus] = useState<DashStatus>("idle");
   const [pendingTrigger, setPendingTrigger] = useState<PendingTrigger | null>(null);
   const resetFnRef       = useRef<() => void>(() => {});
-  const openHistoryFnRef = useRef<() => void>(() => {});
 
   const registerReset = useCallback((fn: () => void) => {
     resetFnRef.current = fn;
@@ -53,20 +50,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     setDashStatus("idle");
   }, []);
 
-  const registerOpenHistory = useCallback((fn: () => void) => {
-    openHistoryFnRef.current = fn;
-  }, []);
-
-  const openHistory = useCallback(() => {
-    openHistoryFnRef.current();
-  }, []);
-
   return (
     <Context.Provider value={{
       selectedScenario, setSelectedScenario,
       dashStatus, setDashStatus,
       doReset, registerReset,
-      openHistory, registerOpenHistory,
       pendingTrigger, setPendingTrigger,
     }}>
       {children}

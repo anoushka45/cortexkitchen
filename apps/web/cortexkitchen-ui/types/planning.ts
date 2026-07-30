@@ -195,12 +195,27 @@ export interface SwiggyOccupancyContext {
   fetched_at:   string;
 }
 
+// Mirrors ProcurementEnricher.enrich()'s actual return shape (camelCase
+// item fields, straight from the Swiggy Instamart response) -- NOT the
+// snake_case this used to declare, which never matched the real payload.
 export interface SwiggyProcurementOption {
-  name:     string;
-  price:    number;
-  unit:     string;
-  in_stock: boolean;
-  spin_id:  string;
+  ingredient: string;
+  price:      number;
+  unit:       string;
+  inStock:    boolean;
+  spinId:     string;
+}
+
+// The backend wraps the array in a dict (app/api/schemas/planning.py:
+// swiggy_procurement_options: Optional[Dict[str, Any]]), not a bare array --
+// FridayRushResponse.swiggy_procurement_options below used to type it as a
+// plain SwiggyProcurementOption[], which crashed the first real .find()
+// call against it (options.find is not a function) since at runtime it's
+// this wrapper object.
+export interface SwiggyProcurementOutput {
+  procurement_options: SwiggyProcurementOption[];
+  prompt_text?: string;
+  fetched_at?: string;
 }
 
 export interface MarketIntelOutput {
@@ -278,8 +293,13 @@ export interface FridayRushResponse {
   market_intel?:              MarketIntelOutput | null;
   swiggy_competitor_context?: Record<string, unknown> | null;
   swiggy_occupancy_context?:  SwiggyOccupancyContext | null;
-  swiggy_procurement_options?: SwiggyProcurementOption[] | null;
+  swiggy_procurement_options?: SwiggyProcurementOutput | null;
   dineout_manager?:           Record<string, unknown> | null;
+  // Natural-language "situation + tailored key takeaways" briefing (hero
+  // content on /planning's results page). Absent on older stored runs or
+  // when the LLM call failed open -- frontend falls back to a deterministic
+  // rendering in that case.
+  situation_summary?:         string | null;
 }
 
 // P6-A25 -- ad-hoc scenario profile derived from natural language, carried

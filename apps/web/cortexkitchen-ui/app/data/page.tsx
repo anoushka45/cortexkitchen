@@ -6,7 +6,7 @@
 // deep-link 404: there was never a dynamic route for it, so this page reads
 // the id from ?run=<id> instead (same convention /dashboard already uses).
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import SectionHeader from "@/components/dashboard/SectionHeader";
 import RunHistorySection from "@/components/data/RunHistorySection";
@@ -16,16 +16,16 @@ import PageHeading from "@/components/ui/PageHeading";
 function DataPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [initialRunId, setInitialRunId] = useState<number | undefined>(undefined);
+  const runParam = searchParams.get("run");
+  const [initialRunId] = useState<number | undefined>(runParam ? Number(runParam) : undefined);
 
-  useEffect(() => {
-    const runId = searchParams.get("run");
-    if (runId) {
-      setInitialRunId(Number(runId));
-      router.replace("/data");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  // Keeps ?run=<id> in the URL for whichever run is currently on screen
+  // (rather than reading it once and stripping it) -- refreshing, sharing,
+  // or hitting back/forward now lands back on the same run instead of
+  // resetting to the newest one.
+  function handleRunChange(id: number) {
+    if (String(id) !== runParam) router.replace(`/data?run=${id}`, { scroll: false });
+  }
 
   return (
     <main className="min-h-screen page-canvas px-5 py-6 text-[var(--color-text-primary)] xl:px-8">
@@ -42,7 +42,7 @@ function DataPageContent() {
             description="Every plan run -- verdict, scores, agent findings, and exports. Select any run to inspect or compare."
             tone="ember"
           />
-          <RunHistorySection initialRunId={initialRunId} />
+          <RunHistorySection initialRunId={initialRunId} onRunChange={handleRunChange} />
         </div>
 
         <div className="space-y-4">

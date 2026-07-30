@@ -40,6 +40,19 @@ export default function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Lets the /planning results page's "Ask the AI" box hand off a typed
+  // question via ?q= instead of building a second inline chat interface
+  // there -- reads window.location directly (not useSearchParams) so this
+  // page doesn't need a Suspense-boundary restructure for one query param.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) {
+      send_(q);
+      window.history.replaceState({}, "", "/chat");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function send_(question: string) {
     if (!question.trim() || busy) return;
     setInput("");

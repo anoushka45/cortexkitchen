@@ -66,6 +66,7 @@ class MenuService:
         reservation_data: dict | None = None,
         market_intel_data: dict | None = None,
         dineout_data: dict | None = None,
+        operational_focus: str | None = None,
     ) -> dict:
         top_items = self.get_top_items(target_date)
 
@@ -218,6 +219,7 @@ class MenuService:
             prior_feedback=prior_feedback or "",
             capacity_context=capacity_context,
             margin_context=margin_lines,
+            operational_focus=operational_focus or "",
         )
 
         recommendation = await self.llm.complete_json(

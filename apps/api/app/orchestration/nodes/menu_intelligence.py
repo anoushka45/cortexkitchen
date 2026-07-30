@@ -89,6 +89,7 @@ async def menu_intelligence_node(
             reservation_data=reservation_data or None,
             market_intel_data=state.get("market_intel_output"),
             dineout_data=state.get("dineout_manager_output"),
+            operational_focus=(state.get("scenario_profile") or {}).get("operational_focus"),
         )
         data = result.get("data") or {}
         shortage_items = [s for s in (data.get("shortage_ingredients") or []) if s]

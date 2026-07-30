@@ -35,6 +35,7 @@ from app.orchestration.nodes import (
     dineout_manager_node,
     aggregator_node,
     critic_node,
+    situation_summary_node,
     final_assembler_node,
     qdrant_enrichment_node,
     replan_orchestrator_node,
@@ -58,6 +59,7 @@ MENU_INTELLIGENCE = "menu_intelligence"
 AGGREGATOR = "aggregator"
 CRITIC = "critic"
 REPLAN_ORCHESTRATOR = "replan_orchestrator"
+SITUATION_SUMMARY = "situation_summary"
 FINAL_ASSEMBLER = "final_assembler"
 
 
@@ -324,6 +326,7 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
     graph.add_node(AGGREGATOR,          _log_node(aggregator_node,          tr))
     graph.add_node(CRITIC,              _inject(critic_node,                 tr, db=db, llm=llm))
     graph.add_node(REPLAN_ORCHESTRATOR, _log_node(replan_orchestrator_node, tr))
+    graph.add_node(SITUATION_SUMMARY,   _inject(situation_summary_node,     tr, llm=llm))
     graph.add_node(FINAL_ASSEMBLER,     _log_node(final_assembler_node,     tr))
 
     # ── Wire edges ───────────────────────────────────────────────────────────
@@ -371,10 +374,15 @@ def build_graph(deps: dict[str, Any], traces: list | None = None):
         CRITIC,
         _route_after_critic,
         {
-            FINAL_ASSEMBLER:     FINAL_ASSEMBLER,
+            # Approved plans go through the situation-summary briefing first,
+            # not straight to final_assembler -- this way the summary only
+            # ever generates once, on the final approved version, never on an
+            # in-progress revision-loop iteration.
+            FINAL_ASSEMBLER:     SITUATION_SUMMARY,
             REPLAN_ORCHESTRATOR: REPLAN_ORCHESTRATOR,
         },
     )
+    graph.add_edge(SITUATION_SUMMARY, FINAL_ASSEMBLER)
 
     # Replan loop: orchestrator injects feedback → re-run menu_intelligence with it
     # (not just re-aggregate the same unchanged output) → re-aggregate → re-evaluate.
@@ -597,7 +605,13 @@ async def run_planning_scenario(
 
 
 # ── SSE node names → state field mapping ─────────────────────────────────────
+# ops_manager/situation_summary/final_assembler were never in this map before
+# -- they ran for real but emitted zero SSE events, so the frontend loading
+# pipeline had no signal at all for "understanding the scenario" or "writing
+# the briefing". Added so those stages can show real start/complete events
+# instead of nothing.
 _NODE_SSE_MAP: dict[str, str] = {
+    "ops_manager":            "ops_manager",
     "live_signals":           "live_signals",
     "demand_forecast":        "forecast",
     "qdrant_enrichment":      "enrichment",
@@ -610,6 +624,8 @@ _NODE_SSE_MAP: dict[str, str] = {
     "aggregator":             "aggregator",
     "critic":                 "critic",
     "replan_orchestrator":    "replan",
+    "situation_summary":      "situation_summary",
+    "final_assembler":        "final_assembler",
 }
 
 _NODE_OUTPUT_FIELD: dict[str, str] = {
@@ -624,6 +640,7 @@ _NODE_OUTPUT_FIELD: dict[str, str] = {
 
 # Human-readable hints emitted when a node STARTS — shown in the loading pipeline
 _NODE_START_HINTS: dict[str, str] = {
+    "ops_manager":            "Resolving the scenario, restaurant profile, and target date…",
     "live_signals":           "Checking weather, industry trends, and FSSAI notices…",
     "demand_forecast":        "Running Prophet model on 90 days of order history…",
     "qdrant_enrichment":      "Searching Qdrant memory for relevant SOPs and past incidents…",
@@ -636,12 +653,30 @@ _NODE_START_HINTS: dict[str, str] = {
     "aggregator":             "Synthesising all agent outputs into one consolidated brief…",
     "critic":                 "Scoring the plan — safety · feasibility · evidence · actionability · clarity…",
     "replan_orchestrator":    "Critic flagged issues — injecting corrective context for retry…",
+    "situation_summary":      "Writing the executive briefing…",
 }
 
 
 def _completion_hint(node_name: str, state_update: dict) -> str:
     """Extract a brief human-readable hint from a node's completed state update."""
     try:
+        if node_name == "ops_manager":
+            profile = state_update.get("scenario_profile") or {}
+            label = profile.get("label")
+            window = profile.get("service_window")
+            target = state_update.get("target_date")
+            parts = [p for p in [label, f"target {target}" if target else None, window] if p]
+            return " · ".join(parts) if parts else "Scenario resolved"
+
+        if node_name == "situation_summary":
+            out = state_update.get("situation_summary_output") or {}
+            if out.get("error"):
+                return "Briefing skipped — falling back to a standard summary"
+            return "Executive briefing written" if out.get("summary") else "Briefing complete"
+
+        if node_name == "final_assembler":
+            return "Response packaged"
+
         if node_name == "live_signals":
             weather    = state_update.get("weather_signal") or {}
             trends     = state_update.get("trends_signal") or {}
@@ -848,7 +883,11 @@ async def stream_planning_scenario(
                     "hint": _completion_hint(ename, state_update if isinstance(state_update, dict) else {}),
                 }
 
-        elif ename == FINAL_ASSEMBLER and etype == "on_chain_end":
+        # Independent of the sse_name branch above (not elif) -- final_assembler
+        # is now also in _NODE_SSE_MAP so its node_complete event fires through
+        # that branch too, but final_response still needs to be captured here
+        # every time regardless.
+        if ename == FINAL_ASSEMBLER and etype == "on_chain_end":
             state_update = (event.get("data") or {}).get("output") or {}
             if isinstance(state_update, dict):
                 final_response = state_update.get("final_response")

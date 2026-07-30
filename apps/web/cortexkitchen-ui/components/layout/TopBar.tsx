@@ -64,11 +64,7 @@ export default function TopBar() {
   }, [user]);
 
   function handleHistory() {
-    if (pathname === "/planning") {
-      dashCtx?.openHistory();
-    } else {
-      router.push("/planning?openHistory=1");
-    }
+    router.push("/data");
   }
 
   if (!user) return null;

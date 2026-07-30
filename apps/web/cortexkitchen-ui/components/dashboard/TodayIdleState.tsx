@@ -15,7 +15,6 @@ import {
   BusinessPerformanceResponse, BusinessSummaryResponse, ConnectorStatus, MarketPulseResponse,
   RestaurantProfile,
 } from "@/lib/api";
-import { SCENARIO_OPTIONS } from "@/lib/scenarios";
 import { shortDate } from "@/lib/formatters";
 import { hourCacheKey, readHourCache, writeHourCache } from "@/lib/hourCache";
 import { DataHealth, PlanningScenarioOption, PlanTriggerHandler } from "@/types/planning";
@@ -71,16 +70,14 @@ function todayLabel(): string {
 interface Props {
   onRun: PlanTriggerHandler;
   selectedScenario: PlanningScenarioOption["id"];
-  onScenarioChange: (scenario: PlanningScenarioOption["id"]) => void;
   historyCount: number;
   onShowHistory: () => void;
 }
 
 export default function TodayIdleState({
-  onRun, selectedScenario, onScenarioChange, historyCount, onShowHistory,
+  onRun, selectedScenario, historyCount, onShowHistory,
 }: Props) {
   const { user } = useAuth();
-  const scenario = SCENARIO_OPTIONS.find((s) => s.id === selectedScenario) ?? SCENARIO_OPTIONS[0];
 
   const [profiles, setProfiles] = useState<RestaurantProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
@@ -744,16 +741,7 @@ export default function TodayIdleState({
         open={showPlanModal}
         onClose={() => setShowPlanModal(false)}
         onRun={onRun}
-        scenarioOptions={SCENARIO_OPTIONS}
-        selectedScenario={selectedScenario}
-        onScenarioChange={onScenarioChange}
-        scenario={scenario}
-        profiles={profiles}
-        selectedProfileId={selectedProfileId}
-        onSelectProfile={setSelectedProfileId}
         activeProfile={activeProfile}
-        marketPulse={marketPulse}
-        marketLoaded={marketLoaded}
       />
     </div>
   );

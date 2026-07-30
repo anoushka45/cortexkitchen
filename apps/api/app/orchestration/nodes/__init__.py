@@ -9,6 +9,7 @@ from app.orchestration.nodes.market_intel import market_intel_node
 from app.orchestration.nodes.dineout_manager import dineout_manager_node
 from app.orchestration.nodes.aggregator import aggregator_node
 from app.orchestration.nodes.critic import critic_node
+from app.orchestration.nodes.situation_summary import situation_summary_node
 from app.orchestration.nodes.final_assembler import final_assembler_node
 from app.orchestration.nodes.qdrant_enrichment import qdrant_enrichment_node
 from app.orchestration.nodes.replan_orchestrator import replan_orchestrator_node
@@ -25,6 +26,7 @@ __all__ = [
     "dineout_manager_node",
     "aggregator_node",
     "critic_node",
+    "situation_summary_node",
     "final_assembler_node",
     "qdrant_enrichment_node",
     "replan_orchestrator_node",

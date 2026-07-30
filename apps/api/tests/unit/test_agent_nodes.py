@@ -357,6 +357,7 @@ class TestMenuIntelligenceNode:
             reservation_data=None,
             market_intel_data=None,
             dineout_data=None,
+            operational_focus=None,
         )
 
     @pytest.mark.asyncio

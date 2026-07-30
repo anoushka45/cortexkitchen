@@ -6,6 +6,14 @@ import {
   LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Cell, ReferenceLine,
 } from "recharts";
+import { CardFooter, ICONS, PriorityGauge, RecommendationBlock, SectionTitle, StatGrid } from "./AgentStatStrip";
+
+interface ForecastRecommendation {
+  recommendation?: string;
+  reasoning?: string;
+  priority?: string;
+  risks?: string[];
+}
 
 interface ForecastData {
   predicted_orders: number;
@@ -22,6 +30,7 @@ interface ForecastData {
   service_window?: string;
   hourly_projection?: Array<{ hour: string; covers: number }>;
   top_items?: Array<{ item: string; category: string; total_ordered: number }>;
+  recommendation?: ForecastRecommendation;
 }
 
 interface Props {
@@ -35,15 +44,16 @@ type HourBar = {
   inWindow: boolean;
 };
 
-const CONFIDENCE_COLORS: Record<string, string> = {
-  high: "text-emerald-400",
-  medium: "text-amber-400",
-  low: "text-rose-400",
-};
+// Chart data-series color -- kept consistent with every other chart on
+// Market/Analytics (CategoryPricingChart, Peak Hours), not the UI-chrome
+// accent (--color-accent / #FF5200): this softer amber reads better as a
+// large chart fill/line than the vivid brand orange does.
+const CHART_COLOR = "#efa345";
 
-const METHOD_COLORS: Record<string, string> = {
-  prophet: "text-blue-400",
-  baseline: "text-[var(--color-text-soft)]",
+const CONFIDENCE_TONE: Record<string, string> = {
+  high: "text-emerald-600 dark:text-emerald-300",
+  medium: "text-amber-600 dark:text-amber-300",
+  low: "text-rose-600 dark:text-rose-300",
 };
 
 const FALLBACK_PROFILES: Record<string, number[]> = {
@@ -103,6 +113,16 @@ function normalizeForecastData(raw: Record<string, unknown> | null): ForecastDat
     top_items: Array.isArray(payload.top_items)
       ? (payload.top_items as Array<{ item: string; category: string; total_ordered: number }>)
       : undefined,
+    // final_assembler.py's _safe_rec() flattens the LLM recommendation
+    // object up to the top level (merged with "data"), so recommendation/
+    // reasoning/priority/risks are sibling keys on `raw` directly -- never
+    // a nested raw.recommendation object.
+    recommendation: {
+      recommendation: typeof raw.recommendation === "string" ? raw.recommendation : undefined,
+      reasoning: typeof raw.reasoning === "string" ? raw.reasoning : undefined,
+      priority: typeof raw.priority === "string" ? raw.priority : undefined,
+      risks: Array.isArray(raw.risks) ? raw.risks.filter((r): r is string => typeof r === "string") : undefined,
+    },
   };
 }
 
@@ -206,7 +226,8 @@ export default function ForecastChart({ forecast, scenario }: Props) {
   useEffect(() => {
     const el = chartContainerRef.current;
     if (!el) return;
-    setChartWidth(el.getBoundingClientRect().width || el.offsetWidth);
+    // ResizeObserver fires its callback once immediately after observe(),
+    // so no separate synchronous initial measurement is needed here.
     const ro = new ResizeObserver(entries => setChartWidth(entries[0].contentRect.width));
     ro.observe(el);
     return () => ro.disconnect();
@@ -220,13 +241,11 @@ export default function ForecastChart({ forecast, scenario }: Props) {
     predicted_orders_upper,
     method = "baseline",
     confidence = "medium",
-    target_date,
     avg_friday_orders,
     avg_same_day_orders,
-    avg_peak_orders,
-    service_day_label,
     service_window,
     top_items,
+    recommendation,
   } = forecastData;
 
   const roundedOrders = Math.round(predicted_orders);
@@ -241,183 +260,131 @@ export default function ForecastChart({ forecast, scenario }: Props) {
     ? `${Math.round(predicted_orders_lower)}-${Math.round(predicted_orders_upper)}`
     : null;
 
+  const avgRef = avg_same_day_orders ?? avg_friday_orders;
+  const vsAvgPct = avgRef && avgRef > 0 ? Math.round(((roundedOrders - avgRef) / avgRef) * 100) : null;
+  const vsAvgTone = vsAvgPct === null ? "text-[var(--color-text-primary)]"
+    : vsAvgPct >= 10 ? "text-emerald-600 dark:text-emerald-300"
+    : vsAvgPct <= -10 ? "text-rose-600 dark:text-rose-300"
+    : "text-[var(--color-text-primary)]";
+  const peakHourLabel = data.find((d) => d.covers === peak)?.hour ?? "--";
+
   return (
-    <div className="rounded-2xl bg-[var(--color-surface)] p-6 ring-1 ring-[var(--color-border-soft)] h-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 mb-5">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">Demand forecast</span>
-            <span className={`rounded-full bg-[var(--color-surface-raised)] px-2 py-0.5 text-[9px] uppercase tracking-wider ${CONFIDENCE_COLORS[confidence]}`}>
-              {confidence} confidence
-            </span>
-          </div>
-          <h3 className="mt-1.5 text-xl font-semibold text-[var(--color-text-primary)]">
-            {target_date
-              ? `${service_day_label ?? "Service"}  -  ${target_date}`
-              : "Next planning window"}
-          </h3>
-          <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--color-text-faint)]">
-            <span className={METHOD_COLORS[method]}>{method === "prophet" ? "Prophet  -  AI" : "Baseline"}</span>
-            {(avg_same_day_orders ?? avg_friday_orders) !== undefined && (
-              <span>Avg last 4 {service_day_label ?? "days"} <b className="text-[var(--color-text-soft)]">{avg_same_day_orders ?? avg_friday_orders}</b></span>
-            )}
-            {avg_peak_orders !== undefined && (
-              <span>Avg peak <b className="text-[var(--color-text-soft)]">{avg_peak_orders}</b></span>
-            )}
-          </div>
-        </div>
-        <div className="text-right shrink-0">
-          <div className="num-display text-5xl leading-none text-[var(--color-text-primary)]">{roundedOrders}</div>
-          <div className="mt-1 text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
-            predicted orders{rangeText ? `  -  ${rangeText}` : ""}
-          </div>
+    <div className="@container flex flex-col gap-5">
+      {/* Recommendation (left) + stat grid & priority gauge (right) side by side */}
+      <div className="grid grid-cols-1 gap-4 @3xl:grid-cols-[1.3fr_1fr] @3xl:items-stretch">
+        <RecommendationBlock
+          recommendation={recommendation?.recommendation ?? null}
+          reasoning={recommendation?.reasoning}
+          priority={recommendation?.priority}
+          risks={recommendation?.risks}
+        />
+        <div className="flex flex-col gap-3">
+          <StatGrid stats={[
+            { icon: <ICONS.chartBar className="h-4 w-4" strokeWidth={1.8} />, iconColor: "#FF5200", value: String(roundedOrders), label: "Predicted orders", caption: rangeText ? `Range ${rangeText}` : "No range available" },
+            {
+              icon: <ICONS.trendUp className="h-4 w-4" strokeWidth={1.8} />, iconColor: vsAvgPct !== null && vsAvgPct < 0 ? "#F43F5E" : "#10B981",
+              value: vsAvgPct !== null ? `${vsAvgPct >= 0 ? "+" : ""}${vsAvgPct}%` : "--", valueClass: vsAvgTone,
+              label: "vs your average", caption: avgRef ? `avg ${avgRef} orders` : "no baseline yet",
+            },
+            { icon: <ICONS.clock className="h-4 w-4" strokeWidth={1.8} />, iconColor: "#8B5CF6", value: peakHourLabel, label: "Peak hour", caption: `${peak} covers expected` },
+            {
+              icon: <ICONS.shieldCheck className="h-4 w-4" strokeWidth={1.8} />, iconColor: confidence === "high" ? "#10B981" : confidence === "low" ? "#F43F5E" : "#F59E0B",
+              value: confidence.charAt(0).toUpperCase() + confidence.slice(1), valueClass: CONFIDENCE_TONE[confidence],
+              label: "Confidence", caption: method === "prophet" ? "Prophet AI model" : "Baseline estimate",
+            },
+          ]} />
+          <PriorityGauge priority={recommendation?.priority} />
         </div>
       </div>
 
       {/* Top items */}
       {top_items && top_items.length > 0 && (
-        <div className="mb-5 grid grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-1 gap-2.5 @lg:grid-cols-2">
           {top_items.slice(0, 2).map((item, index) => (
             <div key={`${item.item}-${index}`}
-              className="rounded-lg bg-[var(--color-surface-raised)] px-4 py-3 ring-1 ring-[var(--color-border-soft)] flex items-center justify-between">
-              <div>
-                <div className="text-[13px] font-semibold text-[var(--color-text-primary)] truncate">{item.item}</div>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-faint)]">
-                  {item.category}  -  {item.total_ordered} orders
-                </div>
+              className="flex items-center justify-between gap-3 rounded-xl bg-[var(--color-surface-raised)] px-4 py-3 ring-1 ring-[var(--color-border-soft)]">
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-semibold text-[var(--color-text-primary)]">{item.item}</p>
+                <p className="text-[10.5px] text-[var(--color-text-faint)]">{item.category} &middot; {item.total_ordered} orders</p>
               </div>
-              <span className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ring-1 ${ index === 0 ? "bg-ember-500/[0.06] text-[var(--color-accent)] ring-ember-400/25" : "bg-emerald-500/[0.06] text-emerald-300 ring-emerald-400/25" }`}>{index === 0 ? "ease" : "push"}</span>
+              <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ring-1 ${index === 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-300 ring-amber-400/25" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 ring-emerald-400/25"}`}>
+                {index === 0 ? "ease" : "push"}
+              </span>
             </div>
           ))}
         </div>
       )}
 
-      {/* Chart toggle + chart */}
-      <div className="flex-1 min-h-[180px]">
-        <div className="flex items-center justify-end gap-1 mb-2">
-          {(["bar", "line"] as const).map((type) => (
-            <button
-              key={type}
-              onClick={() => setChartType(type)}
-              className={`flex items-center gap-1 rounded-md px-2 py-1 text-[9px] uppercase tracking-wider transition-colors ${ chartType === type ? "bg-ember-500/15 text-[var(--color-accent)]" : "text-[var(--color-text-faint)] hover:text-[var(--color-text-faint)]" }`}
-            >
-              {type === "bar" ? (
-                <svg className="h-3 w-3" viewBox="0 0 12 12" fill="currentColor">
-                  <rect x="0" y="4" width="3" height="8" rx="0.5" />
-                  <rect x="4.5" y="1" width="3" height="11" rx="0.5" />
-                  <rect x="9" y="6" width="3" height="6" rx="0.5" />
-                </svg>
-              ) : (
-                <svg className="h-3 w-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <polyline points="0,10 3,5 6,2 9,6 12,3" />
-                </svg>
-              )}
-              {type}
-            </button>
-          ))}
-        </div>
+      {/* Chart */}
+      <div>
+        <SectionTitle
+          title="Demand Pacing"
+          right={
+            <div className="flex items-center gap-1 rounded-lg bg-[var(--color-surface-raised)] p-0.5 ring-1 ring-[var(--color-border-soft)]">
+              {(["bar", "line"] as const).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setChartType(type)}
+                  className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-[10.5px] font-medium capitalize transition-colors ${chartType === type ? "bg-[var(--color-surface)] text-[var(--color-text-primary)] shadow-sm" : "text-[var(--color-text-faint)]"}`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          }
+        />
 
-        <div ref={chartContainerRef} style={{ height: 210 }}>
+        <div ref={chartContainerRef} style={{ height: 200 }}>
           {chartType === "bar" ? (
-            <BarChart width={chartWidth} height={210} data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-              <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#6b7280", fontFamily: "Space Mono" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 9, fill: "#6b7280", fontFamily: "Space Mono" }} axisLine={false} tickLine={false} />
-              <ReferenceLine y={avg} stroke="rgba(230,137,42,0.25)" strokeDasharray="4 4"
-                label={{ value: "avg", position: "right", fontSize: 9, fill: "#6b7280" }} />
+            <BarChart width={chartWidth} height={200} data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-soft)" vertical={false} />
+              <XAxis dataKey="hour" tick={{ fontSize: 10, fill: "var(--color-text-faint)" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: "var(--color-text-faint)" }} axisLine={false} tickLine={false} />
+              <ReferenceLine y={avg} stroke="var(--color-border-default)" strokeDasharray="4 4"
+                label={{ value: "avg", position: "right", fontSize: 10, fill: "var(--color-text-faint)" }} />
               <Tooltip
-                contentStyle={{ background: "#0b1020", border: "1px solid rgba(230,137,42,0.2)", borderRadius: 10, fontSize: 12, fontFamily: "Space Mono", color: "#f8fafc" }}
-                itemStyle={{ color: "#e2e8f0" }} labelStyle={{ color: "#9ca3af" }}
+                contentStyle={{ background: "var(--color-surface-raised)", border: "1px solid var(--color-border-default)", borderRadius: 10, fontSize: 12, color: "var(--color-text-primary)" }}
+                labelStyle={{ color: "var(--color-text-faint)" }}
                 formatter={(value: unknown) => [`${value} covers`, "Expected"]}
-                cursor={{ fill: "rgba(230,137,42,0.06)" }}
+                cursor={{ fill: "rgba(239,163,69,0.08)" }}
               />
               <Bar dataKey="covers" radius={[3, 3, 0, 0]}>
                 {data.map((entry) => (
                   <Cell
                     key={entry.hour}
-                    fill={entry.covers === peak ? "#efa345" : entry.inWindow ? "rgba(230,137,42,0.45)" : "rgba(230,137,42,0.20)"}
-                    style={entry.covers === peak ? { filter: "drop-shadow(0 0 12px rgba(230,137,42,0.5))" } : undefined}
+                    fill={entry.covers === peak ? CHART_COLOR : entry.inWindow ? `${CHART_COLOR}90` : `${CHART_COLOR}35`}
+                    style={entry.covers === peak ? { filter: "drop-shadow(0 0 10px rgba(239,163,69,0.45))" } : undefined}
                   />
                 ))}
               </Bar>
             </BarChart>
           ) : (
-            <LineChart width={chartWidth} height={210} data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-              <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#6b7280", fontFamily: "Space Mono" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 9, fill: "#6b7280", fontFamily: "Space Mono" }} axisLine={false} tickLine={false} />
-              <ReferenceLine y={avg} stroke="rgba(230,137,42,0.25)" strokeDasharray="4 4"
-                label={{ value: "avg", position: "right", fontSize: 9, fill: "#6b7280" }} />
+            <LineChart width={chartWidth} height={200} data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-soft)" vertical={false} />
+              <XAxis dataKey="hour" tick={{ fontSize: 10, fill: "var(--color-text-faint)" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: "var(--color-text-faint)" }} axisLine={false} tickLine={false} />
+              <ReferenceLine y={avg} stroke="var(--color-border-default)" strokeDasharray="4 4"
+                label={{ value: "avg", position: "right", fontSize: 10, fill: "var(--color-text-faint)" }} />
               <Tooltip
-                contentStyle={{ background: "#0b1020", border: "1px solid rgba(230,137,42,0.2)", borderRadius: 10, fontSize: 12, fontFamily: "Space Mono", color: "#f8fafc" }}
-                itemStyle={{ color: "#e2e8f0" }} labelStyle={{ color: "#9ca3af" }}
+                contentStyle={{ background: "var(--color-surface-raised)", border: "1px solid var(--color-border-default)", borderRadius: 10, fontSize: 12, color: "var(--color-text-primary)" }}
+                labelStyle={{ color: "var(--color-text-faint)" }}
                 formatter={(value: unknown) => [`${value} covers`, "Expected"]}
               />
               <Line
-                type="monotone" dataKey="covers" stroke="#efa345" strokeWidth={2}
+                type="monotone" dataKey="covers" stroke={CHART_COLOR} strokeWidth={2}
                 dot={(props) => {
                   const { cx, cy, payload } = props as { cx: number; cy: number; payload: HourBar };
                   if (payload.covers !== peak) return <g key={props.key} />;
-                  return <circle key={props.key} cx={cx} cy={cy} r={4} fill="#efa345" stroke="#0b1020" strokeWidth={2} style={{ filter: "drop-shadow(0 0 8px rgba(230,137,42,0.7))" }} />;
+                  return <circle key={props.key} cx={cx} cy={cy} r={4} fill={CHART_COLOR} stroke="var(--color-surface-raised)" strokeWidth={2} style={{ filter: "drop-shadow(0 0 8px rgba(239,163,69,0.5))" }} />;
                 }}
-                activeDot={{ r: 5, fill: "#efa345", stroke: "#0b1020", strokeWidth: 2 }}
+                activeDot={{ r: 5, fill: CHART_COLOR, stroke: "var(--color-surface-raised)", strokeWidth: 2 }}
               />
             </LineChart>
           )}
         </div>
       </div>
 
-      {/* Forecast context strip */}
-      <div className="mt-4 grid grid-cols-3 gap-2">
-        {(() => {
-          const avg_ref = avg_same_day_orders ?? avg_friday_orders;
-          const vsAvg = avg_ref && avg_ref > 0
-            ? Math.round(((roundedOrders - avg_ref) / avg_ref) * 100)
-            : null;
-          const direction = vsAvg !== null ? (vsAvg >= 0 ? "↑" : "↓") : null;
-          const vsColor = vsAvg === null ? "text-[var(--color-text-faint)]"
-            : vsAvg >= 10 ? "text-emerald-300" : vsAvg <= -10 ? "text-rose-300" : "text-[var(--color-accent)]";
-
-          return (
-            <>
-              <div className="rounded-lg bg-[var(--color-surface-raised)] px-3 py-2.5 ring-1 ring-[var(--color-border-soft)]">
-                <div className="text-[9px] uppercase tracking-wider text-[var(--color-text-faint)] mb-1">vs your average</div>
-                <div className={`text-[15px] font-semibold ${vsColor}`}>
-                  {vsAvg !== null ? `${direction} ${Math.abs(vsAvg)}%` : "—"}
-                </div>
-                <div className="font-mono text-[9px] text-[var(--color-text-ghost)] mt-0.5">
-                  {avg_ref ? `avg ${avg_ref} orders` : "no baseline yet"}
-                </div>
-              </div>
-
-              <div className="rounded-lg bg-[var(--color-surface-raised)] px-3 py-2.5 ring-1 ring-[var(--color-border-soft)]">
-                <div className="text-[9px] uppercase tracking-wider text-[var(--color-text-faint)] mb-1">peak hour</div>
-                <div className="text-[15px] font-semibold text-[var(--color-text-primary)]">
-                  {data.find(d => d.covers === peak)?.hour ?? "—"}
-                </div>
-                <div className="font-mono text-[9px] text-[var(--color-text-ghost)] mt-0.5">{peak} covers expected</div>
-              </div>
-
-              <div className="rounded-lg bg-[var(--color-surface-raised)] px-3 py-2.5 ring-1 ring-[var(--color-border-soft)]">
-                <div className="text-[9px] uppercase tracking-wider text-[var(--color-text-faint)] mb-1">confidence</div>
-                <div className={`text-[15px] font-semibold ${CONFIDENCE_COLORS[confidence]}`}>
-                  {confidence.charAt(0).toUpperCase() + confidence.slice(1)}
-                </div>
-                <div className="font-mono text-[9px] text-[var(--color-text-ghost)] mt-0.5">
-                  {method === "prophet" ? "Prophet AI model" : "Baseline estimate"}
-                </div>
-              </div>
-            </>
-          );
-        })()}
-      </div>
-
-      {/* Footer */}
-      <div className="mt-3 flex items-center justify-between border-t border-[var(--color-border-soft)] pt-3 text-[11px] text-[var(--color-text-faint)]">
-        <span>Service window: <span className="font-mono text-[var(--color-accent)]/70">{service_window ?? "18:00-22:00"}</span></span>
-        {hasRange && <span className="font-mono">Range: {rangeText}</span>}
-      </div>
+      <CardFooter label="Service window" value={service_window ?? "18:00-22:00"} />
     </div>
   );
 }

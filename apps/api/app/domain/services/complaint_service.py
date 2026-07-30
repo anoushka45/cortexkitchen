@@ -141,11 +141,15 @@ class ComplaintService:
                 "Stockout disappointment and inconsistent substitutions are the main guest risk.",
                 "Front-of-house communication needs to stay ahead of unavailable items.",
             ],
-        }
-        return watchouts.get(
-            scenario_id,
-            [
+            "friday_rush": [
                 "Wait times, pizza temperature, and table turns remain the main Friday rush risks.",
                 "Peak-hour guest communication should stay tight when the kitchen is under pressure.",
             ],
-        )
+        }
+        # Any ad-hoc/custom or live-composed scenario (id not one of the 4 named
+        # presets above) has no hardcoded watchout list of its own -- returning
+        # Friday Rush's text here (the old behaviour) silently mislabeled every
+        # single custom-profile run as a Friday rush, regardless of what was
+        # actually asked for. Empty is honest; the real specifics for these
+        # scenarios already live in operational_focus, injected separately above.
+        return watchouts.get(scenario_id, [])

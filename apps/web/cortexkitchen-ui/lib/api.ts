@@ -124,6 +124,31 @@ export async function deriveScenarioProfile(text: string): Promise<ScenarioProfi
   return data.profile;
 }
 
+// Backs the planning modal's mic input -- posts a recorded clip (raw
+// MediaRecorder output, e.g. audio/webm) for transcription. Can't reuse
+// authHeaders() here: that hardcodes Content-Type: application/json, but a
+// multipart body needs the browser to set its own boundary, so only
+// Authorization is sent manually.
+export async function transcribeAudio(blob: Blob): Promise<string> {
+  const token = getAuthToken();
+  const formData = new FormData();
+  formData.append("file", blob, "recording.webm");
+
+  const res = await fetch(`${BASE_URL}/api/v1/planning/transcribe`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Transcription failed ${res.status}: ${detail}`);
+  }
+
+  const data = await res.json() as { text: string };
+  return data.text;
+}
+
 // P6-MI10 -- ScenarioRecommender already existed server-side (calendar
 // context, live Swiggy occupancy, inventory shortage count, weather, recent
 // run history -> one LLM call, deterministic fallback) but had no frontend

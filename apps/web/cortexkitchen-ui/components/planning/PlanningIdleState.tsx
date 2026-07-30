@@ -15,7 +15,6 @@ import { PlanningRunMetadata, PlanningScenarioOption, PlanTriggerHandler, RunHis
 interface Props {
   onRun: PlanTriggerHandler;
   selectedScenario: PlanningScenarioOption["id"];
-  onScenarioChange: (scenario: PlanningScenarioOption["id"]) => void;
   history: RunHistoryEntry[];
   onSelectHistory: (entry: RunHistoryEntry) => void;
   onShowAllHistory: () => void;
@@ -194,9 +193,9 @@ function ViewHistoryCard({ onClick }: { onClick: () => void }) {
 // choose-a-scenario / describe-it-yourself flow Dashboard's quick-trigger
 // uses -- rather than expanding an inline chooser on this page.
 export default function PlanningIdleState({
-  onRun, selectedScenario, onScenarioChange, history, onSelectHistory, onShowAllHistory,
+  onRun, selectedScenario, history, onSelectHistory, onShowAllHistory,
 }: Props) {
-  const { profiles, selectedProfileId, setSelectedProfileId, activeProfile, marketPulse, marketLoaded } = usePlanTriggerData();
+  const { activeProfile, marketPulse, marketLoaded } = usePlanTriggerData();
   const scenario = SCENARIO_OPTIONS.find((s) => s.id === selectedScenario) ?? SCENARIO_OPTIONS[0];
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -396,7 +395,7 @@ export default function PlanningIdleState({
             </span>
           </div>
           <div className="mt-4">
-            <AgentPipelineGrid variant="full" columns={3} />
+            <AgentPipelineGrid columns={3} />
           </div>
         </div>
       </div>
@@ -421,16 +420,7 @@ export default function PlanningIdleState({
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onRun={onRun}
-        scenarioOptions={SCENARIO_OPTIONS}
-        selectedScenario={selectedScenario}
-        onScenarioChange={onScenarioChange}
-        scenario={scenario}
-        profiles={profiles}
-        selectedProfileId={selectedProfileId}
-        onSelectProfile={setSelectedProfileId}
         activeProfile={activeProfile}
-        marketPulse={marketPulse}
-        marketLoaded={marketLoaded}
       />
       </div>
     </>

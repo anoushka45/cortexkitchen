@@ -100,6 +100,9 @@ class ReservationService:
         occupancy_section = (occupancy_context or {}).get("prompt_text") or ""
         occupancy_block = f"\n{occupancy_section}\n" if occupancy_section else ""
 
+        operational_focus = (scenario_profile or {}).get("operational_focus")
+        focus_block = f"\n- Operator's specific instructions: {operational_focus}\n" if operational_focus else ""
+
         # Real peak hours from actual order history (dine-in + delivery, all hours) --
         # "busiest_hour" above is just tonight's advance-reservation clustering, which
         # can miss demand the static configured service window / booking pattern
@@ -120,8 +123,8 @@ Reservation data for {data['scenario_label']} on {data['date']}:
 - Busiest hour (tonight's bookings): {data['busiest_hour']}:00
 - Guests on waitlist: {data['waitlist_count']}
 - Actual historical peak hours (last 14 days, real orders, all channels): {real_peak_line or 'not enough order history yet'}
-{occupancy_block}""",
-            task="Analyse this reservation data and recommend specific actions to manage capacity effectively for this target service window. Where area occupancy data is provided, factor in the neighbourhood demand signal — HIGH area occupancy means walk-in pressure; LOW means opportunity for promotions to attract diners. When you use this signal, explicitly name Swiggy as the source, e.g. 'Because Swiggy shows HIGH occupancy nearby tonight, expect walk-in pressure' — never reference area occupancy without naming Swiggy."
+{occupancy_block}{focus_block}""",
+            task="Analyse this reservation data and recommend specific actions to manage capacity effectively for this target service window. Where area occupancy data is provided, factor in the neighbourhood demand signal — HIGH area occupancy means walk-in pressure; LOW means opportunity for promotions to attract diners. When you use this signal, explicitly name Swiggy as the source, e.g. 'Because Swiggy shows HIGH occupancy nearby tonight, expect walk-in pressure' — never reference area occupancy without naming Swiggy. Where the operator's specific instructions above name a guest, event, or particular need, your recommendation must explicitly address it (e.g. VIP seating/table assignment, extra prep or turnover time, a specific accommodation) — do not fall back to generic capacity guidance when the operator has stated a specific need."
         )
 
         recommendation = await self.llm.complete_json(

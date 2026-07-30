@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import { CardFooter, CategoryColumn, ICONS, PriorityGauge, RecommendationBlock, StatGrid } from "./AgentStatStrip";
 import DashboardDetailModal from "./DashboardDetailModal";
 import InventoryAlerts from "./InventoryAlerts";
 import MenuInsights, { MenuInsightsBody } from "./MenuInsights";
@@ -16,7 +17,7 @@ const AGENT_ICONS: Record<string, string> = {
   inventory:   "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
 };
 
-const AGENT_META: Record<string, {
+export const AGENT_META: Record<string, {
   label: string; iconPath: string; headerBg: string; dotColor: string; iconColor: string; glow: string;
 }> = {
   forecast:    { label: "Demand Forecast",        iconPath: AGENT_ICONS.forecast,    headerBg: "bg-ember-500/[0.07]  border-b border-ember-500/15",  dotColor: "bg-ember-400",  iconColor: "text-[var(--color-accent)]",  glow: "group-hover:shadow-glow-ember"  },
@@ -169,7 +170,7 @@ function getDetailHighlights(agentKey: string, data: Record<string, unknown> | n
   return [];
 }
 
-function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
+export function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
   const nestedData = asObject(data.data) ?? data;
 
   // Sentiment
@@ -195,73 +196,62 @@ function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
   const actionItems = Array.isArray(data.action_items) ? data.action_items as string[]                  : [];
   const overallSummary = typeof data.overall_summary === "string" ? data.overall_summary : null;
 
+  const topPriority = issues.some((i) => i.priority === "high") ? "high" : issues.some((i) => i.priority === "medium") ? "medium" : undefined;
+  const restActions = actionItems.slice(actionItems[0] ? 1 : 0);
+
   return (
-    <div className="space-y-4">
-      {/* Sentiment: 3-col big numbers + stacked bar */}
+    <div className="@container flex flex-col gap-5">
+      {/* Recommendation (left) + stat grid & priority gauge (right) side by side */}
+      <div className="grid grid-cols-1 gap-4 @3xl:grid-cols-[1.3fr_1fr] @3xl:items-stretch">
+        <RecommendationBlock
+          recommendation={actionItems[0] ?? null}
+          reasoning={overallSummary}
+          priority={topPriority}
+        />
+        <div className="flex flex-col gap-3">
+          <StatGrid stats={[
+            { icon: <ICONS.chat className="h-4 w-4" strokeWidth={1.8} />, iconColor: "#F43F5E", value: String(issues.length), label: "Active complaints", caption: totalFeedback > 0 ? `${totalFeedback} feedback reviewed` : undefined },
+            { icon: <ICONS.star className="h-4 w-4" strokeWidth={1.8} />, iconColor: "#10B981", value: hasSentiment ? `${positivePct}%` : "--", valueClass: "text-emerald-600 dark:text-emerald-300", label: "Positive" },
+            {
+              icon: <ICONS.warning className="h-4 w-4" strokeWidth={1.8} />, iconColor: negativePct > 30 ? "#F43F5E" : negativePct > 15 ? "#F59E0B" : "#8B5CF6",
+              value: hasSentiment ? `${negativePct}%` : "--",
+              valueClass: negativePct > 30 ? "text-rose-600 dark:text-rose-300" : negativePct > 15 ? "text-amber-600 dark:text-amber-300" : "text-[var(--color-text-soft)]",
+              label: "Negative",
+            },
+            { icon: <ICONS.tag className="h-4 w-4" strokeWidth={1.8} />, iconColor: "#8B5CF6", value: String(uniqueComplaints.length), label: "Unique complaints" },
+          ]} />
+          <PriorityGauge priority={topPriority} />
+        </div>
+      </div>
+
       {hasSentiment && (
-        <div>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Positive</div>
-              <div className="mt-1 flex items-baseline gap-0.5">
-                <span className="text-[26px] font-semibold leading-none text-emerald-300">{positivePct}</span>
-                <span className="text-sm text-emerald-300/60">%</span>
-              </div>
-            </div>
-            <div>
-              <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Neutral</div>
-              <div className="mt-1 flex items-baseline gap-0.5">
-                <span className="text-[26px] font-semibold leading-none text-[var(--color-text-soft)]">{neutralPct}</span>
-                <span className="text-sm text-[var(--color-text-faint)]">%</span>
-              </div>
-            </div>
-            <div>
-              <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Negative</div>
-              <div className="mt-1 flex items-baseline gap-0.5">
-                <span className={`text-[26px] font-semibold leading-none ${negativePct > 30 ? "text-rose-300" : negativePct > 15 ? "text-[var(--color-accent)]" : "text-[var(--color-text-soft)]"}`}>{negativePct}</span>
-                <span className={`text-sm opacity-60 ${negativePct > 30 ? "text-rose-300" : negativePct > 15 ? "text-[var(--color-accent)]" : "text-[var(--color-text-soft)]"}`}>%</span>
-              </div>
-            </div>
-          </div>
-          <div className="mt-3 h-2 rounded-full overflow-hidden flex">
-            <div className="bg-emerald-400/70 transition-all" style={{ width: `${positivePct}%` }} />
-            <div className="bg-[var(--color-surface-raised)] transition-all"       style={{ width: `${neutralPct}%` }} />
-            <div className={`transition-all ${negativePct > 30 ? "bg-rose-400/70" : "bg-amber-400/60"}`} style={{ width: `${negativePct}%` }} />
-          </div>
+        <div className="h-2 rounded-full overflow-hidden flex bg-[var(--color-border-soft)]">
+          <div className="bg-emerald-500/70 transition-all" style={{ width: `${positivePct}%` }} />
+          <div className="bg-slate-400/60 dark:bg-slate-500/60 transition-all" style={{ width: `${neutralPct}%` }} />
+          <div className={`transition-all ${negativePct > 30 ? "bg-rose-500/70" : "bg-amber-500/60"}`} style={{ width: `${negativePct}%` }} />
         </div>
-      )}
-
-      {/* Signal counts */}
-      {(totalFeedback > 0 || uniqueComplaints.length > 0 || uniquePositives.length > 0) && (
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[var(--color-text-faint)]">
-          {totalFeedback > 0    && <span>{totalFeedback} total feedback</span>}
-          {uniqueComplaints.length > 0 && <span className="text-rose-400/70">{uniqueComplaints.length} unique complaint{uniqueComplaints.length !== 1 ? "s" : ""}</span>}
-          {uniquePositives.length > 0  && <span className="text-emerald-400/70">{uniquePositives.length} positive signal{uniquePositives.length !== 1 ? "s" : ""}</span>}
-        </div>
-      )}
-
-      {/* Summary */}
-      {overallSummary && (
-        <p className="text-[12px] leading-[1.65] text-[var(--color-text-soft)]">{overallSummary}</p>
       )}
 
       {/* Issues — severity-coded rows */}
       {issues.length > 0 && (
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-2.5">Recurring issues · RAG-retrieved</p>
-          <div className="space-y-1.5">
-            {issues.slice(0, 3).map((issue, i) => {
+        <div className="rounded-2xl ring-1 ring-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-4">
+          <div className="flex items-center gap-1.5">
+            <ICONS.chat className="h-3.5 w-3.5 text-rose-500" strokeWidth={1.8} />
+            <p className="text-[10px] font-bold uppercase tracking-wider text-rose-500">Recurring Issues</p>
+          </div>
+          <div className="mt-3 grid grid-cols-1 gap-2 @xl:grid-cols-2">
+            {issues.map((issue, i) => {
               const priority = String(issue.priority ?? "");
               const rec = typeof issue.recommendation === "string" ? issue.recommendation : null;
-              const rowStyle  = priority === "high"   ? "ring-rose-400/20 bg-rose-500/[0.04]"
-                              : priority === "medium" ? "ring-ember-400/20 bg-ember-500/[0.04]"
-                              :                         "ring-[var(--color-border-soft)] bg-[var(--color-surface-raised)]";
-              const labelColor = priority === "high"   ? "text-rose-300"
-                               : priority === "medium" ? "text-[var(--color-accent)]"
+              const rowStyle  = priority === "high"   ? "ring-rose-400/25 bg-rose-500/[0.05]"
+                              : priority === "medium" ? "ring-amber-400/25 bg-amber-500/[0.05]"
+                              :                         "ring-[var(--color-border-soft)] bg-[var(--color-surface-sunken)]";
+              const labelColor = priority === "high"   ? "text-rose-600 dark:text-rose-300"
+                               : priority === "medium" ? "text-amber-600 dark:text-amber-300"
                                :                         "text-[var(--color-text-soft)]";
               const sevLabel = priority === "high" ? "High" : priority === "medium" ? "Med" : "Low";
               return (
-                <div key={i} className={`rounded-lg ring-1 px-4 py-3 flex items-start justify-between gap-4 ${rowStyle}`}>
+                <div key={i} className={`rounded-xl ring-1 px-4 py-3 flex items-start justify-between gap-4 ${rowStyle}`}>
                   <div className="min-w-0">
                     <div className="text-[13px] font-semibold text-[var(--color-text-primary)]">{String(issue.issue ?? "")}</div>
                     {rec && <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--color-text-soft)]">{rec}</div>}
@@ -273,43 +263,16 @@ function CompactComplaintView({ data }: { data: Record<string, unknown> }) {
                 </div>
               );
             })}
-            {issues.length > 3 && (
-              <p className="text-[11px] text-[var(--color-text-faint)] pl-1">+{issues.length - 3} more in details</p>
-            )}
           </div>
         </div>
       )}
 
-      {/* What's working */}
-      {uniquePositives.length > 0 && (
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-2">What&apos;s working</p>
-          <div className="space-y-1.5">
-            {uniquePositives.slice(0, 2).map((p, i) => (
-              <div key={i} className="rounded-lg ring-1 ring-emerald-400/20 bg-emerald-500/[0.04] px-3 py-2 text-[12px] text-emerald-300 leading-snug">
-                {p}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <div className="grid grid-cols-1 gap-4 @lg:grid-cols-2">
+        <CategoryColumn icon={<ICONS.star className="h-3.5 w-3.5" strokeWidth={1.8} />} label="What's Working" items={uniquePositives} tone="good" />
+        <CategoryColumn icon={<ICONS.shieldCheck className="h-3.5 w-3.5" strokeWidth={1.8} />} label="Other Actions" items={restActions} tone="info" />
+      </div>
 
-      {/* Actions */}
-      {actionItems.length > 0 && (
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] mb-2">Actions</p>
-          <div className="space-y-1.5">
-            {actionItems.slice(0, 3).map((action, i) => (
-              <div key={i} className="rounded-lg ring-1 ring-cyan-400/20 bg-cyan-500/[0.04] px-3 py-2 text-[12px] text-cyan-200 leading-snug">
-                {action}
-              </div>
-            ))}
-            {actionItems.length > 3 && (
-              <p className="text-[11px] text-[var(--color-text-faint)] pl-1">+{actionItems.length - 3} more in details</p>
-            )}
-          </div>
-        </div>
-      )}
+      <CardFooter label="Feedback source" value="Guest reviews (RAG-retrieved)" />
     </div>
   );
 }

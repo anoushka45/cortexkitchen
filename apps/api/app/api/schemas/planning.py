@@ -248,6 +248,10 @@ class FridayRushResponse(BaseModel):
     swiggy_occupancy_context: Optional[Dict[str, Any]] = None
     swiggy_procurement_options: Optional[Dict[str, Any]] = None
     dineout_manager: Optional[Dict[str, Any]] = None
+    situation_summary: Optional[str] = Field(
+        default=None,
+        description="Natural-language 'situation + tailored key takeaways' briefing, generated once post-critic-approval. None when the LLM call failed open.",
+    )
 
 
 # ── What-if simulator ─────────────────────────────────────────────────────────

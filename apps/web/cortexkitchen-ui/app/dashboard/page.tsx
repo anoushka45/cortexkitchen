@@ -37,8 +37,7 @@ function DashboardPageContent() {
     if (runId) router.replace(`/planning?run=${runId}`);
   }, [searchParams, router]);
 
-  const selectedScenario    = (dashCtx?.selectedScenario ?? "friday_rush") as PlanningScenarioOption["id"];
-  const setSelectedScenario = (s: PlanningScenarioOption["id"]) => dashCtx?.setSelectedScenario(s as typeof dashCtx.selectedScenario);
+  const selectedScenario = (dashCtx?.selectedScenario ?? "friday_rush") as PlanningScenarioOption["id"];
 
   const handleRun = (date?: string, restaurantName?: string, restaurantId?: number, customProfile?: ScenarioProfile, scenarioOverride?: string) => {
     dashCtx?.setPendingTrigger({
@@ -59,9 +58,8 @@ function DashboardPageContent() {
         <TodayIdleState
           onRun={handleRun}
           selectedScenario={selectedScenario}
-          onScenarioChange={setSelectedScenario}
           historyCount={historyCount}
-          onShowHistory={() => router.push("/planning?openHistory=1")}
+          onShowHistory={() => router.push("/data")}
         />
       </main>
     </div>

@@ -87,6 +87,13 @@ class OrchestratorState(TypedDict):
     # Critic evaluation
     critic_output: Annotated[Optional[Dict[str, Any]], keep_last]
 
+    # Natural-language "situation + tailored key takeaways" briefing --
+    # generated once, post-critic-approval, from all the other agents'
+    # already-computed outputs. {"summary": "<markdown text>"} on success,
+    # {"error": "..."} on failure (never raises -- frontend falls back to a
+    # deterministic rendering when this is absent).
+    situation_summary_output: Annotated[Optional[Dict[str, Any]], keep_last]
+
     # Final response returned to the API layer
     final_response: Annotated[Optional[Dict[str, Any]], keep_last]
 
@@ -182,6 +189,7 @@ def make_initial_state(
         # Aggregated results
         aggregated_recommendation=None,
         critic_output=None,
+        situation_summary_output=None,
         final_response=None,
 
         # Tenant identity + settings

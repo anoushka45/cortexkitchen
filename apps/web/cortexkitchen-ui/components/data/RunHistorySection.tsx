@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   Area, AreaChart, CartesianGrid, ResponsiveContainer,
@@ -7,110 +8,55 @@ import {
 } from "recharts";
 import { getPlanningRun, listPlanningRuns } from "@/lib/api";
 import { downloadRunPdf, downloadRunExcel } from "@/lib/exportRun";
-import { FridayRushResponse, PlanningRunDetail, PlanningRunSummary } from "@/types/planning";
-import SwiggySignalBadge from "@/components/dashboard/SwiggySignalBadge";
+import { PlanningRunDetail, PlanningRunSummary } from "@/types/planning";
+import EvidencePanel from "@/components/planning/EvidencePanel";
+import { ICONS } from "@/components/dashboard/AgentStatStrip";
 
-// ── Agent output display ──────────────────────────────────────────────────────
+// ── Small chrome icons (page-level, not agent-specific -- AgentStatStrip's
+// ICONS set covers the agent-card vocabulary; these cover list/detail chrome) ──
 
-const AGENT_LABELS: Record<string, string> = {
-  forecast:    "Demand Forecast",
-  reservation: "Reservation Pressure",
-  complaint:   "Complaint Intelligence",
-  menu:        "Menu Intelligence",
-  inventory:   "Inventory Status",
-};
-
-const AGENT_ACCENT: Record<string, { dot: string; border: string; bg: string }> = {
-  forecast:    { dot: "bg-ember-400",  border: "border-ember-500/20",  bg: "bg-ember-500/[0.04]"  },
-  reservation: { dot: "bg-cyan-400",    border: "border-cyan-500/20",    bg: "bg-cyan-500/[0.04]"    },
-  complaint:   { dot: "bg-rose-400",    border: "border-rose-500/20",    bg: "bg-rose-500/[0.04]"    },
-  menu:        { dot: "bg-amber-400",   border: "border-amber-500/20",   bg: "bg-amber-500/[0.04]"   },
-  inventory:   { dot: "bg-emerald-400", border: "border-emerald-500/20", bg: "bg-emerald-500/[0.04]" },
-};
-
-const PRIORITY_CLS: Record<string, string> = {
-  high:   "text-rose-400   border-rose-500/20   bg-rose-500/10",
-  medium: "text-amber-400  border-amber-500/20  bg-amber-500/10",
-  low:    "text-emerald-400 border-emerald-500/20 bg-emerald-500/10",
-};
-
-// Same field reads as app/dashboard/page.tsx's per-card swiggySignal computation
-// (AgentCard usage) — kept in sync so run history shows the same "insights
-// also came from Swiggy" attribution the live dashboard already does.
-function computeSwiggySignal(agentKey: string, finalResponse: FridayRushResponse | undefined | null): string | undefined {
-  if (!finalResponse) return undefined;
-
-  if (agentKey === "reservation") {
-    const occ = finalResponse.swiggy_occupancy_context as Record<string, unknown> | null | undefined;
-    const sig = occ?.occupancy_signal as string | undefined;
-    return sig ? `area tonight: ${sig}` : undefined;
-  }
-
-  if (agentKey === "inventory") {
-    const proc = finalResponse.swiggy_procurement_options as Record<string, unknown> | null | undefined;
-    const opts = proc?.procurement_options as unknown[] | undefined;
-    return opts && opts.length > 0 ? `${opts.length} Instamart prices live` : undefined;
-  }
-
-  if (agentKey === "menu") {
-    const comp = finalResponse.swiggy_competitor_context as Record<string, unknown> | null | undefined;
-    const alerts = comp?.alerts as unknown[] | undefined;
-    const avgMap = comp?.area_avg as Record<string, number> | undefined;
-    const dishCount = avgMap ? Object.keys(avgMap).length : 0;
-    if (alerts && alerts.length > 0) return `${alerts.length} pricing alert${alerts.length !== 1 ? "s" : ""} · ${dishCount} dishes`;
-    if (dishCount > 0) return `${dishCount} competitor dishes tracked`;
-    return undefined;
-  }
-
-  return undefined;
+function CalendarIcon(p: React.SVGProps<SVGSVGElement>) {
+  return <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} {...p}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>;
+}
+function SearchIcon(p: React.SVGProps<SVGSVGElement>) {
+  return <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} {...p}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>;
+}
+function FunnelIcon(p: React.SVGProps<SVGSVGElement>) {
+  return <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} {...p}><path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" /></svg>;
+}
+function CheckCircleIcon(p: React.SVGProps<SVGSVGElement>) {
+  return <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} {...p}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+}
+function ExportIcon(p: React.SVGProps<SVGSVGElement>) {
+  return <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} {...p}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>;
+}
+function ScaleIcon(p: React.SVGProps<SVGSVGElement>) {
+  return <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} {...p}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7l6.75-3 6.75 3M3 7l6.75 3M3 7v10.5m6.75-4.5L3 17.5m6.75-4.5l6.75-3m0 0L21 7m-4.5 3v10.5M21 7l-6.75 3m6.75-3v10.5m-9-3l-1.5 3.75a1.5 1.5 0 001.5 1.5h0a1.5 1.5 0 001.5-1.5L9 13.5m9 0l-1.5 3.75a1.5 1.5 0 001.5 1.5h0a1.5 1.5 0 001.5-1.5L18 13.5" /></svg>;
 }
 
-function AgentOutputCard({ agentKey, data, swiggySignal }: { agentKey: string; data: unknown; swiggySignal?: string }) {
-  const accent = AGENT_ACCENT[agentKey] ?? { dot: "bg-slate-400", border: "border-[var(--color-border-default)]", bg: "bg-[var(--color-surface-raised)]" };
-  const label  = AGENT_LABELS[agentKey] ?? agentKey.replace(/_/g, " ");
+// ── Circular score gauge -- reused at 3 sizes: small (list rows), large
+// (detail header critic score), medium (cost/tradeoff panel) ──────────────
 
-  if (!data || typeof data !== "object") return null;
-  const obj = data as Record<string, unknown>;
-
-  const TEXT_KEYS  = ["recommendation", "reasoning", "overall_summary"];
-  const LIST_KEYS  = ["restock_actions", "action_items", "highlight_items", "risks"];
-  const mainText   = TEXT_KEYS.map(k => obj[k]).find((v): v is string => typeof v === "string");
-  const priority   = typeof obj.priority === "string" ? obj.priority.toLowerCase() : null;
-  const listEntry  = LIST_KEYS.map(k => ({ key: k, items: Array.isArray(obj[k]) ? obj[k] as string[] : [] })).find(e => e.items.length > 0);
-
+function ScoreRing({ value, size = 64, thickness = 6, color }: { value: number; size?: number; thickness?: number; color?: string }) {
+  const r = (size - thickness) / 2;
+  const circumference = 2 * Math.PI * r;
+  const pct = Math.max(0, Math.min(1, value));
+  const dashOffset = circumference * (1 - pct);
+  const c = color ?? "var(--color-accent)";
   return (
-    <div className={`rounded-lg border ${accent.border} ${accent.bg} p-4`}>
-      <div className="flex items-center gap-2 mb-3">
-        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${accent.dot}`} />
-        <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-text-soft)]">{label}</p>
-        <div className="ml-auto flex items-center gap-2">
-          {priority && (
-            <span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase ${PRIORITY_CLS[priority] ?? "text-[var(--color-text-faint)] border-[var(--color-border-default)] bg-[var(--color-surface-raised)]"}`}>
-              {priority}
-            </span>
-          )}
-          {swiggySignal && <SwiggySignalBadge signal={swiggySignal} />}
-        </div>
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--color-border-soft)" strokeWidth={thickness} />
+        <circle
+          cx={size / 2} cy={size / 2} r={r} fill="none" stroke={c} strokeWidth={thickness} strokeLinecap="round"
+          strokeDasharray={circumference} strokeDashoffset={dashOffset}
+          style={{ transition: "stroke-dashoffset 0.4s ease" }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center leading-none">
+        <span className="num-display" style={{ fontSize: size * 0.32, color: "var(--color-text-primary)" }}>{Math.round(pct * 100)}</span>
+        <span style={{ fontSize: Math.max(8, size * 0.12) }} className="text-[var(--color-text-faint)]">/100</span>
       </div>
-      {mainText && (
-        <p className="text-sm text-[var(--color-text-soft)] leading-relaxed">{mainText}</p>
-      )}
-      {listEntry && (
-        <ul className="mt-2.5 space-y-1">
-          {listEntry.items.slice(0, 3).map((item, i) => (
-            <li key={i} className="flex gap-2 text-xs text-[var(--color-text-soft)]">
-              <span className="text-[var(--color-text-ghost)] shrink-0 mt-0.5"> - </span>
-              <span className="leading-relaxed">{item}</span>
-            </li>
-          ))}
-          {listEntry.items.length > 3 && (
-            <li className="text-[10px] text-[var(--color-text-ghost)] pl-3">+{listEntry.items.length - 3} more</li>
-          )}
-        </ul>
-      )}
-      {!mainText && !listEntry && (
-        <p className="text-xs text-[var(--color-text-ghost)] italic">No summary available.</p>
-      )}
     </div>
   );
 }
@@ -133,10 +79,20 @@ const VERDICTS = [
 ];
 
 const VERDICT_STYLE: Record<string, string> = {
-  approved: "text-emerald-300 border-emerald-500/30 bg-emerald-500/10",
-  rejected: "text-rose-300   border-rose-500/30   bg-rose-500/10",
-  revision: "text-amber-300  border-amber-500/30  bg-amber-500/10",
-  unknown:  "text-[var(--color-text-soft)]  border-[var(--color-border-default)]  bg-[var(--color-surface-sunken)]",
+  approved: "text-emerald-600 dark:text-emerald-300 border-emerald-500/30 bg-emerald-500/10",
+  rejected: "text-rose-600 dark:text-rose-300 border-rose-500/30 bg-rose-500/10",
+  revision: "text-amber-600 dark:text-amber-300 border-amber-500/30 bg-amber-500/10",
+  unknown:  "text-[var(--color-text-soft)] border-[var(--color-border-default)] bg-[var(--color-surface-sunken)]",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  ready: "Ready", needs_review: "Needs Review", blocked: "Blocked", unknown: "Unknown",
+};
+const STATUS_STYLE: Record<string, string> = {
+  ready:        "text-[var(--color-accent)] border-ember-400/30 bg-ember-500/10",
+  needs_review: "text-amber-600 dark:text-amber-300 border-amber-500/30 bg-amber-500/10",
+  blocked:      "text-rose-600 dark:text-rose-300 border-rose-500/30 bg-rose-500/10",
+  unknown:      "text-[var(--color-text-soft)] border-[var(--color-border-default)] bg-[var(--color-surface-sunken)]",
 };
 
 const VERDICT_DOT: Record<string, string> = {
@@ -147,6 +103,65 @@ const VERDICT_DOT: Record<string, string> = {
 };
 
 const DIMENSIONS = ["safety", "feasibility", "evidence", "actionability", "clarity"];
+
+// scenario_label is the real resolved title (e.g. "Anniversary Dinner") --
+// for a custom (natural-language-derived) run, `scenario` itself is just the
+// literal id "custom", indistinguishable from every other custom run without
+// this. Falls back to the prettified id for runs recorded before this field
+// existed.
+function scenarioTitle(run: { scenario: string; scenario_label?: string | null }): string {
+  return run.scenario_label || run.scenario.replace(/_/g, " ");
+}
+
+const PRESET_SCENARIO_IDS = new Set(["friday_rush", "weekday_lunch", "holiday_spike", "low_stock_weekend"]);
+
+function isCustomScenario(scenario: string): boolean {
+  return !PRESET_SCENARIO_IDS.has(scenario);
+}
+
+// created_at is the actual wall-clock moment the run happened -- distinct
+// from target_date (the date the plan is FOR). Two runs targeting the same
+// date only differ by this.
+function relativeTime(createdAt: string | null): string {
+  if (!createdAt) return "-";
+  const then = new Date(createdAt).getTime();
+  if (Number.isNaN(then)) return "-";
+  const diffMs = Date.now() - then;
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(createdAt).toLocaleDateString();
+}
+
+function fmtMs(ms: number | null | undefined): string {
+  if (ms == null) return "--";
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`;
+}
+
+// ── Cost & Tradeoffs captions -- threshold-based descriptions of the real
+// cost_analysis scores, same pattern as AgentStatStrip's PriorityGauge copy ──
+
+function costPressureCaption(v: number): string {
+  if (v >= 0.6) return "High ingredient cost volatility";
+  if (v >= 0.35) return "Moderate cost pressure";
+  return "Low cost pressure this run";
+}
+function benefitCaption(v: number): string {
+  if (v >= 0.6) return "Strong revenue uplift opportunity";
+  if (v >= 0.35) return "Revenue uplift opportunity";
+  return "Limited upside this run";
+}
+function tradeoffCaption(v: number): string {
+  if (v >= 0.5) return "Balanced risk vs reward";
+  if (v >= 0.3) return "Moderate risk vs reward";
+  return "Risk outweighs reward";
+}
 
 // ── Trend chart ───────────────────────────────────────────────────────────────
 
@@ -232,7 +247,7 @@ function DiffModal({
           {[runA, runB].map((run, i) => (
             <div key={i} className="bg-[var(--color-surface-raised)] px-6 py-4">
               <p className="font-mono text-xs text-[var(--color-text-faint)]">Run #{run.id}</p>
-              <p className="mt-1 text-sm font-medium">{run.scenario.replace(/_/g, " ")}</p>
+              <p className="mt-1 text-sm font-medium">{scenarioTitle(run)}</p>
               <div className="mt-2 flex items-center gap-3">
                 <span className={`rounded-full border px-2 py-0.5 text-xs ${VERDICT_STYLE[run.critic_verdict ?? "unknown"]}`}>
                   {run.critic_verdict ?? "unknown"}
@@ -312,18 +327,29 @@ function DiffModal({
 
 // ── Main section ─────────────────────────────────────────────────────────────
 
-export default function RunHistorySection({ initialRunId }: { initialRunId?: number }) {
+export default function RunHistorySection({ initialRunId, onRunChange }: { initialRunId?: number; onRunChange?: (id: number) => void }) {
   const [runs,     setRuns]     = useState<PlanningRunSummary[]>([]);
   const [selected, setSelected] = useState<PlanningRunDetail | null>(null);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState<string | null>(null);
 
+  // Keep the parent page's URL in sync with whichever run is on screen --
+  // this is what makes a refresh (or a bookmark/share of the URL) land back
+  // on the same run instead of resetting to the newest one.
+  useEffect(() => {
+    if (selected) onRunChange?.(selected.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
+
   // Filter state
+  const [filtersOpen,    setFiltersOpen]    = useState(false);
   const [filterScenario, setFilterScenario] = useState("");
   const [filterVerdict,  setFilterVerdict]  = useState("");
   const [filterFrom,     setFilterFrom]     = useState("");
   const [filterTo,       setFilterTo]       = useState("");
-  const [showChart,      setShowChart]      = useState(true);
+  const [search,         setSearch]         = useState("");
+  const [showChart,      setShowChart]      = useState(false);
+  const [sortDesc,       setSortDesc]       = useState(true);
 
   // Compare state
   const [compareIds, setCompareIds]             = useState<number[]>([]);
@@ -360,7 +386,9 @@ export default function RunHistorySection({ initialRunId }: { initialRunId?: num
     async function load() {
       try {
         setLoading(true);
-        const rows = await listPlanningRuns(50);
+        // 200 is the backend's max (Query(..., le=200)) -- previously capped
+        // at 50, which silently hid older runs with no way to page past them.
+        const rows = await listPlanningRuns(200);
         setRuns(rows);
         // Deep-link a specific run via ?run=<id> (fixes the old /runs/{id}
         // 404 -- there's no dynamic route for it, this page reads the id
@@ -379,22 +407,24 @@ export default function RunHistorySection({ initialRunId }: { initialRunId?: num
     load();
   }, [initialRunId]);
 
-  // Client-side filtering
+  // Client-side filtering. Search matches the resolved title -- this is the
+  // only way to find a specific custom-profile run, since every one of
+  // those shares the same `scenario` id ("custom") and is invisible to the
+  // scenario dropdown above.
   const filteredRuns = useMemo(() => {
-    return runs.filter(r => {
+    const q = search.trim().toLowerCase();
+    const rows = runs.filter(r => {
       if (filterScenario && r.scenario !== filterScenario) return false;
       if (filterVerdict  && r.critic_verdict !== filterVerdict) return false;
       if (filterFrom && r.created_at && r.created_at < filterFrom) return false;
       if (filterTo   && r.created_at && r.created_at.slice(0, 10) > filterTo) return false;
+      if (q && !scenarioTitle(r).toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [runs, filterScenario, filterVerdict, filterFrom, filterTo]);
-
-  const selectedAgents = useMemo(() => {
-    const recs = selected?.final_response?.recommendations;
-    if (!recs) return [];
-    return Object.entries(recs);
-  }, [selected]);
+    // Runs already arrive newest-first from the API -- only re-sort when the
+    // user flips to oldest-first.
+    return sortDesc ? rows : [...rows].reverse();
+  }, [runs, filterScenario, filterVerdict, filterFrom, filterTo, search, sortDesc]);
 
   function toggleCompare(id: number) {
     setCompareIds(prev =>
@@ -415,68 +445,15 @@ export default function RunHistorySection({ initialRunId }: { initialRunId?: num
 
   const selectEl = "rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-2.5 py-1.5 text-xs text-[var(--color-text-soft)] focus:outline-none focus:ring-1 focus:ring-ember-500/50";
 
+  // ── Derived detail-panel content ──────────────────────────────────────────
+  const critic = selected?.critic;
+  const staleAssumptions = critic?.stale_assumptions ?? [];
+  const costAnalysis = critic?.cost_analysis;
+
   return (
     <div className="space-y-5">
       {error && (
         <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</div>
-      )}
-
-      {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <select value={filterScenario} onChange={e => setFilterScenario(e.target.value)} className={selectEl}>
-          {SCENARIOS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-        </select>
-        <select value={filterVerdict} onChange={e => setFilterVerdict(e.target.value)} className={selectEl}>
-          {VERDICTS.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
-        </select>
-        <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-faint)]">
-          <span>from</span>
-          <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)}
-            className={selectEl + " w-36"} />
-          <span>to</span>
-          <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)}
-            className={selectEl + " w-36"} />
-        </div>
-        {(filterScenario || filterVerdict || filterFrom || filterTo) && (
-          <button onClick={() => { setFilterScenario(""); setFilterVerdict(""); setFilterFrom(""); setFilterTo(""); }}
-            className="text-xs text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] underline">
-            clear
-          </button>
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-[var(--color-text-faint)]">{filteredRuns.length} of {runs.length} runs</span>
-          <button onClick={() => setShowChart(v => !v)}
-            className="text-xs border border-[var(--color-border-default)] rounded-lg px-2.5 py-1.5 text-[var(--color-text-soft)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-raised)] transition-colors">
-            {showChart ? "Hide" : "Show"} trend
-          </button>
-          {compareIds.length === 2 && (
-            <button onClick={openDiff} disabled={diffLoading}
-              className="text-xs bg-ember-600 hover:bg-ember-500 disabled:opacity-50 rounded-lg px-3 py-1.5 text-[var(--color-text-primary)] font-medium transition-colors">
-              {diffLoading ? "Loading..." : "Compare (2)"}
-            </button>
-          )}
-          {compareIds.length > 0 && (
-            <button onClick={() => setCompareIds([])}
-              className="text-xs text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] underline">
-              clear selection
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Trend chart */}
-      {showChart && (
-        <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-4">
-          <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-text-faint)] mb-3">
-            Critic Score Trend
-            <span className="ml-3 normal-case text-[var(--color-text-ghost)]">
-               -  <span className="text-emerald-400">●</span> approved
-              <span className="text-amber-400"> ●</span> revision
-              <span className="text-rose-400"> ●</span> rejected
-            </span>
-          </p>
-          <TrendChart runs={filteredRuns} />
-        </div>
       )}
 
       {/* Main split */}
@@ -484,77 +461,193 @@ export default function RunHistorySection({ initialRunId }: { initialRunId?: num
 
         {/* Run list */}
         <section className="xl:col-span-4">
-          <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)]">
-            <div className="border-b border-[var(--color-border-default)] px-4 py-3 flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-semibold">Run History</h2>
-                <p className="text-xs text-[var(--color-text-faint)]">Newest first. Check two to compare.</p>
+          <div className="card card-lift rounded-2xl p-4">
+            <div className="flex items-center gap-3">
+              <span
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-white shadow-sm"
+                style={{ background: "linear-gradient(135deg, #FF5200, #FF5200cc)" }}
+              >
+                <ICONS.clock className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-[18px] font-bold leading-tight text-[var(--color-text-primary)]">Run History</h2>
+                <p className="mt-0.5 text-[12px] text-[var(--color-text-faint)]">Every AI planning session generated for your restaurant.</p>
               </div>
             </div>
-            {loading ? (
-              <div className="divide-y divide-[var(--color-border-soft)]">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="px-4 py-4 space-y-2.5 animate-pulse">
-                    <div className="h-2 w-10 rounded bg-[var(--color-surface-sunken)]" />
-                    <div className="h-3.5 w-44 rounded bg-[var(--color-surface-sunken)]" />
-                    <div className="h-2 w-28 rounded bg-[var(--color-surface-sunken)]" />
-                  </div>
-                ))}
+
+            {/* Search + filter toggle */}
+            <div className="mt-4 flex items-center gap-2">
+              <div className="relative flex-1 min-w-0">
+                <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-faint)]" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search by scenario name..."
+                  className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] py-2 pl-9 pr-3 text-[13px] text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-ember-500/50"
+                />
               </div>
-            ) : filteredRuns.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-[var(--color-text-faint)]">No runs match the current filters.</p>
-            ) : (
-              <div className="divide-y divide-[var(--color-border-soft)] max-h-[600px] overflow-y-auto">
-                {filteredRuns.map(run => {
+              <button
+                onClick={() => setFiltersOpen(v => !v)}
+                className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg border transition-colors ${filtersOpen ? "border-ember-500/40 bg-ember-500/10 text-[var(--color-accent)]" : "border-[var(--color-border-default)] text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)]"}`}
+                title="Filters"
+              >
+                <FunnelIcon className="h-4 w-4" />
+              </button>
+            </div>
+
+            {filtersOpen && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-[var(--color-surface-sunken)] p-2.5">
+                <select value={filterScenario} onChange={e => setFilterScenario(e.target.value)} className={selectEl}>
+                  {SCENARIOS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+                <select value={filterVerdict} onChange={e => setFilterVerdict(e.target.value)} className={selectEl}>
+                  {VERDICTS.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+                </select>
+                <div className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-faint)]">
+                  <span>from</span>
+                  <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} className={selectEl + " w-32"} />
+                  <span>to</span>
+                  <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} className={selectEl + " w-32"} />
+                </div>
+                <button onClick={() => setShowChart(v => !v)} className="text-[11px] text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] underline">
+                  {showChart ? "hide" : "show"} score trend
+                </button>
+                {(filterScenario || filterVerdict || filterFrom || filterTo || search) && (
+                  <button onClick={() => { setFilterScenario(""); setFilterVerdict(""); setFilterFrom(""); setFilterTo(""); setSearch(""); }}
+                    className="text-[11px] text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] underline">
+                    clear all
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Trend chart */}
+            {showChart && (
+              <div className="mt-3 rounded-lg bg-[var(--color-surface-sunken)] p-3">
+                <p className="mb-2 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-faint)]">
+                  Critic Score Trend
+                  <span className="ml-2 normal-case text-[var(--color-text-ghost)]">
+                    <span className="text-emerald-400">●</span> approved
+                    <span className="text-amber-400"> ●</span> revision
+                    <span className="text-rose-400"> ●</span> rejected
+                  </span>
+                </p>
+                <TrendChart runs={filteredRuns} />
+              </div>
+            )}
+
+            {/* List */}
+            <div className="mt-4 max-h-[640px] space-y-2.5 overflow-y-auto pr-0.5">
+              {loading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="animate-pulse rounded-2xl bg-[var(--color-surface-sunken)] p-4 space-y-2.5">
+                    <div className="h-2 w-10 rounded bg-[var(--color-border-soft)]" />
+                    <div className="h-3.5 w-32 rounded bg-[var(--color-border-soft)]" />
+                    <div className="h-2 w-24 rounded bg-[var(--color-border-soft)]" />
+                  </div>
+                ))
+              ) : filteredRuns.length === 0 ? (
+                <p className="px-1 py-6 text-sm text-[var(--color-text-faint)]">No runs match the current filters.</p>
+              ) : (
+                filteredRuns.map(run => {
                   const isActive   = selected?.id === run.id;
                   const isCompared = compareIds.includes(run.id);
                   const verdict    = run.critic_verdict ?? "unknown";
                   return (
-                    <div key={run.id}
-                      className={`flex items-start gap-2 px-3 py-3 transition-colors hover:bg-[var(--color-surface-raised)] ${isActive ? "bg-ember-500/10" : ""}`}>
-                      {/* Compare checkbox */}
-                      <button
-                        onClick={() => toggleCompare(run.id)}
-                        className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
-                          isCompared
-                            ? "bg-ember-500 border-ember-500 text-[var(--color-text-primary)]"
-                            : "border-[var(--color-border-default)] hover:border-ember-500"
-                        }`}
-                        title="Select to compare"
-                      >
-                        {isCompared && <span className="text-[10px] leading-none">done</span>}
-                      </button>
-
-                      {/* Run info */}
-                      <button onClick={() => getPlanningRun(run.id).then(setSelected)}
-                        className="flex-1 text-left min-w-0">
-                        <div className="flex items-start justify-between gap-2">
+                    <div
+                      key={run.id}
+                      onClick={() => getPlanningRun(run.id).then(setSelected)}
+                      className={`cursor-pointer rounded-2xl p-4 shadow-sm ring-1 ring-[var(--color-border-soft)] transition-colors ${
+                        isActive ? "bg-ember-500/[0.08]" : "bg-[var(--color-surface-raised)] hover:bg-[var(--color-surface-sunken)]"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-start gap-2.5">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); toggleCompare(run.id); }}
+                            className={`mt-0.5 grid h-[18px] w-[18px] shrink-0 place-items-center rounded-md border transition-colors ${
+                              isCompared ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-white" : "border-[var(--color-border-default)] hover:border-ember-500"
+                            }`}
+                            title="Select to compare"
+                          >
+                            {isCompared && <CheckCircleIcon className="h-3 w-3" strokeWidth={2.5} />}
+                          </button>
                           <div className="min-w-0">
-                            <p className="font-mono text-xs text-[var(--color-text-faint)]">#{run.id}</p>
-                            <p className="mt-0.5 text-sm font-medium truncate">{run.scenario.replace(/_/g, " ")}</p>
-                            <p className="text-xs text-[var(--color-text-soft)]">target {run.target_date ?? "-"}</p>
+                            <p className="text-[10.5px] tabular-nums text-[var(--color-text-faint)]">#{run.id}</p>
+                            <p className="mt-0.5 truncate text-[15px] font-bold text-[var(--color-text-primary)]">{scenarioTitle(run)}</p>
+                            <p className="text-[11px] text-[var(--color-text-faint)]">{isCustomScenario(run.scenario) ? "Custom Scenario" : "Preset Scenario"}</p>
                           </div>
-                          <span className={`rounded-full border px-2 py-0.5 text-xs shrink-0 ${VERDICT_STYLE[verdict]}`}>
-                            {verdict}
-                          </span>
                         </div>
-                        <div className="mt-2 flex items-center justify-between text-xs text-[var(--color-text-faint)]">
-                          <span>{run.status}</span>
-                          <span>{run.critic_score == null ? "--" : `${Math.round(run.critic_score * 100)}/100`}</span>
+                        <ScoreRing value={run.critic_score ?? 0} size={52} thickness={4.5} />
+                      </div>
+
+                      <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-[var(--color-text-faint)]">
+                        <CalendarIcon className="h-3.5 w-3.5" />
+                        <span>Target {run.target_date ?? "-"}</span>
+                      </div>
+
+                      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                        <span className={`rounded-full border px-2 py-0.5 text-[10.5px] font-semibold ${VERDICT_STYLE[verdict]}`}>
+                          {verdict === "approved" ? "Approved" : verdict === "rejected" ? "Rejected" : verdict === "revision" ? "Revision" : "Unknown"}
+                        </span>
+                        <span className={`rounded-full border px-2 py-0.5 text-[10.5px] font-semibold ${STATUS_STYLE[run.status] ?? STATUS_STYLE.unknown}`}>
+                          {STATUS_LABEL[run.status] ?? run.status}
+                        </span>
+                      </div>
+
+                      {run.risk_tags.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {run.risk_tags.map((tag, i) => (
+                            <span key={i} className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-600 dark:text-violet-300">
+                              {tag}
+                            </span>
+                          ))}
                         </div>
-                      </button>
+                      )}
+
+                      <p className="mt-2 text-right text-[10px] text-[var(--color-text-ghost)]">{relativeTime(run.created_at)}</p>
                     </div>
                   );
-                })}
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="mt-3 flex items-center justify-between text-[11px] text-[var(--color-text-faint)]">
+              <span>{filteredRuns.length} of {runs.length} runs</span>
+              <button onClick={() => setSortDesc(v => !v)} className="hover:text-[var(--color-text-primary)]">
+                {sortDesc ? "Newest first" : "Oldest first"} ⌄
+              </button>
+            </div>
+
+            {/* Compare panel */}
+            <div className="mt-3 rounded-xl bg-[var(--color-surface-sunken)] p-3">
+              <p className="text-[11.5px] text-[var(--color-text-soft)]">
+                {compareIds.length === 2 ? "Ready to compare these two runs." : "Select two runs to compare their plans side by side."}
+              </p>
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  onClick={openDiff}
+                  disabled={compareIds.length !== 2 || diffLoading}
+                  className="flex-1 rounded-lg bg-ember-600 px-3 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-ember-500 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {diffLoading ? "Loading..." : `Compare Runs${compareIds.length > 0 ? ` (${compareIds.length}/2)` : ""}`}
+                </button>
+                {compareIds.length > 0 && (
+                  <button onClick={() => setCompareIds([])} className="text-[11px] text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] underline">
+                    clear
+                  </button>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </section>
 
         {/* Run detail */}
         <section className="space-y-5 xl:col-span-8">
           {!selected ? (
-            <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-5 py-12 flex flex-col items-center gap-3 text-center">
+            <div className="card rounded-2xl px-5 py-12 flex flex-col items-center gap-3 text-center">
               <svg className="h-8 w-8 text-[var(--color-text-ghost)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
@@ -563,145 +656,141 @@ export default function RunHistorySection({ initialRunId }: { initialRunId?: num
             </div>
           ) : (
             <>
-              <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5">
-                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-faint)]">run #{selected.id}</p>
-                    <h2 className="mt-2 text-xl font-semibold">{selected.scenario.replace(/_/g, " ")}</h2>
-                    <p className="mt-1 text-sm text-[var(--color-text-soft)]">
-                      target {selected.target_date ?? "-"}  -  generated {selected.generated_at?.slice(0, 10) ?? "-"}
-                    </p>
+              {/* Header card */}
+              <div className="card card-lift rounded-2xl p-5 md:p-6">
+                <div className="flex flex-wrap items-start justify-between gap-5">
+                  <div className="min-w-0">
+                    <h2 className="text-[26px] font-bold capitalize leading-tight text-[var(--color-text-primary)]">{scenarioTitle(selected)}</h2>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[13px] text-[var(--color-text-faint)]">
+                      <CalendarIcon className="h-3.5 w-3.5" />
+                      <span>Target {selected.target_date ?? "-"}</span>
+                      <span>&middot;</span>
+                      <span>Generated {selected.generated_at ? new Date(selected.generated_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "-"}</span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12.5px] font-semibold ${VERDICT_STYLE[selected.critic_verdict ?? "unknown"]}`}>
+                        {selected.critic_verdict === "approved" && <CheckCircleIcon className="h-3.5 w-3.5" strokeWidth={2.2} />}
+                        {selected.critic_verdict === "approved" ? "Approved" : selected.critic_verdict === "rejected" ? "Rejected" : selected.critic_verdict === "revision" ? "Revision" : "Unknown"}
+                      </span>
+                      <span className={`rounded-full border px-3 py-1 text-[12.5px] font-semibold ${STATUS_STYLE[selected.status] ?? STATUS_STYLE.unknown}`}>
+                        {STATUS_LABEL[selected.status] ?? selected.status}
+                      </span>
+                    </div>
+                    {staleAssumptions.length > 0 && (
+                      <div className="mt-2.5 flex items-center gap-1.5 text-[12px] text-amber-600 dark:text-amber-300">
+                        <ICONS.warning className="h-3.5 w-3.5" />
+                        <span>{staleAssumptions.length} cross-agent assumption conflict{staleAssumptions.length !== 1 ? "s" : ""} detected.</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`rounded-full border px-3 py-1 text-sm ${VERDICT_STYLE[selected.critic_verdict ?? "unknown"]}`}>
-                      {selected.critic_verdict ?? "unknown"}
-                    </span>
-                    <button
-                      onClick={() => downloadPdf(selected.id, selected.scenario)}
-                      disabled={exportingPdf}
-                      className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-3 py-1.5 text-xs text-[var(--color-text-soft)] transition-colors hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-primary)] disabled:opacity-50"
-                    >
-                      <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                      {exportingPdf ? "Exporting..." : "PDF"}
-                    </button>
-                    <button
-                      onClick={() => downloadExcel(selected.id, selected.scenario)}
-                      disabled={exportingExcel}
-                      className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-3 py-1.5 text-xs text-[var(--color-text-soft)] transition-colors hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text-primary)] disabled:opacity-50"
-                    >
-                      <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                      {exportingExcel ? "Exporting..." : "Excel"}
-                    </button>
-                  </div>
-                </div>
-                <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-                  <Metric label="status" value={selected.status} />
-                  <Metric label="score" value={selected.critic_score == null ? "--" : `${Math.round(selected.critic_score * 100)}/100`} />
-                  <Metric label="run id" value={selected.metadata?.run_id as string ?? "--"} />
-                  <Metric label="tokens" value={selected.metadata?.total_tokens as number ?? "--"} />
-                </div>
-                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--color-text-faint)]">
-                  {selected.metadata?.total_cost_usd != null && (
-                    <span>Cost: <span className="text-[var(--color-text-soft)]">${(selected.metadata.total_cost_usd as number).toFixed(5)}</span></span>
-                  )}
-                  {selected.metadata?.total_duration_ms != null && (
-                    <span>Duration: <span className="text-[var(--color-text-soft)]">{Math.round(selected.metadata.total_duration_ms as number)}ms</span></span>
-                  )}
-                  {!!selected.metadata?.llm_model && (
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-ember-400/70" />
-                      <span className="font-mono text-[var(--color-accent)]/80">{selected.metadata.llm_model as string}</span>
-                      {!!selected.metadata?.llm_provider && (
-                        <span className="text-[var(--color-text-ghost)]">· {selected.metadata.llm_provider as string}</span>
-                      )}
-                    </span>
-                  )}
-                  {selected.metadata?.cache_hit === true && (
-                    <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-cyan-300/80 ring-1 ring-cyan-400/20">
-                      cached
-                    </span>
-                  )}
-                </div>
-              </div>
 
-              <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-5">
-                <h3 className="text-sm font-semibold">Critic Notes</h3>
-                <p className="mt-2 text-sm leading-6 text-[var(--color-text-soft)]">{selected.critic?.notes ?? "No critic notes recorded."}</p>
-
-                {!!Object.keys(selected.critic?.dimension_scores ?? {}).length && (
-                  <div className="mt-5 space-y-3">
-                    <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-text-faint)]">Dimension Scores</p>
-                    {DIMENSIONS.map(dim => {
-                      const score = ((selected.critic?.dimension_scores ?? {})[dim] ?? 0) * 100;
-                      const color = score >= 75 ? "bg-emerald-500" : score >= 50 ? "bg-amber-500" : "bg-rose-500";
-                      return (
-                        <div key={dim}>
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="capitalize text-[var(--color-text-soft)]">{dim}</span>
-                            <span className="text-[var(--color-text-soft)] font-mono">{Math.round(score)}/100</span>
-                          </div>
-                          <div className="h-1.5 rounded-full bg-[var(--color-surface-sunken)] overflow-hidden">
-                            <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${score}%` }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {selected.critic?.revision_reasons?.length ? (
-                  <div className="mt-5">
-                    <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-text-faint)]">Revision Reasons</p>
-                    <ul className="mt-2 space-y-2 text-sm text-[var(--color-text-soft)]">
-                      {selected.critic.revision_reasons.map((r, i) => (
-                        <li key={i} className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] px-3 py-2">{r}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-
-                {selected.critic?.actionable_feedback?.length ? (
-                  <div className="mt-5">
-                    <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-text-faint)]">Actionable Feedback</p>
-                    <ul className="mt-2 space-y-2 text-sm text-[var(--color-text-soft)]">
-                      {selected.critic.actionable_feedback.map((item, i) => (
-                        <li key={i} className="rounded-lg border border-ember-400/10 bg-ember-500/5 px-3 py-2">{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-
-                {selected.critic?.cost_analysis && (
-                  <div className="mt-5 rounded-lg border border-ember-400/10 bg-ember-500/5 p-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-accent)]">Cost-Aware Scoring</p>
-                    <div className="mt-3 grid grid-cols-3 gap-3">
-                      <Metric label="cost pressure" value={`${Math.round(selected.critic.cost_analysis.cost_pressure_score * 100)}/100`} />
-                      <Metric label="benefit"       value={`${Math.round(selected.critic.cost_analysis.benefit_score * 100)}/100`} />
-                      <Metric label="tradeoff"      value={`${Math.round(selected.critic.cost_analysis.tradeoff_score * 100)}/100`} />
+                  <div className="flex items-center gap-5">
+                    <div className="flex flex-col items-center">
+                      <ScoreRing value={selected.critic_score ?? 0} size={104} thickness={9} />
+                      <p className="mt-1.5 text-center text-[10px] uppercase tracking-wider text-[var(--color-text-faint)]">AI Critic Score</p>
+                    </div>
+                    <div className="flex w-44 flex-col gap-2">
+                      <Link
+                        href={`/planning?run=${selected.id}`}
+                        className="flex items-center justify-center gap-1.5 rounded-lg bg-ember-600 px-3 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-ember-500"
+                      >
+                        View Full Plan
+                      </Link>
+                      <button
+                        onClick={() => toggleCompare(selected.id)}
+                        className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-3 py-2 text-[12.5px] text-[var(--color-text-soft)] transition-colors hover:text-[var(--color-text-primary)]"
+                      >
+                        <ScaleIcon className="h-3.5 w-3.5" />
+                        {compareIds.includes(selected.id) ? "Selected to compare" : "Compare Run"}
+                      </button>
+                      <button
+                        onClick={() => downloadPdf(selected.id, selected.scenario)}
+                        disabled={exportingPdf}
+                        className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-3 py-2 text-[12.5px] text-[var(--color-text-soft)] transition-colors hover:text-[var(--color-text-primary)] disabled:opacity-50"
+                      >
+                        <ExportIcon className="h-3.5 w-3.5" />
+                        {exportingPdf ? "Exporting..." : "Export PDF"}
+                      </button>
+                      <button
+                        onClick={() => downloadExcel(selected.id, selected.scenario)}
+                        disabled={exportingExcel}
+                        className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-3 py-2 text-[12.5px] text-[var(--color-text-soft)] transition-colors hover:text-[var(--color-text-primary)] disabled:opacity-50"
+                      >
+                        <ExportIcon className="h-3.5 w-3.5" />
+                        {exportingExcel ? "Exporting..." : "Export Excel"}
+                      </button>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Cost & Tradeoffs -- AI Findings, Dimension Scores, and an
+                  "Evidence Used" chip summary were all deliberately dropped
+                  from this view: the first two exactly duplicate what "View
+                  Full Plan" already renders (AgentIntelligencePanel and
+                  CriticBanner), and the chip summary duplicated the richer
+                  EvidencePanel just below with less real detail. Cost &
+                  Tradeoffs stays because cost_analysis isn't rendered
+                  anywhere else in the app right now. */}
+              <div className="card card-lift rounded-2xl p-5 md:p-6">
+                <div className="mb-1 flex items-center gap-3">
+                  <span
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white shadow-sm"
+                    style={{ background: "linear-gradient(135deg, #C2410C, #C2410Ccc)" }}
+                  >
+                    <ICONS.trendUp className="h-4 w-4" />
+                  </span>
+                  <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Cost &amp; Tradeoffs</h3>
+                </div>
+
+                {costAnalysis ? (
+                    <>
+                      <div className="mt-4 grid grid-cols-3 gap-2">
+                        <div className="flex flex-col items-center text-center">
+                          <ScoreRing value={costAnalysis.cost_pressure_score} size={76} thickness={6} />
+                          <p className="mt-2 text-[10.5px] font-semibold text-[var(--color-text-primary)]">Cost Pressure</p>
+                          <p className="mt-0.5 text-[10px] leading-snug text-[var(--color-text-faint)]">{costPressureCaption(costAnalysis.cost_pressure_score)}</p>
+                        </div>
+                        <div className="flex flex-col items-center text-center">
+                          <ScoreRing value={costAnalysis.benefit_score} size={76} thickness={6} />
+                          <p className="mt-2 text-[10.5px] font-semibold text-[var(--color-text-primary)]">Expected Benefit</p>
+                          <p className="mt-0.5 text-[10px] leading-snug text-[var(--color-text-faint)]">{benefitCaption(costAnalysis.benefit_score)}</p>
+                        </div>
+                        <div className="flex flex-col items-center text-center">
+                          <ScoreRing value={costAnalysis.tradeoff_score} size={76} thickness={6} color={costAnalysis.tradeoff_score >= 0.5 ? "#10B981" : costAnalysis.tradeoff_score >= 0.3 ? "#F59E0B" : "#F43F5E"} />
+                          <p className="mt-2 text-[10.5px] font-semibold text-[var(--color-text-primary)]">Operational Tradeoff</p>
+                          <p className="mt-0.5 text-[10px] leading-snug text-[var(--color-text-faint)]">{tradeoffCaption(costAnalysis.tradeoff_score)}</p>
+                        </div>
+                      </div>
+
+                      {costAnalysis.recommended_focus && costAnalysis.recommended_focus.length > 0 && (
+                        <div className="mt-4 flex items-start gap-2 rounded-xl bg-ember-500/[0.06] p-3.5">
+                          <ICONS.lightbulb className="h-4 w-4 shrink-0 text-[var(--color-accent)]" />
+                          <div className="space-y-1">
+                            {costAnalysis.recommended_focus.map((line, i) => (
+                              <p key={i} className="text-[12px] leading-relaxed text-[var(--color-text-soft)]">{line}</p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                ) : (
+                  <p className="mt-3 text-[12.5px] italic text-[var(--color-text-ghost)]">No cost-aware scoring recorded for this run.</p>
                 )}
               </div>
 
-              {selectedAgents.length > 0 && (
-                <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-text-faint)] mb-3">Agent Outputs</p>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    {selectedAgents.map(([name, value]) => (
-                      <AgentOutputCard
-                        key={name}
-                        agentKey={name}
-                        data={value}
-                        swiggySignal={computeSwiggySignal(name, selected?.final_response)}
-                      />
-                    ))}
-                  </div>
+              {selected.final_response && <EvidencePanel data={selected.final_response} />}
+
+              {/* Footer observability strip */}
+              <div className="card rounded-2xl p-4">
+                <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+                  <FooterStat icon={<ICONS.clock className="h-4 w-4" />} label="Run Duration" value={fmtMs(selected.total_duration_ms)} />
+                  <FooterStat icon={<ICONS.cube className="h-4 w-4" />} label="LLM Calls" value={selected.llm_call_count != null ? String(selected.llm_call_count) : "--"} />
+                  <FooterStat icon={<ICONS.tag className="h-4 w-4" />} label="Total Tokens" value={selected.total_tokens != null ? selected.total_tokens.toLocaleString() : "--"} />
+                  <FooterStat icon={<ICONS.gauge className="h-4 w-4" />} label="Critic Revisions" value={selected.replan_count != null ? String(selected.replan_count) : "--"} />
+                  <FooterStat icon={<CalendarIcon className="h-4 w-4" />} label="Generated At" value={selected.generated_at ? new Date(selected.generated_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "-"} />
                 </div>
-              )}
+              </div>
             </>
           )}
         </section>
@@ -715,11 +804,14 @@ export default function RunHistorySection({ initialRunId }: { initialRunId?: num
   );
 }
 
-function Metric({ label, value }: { label: string; value: string | number }) {
+function FooterStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] p-3">
-      <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-faint)]">{label}</p>
-      <p className="num-display mt-1.5 text-2xl text-[var(--color-text-primary)] leading-none">{value}</p>
+    <div className="flex items-center gap-2.5">
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-ember-500/10 text-[var(--color-accent)]">{icon}</span>
+      <div>
+        <p className="text-[9.5px] uppercase tracking-wider text-[var(--color-text-faint)]">{label}</p>
+        <p className="text-[13px] font-semibold text-[var(--color-text-primary)]">{value}</p>
+      </div>
     </div>
   );
 }

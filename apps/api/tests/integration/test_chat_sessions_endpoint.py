@@ -80,3 +80,33 @@ def test_get_session_returns_404_when_not_found_or_not_owned():
     app.dependency_overrides.clear()
 
     assert response.status_code == 404
+
+
+def test_delete_session_removes_it_and_returns_204():
+    mock_db = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    app.dependency_overrides[get_current_user] = lambda: MOCK_USER
+
+    session = _mock_session(5, "Naan complaints?", [])
+    mock_db.query.return_value.filter.return_value.first.return_value = session
+
+    response = TestClient(app).delete("/api/v1/chat/sessions/5")
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 204
+    mock_db.delete.assert_called_once_with(session)
+    mock_db.commit.assert_called_once()
+
+
+def test_delete_session_returns_404_when_not_found_or_not_owned():
+    mock_db = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    app.dependency_overrides[get_current_user] = lambda: MOCK_USER
+
+    mock_db.query.return_value.filter.return_value.first.return_value = None
+
+    response = TestClient(app).delete("/api/v1/chat/sessions/999")
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+    mock_db.delete.assert_not_called()

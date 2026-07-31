@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { DashboardProvider } from "@/context/DashboardContext";
@@ -33,10 +34,17 @@ const THEME_INIT_SCRIPT = `
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
-      </head>
       <body className="flex min-h-screen">
+        {/* next/script with beforeInteractive, placed in <body> per Next's
+            own documented pattern -- Next hoists it into the real document
+            <head> and guarantees it runs before hydration regardless of
+            where it's written in JSX. Placing it inside a manually-authored
+            <head> (App Router's <head> is otherwise reserved for the
+            Metadata API) is what triggered React's "encountered a script
+            tag" dev warning -- <body> is the documented placement. */}
+        <Script id="theme-init" strategy="beforeInteractive">
+          {THEME_INIT_SCRIPT}
+        </Script>
         <ThemeProvider>
           <AuthProvider>
             <DashboardProvider>

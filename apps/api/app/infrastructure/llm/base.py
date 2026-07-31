@@ -122,9 +122,19 @@ class BaseLLMProvider(ABC):
         return records
 
     @abstractmethod
-    async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
-        """Send a prompt to the LLM and return the text response."""
+    async def complete(
+        self, prompt: str, system_prompt: str | None = None, temperature: float | None = None,
+    ) -> str:
+        """Send a prompt to the LLM and return the text response.
+
+        `temperature` is optional and defaults to the provider/SDK's own
+        default when omitted -- pass it explicitly only for calls that need
+        low-variance output (e.g. a relevance classification), not narrative
+        generation where the default is intentional.
+        """
 
     @abstractmethod
-    async def complete_json(self, prompt: str, system_prompt: str | None = None) -> dict:
+    async def complete_json(
+        self, prompt: str, system_prompt: str | None = None, temperature: float | None = None,
+    ) -> dict:
         """Send a prompt and return a parsed JSON response."""

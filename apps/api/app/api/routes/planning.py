@@ -3,7 +3,7 @@
 import json as _json
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 
 from sqlalchemy.orm import Session
@@ -28,6 +28,7 @@ from app.domain.services.cost_aware_scoring import CostAwareScoringService
 from app.domain.services.live_scenario_composer import LiveScenarioComposer
 from app.domain.services.run_service import RunService
 from app.domain.services.scenario_profile_service import ScenarioProfileService
+from app.infrastructure.llm.audio_transcription import transcribe as transcribe_audio
 from app.domain.services.scenario_recommender import ScenarioRecommender
 from app.domain.services.workflow_trigger_service import WorkflowTriggerService
 from app.infrastructure.llm.base import BaseLLMProvider
@@ -68,6 +69,30 @@ async def scenario_from_text(
     return ScenarioProfileResponse(profile=ScenarioProfilePayload(**profile))
 
 
+@router.post(
+    "/transcribe",
+    summary="Transcribe recorded voice input to text",
+    description=(
+        "Backs the planning modal's mic input -- transcribes a short recorded clip "
+        "(e.g. audio/webm from the browser's MediaRecorder) via Groq's Whisper endpoint. "
+        "Returns raw text only; the frontend shows it as an editable transcript before "
+        "any plan is triggered, it is never auto-submitted."
+    ),
+)
+async def transcribe(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    audio_bytes = await file.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="Empty audio upload.")
+    try:
+        text = await transcribe_audio(audio_bytes, file.filename or "recording.webm")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Transcription failed: {exc}") from exc
+    return {"text": text}
+
+
 def _build_response(result: dict, meta: dict, fallback_scenario: str) -> FridayRushResponse:
     return FridayRushResponse(
         scenario=result.get("scenario", fallback_scenario),
@@ -91,6 +116,7 @@ def _build_response(result: dict, meta: dict, fallback_scenario: str) -> FridayR
         swiggy_occupancy_context=result.get("swiggy_occupancy_context"),
         swiggy_procurement_options=result.get("swiggy_procurement_options"),
         dineout_manager=result.get("dineout_manager"),
+        situation_summary=result.get("situation_summary"),
     )
 
 
@@ -159,7 +185,7 @@ async def run_planning(
             # before this feature existed (or whose action was since dismissed)
             # would never get re-flagged as long as the plan keeps hitting cache.
             try:
-                WorkflowTriggerService(deps["db"]).evaluate_and_queue(current_user["org_id"], cached)
+                await WorkflowTriggerService(deps["db"], deps["llm"]).evaluate_and_queue(current_user["org_id"], cached)
             except Exception:
                 pass
             return FridayRushResponse(**cached)
@@ -231,7 +257,7 @@ async def run_planning(
     # cache hits, which already evaluated this on their original run). Never lets
     # a trigger-evaluation failure break the planning response itself.
     try:
-        WorkflowTriggerService(deps["db"]).evaluate_and_queue(current_user["org_id"], result)
+        await WorkflowTriggerService(deps["db"], deps["llm"]).evaluate_and_queue(current_user["org_id"], result)
     except Exception as exc:
         meta.setdefault("workflow_trigger_error", str(exc))
 

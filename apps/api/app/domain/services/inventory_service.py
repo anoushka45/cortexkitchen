@@ -110,6 +110,7 @@ class InventoryService:
         demand_ratio: float,
     ) -> list[SimpleNamespace]:
         scenario_id = (scenario_profile or {}).get("id", "friday_rush")
+        scenario_label = (scenario_profile or {}).get("label", "Friday Rush")
         projected_items: list[SimpleNamespace] = []
 
         for item in stock_items:
@@ -126,6 +127,7 @@ class InventoryService:
                     scenario_adjustment_reason=self._scenario_adjustment_reason(
                         item.ingredient_name,
                         scenario_id,
+                        scenario_label,
                         drawdown,
                     ),
                 )
@@ -175,6 +177,7 @@ class InventoryService:
         self,
         ingredient_name: str,
         scenario_id: str,
+        scenario_label: str,
         projected_drawdown: float,
     ) -> str | None:
         if projected_drawdown <= 0:
@@ -186,7 +189,14 @@ class InventoryService:
             return f"Projected holiday-spike drawdown applied to {ingredient_name.lower()}."
         if scenario_id == "low_stock_weekend":
             return f"Projected constrained-stock weekend drawdown applied to {ingredient_name.lower()}."
-        return f"Projected Friday rush drawdown applied to {ingredient_name.lower()}."
+        if scenario_id == "friday_rush":
+            return f"Projected Friday rush drawdown applied to {ingredient_name.lower()}."
+        # Any ad-hoc/custom or live-composed scenario (id not one of the 4 named
+        # presets above) -- use its actual label instead of silently inheriting
+        # Friday Rush's text. Without this, every custom-profile run (100% of
+        # what the AI-first planning modal produces) got told its own shortage
+        # was a "Friday rush drawdown" regardless of what was actually asked for.
+        return f"Projected {scenario_label} drawdown applied to {ingredient_name.lower()}."
 
     def normalize_scenario_language(
         self,
@@ -382,12 +392,14 @@ class InventoryService:
 
         scenario_label = scenario_profile["label"] if scenario_profile else "Friday Rush"
         service_window = scenario_profile["service_window"] if scenario_profile else "18:00-22:00"
+        operational_focus = (scenario_profile or {}).get("operational_focus")
 
         return {
             "alerts": alerts,
             "actionable_shortages": actionable_shortages,
             "scenario_label": scenario_label,
             "service_window": service_window,
+            "operational_focus": operational_focus,
         }
 
     async def generate_recommendation(
@@ -404,6 +416,7 @@ class InventoryService:
         actionable_shortages = shortage_data["actionable_shortages"]
         scenario_label = shortage_data["scenario_label"]
         service_window = shortage_data["service_window"]
+        operational_focus = shortage_data.get("operational_focus")
 
         critical_shortages = [a for a in actionable_shortages if a["severity"] == "critical"]
         warning_shortages = [a for a in actionable_shortages if a["severity"] != "critical"]
@@ -427,6 +440,7 @@ class InventoryService:
 
         procurement_section = (procurement_context or {}).get("prompt_text") or ""
         procurement_block = f"\n{procurement_section}\n" if procurement_section else ""
+        focus_block = f"\n- Operator's specific instructions: {operational_focus}\n" if operational_focus else ""
 
         prompt = PromptUtils.format_recommendation_prompt(
             context=f"""
@@ -436,6 +450,7 @@ Inventory status ahead of {scenario_label}:
 - High demand week: {alerts['high_demand_week']} (demand ratio: {alerts['demand_ratio']})
 - Critical shortages requiring first attention: {len(critical_shortages)}
 - Warning shortages: {len(warning_shortages)}
+{focus_block}
 
 Shortage alerts:
 {shortage_lines}

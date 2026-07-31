@@ -8,16 +8,16 @@ import {
 } from "recharts";
 import { useAuth } from "@/context/AuthContext";
 import PlanShiftModal from "@/components/dashboard/PlanShiftModal";
+import PageHeading from "@/components/ui/PageHeading";
 import {
   getDataHealth, getConnectorsStatus, getMarketPulse, getBusinessPerformance, getBusinessSummary,
-  listRestaurantProfiles, getActionQueue, listPlanningRuns,
+  listRestaurantProfiles,
   BusinessPerformanceResponse, BusinessSummaryResponse, ConnectorStatus, MarketPulseResponse,
-  RestaurantProfile, ActionQueueItem,
+  RestaurantProfile,
 } from "@/lib/api";
-import { SCENARIO_OPTIONS } from "@/lib/scenarios";
-import { shortDate, relativeTime, VERDICT_TONE } from "@/lib/formatters";
+import { shortDate } from "@/lib/formatters";
 import { hourCacheKey, readHourCache, writeHourCache } from "@/lib/hourCache";
-import { DataHealth, PlanningRunSummary, PlanningScenarioOption, PlanTriggerHandler } from "@/types/planning";
+import { DataHealth, PlanningScenarioOption, PlanTriggerHandler } from "@/types/planning";
 
 // Same prefix usePlanTriggerData uses -- Dashboard and /planning share one
 // cache entry, so switching between them doesn't re-fetch market pulse at
@@ -70,16 +70,14 @@ function todayLabel(): string {
 interface Props {
   onRun: PlanTriggerHandler;
   selectedScenario: PlanningScenarioOption["id"];
-  onScenarioChange: (scenario: PlanningScenarioOption["id"]) => void;
   historyCount: number;
   onShowHistory: () => void;
 }
 
 export default function TodayIdleState({
-  onRun, selectedScenario, onScenarioChange, historyCount, onShowHistory,
+  onRun, selectedScenario, historyCount, onShowHistory,
 }: Props) {
   const { user } = useAuth();
-  const scenario = SCENARIO_OPTIONS.find((s) => s.id === selectedScenario) ?? SCENARIO_OPTIONS[0];
 
   const [profiles, setProfiles] = useState<RestaurantProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
@@ -95,12 +93,10 @@ export default function TodayIdleState({
   const [perfDays, setPerfDays]         = useState(14);
   const [loaded, setLoaded]             = useState(false);
   const [marketLoaded, setMarketLoaded] = useState(() => readHourCache(hourCacheKey(MARKET_PULSE_CACHE_PREFIX)) !== null);
+  const [marketRefreshing, setMarketRefreshing] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
 
   const [summary, setSummary]           = useState<BusinessSummaryResponse | null>(null);
-  const [pendingActions, setPendingActions] = useState<ActionQueueItem[]>([]);
-  const [latestRun, setLatestRun]       = useState<PlanningRunSummary | null>(null);
-  const [latestRunLoaded, setLatestRunLoaded] = useState(false);
 
   useEffect(() => {
     listRestaurantProfiles()
@@ -143,21 +139,6 @@ export default function TodayIdleState({
     return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    getActionQueue("pending").then((rows) => { if (!cancelled) setPendingActions(rows); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    listPlanningRuns({ limit: 1 })
-      .then((rows) => { if (!cancelled) setLatestRun(rows[0] ?? null); })
-      .catch(() => { if (!cancelled) setLatestRun(null); })
-      .finally(() => { if (!cancelled) setLatestRunLoaded(true); });
-    return () => { cancelled = true; };
-  }, []);
-
   // Market pulse hits live Swiggy MCP tools directly -- on a cold cache this can take
   // several seconds (real external calls). Kept in its own effect/loading flag so a
   // slow Swiggy response never blocks the rest of the page from rendering as soon as
@@ -176,6 +157,22 @@ export default function TodayIdleState({
       .finally(() => { if (!cancelled) setMarketLoaded(true); });
     return () => { cancelled = true; };
   }, []);
+
+  // Manual refresh -- bypasses both the hour-bucketed localStorage cache and
+  // the backend's own 1-hour Redis cache (trends/compliance), writing back
+  // into the same shared "ck:market-pulse:" key /planning's idle state reads.
+  async function handleMarketRefresh() {
+    setMarketRefreshing(true);
+    try {
+      const pulse = await getMarketPulse(true);
+      setMarketPulse(pulse);
+      writeHourCache(MARKET_PULSE_CACHE_PREFIX, hourCacheKey(MARKET_PULSE_CACHE_PREFIX), pulse);
+    } catch {
+      /* keep whatever was already shown -- a failed refresh shouldn't blank the card */
+    } finally {
+      setMarketRefreshing(false);
+    }
+  }
 
   const activeProfile = profiles.find((p) => p.id === selectedProfileId) ?? profiles[0] ?? null;
 
@@ -365,19 +362,22 @@ export default function TodayIdleState({
   return (
     <div className="py-6 space-y-5">
 
-      {/* Greeting row -- matches the display-serif eyebrow/h1 header pattern
-          used on Analytics/Action Center/Data (AnalyticsDetail.tsx etc.),
-          which this was the one page not yet following. */}
-      <header className="border-b border-[var(--color-border-default)] pb-5">
-        <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--color-accent)]">{todayLabel()}</p>
-        <h1 className="display mt-1 text-[32px] text-[var(--color-text-primary)]">
-          {greetingWord()}, <span style={{ color: "var(--color-accent)" }}>{user?.full_name?.split(" ")[0] ?? "Chef"}</span>
-        </h1>
-        <p className="mt-1 text-sm text-[var(--color-text-soft)]">Here&apos;s how your restaurant is performing today.</p>
-      </header>
+      {/* Greeting row -- matches the shared PageHeading style rolled out from
+          the Action Center redesign (P6-A31): bold sans title, short accent
+          underline, no eyebrow. Today's date now sits on the right as the
+          header's action slot instead of as an eyebrow above the title. */}
+      <PageHeading
+        title={<>{greetingWord()}, <span style={{ color: "var(--color-accent)" }}>{user?.full_name?.split(" ")[0] ?? "Chef"}</span></>}
+        description="Here's how your restaurant is performing today."
+        action={
+          <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
+            {todayLabel()}
+          </span>
+        }
+      />
 
-      {/* ═══ The numbers, at a glance: 8-tile KPI strip ═══ */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
+      {/* ═══ The numbers, at a glance: 7-tile KPI strip ═══ */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
         <MiniKpi
           label="Revenue" hue="#efa345" icon="M12 8c-1.66 0-3 .9-3 2s1.34 2 3 2 3 .9 3 2-1.34 2-3 2m0-8V6m0 10v2m0-14a8 8 0 100 16 8 8 0 000-16z"
           value={yesterday ? `₹${yesterday.revenue.toLocaleString("en-IN")}` : "--"}
@@ -392,7 +392,7 @@ export default function TodayIdleState({
           tone={ordersDelta !== null && ordersDelta < 0 ? "caution" : "good"}
         />
         <MiniKpi
-          label="Average Order Value" hue="#818cf8" icon="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+          label="AOV" hue="#818cf8" icon="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
           value={yesterday ? `₹${Math.round(yesterday.avg_order_value)}` : "--"}
           delta={aovDelta !== null ? `${aovDelta >= 0 ? "↑" : "↓"} ${Math.abs(aovDelta)}% vs yesterday` : undefined}
           tone={aovDelta !== null && aovDelta < 0 ? "caution" : "good"}
@@ -402,11 +402,6 @@ export default function TodayIdleState({
           value={reservationGaugePct !== null ? `${reservationGaugePct}%` : "--"}
           delta={coverage ? `${coverage.waitlist} on waitlist` : undefined}
           tone={reservationGaugePct !== null && reservationGaugePct >= 90 ? "caution" : undefined}
-        />
-        <MiniKpi
-          label="Sentiment" hue="#34d399" icon="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-          value={positivePct !== null ? `${positivePct}%` : "--"} delta="28-day positive"
-          tone={positivePct !== null && positivePct < 60 ? "caution" : undefined}
         />
         <MiniKpi
           label="Food Cost" hue="#fbbf24" icon="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
@@ -477,26 +472,27 @@ export default function TodayIdleState({
             <div className="mt-5 border-t border-[var(--color-border-soft)] pt-4">
               <p className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-faint)]">Today&apos;s Top Priorities</p>
               <div className="mt-2.5 space-y-2">
-                {priorities.slice(0, 3).map((p, i) => (
-                  <div key={i} className="flex items-center gap-3 rounded-xl border border-[var(--color-border-soft)] px-3.5 py-2.5">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full" style={{ background: TONE_CLASS[p.pillTone === "critical" ? "caution" : p.pillTone]?.bg ?? "var(--color-surface-sunken)", color: p.pillTone === "critical" ? "var(--color-critical)" : p.pillTone === "caution" ? "var(--color-caution)" : "var(--color-good)" }}>
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d={p.icon} /></svg>
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-semibold text-[var(--color-text-primary)]">{p.title}</p>
-                      <p className="truncate text-[11px] text-[var(--color-text-faint)]">{p.detail}</p>
+                {priorities.slice(0, 3).map((p, i) => {
+                  const toneColor = p.pillTone === "critical" ? "var(--color-critical)" : p.pillTone === "caution" ? "var(--color-caution)" : "var(--color-good)";
+                  const toneSoft = p.pillTone === "critical" ? "var(--color-critical-soft)" : p.pillTone === "caution" ? "var(--color-caution-soft)" : "var(--color-good-soft)";
+                  return (
+                    <div key={i} className="flex items-center gap-3 rounded-xl border px-3.5 py-2.5" style={{ background: toneSoft, borderColor: toneSoft }}>
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white shadow-sm" style={{ background: toneColor }}>
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d={p.icon} /></svg>
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-semibold text-[var(--color-text-primary)]">{p.title}</p>
+                        <p className="truncate text-[11px] text-[var(--color-text-faint)]">{p.detail}</p>
+                      </div>
+                      <span
+                        className="shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-bold"
+                        style={{ background: "var(--color-surface-raised)", color: toneColor }}
+                      >
+                        {p.pill}
+                      </span>
                     </div>
-                    <span
-                      className="shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-bold"
-                      style={{
-                        background: p.pillTone === "critical" ? "var(--color-critical-soft)" : p.pillTone === "caution" ? "var(--color-caution-soft)" : "var(--color-good-soft)",
-                        color: p.pillTone === "critical" ? "var(--color-critical)" : p.pillTone === "caution" ? "var(--color-caution)" : "var(--color-good)",
-                      }}
-                    >
-                      {p.pill}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -523,7 +519,18 @@ export default function TodayIdleState({
               <span className="h-2 w-2 rounded-full" style={{ background: "var(--color-good)" }} />
               Live Intelligence
             </p>
-            <Link href="/market" className="text-[11px] font-semibold text-[var(--color-accent)]">View all insights →</Link>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleMarketRefresh}
+                disabled={marketRefreshing}
+                className="flex items-center gap-1 text-[11px] font-semibold text-[var(--color-text-faint)] transition hover:text-[var(--color-text-primary)] disabled:opacity-60"
+              >
+                <svg className={`h-3 w-3 ${marketRefreshing ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                {marketRefreshing ? "Refreshing…" : "Refresh"}
+              </button>
+              <Link href="/market" className="text-[11px] font-semibold text-[var(--color-accent)]">View all insights →</Link>
+            </div>
           </div>
           <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">Real-time insights that matter</p>
 
@@ -707,118 +714,11 @@ export default function TodayIdleState({
         </div>
       </div>
 
-      {/* ═══ What to do about it: Signals / Upcoming Risks / Action Queue / Latest Run ═══ */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 items-stretch">
-        <div className="card p-5">
-          <div className="flex items-center justify-between">
-            {/* Rule-based (revenueDelta/complaint/inventory/etc. thresholds), not
-                LLM-generated -- unlike the hero's AI Executive Summary. Named
-                "Signals" rather than "AI Insights" so that distinction is honest. */}
-            <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--color-text-primary)]">
-              <svg className="h-3.5 w-3.5" fill="var(--color-accent)" viewBox="0 0 24 24"><path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z" /></svg>
-              Signals
-            </p>
-            <Link href="/analytics" className="text-[10.5px] font-semibold text-[var(--color-accent)]">View All →</Link>
-          </div>
-          <div className="mt-2.5">
-            {insights.length > 0 ? insights.slice(0, 5).map((item, i) => (
-              <div key={i} className="flex items-start gap-2.5 border-t border-[var(--color-border-soft)] py-2 first:border-t-0 first:pt-0">
-                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: TONE_CLASS[item.tone]?.bg ?? "var(--color-surface-sunken)", color: TONE_CLASS[item.tone]?.text ?? "var(--color-text-faint)" }}>
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                </span>
-                <p className="text-[11.5px] leading-relaxed text-[var(--color-text-soft)] [&_b]:font-bold [&_b]:text-[var(--color-text-primary)]">{item.text}</p>
-              </div>
-            )) : (
-              <p className="py-3 text-[11px] text-[var(--color-text-faint)]">{loaded ? "Nothing to flag right now." : "Loading…"}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="card p-5">
-          <div className="flex items-center justify-between">
-            <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--color-text-primary)]">
-              <svg className="h-3.5 w-3.5" fill="var(--color-caution)" viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 6v6m0 3h.01" stroke="var(--color-surface)" strokeWidth={1.5} /></svg>
-              Upcoming Risks
-            </p>
-            <Link href="/data" className="text-[10.5px] font-semibold text-[var(--color-accent)]">View All →</Link>
-          </div>
-          <div className="mt-2.5">
-            {risks.length > 0 ? risks.slice(0, 4).map((r, i) => (
-              <div key={i} className="flex items-start gap-2.5 border-t border-[var(--color-border-soft)] py-2 first:border-t-0 first:pt-0">
-                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: "var(--color-caution-soft)", color: "var(--color-caution)" }}>
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
-                </span>
-                <p className="text-[11.5px] leading-relaxed text-[var(--color-text-soft)]">{r.text}</p>
-              </div>
-            )) : (
-              <p className="py-3 text-[11px] text-[var(--color-text-faint)]">{loaded ? "Nothing on the horizon." : "Loading…"}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="card p-5">
-          <div className="flex items-center justify-between">
-            <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--color-text-primary)]">
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="#38bdf8" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-              Action Queue
-            </p>
-            <Link href="/action-center" className="text-[10.5px] font-semibold text-[var(--color-accent)]">View All →</Link>
-          </div>
-          <div className="mt-2.5">
-            {pendingActions.length > 0 ? pendingActions.slice(0, 3).map((a) => (
-              <div key={a.id} className="flex items-center gap-2.5 border-t border-[var(--color-border-soft)] py-2 first:border-t-0 first:pt-0">
-                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: "rgba(56,189,248,0.12)", color: "#38bdf8" }}>
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" /></svg>
-                </span>
-                <p className="min-w-0 flex-1 truncate text-[11.5px] text-[var(--color-text-soft)]">{a.title}</p>
-                <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ background: a.tier === "approve_required" ? "var(--color-caution-soft)" : "var(--color-surface-sunken)", color: a.tier === "approve_required" ? "var(--color-caution)" : "var(--color-text-faint)" }}>
-                  {a.tier === "approve_required" ? "needs approval" : a.tier === "auto" ? "auto" : "recommendation"}
-                </span>
-              </div>
-            )) : (
-              <p className="py-3 text-[11px] text-[var(--color-text-faint)]">Nothing waiting for approval.</p>
-            )}
-          </div>
-        </div>
-
-        <div className="card p-5">
-          <div className="flex items-center justify-between">
-            <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--color-text-primary)]">
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="var(--color-accent)" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-              Latest Planning Run
-            </p>
-            {latestRun && (VERDICT_TONE[latestRun.critic_verdict ?? "unknown"] ?? VERDICT_TONE.unknown) && (
-              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ background: (VERDICT_TONE[latestRun.critic_verdict ?? "unknown"] ?? VERDICT_TONE.unknown).bg, color: (VERDICT_TONE[latestRun.critic_verdict ?? "unknown"] ?? VERDICT_TONE.unknown).text }}>
-                {(VERDICT_TONE[latestRun.critic_verdict ?? "unknown"] ?? VERDICT_TONE.unknown).label}
-              </span>
-            )}
-          </div>
-          {latestRun ? (
-            <div className="mt-2.5">
-              <p className="text-[11.5px] text-[var(--color-text-soft)]">
-                {SCENARIO_OPTIONS.find((s) => s.id === latestRun.scenario)?.label ?? latestRun.scenario}
-                {latestRun.target_date ? ` · ${shortDate(latestRun.target_date)}` : ""} · generated {relativeTime(latestRun.generated_at ?? latestRun.created_at)}
-              </p>
-              <div className="mt-2.5 grid grid-cols-2 gap-2">
-                <div className="rounded-lg bg-[var(--color-surface-sunken)] px-2.5 py-2">
-                  <p className="text-[9.5px] uppercase tracking-wide text-[var(--color-text-faint)]">Health Score</p>
-                  <p className="mt-0.5 text-[15px] font-bold text-[var(--color-text-primary)]">{loaded ? `${healthScore}/100` : "--"}</p>
-                </div>
-                <div className="rounded-lg bg-[var(--color-surface-sunken)] px-2.5 py-2">
-                  <p className="text-[9.5px] uppercase tracking-wide text-[var(--color-text-faint)]">Confidence</p>
-                  <p className="mt-0.5 text-[15px] font-bold text-[var(--color-text-primary)]">{latestRun.critic_score != null ? `${latestRun.critic_score}%` : "--"}</p>
-                </div>
-              </div>
-              <Link href={`/planning?run=${latestRun.id}`} className="mt-2.5 inline-flex items-center gap-1 text-[11.5px] font-semibold text-[var(--color-accent)]">
-                View Full Plan
-                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-              </Link>
-            </div>
-          ) : (
-            <p className="mt-2.5 text-[11px] text-[var(--color-text-faint)]">{latestRunLoaded ? "No planning runs yet." : "Loading…"}</p>
-          )}
-        </div>
-      </div>
+      {/* ═══ What to do about it: Signals + Upcoming Risks, one tabbed card.
+          Action Queue and Latest Planning Run were dropped from here -- both
+          already have a full, dedicated home (Action Center, Data/Planning)
+          and were just duplicating that content at a smaller size here. ═══ */}
+      <SignalsAndRisksCard insights={insights} risks={risks} loaded={loaded} />
 
       {/* ═══ One tap to act: quick-action band ═══ */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -869,16 +769,7 @@ export default function TodayIdleState({
         open={showPlanModal}
         onClose={() => setShowPlanModal(false)}
         onRun={onRun}
-        scenarioOptions={SCENARIO_OPTIONS}
-        selectedScenario={selectedScenario}
-        onScenarioChange={onScenarioChange}
-        scenario={scenario}
-        profiles={profiles}
-        selectedProfileId={selectedProfileId}
-        onSelectProfile={setSelectedProfileId}
         activeProfile={activeProfile}
-        marketPulse={marketPulse}
-        marketLoaded={marketLoaded}
       />
     </div>
   );
@@ -896,7 +787,7 @@ function MiniKpi({ label, value, delta, tone, icon, hue, hero }: {
             <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
           </svg>
         </span>
-        <p className="min-w-0 truncate text-[11.5px] font-medium text-[var(--color-text-faint)]">{label}</p>
+        <p className="min-w-0 text-[11.5px] font-medium leading-tight text-[var(--color-text-faint)]">{label}</p>
       </div>
       <p
         className={`mt-2 text-[22px] font-bold leading-none ${hero ? "" : "text-[var(--color-text-primary)]"}`}
@@ -909,27 +800,101 @@ function MiniKpi({ label, value, delta, tone, icon, hue, hero }: {
   );
 }
 
-function LiveIntelRow({ hue, icon, title, headline, detail, pill, pillTone, headlineTone }: {
+function LiveIntelRow({ hue, icon, title, headline, detail, pill, pillTone }: {
   hue: string; icon: string; title: string; headline: string; detail: string; pill: string;
   pillTone: "good" | "caution" | "swiggy"; headlineTone: "good" | "caution" | "swiggy";
 }) {
   const pillColors = TONE_CLASS[pillTone] ?? TONE_CLASS.good;
-  const headlineColor = TONE_CLASS[headlineTone]?.text ?? "var(--color-text-primary)";
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-[var(--color-border-soft)] p-3">
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ background: `${hue}1a`, color: hue }}>
-        <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <div
+      className="flex items-center gap-3 rounded-xl border p-3"
+      style={{ background: `${hue}14`, borderColor: `${hue}40` }}
+    >
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-white shadow-sm" style={{ background: hue }}>
+        <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
           <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
         </svg>
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-faint)]">{title}</p>
-        <p className="mt-0.5 truncate text-[13px] font-bold" style={{ color: headlineColor }}>{headline}</p>
+        <p className="text-[10.5px] font-semibold uppercase tracking-[0.1em]" style={{ color: hue }}>{title}</p>
+        <p className="mt-0.5 truncate text-[13px] font-bold text-[var(--color-text-primary)]">{headline}</p>
         <p className="mt-0.5 truncate text-[11px] text-[var(--color-text-faint)]">{detail}</p>
       </div>
       <span className="shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-bold" style={{ background: pillColors.bg, color: pillColors.text }}>
         {pill}
       </span>
+    </div>
+  );
+}
+
+// Signals (rule-based) and Upcoming Risks used to be two separate cards --
+// folded into one tabbed card so Dashboard isn't just a wall of same-sized
+// boxes; Action Queue/Latest Run were dropped from Dashboard entirely for
+// the same reason since they already have a full home elsewhere.
+function SignalsAndRisksCard({
+  insights, risks, loaded,
+}: {
+  insights: Array<{ tone: string; text: React.ReactNode }>;
+  risks: Array<{ text: string }>;
+  loaded: boolean;
+}) {
+  const [tab, setTab] = useState<"signals" | "risks">("signals");
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setTab("signals")}
+            className="rounded-lg px-2.5 py-1.5 text-[12.5px] font-bold transition-colors"
+            style={tab === "signals"
+              ? { background: "var(--color-accent-soft)", color: "var(--color-accent)" }
+              : { color: "var(--color-text-faint)" }}
+          >
+            Signals
+          </button>
+          <button
+            onClick={() => setTab("risks")}
+            className="rounded-lg px-2.5 py-1.5 text-[12.5px] font-bold transition-colors"
+            style={tab === "risks"
+              ? { background: "var(--color-caution-soft)", color: "var(--color-caution)" }
+              : { color: "var(--color-text-faint)" }}
+          >
+            Upcoming Risks
+          </button>
+        </div>
+        <Link href={tab === "signals" ? "/analytics" : "/data"} className="shrink-0 text-[10.5px] font-semibold text-[var(--color-accent)]">
+          View All →
+        </Link>
+      </div>
+
+      {tab === "signals" ? (
+        <div className="mt-2.5">
+          {insights.length > 0 ? insights.slice(0, 5).map((item, i) => (
+            <div key={i} className="flex items-start gap-2.5 border-t border-[var(--color-border-soft)] py-2 first:border-t-0 first:pt-0">
+              <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: TONE_CLASS[item.tone]?.bg ?? "var(--color-surface-sunken)", color: TONE_CLASS[item.tone]?.text ?? "var(--color-text-faint)" }}>
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+              </span>
+              <p className="text-[11.5px] leading-relaxed text-[var(--color-text-soft)] [&_b]:font-bold [&_b]:text-[var(--color-text-primary)]">{item.text}</p>
+            </div>
+          )) : (
+            <p className="py-3 text-[11px] text-[var(--color-text-faint)]">{loaded ? "Nothing to flag right now." : "Loading…"}</p>
+          )}
+        </div>
+      ) : (
+        <div className="mt-2.5">
+          {risks.length > 0 ? risks.slice(0, 4).map((r, i) => (
+            <div key={i} className="flex items-start gap-2.5 border-t border-[var(--color-border-soft)] py-2 first:border-t-0 first:pt-0">
+              <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: "var(--color-caution-soft)", color: "var(--color-caution)" }}>
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+              </span>
+              <p className="text-[11.5px] leading-relaxed text-[var(--color-text-soft)]">{r.text}</p>
+            </div>
+          )) : (
+            <p className="py-3 text-[11px] text-[var(--color-text-faint)]">{loaded ? "Nothing on the horizon." : "Loading…"}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

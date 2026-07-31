@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user, get_db
 from app.domain.services.business_analytics_service import BusinessAnalyticsService
 from app.domain.services.daily_briefing_service import BriefingService
-from app.infrastructure.db.models import MenuItem, Order, Organization
+from app.infrastructure.db.models import Inventory, MenuItem, Order, Organization
 
 router = APIRouter(prefix="/business", tags=["business"])
 
@@ -89,6 +89,38 @@ class UpcomingRisk(BaseModel):
     text: str
 
 
+class ShortageAlert(BaseModel):
+    ingredient: str
+    unit: str
+    quantity_in_stock: float
+    reorder_threshold: float
+    shortfall: float
+    spoilage_risk: bool
+    severity: str
+    baseline_stock: float
+    projected_drawdown: float
+    scenario_adjustment_reason: str | None = None
+
+
+class OverstockAlert(BaseModel):
+    ingredient: str
+    unit: str
+    quantity_in_stock: float
+    reorder_threshold: float
+    excess: float
+    spoilage_risk: bool
+    severity: str
+    baseline_stock: float
+    projected_drawdown: float
+    scenario_adjustment_reason: str | None = None
+
+
+class InventorySnapshotResponse(BaseModel):
+    total_items_checked: int
+    shortage_alerts: list[ShortageAlert] = []
+    overstock_alerts: list[OverstockAlert] = []
+
+
 class BusinessPerformanceResponse(BaseModel):
     period_days: int
     yesterday: DaySnapshot | None = None
@@ -96,6 +128,9 @@ class BusinessPerformanceResponse(BaseModel):
     trend: list[DailyPoint] = []
     top_dishes: list[DishPerformance] = []
     bottom_dishes: list[DishPerformance] = []
+    # Full margin-aware dish list (unsliced) -- the Analytics Menu Engineering
+    # Matrix plots every dish, not just the top/bottom 5 shown elsewhere.
+    all_dishes: list[DishPerformance] = []
     channel_split: ChannelSplit = ChannelSplit()
     complaints_by_category: list[ComplaintCategory] = []
     peak_hours: list[HourlyDemand] = []
@@ -177,11 +212,12 @@ def get_business_performance(
     top_dishes = dishes[:5]
     bottom_dishes = list(reversed(dishes[-5:])) if len(dishes) > 5 else []
 
-    # ── Channel split (yesterday) ───────────────────────────────────────
+    # ── Channel split (over the trend window, same as everything else the
+    # day-toggle controls -- was hardcoded to just "yesterday" before) ──────
     channel_split = ChannelSplit()
     channel_rows = (
         db.query(Order.is_delivery, func.sum(Order.total_price), func.count(Order.id))
-        .filter(Order.ordered_at >= yesterday_start, Order.ordered_at < today_start)
+        .filter(Order.ordered_at >= trend_start)
         .group_by(Order.is_delivery)
         .all()
     )
@@ -199,9 +235,10 @@ def get_business_performance(
     # actually busy" with bookings that haven't happened yet.
     peak_hours = [HourlyDemand(**h) for h in analytics.get_peak_hours(days)]
 
-    # ── Complaints by category (last 28 days, negative sentiment) ──────
+    # ── Complaints by category (over the trend window -- was hardcoded to a
+    # fixed last-28-days regardless of the day-toggle before) ──────────────
     complaints_by_category = [
-        ComplaintCategory(**c) for c in analytics.get_complaints_by_category(days=28)
+        ComplaintCategory(**c) for c in analytics.get_complaints_by_category(days=days)
     ]
 
     # ── Period P&L and composite health score ───────────────────────────
@@ -226,6 +263,7 @@ def get_business_performance(
         trend=trend,
         top_dishes=top_dishes,
         bottom_dishes=bottom_dishes,
+        all_dishes=dishes,
         channel_split=channel_split,
         complaints_by_category=complaints_by_category,
         peak_hours=peak_hours,
@@ -235,6 +273,27 @@ def get_business_performance(
         health_score=health_score,
         forecast_accuracy=forecast_accuracy,
         risks=risks,
+    )
+
+
+@router.get("/inventory-snapshot", response_model=InventorySnapshotResponse)
+def get_inventory_snapshot(
+    current: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> InventorySnapshotResponse:
+    """Live current-state inventory alerts for the Analytics "Inventory"
+    section -- same InventoryService.compute_alerts() call get_upcoming_risks()
+    above and GET /data-health already make. Deliberately a snapshot, not a
+    trend: there's no historical inventory table to chart waste/overstock
+    frequency over time yet (Inventory is a current-state table only)."""
+    from app.domain.services.inventory_service import InventoryService
+
+    inventory_items = db.query(Inventory).all()
+    alerts = InventoryService(db=db, llm=None).compute_alerts(inventory_items)
+    return InventorySnapshotResponse(
+        total_items_checked=alerts["total_items_checked"],
+        shortage_alerts=[ShortageAlert(**a) for a in alerts["shortage_alerts"]],
+        overstock_alerts=[OverstockAlert(**a) for a in alerts["overstock_alerts"]],
     )
 
 

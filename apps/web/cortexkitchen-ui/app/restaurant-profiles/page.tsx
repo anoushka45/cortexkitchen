@@ -11,6 +11,7 @@ import {
   RestaurantProfile,
   RestaurantProfileCreate,
 } from "@/lib/api";
+import PageHeading from "@/components/ui/PageHeading";
 
 const EMPTY_FORM: RestaurantProfileCreate = {
   name: "",
@@ -97,22 +98,21 @@ export default function RestaurantProfilesPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[var(--color-surface)] px-4 py-10 text-[var(--color-text-primary)]">
+    <div className="min-h-screen page-canvas px-4 py-10 text-[var(--color-text-primary)]">
       <div className="max-w-3xl mx-auto">
-        <div className="mb-8 flex items-center justify-between stagger-1">
-          <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-accent)]">configuration</p>
-            <h1 className="display mt-2 text-[28px] text-[var(--color-text-primary)]">Restaurant Profiles</h1>
-            <p className="text-[var(--color-text-faint)] text-sm mt-1">
-              Named profiles override org-level capacity and peak hours for a planning run.
-            </p>
-          </div>
-          <button
-            onClick={openCreate}
-            className="bg-ember-600 hover:bg-ember-500 text-[var(--color-text-primary)] text-sm font-semibold px-4 py-2 rounded-lg transition-colors shrink-0"
-          >
-            + New Profile
-          </button>
+        <div className="mb-8 stagger-1">
+          <PageHeading
+            title="Restaurant Profiles"
+            description="Named profiles override org-level capacity and peak hours for a planning run."
+            action={
+              <button
+                onClick={openCreate}
+                className="bg-ember-600 hover:bg-ember-500 text-[var(--color-text-primary)] text-sm font-semibold px-4 py-2 rounded-lg transition-colors shrink-0"
+              >
+                + New Profile
+              </button>
+            }
+          />
         </div>
 
         {error && (
@@ -128,7 +128,7 @@ export default function RestaurantProfilesPage() {
             </div>
             <p className="text-[var(--color-text-soft)] text-sm font-medium">No profiles yet</p>
             <p className="text-[var(--color-text-faint)] text-xs mt-1">
-              Create a profile for each venue or shift setup. The plan will use that profile's capacity and hours instead of your workspace defaults.
+              Create a profile for each venue or shift setup. The plan will use that profile&apos;s capacity and hours instead of your workspace defaults.
             </p>
             <button
               onClick={openCreate}

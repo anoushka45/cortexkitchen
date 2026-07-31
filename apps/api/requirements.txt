@@ -14,6 +14,8 @@ google-genai
 pytest-asyncio
 qdrant-client
 langgraph
+langgraph-checkpoint-postgres
+psycopg[binary,pool]
 langchain-core
 groq
 prophet

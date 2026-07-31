@@ -163,6 +163,9 @@ export interface CriticResult {
       message: string;
     }>;
   } | null;
+  // Cross-agent contradictions (EvaluationSanityChecker._diff_assumptions) --
+  // present on final_assembler's critic dict but was missing from this type.
+  stale_assumptions?: Array<{ node: string; conflict: string }>;
 }
 
 export interface RagContext {
@@ -195,12 +198,27 @@ export interface SwiggyOccupancyContext {
   fetched_at:   string;
 }
 
+// Mirrors ProcurementEnricher.enrich()'s actual return shape (camelCase
+// item fields, straight from the Swiggy Instamart response) -- NOT the
+// snake_case this used to declare, which never matched the real payload.
 export interface SwiggyProcurementOption {
-  name:     string;
-  price:    number;
-  unit:     string;
-  in_stock: boolean;
-  spin_id:  string;
+  ingredient: string;
+  price:      number;
+  unit:       string;
+  inStock:    boolean;
+  spinId:     string;
+}
+
+// The backend wraps the array in a dict (app/api/schemas/planning.py:
+// swiggy_procurement_options: Optional[Dict[str, Any]]), not a bare array --
+// FridayRushResponse.swiggy_procurement_options below used to type it as a
+// plain SwiggyProcurementOption[], which crashed the first real .find()
+// call against it (options.find is not a function) since at runtime it's
+// this wrapper object.
+export interface SwiggyProcurementOutput {
+  procurement_options: SwiggyProcurementOption[];
+  prompt_text?: string;
+  fetched_at?: string;
 }
 
 export interface MarketIntelOutput {
@@ -278,8 +296,13 @@ export interface FridayRushResponse {
   market_intel?:              MarketIntelOutput | null;
   swiggy_competitor_context?: Record<string, unknown> | null;
   swiggy_occupancy_context?:  SwiggyOccupancyContext | null;
-  swiggy_procurement_options?: SwiggyProcurementOption[] | null;
+  swiggy_procurement_options?: SwiggyProcurementOutput | null;
   dineout_manager?:           Record<string, unknown> | null;
+  // Natural-language "situation + tailored key takeaways" briefing (hero
+  // content on /planning's results page). Absent on older stored runs or
+  // when the LLM call failed open -- frontend falls back to a deterministic
+  // rendering in that case.
+  situation_summary?:         string | null;
 }
 
 // P6-A25 -- ad-hoc scenario profile derived from natural language, carried
@@ -345,12 +368,19 @@ export interface RunHistoryEntry {
   // Planning idle-state's recent-runs table show scenario/shift-shape
   // columns without a second fetch per row.
   scenario:    string;
+  // Real resolved title for a custom run (scenario itself is just "custom").
+  scenarioLabel?: string | null;
   data?:       FridayRushResponse;
 }
 
 export interface PlanningRunSummary {
   id: number;
   scenario: string;
+  // The real resolved scenario title (e.g. "Anniversary Dinner") -- for a
+  // custom (natural-language-derived) run, `scenario` itself is just the
+  // literal id "custom", never the actual name; null only for runs recorded
+  // before this field existed.
+  scenario_label: string | null;
   target_date: string | null;
   status: FridayRushResponse["status"];
   critic_verdict: CriticResult["verdict"] | null;
@@ -358,6 +388,18 @@ export interface PlanningRunSummary {
   decision_log_id: number | null;
   generated_at: string | null;
   created_at: string | null;
+  // AI infrastructure observability -- backs the /data Observability tab's
+  // cross-run cost/token/duration breakdown, read straight from each run's
+  // stored metadata (no per-row detail fetch needed).
+  total_cost_usd: number | null;
+  total_tokens: number | null;
+  total_duration_ms: number | null;
+  llm_model: string | null;
+  llm_provider: string | null;
+  cache_hit: boolean | null;
+  llm_call_count: number | null;
+  replan_count: number | null;
+  risk_tags: string[];
 }
 
 export interface PlanningRunDetail extends PlanningRunSummary {

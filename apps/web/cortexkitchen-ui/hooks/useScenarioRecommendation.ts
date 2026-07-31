@@ -24,9 +24,8 @@ const CACHE_PREFIX = "ck:live-scenario-composition:";
 // recommendation. Without this, every single page refresh fired a real LLM
 // call (LiveScenarioComposer) just to populate a hero caption nobody had
 // asked to run yet.
-// enabled=false skips the fetch entirely -- used by PlanTriggerPanel's
-// scenario-only/describe-only modes, where the quick-run banner (the only
-// consumer of this) isn't even rendered.
+// enabled=false skips the fetch entirely, for any consumer that doesn't
+// render the quick-run banner this backs.
 export function useScenarioRecommendation(enabled: boolean = true) {
   // Lazy initializers -- a cache hit hydrates state synchronously during the
   // first render, not via a setState call inside the effect below (which

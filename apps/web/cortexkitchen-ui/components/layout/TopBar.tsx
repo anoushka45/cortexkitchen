@@ -33,7 +33,7 @@ function ThemeToggle() {
 }
 
 export default function TopBar() {
-  const { user, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
   const pathname         = usePathname();
   const router           = useRouter();
   const dashCtx          = useDashboardCtx();
@@ -64,11 +64,25 @@ export default function TopBar() {
   }, [user]);
 
   function handleHistory() {
-    if (pathname === "/planning") {
-      dashCtx?.openHistory();
-    } else {
-      router.push("/planning?openHistory=1");
-    }
+    router.push("/data");
+  }
+
+  // Same reasoning as Sidebar.tsx: AuthContext starts every fresh page load
+  // with user=null even when a valid session exists, only resolving after an
+  // async /auth/me call -- a same-shaped skeleton avoids a full topbar
+  // disappearance on every reload instead of just a genuine logged-out state.
+  if (loading) {
+    return (
+      <header className="sticky top-0 z-40 border-b border-[var(--color-border-default)] bg-[var(--color-surface-raised)]/95">
+        <div className="flex h-14 items-center gap-2 px-4 sm:px-6">
+          <div className="h-8 w-40 animate-pulse rounded-lg bg-[var(--color-surface-sunken)]" />
+          <div className="flex-1" />
+          <div className="h-8 w-8 animate-pulse rounded-lg bg-[var(--color-surface-sunken)]" />
+          <div className="h-8 w-8 animate-pulse rounded-lg bg-[var(--color-surface-sunken)]" />
+          <div className="h-8 w-24 animate-pulse rounded-lg bg-[var(--color-surface-sunken)]" />
+        </div>
+      </header>
+    );
   }
 
   if (!user) return null;

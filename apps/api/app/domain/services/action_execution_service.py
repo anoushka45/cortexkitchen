@@ -16,15 +16,24 @@ from app.infrastructure.db.models import ActionQueue
 from app.infrastructure.whatsapp.whatsapp_service import WhatsAppSendError, WhatsAppService
 
 
-def approve_and_execute(db: Session, action_id: int, user_id: int) -> ActionQueue | None:
+def approve_and_execute(
+    db: Session, action_id: int, user_id: int, message_override: str | None = None,
+) -> ActionQueue | None:
     """Approves an action and, for whatsapp_vendor_order, triggers the real
     Twilio send immediately after. Returns the updated action, or None if it
     doesn't exist -- callers are responsible for org-ownership checks before
-    calling this."""
+    calling this.
+
+    message_override lets the owner edit a drafted (LLM or template) message
+    before it actually sends -- a draft is a starting point, never something
+    that goes out verbatim without the human's last look."""
     service = ActionQueueService(db)
     action = service.get(action_id)
     if action is None:
         return None
+
+    if message_override is not None and action.category == "whatsapp_vendor_order":
+        action = service.update_payload(action_id, {"message_draft": message_override})
 
     action = service.approve(action_id, user_id)
 

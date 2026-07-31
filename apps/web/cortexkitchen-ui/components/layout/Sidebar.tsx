@@ -11,11 +11,11 @@ const NAV_LINKS = [
   { href: "/planning",       label: "Planning",      hue: "#818cf8", icon: <svg className="h-[17px] w-[17px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg> },
   { href: "/action-center",  label: "Action Center", hue: "#fb7185", icon: <svg className="h-[17px] w-[17px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg> },
   { href: "/analytics",      label: "Analytics",     hue: "#38bdf8", icon: <svg className="h-[17px] w-[17px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3 17l6-6 4 4 8-8m0 0h-5m5 0v5" /></svg> },
+  { href: "/market",         label: "Market",        hue: "#a855f7", icon: <svg className="h-[17px] w-[17px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M13 21v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4M3 9h18M4 9l1.5-5h13L20 9M4 9v9a2 2 0 002 2h12a2 2 0 002-2V9" /></svg> },
   { href: "/chat",            label: "AI Assistant", hue: "#34d399", icon: <svg className="h-[17px] w-[17px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg> },
 ];
 
 const ADMIN_LINKS = [
-  { href: "/market",               label: "Market" },
   { href: "/data",                 label: "Data" },
   { href: "/connectors",           label: "Connectors" },
   { href: "/restaurant-profiles",  label: "Restaurant Profiles", ownerOnly: true },
@@ -25,7 +25,7 @@ const ADMIN_LINKS = [
 const AdminIcon = <svg className="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
 
 export default function Sidebar() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const pathname = usePathname();
   const [adminOpenState, setAdminOpen] = useState(false);
   const adminRef = useRef<HTMLDivElement>(null);
@@ -41,6 +41,29 @@ export default function Sidebar() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [adminActive]);
+
+  // AuthContext always starts a fresh page load with user=null, even when a
+  // valid session cookie exists -- it only populates `user` after an async
+  // /auth/me round-trip. Returning null for that whole window (previously
+  // the only branch here) made the sidebar visibly vanish on every reload,
+  // not just on a genuine logged-out state. A same-shaped skeleton avoids
+  // the layout-shift/disappearance; only a real logged-out state (loading
+  // finished, still no user) renders nothing.
+  if (loading) {
+    return (
+      <aside className="sticky top-0 z-30 flex h-screen w-[228px] shrink-0 flex-col border-r border-[var(--color-border-default)] bg-[var(--color-surface-raised)]">
+        <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-[var(--color-border-default)] px-4">
+          <div className="h-9 w-9 shrink-0 animate-pulse rounded-lg bg-[var(--color-surface-sunken)]" />
+          <div className="h-3.5 w-24 animate-pulse rounded bg-[var(--color-surface-sunken)]" />
+        </div>
+        <div className="flex flex-1 flex-col gap-1.5 px-3.5 py-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-10 animate-pulse rounded-lg bg-[var(--color-surface-sunken)]" />
+          ))}
+        </div>
+      </aside>
+    );
+  }
 
   if (!user) return null;
 

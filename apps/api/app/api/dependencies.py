@@ -8,6 +8,7 @@ Imports are intentionally lazy (inside functions) so that test
 collection never triggers missing-package errors when deps are mocked.
 """
 
+import asyncio
 from typing import Generator
 
 from fastapi import Depends, HTTPException, status
@@ -19,6 +20,13 @@ _bearer = HTTPBearer(auto_error=False)
 # Module-level engine shared across all requests (avoids creating a new pool per call).
 _engine = None
 _SessionLocal = None
+
+# Module-level checkpointer + pool, lazily created on first use and shared
+# across all requests (mirrors _get_shared_engine()'s pattern) -- opening a
+# fresh connection pool and re-running .setup() per request would be both
+# slow and wrong (setup() is idempotent DDL, not something to race).
+_checkpointer = None
+_checkpointer_lock = asyncio.Lock()
 
 
 def _get_shared_engine():
@@ -57,6 +65,53 @@ def get_db_factory():
     """
     _, SessionLocal = _get_shared_engine()
     return SessionLocal
+
+
+# ── LangGraph checkpointing ───────────────────────────────────────────────────
+
+async def get_checkpointer():
+    """Return the shared AsyncPostgresSaver, creating its connection pool and
+    running its (idempotent) table setup on first call.
+
+    Enables true node re-execution for Kindred replay: with every superstep
+    persisted, a replay can fetch the exact checkpoint immediately before a
+    given node ran and resume the graph from there with current code --
+    catching a real prompt/logic regression, not just LLM sampling variance
+    (see docs/PRODUCT_MODES.md's P6-A27 note on why this was previously
+    deliberately left unbuilt). Returns None if Postgres is unreachable so a
+    planning run still completes uncheckpointed rather than failing outright.
+    """
+    global _checkpointer
+    if _checkpointer is None:
+        async with _checkpointer_lock:
+            if _checkpointer is None:
+                try:
+                    from psycopg_pool import AsyncConnectionPool
+                    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+                    from app.core.settings import get_settings
+
+                    pool = AsyncConnectionPool(
+                        conninfo=get_settings().postgres_url,
+                        max_size=10,
+                        kwargs={"autocommit": True, "prepare_threshold": 0},
+                        open=False,
+                    )
+                    await pool.open()
+                    saver = AsyncPostgresSaver(pool)
+                    await saver.setup()
+                    _checkpointer = saver
+                except Exception as exc:
+                    # str(exc) only, no exc_info -- a raw traceback can contain
+                    # non-ASCII bytes that crash structlog's print() under
+                    # Windows' default cp1252 console encoding, which would
+                    # otherwise mask the real error with an unrelated one.
+                    try:
+                        import structlog
+                        structlog.get_logger().warning("checkpointer_setup_failed", error=str(exc)[:300])
+                    except Exception:
+                        pass
+                    return None
+    return _checkpointer
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -138,7 +193,7 @@ def get_session_memory():
 
 # ── Orchestration deps bundle ─────────────────────────────────────────────────
 
-def get_orchestration_deps(
+async def get_orchestration_deps(
     db: Session = Depends(get_db),
     llm=Depends(get_llm),
     memory=Depends(get_memory),
@@ -150,7 +205,10 @@ def get_orchestration_deps(
     from app.core.settings import get_settings
     from app.infrastructure.llm.factory import create_tiered_llm_providers
 
-    deps = {"db": db, "llm": llm, "memory": memory, "db_factory": get_db_factory()}
+    deps = {
+        "db": db, "llm": llm, "memory": memory, "db_factory": get_db_factory(),
+        "checkpointer": await get_checkpointer(),
+    }
     settings = get_settings()
     if settings.llm_provider.strip().lower() == "comet" and settings.comet_tiered:
         deps["llm_registry"] = create_tiered_llm_providers(settings)

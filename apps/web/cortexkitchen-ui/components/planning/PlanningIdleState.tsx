@@ -15,7 +15,6 @@ import { PlanningRunMetadata, PlanningScenarioOption, PlanTriggerHandler, RunHis
 interface Props {
   onRun: PlanTriggerHandler;
   selectedScenario: PlanningScenarioOption["id"];
-  onScenarioChange: (scenario: PlanningScenarioOption["id"]) => void;
   history: RunHistoryEntry[];
   onSelectHistory: (entry: RunHistoryEntry) => void;
   onShowAllHistory: () => void;
@@ -42,6 +41,15 @@ const GRADIENT = {
   purple: "linear-gradient(135deg,#c4b5fd,#7c3aed)",
   orange: "linear-gradient(135deg,#fdba74,#ea580c)",
 } as const;
+
+const LIVE_BORDER_STYLE = (
+  <style jsx global>{`
+    @keyframes contextBorderSweep {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 200% 50%; }
+    }
+  `}</style>
+);
 
 const SCENARIO_ICON: Record<string, { gradient: string; iconPath: string }> = {
   friday_rush: { gradient: GRADIENT.orange, iconPath: "M17 20h5v-2a3 3 0 00-5.356-1.857M9 20H4v-2a3 3 0 015.356-1.857M9 20v-2c0-.653.126-1.277.356-1.857M9 20a3 3 0 016 0m-6-1.857A3 3 0 0112 15a3 3 0 013 3.143M13 7a4 4 0 11-8 0 4 4 0 018 0zm6 3a4 4 0 11-8 0 4 4 0 018 0z" },
@@ -146,7 +154,7 @@ function RunCard({ entry, onSelect, onExport }: { entry: RunHistoryEntry; onSele
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <p className="truncate text-[13.5px] font-bold text-[var(--color-text-primary)]">{opt?.label ?? entry.scenario}</p>
+          <p className="truncate text-[13.5px] font-bold text-[var(--color-text-primary)]">{entry.scenarioLabel || opt?.label || entry.scenario}</p>
           <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[9.5px] font-bold uppercase" style={{ background: tone.bg, color: tone.text }}>{tone.label}</span>
         </div>
         <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">{shortDate(entry.runAt)} · {relativeTime(entry.runAt)}</p>
@@ -185,9 +193,9 @@ function ViewHistoryCard({ onClick }: { onClick: () => void }) {
 // choose-a-scenario / describe-it-yourself flow Dashboard's quick-trigger
 // uses -- rather than expanding an inline chooser on this page.
 export default function PlanningIdleState({
-  onRun, selectedScenario, onScenarioChange, history, onSelectHistory, onShowAllHistory,
+  onRun, selectedScenario, history, onSelectHistory, onShowAllHistory,
 }: Props) {
-  const { profiles, selectedProfileId, setSelectedProfileId, activeProfile, marketPulse, marketLoaded } = usePlanTriggerData();
+  const { activeProfile, marketPulse, marketLoaded, marketRefreshing, refreshMarketPulse } = usePlanTriggerData();
   const scenario = SCENARIO_OPTIONS.find((s) => s.id === selectedScenario) ?? SCENARIO_OPTIONS[0];
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -249,7 +257,9 @@ export default function PlanningIdleState({
   }
 
   return (
-    <div className="space-y-8 py-6">
+    <>
+      {LIVE_BORDER_STYLE}
+      <div className="space-y-8 py-6">
       {/* ═══ Side by side: a compact control panel (trigger + live signals +
           how-to-plan) next to the agent showcase -- both visible in one
           viewport. The left panel triggers a run, the right side sells the
@@ -313,10 +323,29 @@ export default function PlanningIdleState({
           </div>
 
           <div
-            className="rounded-2xl border p-4"
-            style={{ borderColor: "var(--context-card-border)", background: "var(--context-card-gradient)" }}
+            className="rounded-2xl p-[1px]"
+            style={{
+              background: "linear-gradient(90deg, rgba(56,132,255,0.15), rgba(249,115,22,0.55), rgba(56,132,255,0.15))",
+              backgroundSize: "200% 100%",
+              animation: "contextBorderSweep 2.2s linear infinite",
+            }}
           >
-            <p className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-primary)]">Today&apos;s context</p>
+            <div
+              className="rounded-[15px] border p-4"
+              style={{ borderColor: "var(--context-card-border)", background: "var(--context-card-gradient)" }}
+            >
+            <div className="flex items-center justify-between">
+              <p className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-primary)]">Today&apos;s context</p>
+              <button
+                type="button"
+                onClick={refreshMarketPulse}
+                disabled={marketRefreshing}
+                className="flex items-center gap-1 text-[10.5px] font-semibold text-[var(--color-text-faint)] transition hover:text-[var(--color-text-primary)] disabled:opacity-60"
+              >
+                <svg className={`h-3 w-3 ${marketRefreshing ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                {marketRefreshing ? "Refreshing…" : "Refresh"}
+              </button>
+            </div>
             <div className="mt-2.5 min-h-[136px]">
               {!marketLoaded ? (
                 <div className="flex h-full min-h-[136px] flex-col items-center justify-center gap-2 py-4">
@@ -350,6 +379,7 @@ export default function PlanningIdleState({
                 </div>
               )}
             </div>
+            </div>
           </div>
 
           <DeliverablesCard />
@@ -359,7 +389,7 @@ export default function PlanningIdleState({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="display text-[28px] leading-tight text-[var(--color-text-primary)]">
+              <p className="text-[28px] font-bold leading-tight text-[var(--color-text-primary)]">
                 Your{" "}
                 <span style={{ color: "var(--color-accent)" }}>
                   Smartest Shift
@@ -376,7 +406,7 @@ export default function PlanningIdleState({
             </span>
           </div>
           <div className="mt-4">
-            <AgentPipelineGrid variant="full" columns={3} />
+            <AgentPipelineGrid columns={3} />
           </div>
         </div>
       </div>
@@ -401,17 +431,9 @@ export default function PlanningIdleState({
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onRun={onRun}
-        scenarioOptions={SCENARIO_OPTIONS}
-        selectedScenario={selectedScenario}
-        onScenarioChange={onScenarioChange}
-        scenario={scenario}
-        profiles={profiles}
-        selectedProfileId={selectedProfileId}
-        onSelectProfile={setSelectedProfileId}
         activeProfile={activeProfile}
-        marketPulse={marketPulse}
-        marketLoaded={marketLoaded}
       />
-    </div>
+      </div>
+    </>
   );
 }

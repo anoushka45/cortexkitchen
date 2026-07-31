@@ -66,6 +66,11 @@ def final_assembler_node(state: OrchestratorState) -> OrchestratorState:
         "swiggy_procurement_options": state.get("swiggy_procurement_options"),
         "dineout_manager": state.get("dineout_manager_output"),
 
+        # Natural-language "situation + tailored key takeaways" briefing (hero
+        # content on the frontend). None when the LLM call failed open --
+        # frontend falls back to its own deterministic rendering.
+        "situation_summary": (state.get("situation_summary_output") or {}).get("summary"),
+
         # RAG evidence
         "rag_context": (
             state.get("complaint_output", {}).get("rag_context")

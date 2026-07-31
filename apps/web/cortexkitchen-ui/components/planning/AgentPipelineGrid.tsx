@@ -3,32 +3,11 @@
 import { AGENT_PIPELINE, AGENT_TONE_CLASS, type AgentCapability } from "./agentPipeline";
 
 interface Props {
-  variant?: "compact" | "full";
-  // "full" only -- 8 specialist cards, 3 per row. 8 doesn't divide evenly by
-  // 3 (3+3+2), so the "full"/columns===3 grid runs on a 6-col track instead
-  // with each card spanning 2 (first 6, 3-per-row) or 3 (last 2, evenly
-  // filling the final row instead of leaving a gap) -- see GRID_SPAN below.
+  // 8 specialist cards, 3 per row. 8 doesn't divide evenly by 3 (3+3+2), so
+  // the columns===3 grid runs on a 6-col track instead with each card
+  // spanning 2 (first 6, 3-per-row) or 3 (last 2, evenly filling the final
+  // row instead of leaving a gap) -- see gridSpanClass below.
   columns?: 2 | 3;
-}
-
-function CompactCard({ agent }: { agent: AgentCapability }) {
-  const tone = AGENT_TONE_CLASS[agent.tone];
-  return (
-    <div className="flex items-start gap-2.5 rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-3.5 py-2.5">
-      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-white" style={{ background: tone.fill }}>
-        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
-          <path strokeLinecap="round" strokeLinejoin="round" d={agent.iconPath} />
-        </svg>
-      </span>
-      <div className="min-w-0">
-        <div className="flex items-center gap-1.5">
-          <p className="text-[12.5px] font-semibold text-[var(--color-text-primary)]">{agent.label}</p>
-          {agent.swiggy && <img src="/swiggy-logo.png" alt="Swiggy" className="h-3 w-3 shrink-0 object-contain opacity-70" />}
-        </div>
-        <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--color-text-faint)]">{agent.capability}</p>
-      </div>
-    </div>
-  );
 }
 
 // One specialist, as a proper feature card -- not a flowchart node. No step
@@ -77,11 +56,10 @@ function SpecialistCard({ agent }: { agent: AgentCapability }) {
   );
 }
 
-// Shared "meet your planning team" visual -- compact variant is the flat
-// list PlanShiftModal has always shown (limited modal space); full variant
-// is a proper feature grid for the /planning idle state, deliberately NOT
-// a pipeline flowchart -- no arrows, no step numbers, no "running in
-// parallel" callout. An end user doesn't care about execution topology,
+// The "meet your planning team" visual for the /planning idle state --
+// deliberately NOT a pipeline flowchart: no arrows, no step numbers, no
+// "running in parallel" callout. An end user doesn't care about execution
+// topology,
 // they care what each specialist actually finds or protects for them. The
 // "Your Final Plan" result used to render as its own banner below the grid;
 // dropped once PlanningIdleState's left-column "What You'll Get" checklist
@@ -97,15 +75,7 @@ function gridSpanClass(index: number, total: number): string {
   return "xl:col-span-2";
 }
 
-export default function AgentPipelineGrid({ variant = "compact", columns = 3 }: Props) {
-  if (variant === "compact") {
-    return (
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-        {AGENT_PIPELINE.map((agent) => <CompactCard key={agent.label} agent={agent} />)}
-      </div>
-    );
-  }
-
+export default function AgentPipelineGrid({ columns = 3 }: Props) {
   return (
     <div className={`grid grid-cols-1 gap-x-2.5 gap-y-4 sm:grid-cols-2 ${columns === 3 ? "xl:grid-cols-6" : ""}`}>
       {AGENT_PIPELINE.map((agent, i) => (

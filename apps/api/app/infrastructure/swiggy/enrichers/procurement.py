@@ -42,6 +42,24 @@ _CACHE_TTL        = 1800  # 30 minutes
 _MAX_SEARCH_CALLS = 5     # hard rate-limit: max search_products calls per run
 
 
+def _unwrap_products(data: dict) -> list[dict]:
+    """search_products's structuredContent came back empty live (confirmed
+    against this account/sandbox), so client.call_tool()'s existing Dineout-
+    style fallback wraps the real payload as {"text": "<json string>"}
+    instead of {"products": [...]} directly. Unwrap that case before reading
+    "products" -- handles both shapes so this keeps working if Swiggy's
+    account/sandbox ever starts returning structuredContent properly."""
+    if "products" in data:
+        return data.get("products") or []
+    if "text" in data:
+        try:
+            parsed = json.loads(data["text"])
+            return (parsed.get("data") or {}).get("products") or []
+        except (json.JSONDecodeError, AttributeError, TypeError):
+            return []
+    return []
+
+
 class ProcurementEnricher:
     """Live Instamart ingredient prices and spinIds from Swiggy.
 
@@ -103,13 +121,13 @@ class ProcurementEnricher:
                 return None
 
             results = []
-            for product in (data.get("products") or [])[:5]:
+            for product in _unwrap_products(data)[:5]:
                 variant = self._best_variant(product.get("variations") or [])
                 if not variant:
                     continue
                 results.append({
-                    "name":     str(product.get("name") or ""),
-                    "category": str(product.get("category") or ""),
+                    "name":     str(product.get("displayName") or product.get("name") or ""),
+                    "category": str(product.get("brand") or product.get("category") or ""),
                     "spinId":   variant["spinId"],
                     "price":    variant["price"],
                     "unit":     variant["unit"],
@@ -177,7 +195,7 @@ class ProcurementEnricher:
             if not data:
                 continue
 
-            products = data.get("products") or []
+            products = _unwrap_products(data)
             if not products:
                 continue
 

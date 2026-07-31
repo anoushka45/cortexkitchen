@@ -1,18 +1,33 @@
 "use client";
 
 import AnalyticsDetail from "@/components/analytics/AnalyticsDetail";
+import PageHeading from "@/components/ui/PageHeading";
 
 export default function AnalyticsPage() {
   return (
-    <main className="min-h-screen bg-[var(--color-surface)] px-5 py-6 text-[var(--color-text-primary)] xl:px-8">
+    <main className="min-h-screen page-canvas px-5 py-6 text-[var(--color-text-primary)] xl:px-8">
       <div className="mx-auto max-w-[1520px] space-y-6">
-        <header className="border-b border-[var(--color-border-default)] pb-5">
-          <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-accent)]">analytics</p>
-          <h1 className="display mt-2 text-[32px] text-[var(--color-text-primary)]">Analytics</h1>
-          <p className="mt-1 max-w-2xl text-sm text-[var(--color-text-soft)]">
-            Menu performance, demand patterns, guest sentiment, and market positioning -- historical trends, not a daily trigger-time decision.
-          </p>
-        </header>
+        <PageHeading
+          title="Analytics"
+          description={
+            <>
+              <span className="flex flex-wrap gap-1.5">
+                {["Menu performance", "Demand patterns", "Guest sentiment", "Market positioning"].map((t) => (
+                  <span
+                    key={t}
+                    className="rounded-full px-2.5 py-1 text-[11.5px] font-semibold"
+                    style={{ background: "rgba(255,82,0,0.08)", color: "var(--color-accent)" }}
+                  >
+                    {t}
+                  </span>
+                ))}
+              </span>
+              <span className="mt-2 block text-[13px] text-[var(--color-text-faint)]">
+                Historical trends, not a daily trigger-time decision.
+              </span>
+            </>
+          }
+        />
 
         <AnalyticsDetail />
       </div>

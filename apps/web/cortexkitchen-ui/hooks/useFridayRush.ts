@@ -36,6 +36,7 @@ function toHistoryEntry(run: PlanningRunSummary): RunHistoryEntry {
     // the raw fraction (e.g. 0.92 instead of 92) into whatever rendered it.
     score: run.critic_score != null ? Math.round(run.critic_score * 100) : null,
     scenario: run.scenario,
+    scenarioLabel: run.scenario_label,
   };
 }
 

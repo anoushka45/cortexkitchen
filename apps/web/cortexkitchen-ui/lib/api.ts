@@ -124,6 +124,31 @@ export async function deriveScenarioProfile(text: string): Promise<ScenarioProfi
   return data.profile;
 }
 
+// Backs the planning modal's mic input -- posts a recorded clip (raw
+// MediaRecorder output, e.g. audio/webm) for transcription. Can't reuse
+// authHeaders() here: that hardcodes Content-Type: application/json, but a
+// multipart body needs the browser to set its own boundary, so only
+// Authorization is sent manually.
+export async function transcribeAudio(blob: Blob): Promise<string> {
+  const token = getAuthToken();
+  const formData = new FormData();
+  formData.append("file", blob, "recording.webm");
+
+  const res = await fetch(`${BASE_URL}/api/v1/planning/transcribe`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Transcription failed ${res.status}: ${detail}`);
+  }
+
+  const data = await res.json() as { text: string };
+  return data.text;
+}
+
 // P6-MI10 -- ScenarioRecommender already existed server-side (calendar
 // context, live Swiggy occupancy, inventory shortage count, weather, recent
 // run history -> one LLM call, deterministic fallback) but had no frontend
@@ -508,10 +533,11 @@ export async function getActionQueue(status?: string): Promise<ActionQueueItem[]
   return res.json() as Promise<ActionQueueItem[]>;
 }
 
-export async function approveAction(id: number): Promise<ActionQueueItem> {
+export async function approveAction(id: number, messageOverride?: string): Promise<ActionQueueItem> {
   const res = await fetch(`${BASE_URL}/api/v1/action-queue/${id}/approve`, {
     method: "POST",
     headers: authHeaders(),
+    body: JSON.stringify({ message_override: messageOverride ?? null }),
   });
   if (!res.ok) {
     const detail = await res.json().catch(() => ({ detail: "Approve failed." }));
@@ -528,6 +554,50 @@ export async function rejectAction(id: number): Promise<ActionQueueItem> {
   if (!res.ok) {
     const detail = await res.json().catch(() => ({ detail: "Reject failed." }));
     throw new Error(detail.detail ?? `Reject failed: ${res.status}`);
+  }
+  return res.json() as Promise<ActionQueueItem>;
+}
+
+// ── Vendors — real, org-scoped WhatsApp/phone vendor directory ───────────────
+
+export interface VendorSummary {
+  id: number;
+  name: string;
+  category: string | null;
+  supplies: string[];
+}
+
+export async function getVendors(): Promise<VendorSummary[]> {
+  const res = await fetch(`${BASE_URL}/api/v1/vendors`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Vendors API error ${res.status}: ${detail}`);
+  }
+  return res.json() as Promise<VendorSummary[]>;
+}
+
+export interface VendorMessageRequest {
+  vendor_id: number;
+  ingredient: string;
+  unit?: string | null;
+  quantity_in_stock?: number | null;
+  reorder_threshold?: number | null;
+  recommended_restock_qty?: number | null;
+  reason?: string | null;
+}
+
+export async function createVendorMessage(body: VendorMessageRequest): Promise<ActionQueueItem> {
+  const res = await fetch(`${BASE_URL}/api/v1/action-queue/vendor-message`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({ detail: "Couldn't draft that message." }));
+    throw new Error(detail.detail ?? `Vendor message failed: ${res.status}`);
   }
   return res.json() as Promise<ActionQueueItem>;
 }
@@ -621,6 +691,9 @@ export interface BusinessPerformanceResponse {
   trend: BusinessDailyPoint[];
   top_dishes: BusinessDishPerformance[];
   bottom_dishes: BusinessDishPerformance[];
+  // Full margin-aware dish list (unsliced) -- the Menu Engineering Matrix
+  // plots every dish, not just the top/bottom 5 above.
+  all_dishes: BusinessDishPerformance[];
   channel_split: BusinessChannelSplit;
   complaints_by_category: BusinessComplaintCategory[];
   peak_hours: BusinessHourlyDemand[];
@@ -660,6 +733,53 @@ export async function getBusinessPerformance(days = 14): Promise<BusinessPerform
   }
 
   return res.json() as Promise<BusinessPerformanceResponse>;
+}
+
+// ── Inventory snapshot (live current-state, not a trend -- Analytics'
+// Inventory section) ──────────────────────────────────────────────────────
+
+export interface InventoryShortageAlert {
+  ingredient: string;
+  unit: string;
+  quantity_in_stock: number;
+  reorder_threshold: number;
+  shortfall: number;
+  spoilage_risk: boolean;
+  severity: string;
+  baseline_stock: number;
+  projected_drawdown: number;
+  scenario_adjustment_reason: string | null;
+}
+
+export interface InventoryOverstockAlert {
+  ingredient: string;
+  unit: string;
+  quantity_in_stock: number;
+  reorder_threshold: number;
+  excess: number;
+  spoilage_risk: boolean;
+  severity: string;
+  baseline_stock: number;
+  projected_drawdown: number;
+  scenario_adjustment_reason: string | null;
+}
+
+export interface InventorySnapshotResponse {
+  total_items_checked: number;
+  shortage_alerts: InventoryShortageAlert[];
+  overstock_alerts: InventoryOverstockAlert[];
+}
+
+export async function getInventorySnapshot(): Promise<InventorySnapshotResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/business/inventory-snapshot`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Inventory snapshot API error ${res.status}: ${detail}`);
+  }
+  return res.json() as Promise<InventorySnapshotResponse>;
 }
 
 // ── Market pulse (live, independent of any planning run) ──────────────────────
@@ -827,8 +947,11 @@ export interface MarketPulseResponse {
   compliance_alerts: MarketComplianceAlerts | null;
 }
 
-export async function getMarketPulse(): Promise<MarketPulseResponse> {
-  const res = await fetch(`${BASE_URL}/api/v1/market/pulse`, {
+export async function getMarketPulse(forceRefresh = false): Promise<MarketPulseResponse> {
+  const url = forceRefresh
+    ? `${BASE_URL}/api/v1/market/pulse?force_refresh=true`
+    : `${BASE_URL}/api/v1/market/pulse`;
+  const res = await fetch(url, {
     headers: authHeaders(),
     cache: "no-store",
   });
@@ -950,4 +1073,16 @@ export async function getChatSession(sessionId: number): Promise<ChatSessionDeta
   }
 
   return res.json() as Promise<ChatSessionDetail>;
+}
+
+export async function deleteChatSession(sessionId: number): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/v1/chat/sessions/${sessionId}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Delete chat session API error ${res.status}: ${detail}`);
+  }
 }

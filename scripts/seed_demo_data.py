@@ -807,30 +807,90 @@ session.commit()
 # workflow trigger engine (P6-A11) creates one automatically on the next
 # planning run -- previously hardcoded to Fresh Basil/Mozzarella specifically,
 # which no longer always match what's actually low once shortages rotate.
+# Only offline (WhatsApp/phone) vendors ever get attached to a shortage --
+# Instamart pricing is checked live, on demand, not from a stored quote, so
+# it's never "suggested" here; the owner decides per shortage which channel
+# to use, the system just surfaces the real WhatsApp option when one exists.
+offline_vendors = [v for v in vendors if not v.is_online]
+offline_vendors_by_ingredient = {
+    q.ingredient: next(v for v in vendors if v.id == q.vendor_id)
+    for q in vendor_price_quotes
+    if not next(v for v in vendors if v.id == q.vendor_id).is_online
+}
+
+def _any_offline_vendor(ingredient):
+    # A vendor with an exact ingredient quote wins first, but a WhatsApp order
+    # was never meant to require a pre-recorded price for that exact item --
+    # in real life these rates are just discussed once or twice on a call,
+    # not kept as a live price list -- so this falls back to ANY offline
+    # vendor the org already works with, rather than hiding the WhatsApp
+    # option entirely whenever this specific ingredient has no quote on file.
+    return offline_vendors_by_ingredient.get(ingredient) or (offline_vendors[0] if offline_vendors else None)
+
+def _whatsapp_draft(order_name, order_unit, order_qty, order_threshold, vendor, created_at=None):
+    reorder_amount = round(max(order_threshold - order_qty, order_threshold * 0.3) + order_threshold * 0.2, 1)
+    greeting = "Ramesh bhai" if vendor.name == "Ramesh Traders" else f"Hi {vendor.name}"
+    return ActionQueue(
+        org_id=DEMO_ORG_ID, category="whatsapp_vendor_order", tier=ActionTier.approve_required,
+        status=ActionStatus.pending, title=f"Order {order_name} from {vendor.name}",
+        payload={
+            "vendor_id": vendor.id, "vendor": vendor.name, "ingredient": order_name,
+            "quantity_in_stock": order_qty, "reorder_threshold": order_threshold,
+            "message_draft": f"{greeting}, {order_name.lower()} is running low, only {order_qty}{order_unit} left. "
+                             f"Can you send {reorder_amount}{order_unit} by tomorrow morning? Let me know the rate, thanks!",
+        },
+        **({"created_at": created_at} if created_at else {}),
+    )
+
+top_name, top_unit, top_qty, top_threshold = low_ingredients_seeded[0]
+top_shortfall = round(top_threshold - top_qty, 2)
+top_restock_qty = round(top_shortfall + top_threshold * 0.2, 1)
+top_vendor = _any_offline_vendor(top_name)
+
+# Mirrors the real shape workflow_trigger_service.py's _check_critical_shortages
+# builds (a "shortages" list, not a flat payload) -- the Action Center hero card
+# reads action.payload.shortages[0] and falls back to the raw title otherwise.
+# When a real offline vendor carries the top shortage's ingredient, a linked
+# WhatsApp draft is created too, same as the real trigger service does --
+# the hero's "message vendor" button opens this exact pending action.
 action_queue_items = [
     ActionQueue(
         org_id=DEMO_ORG_ID, category="restock_alert", tier=ActionTier.recommendation,
         status=ActionStatus.pending,
-        title=f"{low_ingredients_seeded[0][0]} running low -- {low_ingredients_seeded[0][2]}{low_ingredients_seeded[0][1]} vs {low_ingredients_seeded[0][3]}{low_ingredients_seeded[0][1]} threshold",
+        title=f"{top_name} is running low",
         payload={
-            "ingredient": low_ingredients_seeded[0][0],
-            "quantity_in_stock": low_ingredients_seeded[0][2],
-            "reorder_threshold": low_ingredients_seeded[0][3],
+            "shortages": [{
+                "ingredient": top_name,
+                "unit": top_unit,
+                "quantity_in_stock": top_qty,
+                "reorder_threshold": top_threshold,
+                "shortfall": top_shortfall,
+                "recommended_restock_qty": top_restock_qty,
+                "whatsapp_vendor": top_vendor.name if top_vendor else None,
+                "reason": f"Stock is running below your usual minimum of {top_threshold}{top_unit}.",
+            }],
         },
     ),
 ]
-if len(low_ingredients_seeded) > 1:
-    order_name, order_unit, order_qty, order_threshold = low_ingredients_seeded[1]
-    reorder_amount = round(order_threshold - order_qty + order_threshold * 0.2, 1)
-    action_queue_items.append(ActionQueue(
-        org_id=DEMO_ORG_ID, category="whatsapp_vendor_order", tier=ActionTier.approve_required,
-        status=ActionStatus.pending, title=f"Order {order_name} from Ramesh Traders",
-        payload={
-            "vendor_id": ramesh_traders.id, "vendor": ramesh_traders.name, "ingredient": order_name,
-            "quantity_in_stock": order_qty, "reorder_threshold": order_threshold,
-            "message_draft": f"Ramesh bhai, {order_name.lower()} is almost done, only {order_qty}{order_unit} left. "
-                             f"Can you send {reorder_amount}{order_unit} by tomorrow morning? Same rate as usual, thanks!",
-        },
+if top_vendor:
+    action_queue_items.append(_whatsapp_draft(top_name, top_unit, top_qty, top_threshold, top_vendor))
+
+# Always keep 2-3 more pending WhatsApp vendor-order approvals on hand, for
+# ingredients unrelated to today's critical shortage -- previously this only
+# existed when the day's random low-stock draw happened to mark 2+
+# ingredients low (n_low is randint(1,4), so plenty of seeds landed on 0 or 1
+# WhatsApp items, i.e. nothing to demo the approval flow with at all).
+whatsapp_candidates = [
+    t for t in (low_ingredients_seeded + comfortable_ingredients_seeded)
+    if t[0] in offline_vendors_by_ingredient and t[0] != top_name
+]
+random.shuffle(whatsapp_candidates)
+n_whatsapp = min(random.randint(2, 3), len(whatsapp_candidates))
+for i, (order_name, order_unit, order_qty, order_threshold) in enumerate(whatsapp_candidates[:n_whatsapp]):
+    action_queue_items.append(_whatsapp_draft(
+        order_name, order_unit, order_qty, order_threshold,
+        offline_vendors_by_ingredient[order_name],
+        created_at=SEED_AS_OF - timedelta(hours=2 + i * 3),
     ))
 session.add_all(action_queue_items)
 session.commit()

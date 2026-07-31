@@ -1,4 +1,6 @@
+import asyncio
 import os
+import sys
 import time
 
 import sentry_sdk
@@ -21,6 +23,12 @@ from app.core.exceptions import AppError
 from app.core.logging import configure_logging
 from app.core.settings import get_settings
 
+
+# 0. Windows defaults to ProactorEventLoop, which psycopg's async mode
+# cannot run under (checkpointing's AsyncPostgresSaver needs it) -- must be
+# set before any event loop is created, i.e. before uvicorn starts its own.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # 1. Initialize Settings
 settings = get_settings()

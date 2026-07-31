@@ -200,40 +200,53 @@ class MarketPulseResponse(BaseModel):
     compliance_alerts: ComplianceAlerts | None = None
 
 
-def _get_upcoming_holiday(days_ahead: int = 14) -> UpcomingHoliday | None:
+def _get_upcoming_holiday() -> UpcomingHoliday | None:
     """Cheap dict scan against INDIAN_HOLIDAYS_2026 -- no API call, independent
-    of Swiggy connection status. Returns the nearest holiday within the window."""
-    from datetime import timedelta
-
+    of Swiggy connection status. Always returns the nearest holiday from today
+    onward, however far out -- the frontend styles it differently depending on
+    days_away (highlighted if within a week, a plain mention otherwise), but
+    the section should never just go empty because nothing was imminent."""
     from app.core.constants import INDIAN_HOLIDAYS_2026
 
     today = date.today()
-    for i in range(days_ahead + 1):
-        check = today + timedelta(days=i)
-        name = INDIAN_HOLIDAYS_2026.get(check.isoformat())
-        if name:
-            return UpcomingHoliday(date=check.isoformat(), name=name, days_away=i)
-    return None
+    upcoming = [
+        (parsed, name)
+        for iso, name in INDIAN_HOLIDAYS_2026.items()
+        if (parsed := date.fromisoformat(iso)) >= today
+    ]
+    if not upcoming:
+        return None
+    nearest_date, nearest_name = min(upcoming, key=lambda pair: pair[0])
+    days_away = (nearest_date - today).days
+    return UpcomingHoliday(date=nearest_date.isoformat(), name=nearest_name, days_away=days_away)
 
 
 @router.get("/pulse", response_model=MarketPulseResponse)
 async def get_market_pulse(
+    force_refresh: bool = False,
     current: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> MarketPulseResponse:
     # Weather + holiday + industry trends + regulatory alerts are independent
     # of Swiggy connection status -- none of the four is Swiggy MCP, never
-    # gated behind swiggy_connected.
-    weather_signal = await WeatherService().get_forecast(
-        lat=DEFAULT_RESTAURANT_LAT, lng=DEFAULT_RESTAURANT_LNG, target_date=date.today(),
+    # gated behind swiggy_connected. They're also independent of EACH OTHER
+    # (3 separate external calls: Open-Meteo, curated RSS, FSSAI notices), so
+    # gather them concurrently instead of awaiting one after another -- this
+    # was previously the single biggest contributor to /market/pulse's real
+    # end-to-end latency (three sequential network round-trips before Swiggy
+    # was even reached).
+    # `force_refresh` bypasses trends/compliance's 1-hour Redis cache -- used
+    # by the frontend's manual refresh button, since the hourly cache is
+    # otherwise shared/automatic and a user has no other way to force a
+    # genuinely fresh read (WeatherService has no cache to bypass).
+    weather_signal, trends_signal, compliance_signal = await asyncio.gather(
+        WeatherService().get_forecast(lat=DEFAULT_RESTAURANT_LAT, lng=DEFAULT_RESTAURANT_LNG, target_date=date.today()),
+        TrendsService().get_digest(force_refresh=force_refresh),
+        ComplianceAlertsService().get_alerts(force_refresh=force_refresh),
     )
     weather = Weather(**weather_signal) if weather_signal else None
     upcoming_holiday = _get_upcoming_holiday()
-
-    trends_signal = await TrendsService().get_digest()
     industry_trends = IndustryTrends(**trends_signal) if trends_signal else None
-
-    compliance_signal = await ComplianceAlertsService().get_alerts()
     compliance_alerts = ComplianceAlerts(**compliance_signal) if compliance_signal else None
 
     client = SwiggyMCPClient()
@@ -252,19 +265,22 @@ async def get_market_pulse(
     ]
 
     inventory_service = InventoryService(db=db, llm=None)
-    shortage_data = await inventory_service.compute_shortage_data()
+    context = {"org_id": current["org_id"], "cuisine": cuisine, "our_items": our_items}
+
+    # shortage_data doesn't depend on competitor/occupancy (or vice versa) --
+    # only procurement below depends on shortage_data's result -- so all
+    # three run concurrently instead of shortage_data blocking ahead of the
+    # Swiggy gather.
+    shortage_data, competitor_ctx, occupancy_ctx = await asyncio.gather(
+        inventory_service.compute_shortage_data(),
+        CompetitorEnricher(client).enrich(context),
+        OccupancyEnricher(client).enrich(context),
+    )
     shortage_names = [
         alert["ingredient"]
         for alert in shortage_data["actionable_shortages"]
         if isinstance(alert, dict) and alert.get("ingredient")
     ]
-
-    context = {"org_id": current["org_id"], "cuisine": cuisine, "our_items": our_items}
-
-    competitor_ctx, occupancy_ctx = await asyncio.gather(
-        CompetitorEnricher(client).enrich(context),
-        OccupancyEnricher(client).enrich(context),
-    )
 
     procurement_ctx = None
     if shortage_names:

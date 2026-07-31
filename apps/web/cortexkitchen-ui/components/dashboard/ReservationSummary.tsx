@@ -1,7 +1,7 @@
 // components/dashboard/ReservationSummary.tsx
 "use client";
 
-import HighlightSwiggy from "@/components/dashboard/HighlightSwiggy";
+import { CardFooter, ICONS, PriorityGauge, RecommendationBlock, StatGrid } from "./AgentStatStrip";
 
 interface ReservationData {
   data?: {
@@ -14,11 +14,14 @@ interface ReservationData {
     date?: string;
     waitlist_count?: number;
   };
-  recommendation?: {
-    reasoning?: string;
-    priority?: string;
-    [key: string]: unknown;
-  };
+  // final_assembler.py's _safe_rec() flattens ReservationService's LLM
+  // recommendation object (recommendation/reasoning/priority/risks) up to
+  // the top level, merged with "data" -- so these are sibling keys here,
+  // never a nested object under a "recommendation" key.
+  recommendation?: string;
+  reasoning?: string;
+  priority?: string;
+  risks?: string[];
   [key: string]: unknown;
 }
 
@@ -31,32 +34,13 @@ function asString(value: unknown, fallback = "") {
   return typeof value === "string" ? value : fallback;
 }
 
-export default function ReservationSummary({ data, compact = false }: { data: ReservationData; compact?: boolean }) {
-  // Handle both direct data object and nested structure
+export default function ReservationSummary({ data, swiggySignal }: { data: ReservationData; compact?: boolean; swiggySignal?: string }) {
   const source = data as Record<string, unknown>;
   const dataObj = (source.data as Record<string, unknown> | undefined) || source;
-  const explicitRecommendation =
-    source.recommendation && typeof source.recommendation === "object"
-      ? (source.recommendation as Record<string, unknown>)
-      : null;
-  const fallbackRecommendationKeys = Object.fromEntries(
-    Object.entries(source).filter(([key]) => ![
-      "data",
-      "date",
-      "total_reservations",
-      "total_guests",
-      "capacity",
-      "occupancy_pct",
-      "overbooking_risk",
-      "busiest_hour",
-      "waitlist_count",
-    ].includes(key))
-  );
-  const recommendation =
-    explicitRecommendation ??
-    (Object.keys(fallbackRecommendationKeys).length > 0
-      ? fallbackRecommendationKeys
-      : null);
+  const recommendationText = typeof source.recommendation === "string" ? source.recommendation : null;
+  const reasoning = typeof source.reasoning === "string" ? source.reasoning : null;
+  const priority = typeof source.priority === "string" ? source.priority : undefined;
+  const risks = Array.isArray(source.risks) ? source.risks.filter((r): r is string => typeof r === "string") : undefined;
 
   if (!dataObj || Object.keys(dataObj).length === 0) {
     return <p className="text-sm text-[var(--color-text-ghost)] italic">No reservation data available.</p>;
@@ -71,149 +55,40 @@ export default function ReservationSummary({ data, compact = false }: { data: Re
   const date = asString(dataObj.date);
   const waitlist_count = asNumber(dataObj.waitlist_count);
 
+  const occupancyColor = occupancy_pct > 85 ? "#F43F5E" : occupancy_pct > 70 ? "#F59E0B" : "#10B981";
+  const occupancyTone = occupancy_pct > 85 ? "text-rose-600 dark:text-rose-300"
+    : occupancy_pct > 70 ? "text-amber-600 dark:text-amber-300"
+    : "text-emerald-600 dark:text-emerald-300";
+
   return (
-    <div className="space-y-4">
-      {/* Main metrics — 2×2 grid */}
-      <div className="grid grid-cols-2 gap-2.5">
-        <div className="rounded-lg bg-[var(--color-surface-raised)] ring-1 ring-[var(--color-border-soft)] p-3">
-          <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Reservations</div>
-          <div className="mt-1 text-3xl font-semibold text-cyan-300">{total_reservations}</div>
-          <div className="text-[10px] text-[var(--color-text-faint)] mt-0.5">bookings for {date}</div>
-        </div>
-
-        <div className="rounded-lg bg-[var(--color-surface-raised)] ring-1 ring-[var(--color-border-soft)] p-3">
-          <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Total guests</div>
-          <div className="mt-1 text-3xl font-semibold text-cyan-300">{total_guests}</div>
-          <div className="text-[10px] text-[var(--color-text-faint)] mt-0.5">of {capacity} capacity</div>
-        </div>
-
-        <div className={`rounded-lg ring-1 p-3 ${
-          occupancy_pct > 85 ? "ring-rose-400/25 bg-rose-500/[0.04]"
-          : occupancy_pct > 70 ? "ring-ember-400/25 bg-ember-500/[0.04]"
-          : "ring-[var(--color-border-soft)] bg-[var(--color-surface-raised)]"
-        }`}>
-          <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Occupancy</div>
-          <div className={`mt-1 text-3xl font-semibold ${
-            occupancy_pct > 85 ? "text-rose-300" : occupancy_pct > 70 ? "text-[var(--color-accent)]" : "text-emerald-300"
-          }`}>
-            {occupancy_pct}<span className="text-xl opacity-60">%</span>
-          </div>
-          {overbooking_risk
-            ? <div className="text-[10px] text-rose-300/80 mt-0.5">above target · overbooking risk</div>
-            : occupancy_pct > 85
-            ? <div className="text-[10px] text-rose-300/80 mt-0.5">above target 80%</div>
-            : null}
-        </div>
-
-        <div className="rounded-lg bg-[var(--color-surface-raised)] ring-1 ring-[var(--color-border-soft)] p-3">
-          <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">Peak hour</div>
-          <div className="mt-1 text-3xl font-semibold text-[var(--color-accent)]">
-            {busiest_hour !== null && busiest_hour !== undefined
-              ? `${String(busiest_hour).padStart(2, "0")}:00`
-              : "--"}
-          </div>
-          {waitlist_count > 0 && <div className="text-[10px] text-[var(--color-accent)]/80 mt-0.5">{waitlist_count} on waitlist</div>}
+    <div className="@container flex flex-col gap-5">
+      {/* Recommendation (left) + stat grid & priority gauge (right) side by side */}
+      <div className="grid grid-cols-1 gap-4 @3xl:grid-cols-[1.3fr_1fr] @3xl:items-stretch">
+        <RecommendationBlock
+          recommendation={recommendationText}
+          reasoning={reasoning}
+          priority={priority}
+          risks={risks}
+        />
+        <div className="flex flex-col gap-3">
+          <StatGrid stats={[
+            { icon: <ICONS.chartBar className="h-4 w-4" strokeWidth={1.8} />, iconColor: "#06B6D4", value: String(total_reservations), label: "Bookings", caption: date ? `for ${date}` : undefined },
+            { icon: <ICONS.trendUp className="h-4 w-4" strokeWidth={1.8} />, iconColor: "#06B6D4", value: String(total_guests), label: "Total guests", caption: `of ${capacity} capacity` },
+            {
+              icon: <ICONS.gauge className="h-4 w-4" strokeWidth={1.8} />, iconColor: occupancyColor, value: `${occupancy_pct}%`, valueClass: occupancyTone,
+              label: "Occupancy", caption: overbooking_risk ? "above target · risk" : occupancy_pct > 85 ? "above target" : "within target",
+            },
+            {
+              icon: <ICONS.clock className="h-4 w-4" strokeWidth={1.8} />, iconColor: "#8B5CF6",
+              value: busiest_hour !== null && busiest_hour !== undefined ? `${String(busiest_hour).padStart(2, "0")}:00` : "--",
+              label: "Peak hour", caption: waitlist_count > 0 ? `${waitlist_count} on waitlist` : "No waitlist",
+            },
+          ]} />
+          <PriorityGauge priority={priority} />
         </div>
       </div>
 
-      {recommendation && (
-        <div className="rounded-lg bg-[var(--color-surface-raised)] ring-1 ring-[var(--color-border-soft)] p-3.5 space-y-3 w-full">
-          {/* String recommendation */}
-          {typeof recommendation === "string" && (
-            <div className="w-full">
-              <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">Recommendation</div>
-              <p className="text-[12px] leading-[1.65] text-[var(--color-text-soft)] break-words whitespace-normal"><HighlightSwiggy text={recommendation} /></p>
-            </div>
-          )}
-
-          {/* Object recommendation */}
-          {typeof recommendation === "object" && (
-            <>
-              {recommendation?.reasoning && typeof recommendation.reasoning === "string" && (
-                <div className="w-full">
-                  <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">Reasoning</div>
-                  <p className="text-[12px] leading-[1.65] text-[var(--color-text-soft)] break-words whitespace-normal">
-                    <HighlightSwiggy text={recommendation.reasoning} />
-                  </p>
-                </div>
-              )}
-
-              {recommendation?.priority && typeof recommendation.priority === "string" && (
-                <div>
-                  <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">Priority</div>
-                  <span className={`text-[10px] px-2.5 py-1 rounded-full inline-block ${
-                    recommendation.priority === "high"   ? "bg-rose-500/15 text-rose-300 ring-1 ring-rose-400/25"
-                    : recommendation.priority === "medium" ? "bg-ember-500/15 text-[var(--color-accent)] ring-1 ring-ember-400/25"
-                    : "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/25"
-                  }`}>
-                    {recommendation.priority} priority
-                  </span>
-                </div>
-              )}
-
-              {Object.entries(recommendation)
-                .filter(([key]) => !["reasoning", "priority"].includes(key))
-                .map(([key, value]) => {
-                  if (value === null || value === undefined) return null;
-                  const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-
-                  if (Array.isArray(value) && value.length > 0) {
-                    const allItems = value.filter(item => item !== null && item !== undefined);
-                    if (allItems.length === 0) return null;
-                    const items = compact ? allItems.slice(0, 2) : allItems;
-                    return (
-                      <div key={key} className="pt-3 border-t border-[var(--color-border-soft)] w-full">
-                        <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">{label}</div>
-                        <ul className="space-y-1 w-full">
-                          {items.map((item, i) => {
-                            const itemText = typeof item === "string" ? item
-                              : typeof item === "object" && item !== null
-                              ? String(Object.values(item).join("  —  "))
-                              : String(item);
-                            return (
-                              <li key={i} className="text-[12px] text-[var(--color-text-soft)] flex gap-2 w-full break-words">
-                                <span className="text-cyan-400/60 shrink-0">·</span>
-                                <span className="whitespace-normal"><HighlightSwiggy text={itemText} /></span>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                        {compact && allItems.length > items.length && (
-                          <p className="text-[11px] text-[var(--color-text-faint)] mt-1.5">+{allItems.length - items.length} more in details</p>
-                        )}
-                      </div>
-                    );
-                  }
-
-                  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-                    const entries = Object.entries(value as Record<string, unknown>).filter(([, v]) => v !== null && v !== undefined);
-                    if (entries.length === 0) return null;
-                    return (
-                      <div key={key} className="pt-3 border-t border-[var(--color-border-soft)] w-full">
-                        <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-faint)] mb-1.5">{label}</div>
-                        <div className="space-y-1 w-full">
-                          {entries.map(([subKey, subValue]) => (
-                            <div key={subKey} className="flex gap-3 w-full">
-                              <span className="text-[11px] text-[var(--color-text-faint)] w-24 shrink-0">{subKey.replace(/_/g, " ")}</span>
-                              <span className="text-[11px] text-[var(--color-text-soft)] break-words whitespace-normal flex-1">{String(subValue)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div key={key} className="flex gap-3 w-full">
-                      <span className="text-[11px] text-[var(--color-text-faint)] w-24 shrink-0">{label}</span>
-                      <span className="text-[11px] text-[var(--color-text-soft)] break-words whitespace-normal flex-1">{String(value)}</span>
-                    </div>
-                  );
-                })}
-            </>
-          )}
-        </div>
-      )}
+      <CardFooter label="Service date" value={date || "--"} swiggySignal={swiggySignal} />
     </div>
   );
 }

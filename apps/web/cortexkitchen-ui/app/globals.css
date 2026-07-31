@@ -61,14 +61,17 @@
   --color-text-soft:       #5C5340;
   --color-text-faint:      #8A8069;
   --color-text-ghost:      #AFA48A;
-  --color-accent:          #B0621A;
-  --color-accent-soft:     rgba(176,98,26,0.10);
+  /* Swiggy's real brand orange (matches --color-hero-bg below), sampled
+     directly from Swiggy's own branding (#FF5200) -- #FC8019 was a close
+     approximation, not the actual color. */
+  --color-accent:          #FF5200;
+  --color-accent-soft:     rgba(255,82,0,0.10);
 
   /* Dashboard hero card only -- Swiggy's own brand orange, lighter than
      --color-accent. At this brightness white text loses contrast, so the
      hero switches to dark text in light mode; dark mode keeps white text
      against the deeper accent-based tone it already used. */
-  --color-hero-bg:         #FC8019;
+  --color-hero-bg:         #FF5200;
   --color-hero-text:       #1D1810;
   --color-hero-text-soft:  rgba(29,24,16,0.72);
   --color-hero-text-faint: rgba(29,24,16,0.52);
@@ -102,8 +105,8 @@
   --color-text-soft:       rgba(255,255,255,0.65);
   --color-text-faint:      rgba(255,255,255,0.40);
   --color-text-ghost:      rgba(255,255,255,0.25);
-  --color-accent:          #e6892a;
-  --color-accent-soft:     rgba(230,137,42,0.10);
+  --color-accent:          #FF5200;
+  --color-accent-soft:     rgba(255,82,0,0.12);
 
   --color-hero-bg:         #C96A1F;
   --color-hero-text:       #ffffff;
@@ -114,7 +117,7 @@
   --color-good-soft:       rgba(52,211,153,0.10);
   --color-caution:         #f5be73;
   --color-caution-soft:    rgba(245,190,115,0.10);
-  --color-critical:        #fb7185;
+  --color-critical:        #fa1d3e;
   --color-critical-soft:   rgba(251,113,133,0.10);
 
   --context-card-gradient: linear-gradient(160deg, rgba(64,40,20,0.5) 0%, rgba(35,22,12,0.8) 100%);
@@ -203,15 +206,30 @@ body {
 
 /* ── Primary button ──────────────────────────────────────────── */
 
+/* Real Swiggy brand orange (matches --color-accent/--color-hero-bg), white
+   text -- Swiggy's own app uses exactly this combination, not a darker
+   burnt-orange gradient with near-black text. */
 .btn-primary {
-  background: linear-gradient(180deg, #f0a648 0%, #de7e1d 100%);
-  color: #1a0f02;
+  background: linear-gradient(180deg, #FF7A3D 0%, #FF5200 60%, #E64800 100%);
+  color: #ffffff;
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.35),
-    0 1px 0 rgba(0,0,0,0.4),
-    0 14px 28px -12px rgba(230,137,42,0.55);
+    0 1px 0 rgba(0,0,0,0.25),
+    0 14px 28px -12px rgba(255,82,0,0.55);
 }
 .btn-primary:hover { filter: brightness(1.05); }
+
+/* Same orange + white text is too glaring against a near-black page --
+   deeper/less saturated gradient and a softer glow, still clearly the same
+   brand color, just toned down for a dark background. */
+.dark .btn-primary {
+  background: linear-gradient(180deg, #D9490A 0%, #C74208 60%, #B33A07 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    0 1px 0 rgba(0,0,0,0.4),
+    0 14px 28px -12px rgba(255,82,0,0.35);
+}
+.dark .btn-primary:hover { filter: brightness(1.1); }
 
 /* ── Chip dot prefix ─────────────────────────────────────────── */
 
@@ -319,7 +337,9 @@ body {
      to actually register as elevation, reading as a flat grey mass instead
      of distinct lifted cards. */
   background: var(--color-surface-raised);
-  border: 1px solid var(--color-border-default);
+  /* Thin + faded gold in both themes -- just enough to register as an
+     edge, not a bold outline. */
+  border: 1px solid rgba(255,82,0,0.35);
   border-radius: 12px;
   box-shadow: 0 1px 2px rgba(60,40,15,0.05), 0 2px 6px rgba(60,40,15,0.09), 0 18px 44px -12px rgba(60,40,15,0.24);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
@@ -327,7 +347,8 @@ body {
 }
 
 .dark .card {
-  box-shadow: 0 0 0 1px rgba(230,137,42,0.06), 0 8px 32px rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,82,0,0.35);
+  box-shadow: 0 0 0 1px rgba(255,82,0,0.06), 0 8px 32px rgba(0,0,0,0.55);
 }
 
 .card:hover {
@@ -338,6 +359,126 @@ body {
 
 .dark .card:hover {
   box-shadow: 0 0 0 1px rgba(230,137,42,0.12), 0 12px 40px rgba(0,0,0,0.6);
+}
+
+/* ── Elevated card variant (Analytics) ───────────────────────────
+   .card's own resting shadow (above) is tuned to be nearly invisible
+   until :hover -- correct for cards that are themselves click targets,
+   wrong for a dashboard of static info cards that never get a hover.
+   This gives real resting elevation without touching .card globally
+   and risking every other already-tuned page. */
+.card-lift {
+  box-shadow: 0 2px 6px rgba(20,15,5,0.07), 0 10px 28px -8px rgba(20,15,5,0.16), 0 24px 56px -20px rgba(20,15,5,0.18);
+}
+.dark .card-lift {
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.04), 0 10px 32px rgba(0,0,0,0.45);
+}
+
+/* ── Moving-border card (hero treatment) ──────────────────────────
+   A rotating gradient "beam" traces the card's edge instead of a static
+   shadow -- used sparingly (one hero per page, not every card) for a bit
+   of AI-briefing motion. Rotates an actual pseudo-element via `transform`
+   (not a CSS custom-property angle, which needs @property + relies on
+   support/toolchain behavior that didn't animate reliably here) --
+   `transform: rotate()` needs no interpolation trick and just works.
+   ::before is an oversized rotating conic disc; ::after re-covers the
+   center with the real card surface, leaving only a ring visible. */
+.moving-border-card {
+  position: relative;
+  isolation: isolate;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: 1.5rem; /* matches rounded-3xl -- explicit, not inherited,
+    since overflow:hidden on this element is what actually clips the
+    rotating disc below to this shape. */
+}
+.moving-border-card::before {
+  /* A rotated rectangle's own bounding box is bigger than the rectangle
+     itself (its corners swing outward at in-between angles) -- rotating
+     a box that was only ~card-sized let its corners fly outside the card
+     with nothing clipping them. Fix: this box is 2x the card in both
+     dimensions, centered, so rotation never exposes a gap or an edge --
+     and overflow:hidden above now actually clips it to the card shape. */
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 220%;
+  height: 220%;
+  z-index: -2;
+  transform: translate(-50%, -50%); /* base/reduced-motion frame -- keeps it
+    centered even when the keyframe animation below isn't running. */
+  background: conic-gradient(from 0deg, transparent 0deg, transparent 250deg, #F59E0B 300deg, #FF5200 335deg, #FF5200 360deg);
+  animation: moving-border-spin 6s linear infinite;
+  will-change: transform; /* hints the browser to composite this on its own
+    GPU layer instead of repainting the rotated gradient every frame --
+    without this a rotating conic-gradient can visibly stutter. */
+}
+.moving-border-card::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  z-index: -1;
+  border-radius: calc(1.5rem - 2px);
+  /* Static (not animated) warm wash -- the "light color" touch on the card
+     itself, separate from the moving border so there's only one moving
+     element, not two competing for attention. */
+  background: radial-gradient(ellipse 700px 340px at 15% 0%, rgba(255,130,40,0.09), transparent 65%), var(--color-surface-raised);
+}
+@keyframes moving-border-spin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* ── Page canvas (clean white, cards carry the depth via their own
+   gold border/shadow now -- not a tinted/gray page wash). ────── */
+.page-canvas {
+  background: #FFFFFF;
+}
+
+.dark .page-canvas {
+  background: var(--color-surface-page);
+}
+
+
+.hero-illustration-light {
+  opacity: 1;
+}
+
+.hero-illustration-dark {
+  opacity: 0;
+}
+
+.dark .hero-illustration-light {
+  opacity: 0;
+}
+
+.dark .hero-illustration-dark {
+  opacity: 1;
+}
+
+/* ── Hero channel buttons (Action Center) ──────────────────────
+   Fixed low-opacity rgba tints read fine on a near-white light-mode card,
+   but the exact same opacity over dark mode's near-black surface barely
+   shifts the color at all -- the button stops reading as a distinct,
+   clickable element. Bumped stronger specifically for dark mode instead of
+   using one opacity for both. */
+.hero-instamart-btn {
+  background: var(--color-accent-soft);
+}
+
+.dark .hero-instamart-btn {
+  background: rgba(255,82,0,0.22);
+}
+
+.hero-whatsapp-btn {
+  background: rgba(37,211,102,0.14);
+  border-color: rgba(37,211,102,0.28);
+}
+
+.dark .hero-whatsapp-btn {
+  background: rgba(37,211,102,0.24);
+  border-color: rgba(37,211,102,0.4);
 }
 
 /* ── Tile (lighter elevation for small tinted cards) ────────────
@@ -429,6 +570,7 @@ body {
   .bar  { animation: none !important; transform: scaleY(1) !important; }
   .sparkline { animation: none !important; stroke-dashoffset: 0 !important; }
   .marquee-track { animation: none !important; }
+  .moving-border-card::before { animation: none !important; background: #FF5200 !important; }
 }
 
 /* ── Font mono utility ───────────────────────────────────────── */

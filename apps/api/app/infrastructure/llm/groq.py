@@ -25,7 +25,9 @@ class GroqProvider(BaseLLMProvider):
         self.provider_name = "groq"
         self.model = "llama-3.3-70b-versatile"  # best free model on Groq for reasoning
 
-    async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+    async def complete(
+        self, prompt: str, system_prompt: str | None = None, temperature: float | None = None,
+    ) -> str:
         """Send a prompt to Groq and return text response."""
         messages = []
 
@@ -34,9 +36,11 @@ class GroqProvider(BaseLLMProvider):
 
         messages.append({"role": "user", "content": prompt})
 
+        kwargs = {"temperature": temperature} if temperature is not None else {}
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
+            **kwargs,
         )
 
         output_text = response.choices[0].message.content
@@ -57,12 +61,14 @@ class GroqProvider(BaseLLMProvider):
 
         return output_text
 
-    async def complete_json(self, prompt: str, system_prompt: str | None = None) -> dict:
+    async def complete_json(
+        self, prompt: str, system_prompt: str | None = None, temperature: float | None = None,
+    ) -> dict:
         """Send a prompt to Groq and return parsed JSON response."""
         json_system = "You must respond with valid JSON only. No explanation, no markdown, no backticks."
         combined_system = f"{json_system}\n{system_prompt}" if system_prompt else json_system
 
-        raw = await self.complete(prompt, system_prompt=combined_system)
+        raw = await self.complete(prompt, system_prompt=combined_system, temperature=temperature)
 
         # Strip markdown code fences if present
         clean = raw.strip()

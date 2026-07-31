@@ -45,6 +45,9 @@ function IconStorefront({ className = "h-4.5 w-4.5" }: { className?: string }) {
 function IconClock({ className = "h-4.5 w-4.5" }: { className?: string }) {
   return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3.5 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
 }
+function IconRefresh({ className = "h-4.5 w-4.5" }: { className?: string }) {
+  return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>;
+}
 
 function SwiggyBadge() {
   return (
@@ -136,6 +139,7 @@ export default function SwiggyLiveMarketPanel() {
     () => (readHourCache(hourCacheKey(MARKET_PULSE_CACHE_PREFIX)) !== null ? "success" : "loading"),
   );
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     // Already have this hour's data (from cache or a previous mount this
@@ -157,6 +161,41 @@ export default function SwiggyLiveMarketPanel() {
       });
     return () => { cancelled = true; };
   }, []);
+
+  // Manual refresh -- bypasses both this hour-bucketed localStorage cache AND
+  // the backend's own 1-hour Redis cache (trends/compliance), since clearing
+  // only the frontend cache still hits a cached backend response otherwise.
+  // Writes back into the SAME shared "ck:market-pulse:" key the Dashboard and
+  // Planning idle-state read, so a refresh here is immediately visible there too.
+  async function handleRefresh() {
+    setRefreshing(true);
+    setError(null);
+    try {
+      const res = await getMarketPulse(true);
+      writeHourCache(MARKET_PULSE_CACHE_PREFIX, hourCacheKey(MARKET_PULSE_CACHE_PREFIX), res);
+      setData(res);
+      setStatus("success");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to refresh live market data");
+      setStatus("error");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  const refreshBar = (
+    <div className="flex items-center justify-end">
+      <button
+        type="button"
+        onClick={handleRefresh}
+        disabled={refreshing}
+        className="flex items-center gap-1.5 rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-3 py-1.5 text-[11.5px] font-semibold text-[var(--color-text-soft)] transition hover:text-[var(--color-text-primary)] disabled:opacity-60"
+      >
+        <IconRefresh className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+        {refreshing ? "Refreshing…" : "Refresh live signals"}
+      </button>
+    </div>
+  );
 
   if (status === "loading") {
     return (
@@ -187,6 +226,7 @@ export default function SwiggyLiveMarketPanel() {
   if (!data.swiggy_connected) {
     return (
       <div className="space-y-4">
+        {refreshBar}
         {(weather || upcomingHoliday || industryTrends || complianceAlerts) && (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <WeatherHolidayCard weather={weather} upcomingHoliday={upcomingHoliday} />
@@ -223,14 +263,18 @@ export default function SwiggyLiveMarketPanel() {
 
   if (!hasAnything) {
     return (
-      <div className="card px-6 py-10 text-center">
-        <p className="text-sm text-[var(--color-text-faint)] italic">No live market data available right now.</p>
+      <div className="space-y-4">
+        {refreshBar}
+        <div className="card px-6 py-10 text-center">
+          <p className="text-sm text-[var(--color-text-faint)] italic">No live market data available right now.</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      {refreshBar}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 [grid-auto-flow:dense]">
         {(weather || upcomingHoliday) && <WeatherHolidayCard weather={weather} upcomingHoliday={upcomingHoliday} />}
         {industryTrends && <IndustryTrendsCard trends={industryTrends} />}

@@ -7,7 +7,7 @@
 
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 import { getAuthToken } from "@/lib/auth-cookies";
-import { getChatSessions, getChatSession, ChatSessionSummary } from "@/lib/api";
+import { getChatSessions, getChatSession, deleteChatSession, ChatSessionSummary } from "@/lib/api";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -26,6 +26,7 @@ interface ChatSessionCtx {
   send: (question: string) => Promise<void>;
   startNewSession: () => void;
   loadSession: (id: number) => Promise<void>;
+  deleteSession: (id: number) => Promise<void>;
   refreshSessionList: () => Promise<void>;
 }
 
@@ -62,6 +63,18 @@ export function ChatSessionProvider({ children }: { children: React.ReactNode })
     setMessages(detail.messages.map(m => ({ role: m.role, content: m.content })));
     setSessionId(detail.id);
     sessionIdRef.current = detail.id;
+  }, []);
+
+  const deleteSession = useCallback(async (id: number) => {
+    await deleteChatSession(id);
+    setSessionList(prev => prev.filter(s => s.id !== id));
+    // Deleting the conversation currently open -- clear it back to the
+    // empty state rather than leaving a now-nonexistent session loaded.
+    if (sessionIdRef.current === id) {
+      setMessages([]);
+      setSessionId(null);
+      sessionIdRef.current = null;
+    }
   }, []);
 
   const send = useCallback(async (question: string) => {
@@ -117,6 +130,20 @@ export function ChatSessionProvider({ children }: { children: React.ReactNode })
                 return next;
               });
             }
+            // Backend errors (e.g. LLM provider rate limits) previously just
+            // broke this loop with no visible trace -- the bubble went from
+            // "thinking" straight to permanently blank once streaming=false
+            // was set in the finally block below, reading as a stuck/dead
+            // chatbot rather than a real, explainable failure.
+            if (payload.error) {
+              setMessages(prev => {
+                const next = [...prev];
+                const last = next[next.length - 1];
+                if (last?.role === "assistant" && !last.content)
+                  next[next.length - 1] = { ...last, content: `Something went wrong: ${payload.error}` };
+                return next;
+              });
+            }
             if (payload.done || payload.error) break;
           } catch { /* skip malformed */ }
         }
@@ -145,7 +172,7 @@ export function ChatSessionProvider({ children }: { children: React.ReactNode })
   return (
     <Context.Provider value={{
       messages, busy, sessionId, sessionList, sessionListLoading,
-      send, startNewSession, loadSession, refreshSessionList,
+      send, startNewSession, loadSession, deleteSession, refreshSessionList,
     }}>
       {children}
     </Context.Provider>

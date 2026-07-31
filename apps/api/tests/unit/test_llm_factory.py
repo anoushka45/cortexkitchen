@@ -12,14 +12,18 @@ class FakeProvider(BaseLLMProvider):
         self.fail = fail
         self.calls = 0
 
-    async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+    async def complete(
+        self, prompt: str, system_prompt: str | None = None, temperature: float | None = None,
+    ) -> str:
         self.calls += 1
         if self.fail:
             raise RuntimeError(f"{self.provider_name} failed")
         self.record_usage(self.model, prompt_tokens=10, completion_tokens=5)
         return f"{self.provider_name}: {prompt}"
 
-    async def complete_json(self, prompt: str, system_prompt: str | None = None) -> dict:
+    async def complete_json(
+        self, prompt: str, system_prompt: str | None = None, temperature: float | None = None,
+    ) -> dict:
         self.calls += 1
         if self.fail:
             raise RuntimeError(f"{self.provider_name} failed")

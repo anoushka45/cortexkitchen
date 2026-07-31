@@ -947,8 +947,11 @@ export interface MarketPulseResponse {
   compliance_alerts: MarketComplianceAlerts | null;
 }
 
-export async function getMarketPulse(): Promise<MarketPulseResponse> {
-  const res = await fetch(`${BASE_URL}/api/v1/market/pulse`, {
+export async function getMarketPulse(forceRefresh = false): Promise<MarketPulseResponse> {
+  const url = forceRefresh
+    ? `${BASE_URL}/api/v1/market/pulse?force_refresh=true`
+    : `${BASE_URL}/api/v1/market/pulse`;
+  const res = await fetch(url, {
     headers: authHeaders(),
     cache: "no-store",
   });
@@ -1070,4 +1073,16 @@ export async function getChatSession(sessionId: number): Promise<ChatSessionDeta
   }
 
   return res.json() as Promise<ChatSessionDetail>;
+}
+
+export async function deleteChatSession(sessionId: number): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/v1/chat/sessions/${sessionId}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Delete chat session API error ${res.status}: ${detail}`);
+  }
 }

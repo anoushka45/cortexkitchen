@@ -35,6 +35,10 @@ _MODEL = "llama-3.3-70b-versatile"
 _MAX_TOKENS = 1024
 _MAX_RUNS = 10
 _MAX_TOOL_ITERATIONS = 3
+_MAX_TOOL_RESULT_ITEMS = 8  # cap on list-shaped Swiggy tool results (orders/products) fed
+                            # back into the LLM -- an unbounded list was the confirmed cause
+                            # of a single swiggy_search_products call alone hitting ~11,000
+                            # tokens and blowing the Groq free-tier 12,000 TPM budget
 
 _SWIGGY_TOOL_NAMES = {
     "swiggy_get_food_orders", "swiggy_search_products",
@@ -452,7 +456,22 @@ async def _run_swiggy_tool(name: str, args: dict, org_id: int = 0) -> str:
             if result is None:
                 return json.dumps({"error": "Swiggy get_food_orders returned no data"})
             orders = result.get("orders") or result.get("data") or result
-            return json.dumps({"source": "Swiggy Food (live)", "orders": orders})
+            # Trim each order to what a chat answer actually needs -- the raw
+            # order carries a full "actions"/"reorderMeta" UI-action tree
+            # (per-item addons, choice IDs, etc.) meant for a checkout client,
+            # not a text answer. Confirmed live: this alone was ~2-3x the size
+            # a plain order summary needs.
+            trimmed = [
+                {
+                    "restaurant":    o.get("restaurantName"),
+                    "total":         o.get("orderTotal"),
+                    "items":         o.get("orderedItems"),
+                    "ordered_at":    o.get("orderedTime"),
+                    "status":        o.get("orderStatus"),
+                }
+                for o in (orders if isinstance(orders, list) else [])
+            ][:_MAX_TOOL_RESULT_ITEMS]
+            return json.dumps({"source": "Swiggy Food (live)", "orders": trimmed})
 
         if name == "swiggy_search_products":
             result = await client.call_tool(
@@ -462,7 +481,42 @@ async def _run_swiggy_tool(name: str, args: dict, org_id: int = 0) -> str:
             )
             if result is None:
                 return json.dumps({"error": "Swiggy search_products returned no data"})
-            products = result.get("products") or result.get("items") or result
+
+            # This MCP tool returns its payload as an MCP "text" content block
+            # (a JSON string), not structured content -- confirmed live: the
+            # unwrapped shape is {"data": {"products": [...], "similarProducts":
+            # [...]}, "message": "<a long multi-paragraph display-instructions
+            # string meant for a UI client, not this chatbot>"}. The previous
+            # `result.get("products") or result.get("items") or result`
+            # matched neither key, so it silently fell through to `result`
+            # itself -- dumping the ENTIRE raw wrapper (20 products + 9
+            # "similar" products + that instructions paragraph, every field
+            # including image URLs/ratings/SLA/badges) into the tool result.
+            # Measured live: ~44,000 characters (~11,000 tokens) for a single
+            # "pasta" search -- almost the entire Groq free-tier 12,000 TPM
+            # budget from one tool call, confirmed as the actual cause of the
+            # rate-limit failures reported on this tool specifically.
+            payload = result
+            if isinstance(result, dict) and "text" in result and "products" not in result:
+                try:
+                    payload = json.loads(result["text"]).get("data", {})
+                except Exception:
+                    payload = {}
+            raw_products = payload.get("products") or payload.get("items") or []
+
+            def _summarize(p: dict) -> dict:
+                variation = (p.get("variations") or [{}])[0]
+                price = variation.get("price") or {}
+                return {
+                    "name":       p.get("displayName"),
+                    "brand":      p.get("brand"),
+                    "quantity":   variation.get("quantityDescription"),
+                    "mrp":        price.get("mrp"),
+                    "offer_price": price.get("offerPrice"),
+                    "in_stock":   p.get("inStock", variation.get("isInStockAndAvailable")),
+                }
+
+            products = [_summarize(p) for p in raw_products[:_MAX_TOOL_RESULT_ITEMS]]
             return json.dumps({"source": "Swiggy Instamart (live)", "products": products})
 
         # ── Dineout competitive-intelligence tools (P6-MI04) ────────────────

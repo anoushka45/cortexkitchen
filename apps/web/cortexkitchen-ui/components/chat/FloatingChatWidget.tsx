@@ -19,11 +19,12 @@ export default function FloatingChatWidget() {
   const router = useRouter();
   const {
     messages, busy, sessionId, sessionList, sessionListLoading,
-    send, startNewSession, loadSession, refreshSessionList,
+    send, startNewSession, loadSession, deleteSession, refreshSessionList,
   } = useChatSession();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"chat" | "history">("chat");
   const [input, setInput] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,6 +51,11 @@ export default function FloatingChatWidget() {
     setView("chat");
   }
 
+  async function handleDelete(id: number) {
+    setConfirmDeleteId(null);
+    try { await deleteSession(id); } catch { /* list just keeps the stale row on failure */ }
+  }
+
   return (
     <div className="fixed bottom-5 right-5 z-50">
       {open && (
@@ -57,7 +63,7 @@ export default function FloatingChatWidget() {
           {/* Header */}
           <div className="flex items-center justify-between border-b border-[var(--color-border-soft)] px-4 py-3">
             <div className="flex items-center gap-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-b from-ember-500/30 to-ember-700/20 ring-1 ring-ember-400/25">
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-b from-ember-500/30 to-ember-600/20 ring-1 ring-ember-400/25">
                 <span className="text-[8px] font-bold text-[var(--color-accent)]">CK</span>
               </div>
               <span className="text-[11px] font-semibold text-[var(--color-text-primary)]">Kitchen Assistant</span>
@@ -112,17 +118,37 @@ export default function FloatingChatWidget() {
                 <p className="px-3 py-2 text-[11px] text-[var(--color-text-faint)]">No past conversations yet.</p>
               )}
               {sessionList.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => handleLoadSession(s.id)}
-                  className={`block w-full truncate px-3 py-2 text-left text-[12px] transition-colors ${
-                    s.id === sessionId
-                      ? "bg-ember-500/[0.08] text-[var(--color-text-primary)]"
-                      : "text-[var(--color-text-faint)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text-primary)]"
-                  }`}
-                >
-                  {s.title || "Untitled conversation"}
-                </button>
+                <div key={s.id} className="group relative flex items-center gap-1 px-1.5">
+                  <button
+                    onClick={() => handleLoadSession(s.id)}
+                    className={`block flex-1 min-w-0 truncate rounded-lg px-2.5 py-2 text-left text-[12px] transition-colors ${
+                      s.id === sessionId
+                        ? "bg-[var(--color-accent-soft)] font-semibold text-[var(--color-accent)]"
+                        : "text-[var(--color-text-faint)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text-primary)]"
+                    }`}
+                  >
+                    {s.title || "Untitled conversation"}
+                  </button>
+
+                  {confirmDeleteId === s.id ? (
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <button onClick={() => handleDelete(s.id)} title="Confirm delete" className="rounded-md p-1 text-[var(--color-critical)] hover:bg-[var(--color-critical-soft)]">
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                      </button>
+                      <button onClick={() => setConfirmDeleteId(null)} title="Cancel" className="rounded-md p-1 text-[var(--color-text-faint)] hover:bg-[var(--color-surface)]">
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteId(s.id)}
+                      title="Delete conversation"
+                      className="shrink-0 rounded-md p-1 text-[var(--color-text-ghost)] opacity-0 transition-opacity hover:bg-[var(--color-critical-soft)] hover:text-[var(--color-critical)] group-hover:opacity-100"
+                    >
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           ) : (
@@ -139,7 +165,7 @@ export default function FloatingChatWidget() {
                     <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                       <div className={`max-w-[85%] rounded-xl px-3 py-2 text-[12px] leading-relaxed ${
                         msg.role === "user"
-                          ? "bg-gradient-to-br from-violet-600/25 to-violet-800/15 ring-1 ring-violet-500/20 text-[var(--color-text-primary)]"
+                          ? "bg-[var(--color-accent-soft)] ring-1 ring-[var(--color-accent)]/25 text-[var(--color-text-primary)]"
                           : "bg-[var(--color-surface)] ring-1 ring-[var(--color-border-soft)] text-[var(--color-text-primary)]"
                       }`}>
                         {msg.role === "assistant" ? (
@@ -165,7 +191,7 @@ export default function FloatingChatWidget() {
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSend(); } }}
                     placeholder="Ask a quick question…"
                     disabled={busy}
-                    className="w-full bg-transparent text-[12px] text-[var(--color-text-primary)] placeholder-white/25 focus:outline-none disabled:opacity-40"
+                    className="w-full bg-transparent text-[12px] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-ghost)] focus:outline-none disabled:opacity-40"
                   />
                   <button
                     onClick={handleSend}

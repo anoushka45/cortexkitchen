@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.infrastructure.external.trends_service import TrendsService
+from app.infrastructure.external.trends_service import _FEEDS, TrendsService
 
 _SAMPLE_RSS = b"""<?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0"><channel>
@@ -134,6 +134,63 @@ async def test_partial_feed_failure_still_produces_digest():
 
     assert result is not None
     assert result["headline_count"] > 0
+
+
+def _rss_with_items(count: int, start_date: str) -> bytes:
+    """Builds a minimal valid RSS feed with `count` items, each one day older
+    than the last starting from `start_date` (RFC822 format)."""
+    from email.utils import format_datetime, parsedate_to_datetime
+
+    base = parsedate_to_datetime(start_date)
+    items = "".join(
+        f"<item><title>Headline {i}</title>"
+        f"<pubDate>{format_datetime(base - __import__('datetime').timedelta(days=i))}</pubDate></item>"
+        for i in range(count)
+    )
+    return f"<?xml version='1.0'?><rss version='2.0'><channel>{items}</channel></rss>".encode()
+
+
+@pytest.mark.asyncio
+async def test_high_frequency_feed_does_not_crowd_out_low_frequency_feed():
+    """A per-feed cap must guarantee every feed some representation in the
+    final headline pool -- a flat "pool everything, take the global top N by
+    recency" let a high-frequency feed crowd a low-frequency one out entirely,
+    confirmed live with the two feeds added 2026-07-31 (BusinessLine's high
+    posting frequency left restaurantindia.in's feeds with 0-1 headlines out
+    of the previous flat top-20)."""
+    service = _service_with_no_cache()
+
+    # First feed in _FEEDS publishes 20 items today; the last feed publishes
+    # only 2 items, both slightly older -- under pure global recency sort,
+    # the high-frequency feed alone would fill the entire top-20 cap.
+    feed_content = {
+        _FEEDS[0]: _rss_with_items(20, "Fri, 31 Jul 2026 12:00:00 +0000"),
+        _FEEDS[-1]: _rss_with_items(2, "Wed, 29 Jul 2026 12:00:00 +0000"),
+    }
+    for url in _FEEDS[1:-1]:
+        feed_content[url] = _rss_with_items(0, "Fri, 31 Jul 2026 12:00:00 +0000")
+
+    class _MultiFeedClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def get(self, url, headers=None):
+            resp = MagicMock()
+            resp.raise_for_status.return_value = None
+            resp.content = feed_content[url]
+            return resp
+
+    with patch(
+        "app.infrastructure.external.trends_service.httpx.AsyncClient",
+        side_effect=lambda **kwargs: _MultiFeedClient(),
+    ):
+        headlines = await service._fetch_headlines()
+
+    sources = {h["source"] for h in headlines}
+    assert _FEEDS[-1] in sources, "low-frequency feed must still be represented despite being older"
 
 
 @pytest.mark.asyncio

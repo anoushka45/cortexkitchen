@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import (
     get_current_user,
     get_db,
+    get_db_factory,
     get_memory,
     get_chat_cache,
     get_session_memory,
@@ -34,6 +35,7 @@ def _make_title(question: str) -> str:
 async def chat(
     body: ChatRequest,
     db: Session = Depends(get_db),
+    db_factory=Depends(get_db_factory),
     current_user: dict = Depends(get_current_user),
     memory=Depends(get_memory),
     chat_cache=Depends(get_chat_cache),
@@ -65,6 +67,17 @@ async def chat(
     db.add(ChatMessage(session_id=session.id, role="user", content=body.question))
     db.commit()
 
+    # Captured as a plain int now, while `db` is still open -- the generator
+    # below runs AFTER this endpoint function returns (StreamingResponse
+    # iterates it lazily), by which point FastAPI has already closed `db` via
+    # get_db()'s dependency teardown. Touching the `session` ORM object
+    # itself inside the generator throws "Instance is not bound to a
+    # Session" (confirmed live) since db.commit() above expires its
+    # attributes, forcing a lazy DB refresh against an already-closed
+    # session. The generator opens its own independent session via
+    # db_factory() instead, alive for exactly its own lifetime.
+    session_id = session.id
+
     system_prompt = build_context(
         org_id=org_id,
         org_name=org_name,
@@ -77,13 +90,14 @@ async def chat(
 
     async def event_generator():
         full_tokens: list[str] = []
+        gen_db = db_factory()
         try:
-            yield f"data: {json.dumps({'session_id': session.id})}\n\n"
+            yield f"data: {json.dumps({'session_id': session_id})}\n\n"
             async for token in stream_reply(
                 question=body.question,
                 history=history,
                 system_prompt=system_prompt,
-                db=db,
+                db=gen_db,
                 org_id=org_id,
                 chat_cache=chat_cache,
                 user_id=user_id,
@@ -91,19 +105,34 @@ async def chat(
                 full_tokens.append(token)
                 yield f"data: {json.dumps({'token': token})}\n\n"
         except Exception as exc:
-            yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+            # Chat bypasses the app's usual Groq->Gemini FallbackLLMProvider
+            # (streaming + ReAct tool calls aren't wired into that abstraction),
+            # so a Groq rate limit surfaces as a raw provider exception here --
+            # confirmed live: "Error code: 413 ... 'code': 'rate_limit_exceeded'"
+            # leaking straight to the chat bubble as an ugly JSON/Python string.
+            # Detect it by content (varies by exact SDK exception class/status
+            # code) and give a clean, actionable message instead; anything else
+            # still surfaces its real message for debugging.
+            msg = str(exc)
+            if "rate_limit" in msg.lower() or "tokens per minute" in msg.lower():
+                friendly = "I'm being rate-limited by the AI provider right now (too many requests/tokens per minute on the free tier). Please wait a moment and try again, or ask a shorter question."
+            else:
+                friendly = msg
+            yield f"data: {json.dumps({'error': friendly})}\n\n"
         finally:
             yield f"data: {json.dumps({'done': True})}\n\n"
 
             # P6-A1: persist the assistant's reply and bump the session's updated_at
             if full_tokens:
                 try:
-                    db.add(ChatMessage(session_id=session.id, role="assistant", content="".join(full_tokens)))
-                    session.updated_at = datetime.utcnow()
-                    db.add(session)
-                    db.commit()
+                    gen_db.add(ChatMessage(session_id=session_id, role="assistant", content="".join(full_tokens)))
+                    gen_session = gen_db.query(ChatSession).filter(ChatSession.id == session_id).first()
+                    if gen_session is not None:
+                        gen_session.updated_at = datetime.utcnow()
+                    gen_db.commit()
                 except Exception:
-                    db.rollback()
+                    gen_db.rollback()
+            gen_db.close()
 
             # Store session summary after the conversation turn completes
             if session_memory and full_tokens:
@@ -177,3 +206,28 @@ async def get_chat_session(
         title=session.title,
         messages=[ChatMessageSchema(role=m.role, content=m.content) for m in session.messages],
     )
+
+
+@router.delete("/sessions/{session_id}", status_code=204, summary="Delete one conversation thread")
+async def delete_chat_session(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+) -> None:
+    session = (
+        db.query(ChatSession)
+        .filter(
+            ChatSession.id == session_id,
+            ChatSession.org_id == current_user["org_id"],
+            ChatSession.user_id == current_user["user_id"],
+        )
+        .first()
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="Chat session not found.")
+
+    # ORM delete (not a bulk .delete() query) so ChatSession's
+    # cascade="all, delete-orphan" relationship actually removes the
+    # session's ChatMessage rows too, not just the session itself.
+    db.delete(session)
+    db.commit()

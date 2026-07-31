@@ -23,6 +23,7 @@ export function usePlanTriggerData() {
     () => readHourCache(hourCacheKey(CACHE_PREFIX)),
   );
   const [marketLoaded, setMarketLoaded] = useState(() => readHourCache(hourCacheKey(CACHE_PREFIX)) !== null);
+  const [marketRefreshing, setMarketRefreshing] = useState(false);
 
   useEffect(() => {
     listRestaurantProfiles()
@@ -46,5 +47,24 @@ export function usePlanTriggerData() {
 
   const activeProfile = profiles.find((p) => p.id === selectedProfileId) ?? profiles[0] ?? null;
 
-  return { profiles, selectedProfileId, setSelectedProfileId, activeProfile, marketPulse, marketLoaded };
+  // Manual refresh -- bypasses both this hour-bucketed localStorage cache and
+  // the backend's own 1-hour Redis cache (trends/compliance), writing back
+  // into the same shared "ck:market-pulse:" key Dashboard's TodayIdleState reads.
+  async function refreshMarketPulse() {
+    setMarketRefreshing(true);
+    try {
+      const pulse = await getMarketPulse(true);
+      setMarketPulse(pulse);
+      writeHourCache(CACHE_PREFIX, hourCacheKey(CACHE_PREFIX), pulse);
+    } catch {
+      /* keep whatever was already shown -- a failed refresh shouldn't blank the panel */
+    } finally {
+      setMarketRefreshing(false);
+    }
+  }
+
+  return {
+    profiles, selectedProfileId, setSelectedProfileId, activeProfile,
+    marketPulse, marketLoaded, marketRefreshing, refreshMarketPulse,
+  };
 }

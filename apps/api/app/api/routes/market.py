@@ -223,6 +223,7 @@ def _get_upcoming_holiday() -> UpcomingHoliday | None:
 
 @router.get("/pulse", response_model=MarketPulseResponse)
 async def get_market_pulse(
+    force_refresh: bool = False,
     current: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> MarketPulseResponse:
@@ -234,10 +235,14 @@ async def get_market_pulse(
     # was previously the single biggest contributor to /market/pulse's real
     # end-to-end latency (three sequential network round-trips before Swiggy
     # was even reached).
+    # `force_refresh` bypasses trends/compliance's 1-hour Redis cache -- used
+    # by the frontend's manual refresh button, since the hourly cache is
+    # otherwise shared/automatic and a user has no other way to force a
+    # genuinely fresh read (WeatherService has no cache to bypass).
     weather_signal, trends_signal, compliance_signal = await asyncio.gather(
         WeatherService().get_forecast(lat=DEFAULT_RESTAURANT_LAT, lng=DEFAULT_RESTAURANT_LNG, target_date=date.today()),
-        TrendsService().get_digest(),
-        ComplianceAlertsService().get_alerts(),
+        TrendsService().get_digest(force_refresh=force_refresh),
+        ComplianceAlertsService().get_alerts(force_refresh=force_refresh),
     )
     weather = Weather(**weather_signal) if weather_signal else None
     upcoming_holiday = _get_upcoming_holiday()

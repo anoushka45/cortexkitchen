@@ -93,6 +93,7 @@ export default function TodayIdleState({
   const [perfDays, setPerfDays]         = useState(14);
   const [loaded, setLoaded]             = useState(false);
   const [marketLoaded, setMarketLoaded] = useState(() => readHourCache(hourCacheKey(MARKET_PULSE_CACHE_PREFIX)) !== null);
+  const [marketRefreshing, setMarketRefreshing] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
 
   const [summary, setSummary]           = useState<BusinessSummaryResponse | null>(null);
@@ -156,6 +157,22 @@ export default function TodayIdleState({
       .finally(() => { if (!cancelled) setMarketLoaded(true); });
     return () => { cancelled = true; };
   }, []);
+
+  // Manual refresh -- bypasses both the hour-bucketed localStorage cache and
+  // the backend's own 1-hour Redis cache (trends/compliance), writing back
+  // into the same shared "ck:market-pulse:" key /planning's idle state reads.
+  async function handleMarketRefresh() {
+    setMarketRefreshing(true);
+    try {
+      const pulse = await getMarketPulse(true);
+      setMarketPulse(pulse);
+      writeHourCache(MARKET_PULSE_CACHE_PREFIX, hourCacheKey(MARKET_PULSE_CACHE_PREFIX), pulse);
+    } catch {
+      /* keep whatever was already shown -- a failed refresh shouldn't blank the card */
+    } finally {
+      setMarketRefreshing(false);
+    }
+  }
 
   const activeProfile = profiles.find((p) => p.id === selectedProfileId) ?? profiles[0] ?? null;
 
@@ -502,7 +519,18 @@ export default function TodayIdleState({
               <span className="h-2 w-2 rounded-full" style={{ background: "var(--color-good)" }} />
               Live Intelligence
             </p>
-            <Link href="/market" className="text-[11px] font-semibold text-[var(--color-accent)]">View all insights →</Link>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleMarketRefresh}
+                disabled={marketRefreshing}
+                className="flex items-center gap-1 text-[11px] font-semibold text-[var(--color-text-faint)] transition hover:text-[var(--color-text-primary)] disabled:opacity-60"
+              >
+                <svg className={`h-3 w-3 ${marketRefreshing ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                {marketRefreshing ? "Refreshing…" : "Refresh"}
+              </button>
+              <Link href="/market" className="text-[11px] font-semibold text-[var(--color-accent)]">View all insights →</Link>
+            </div>
           </div>
           <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">Real-time insights that matter</p>
 

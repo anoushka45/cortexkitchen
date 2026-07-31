@@ -25,7 +25,7 @@ const ADMIN_LINKS = [
 const AdminIcon = <svg className="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
 
 export default function Sidebar() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const pathname = usePathname();
   const [adminOpenState, setAdminOpen] = useState(false);
   const adminRef = useRef<HTMLDivElement>(null);
@@ -41,6 +41,29 @@ export default function Sidebar() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [adminActive]);
+
+  // AuthContext always starts a fresh page load with user=null, even when a
+  // valid session cookie exists -- it only populates `user` after an async
+  // /auth/me round-trip. Returning null for that whole window (previously
+  // the only branch here) made the sidebar visibly vanish on every reload,
+  // not just on a genuine logged-out state. A same-shaped skeleton avoids
+  // the layout-shift/disappearance; only a real logged-out state (loading
+  // finished, still no user) renders nothing.
+  if (loading) {
+    return (
+      <aside className="sticky top-0 z-30 flex h-screen w-[228px] shrink-0 flex-col border-r border-[var(--color-border-default)] bg-[var(--color-surface-raised)]">
+        <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-[var(--color-border-default)] px-4">
+          <div className="h-9 w-9 shrink-0 animate-pulse rounded-lg bg-[var(--color-surface-sunken)]" />
+          <div className="h-3.5 w-24 animate-pulse rounded bg-[var(--color-surface-sunken)]" />
+        </div>
+        <div className="flex flex-1 flex-col gap-1.5 px-3.5 py-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-10 animate-pulse rounded-lg bg-[var(--color-surface-sunken)]" />
+          ))}
+        </div>
+      </aside>
+    );
+  }
 
   if (!user) return null;
 

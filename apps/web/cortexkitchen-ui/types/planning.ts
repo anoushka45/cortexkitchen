@@ -163,6 +163,9 @@ export interface CriticResult {
       message: string;
     }>;
   } | null;
+  // Cross-agent contradictions (EvaluationSanityChecker._diff_assumptions) --
+  // present on final_assembler's critic dict but was missing from this type.
+  stale_assumptions?: Array<{ node: string; conflict: string }>;
 }
 
 export interface RagContext {
@@ -365,12 +368,19 @@ export interface RunHistoryEntry {
   // Planning idle-state's recent-runs table show scenario/shift-shape
   // columns without a second fetch per row.
   scenario:    string;
+  // Real resolved title for a custom run (scenario itself is just "custom").
+  scenarioLabel?: string | null;
   data?:       FridayRushResponse;
 }
 
 export interface PlanningRunSummary {
   id: number;
   scenario: string;
+  // The real resolved scenario title (e.g. "Anniversary Dinner") -- for a
+  // custom (natural-language-derived) run, `scenario` itself is just the
+  // literal id "custom", never the actual name; null only for runs recorded
+  // before this field existed.
+  scenario_label: string | null;
   target_date: string | null;
   status: FridayRushResponse["status"];
   critic_verdict: CriticResult["verdict"] | null;
@@ -378,6 +388,18 @@ export interface PlanningRunSummary {
   decision_log_id: number | null;
   generated_at: string | null;
   created_at: string | null;
+  // AI infrastructure observability -- backs the /data Observability tab's
+  // cross-run cost/token/duration breakdown, read straight from each run's
+  // stored metadata (no per-row detail fetch needed).
+  total_cost_usd: number | null;
+  total_tokens: number | null;
+  total_duration_ms: number | null;
+  llm_model: string | null;
+  llm_provider: string | null;
+  cache_hit: boolean | null;
+  llm_call_count: number | null;
+  replan_count: number | null;
+  risk_tags: string[];
 }
 
 export interface PlanningRunDetail extends PlanningRunSummary {

@@ -552,6 +552,8 @@ async def run_planning_scenario(
         "total_duration_ms": total_duration_ms,
         "total_tokens": total_tokens,
         "total_cost_usd": total_cost_usd,
+        "llm_call_count": len(llm_usage),
+        "replan_count": final_state.get("replan_count", 0),
         **llm_metadata,
     }
     final_response.setdefault("meta", {}).update(obs)
@@ -568,7 +570,6 @@ async def run_planning_scenario(
                 "simulation_mode": simulation_mode,
                 "forced_critic_decision": force_critic_decision,
                 "execution_trace": final_state.get("execution_trace", []),
-                "replan_count": final_state.get("replan_count", 0),
             }
         )
 
@@ -862,6 +863,7 @@ async def stream_planning_scenario(
     log.info("stream_start", target_date=target_date or "next", **llm_metadata)
 
     final_response: dict | None = None
+    final_replan_count = 0
 
     async for event in graph_instance.astream_events(initial_state, config=config, version="v2"):
         etype = event.get("event", "")
@@ -891,6 +893,7 @@ async def stream_planning_scenario(
             state_update = (event.get("data") or {}).get("output") or {}
             if isinstance(state_update, dict):
                 final_response = state_update.get("final_response")
+                final_replan_count = state_update.get("replan_count", 0)
 
     _flush_langfuse(langfuse_callbacks)
     total_duration_ms = round((time.perf_counter() - t0) * 1000, 2)
@@ -911,6 +914,7 @@ async def stream_planning_scenario(
             "run_id": run_id, "node_traces": traces,
             "llm_usage": llm_usage, "total_duration_ms": total_duration_ms,
             "total_tokens": total_tokens, "total_cost_usd": total_cost_usd,
+            "llm_call_count": len(llm_usage), "replan_count": final_replan_count,
             **llm_metadata,
         }
         final_response.setdefault("meta", {}).update(obs)

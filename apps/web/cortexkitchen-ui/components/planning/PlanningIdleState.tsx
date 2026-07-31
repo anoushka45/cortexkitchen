@@ -154,7 +154,7 @@ function RunCard({ entry, onSelect, onExport }: { entry: RunHistoryEntry; onSele
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <p className="truncate text-[13.5px] font-bold text-[var(--color-text-primary)]">{opt?.label ?? entry.scenario}</p>
+          <p className="truncate text-[13.5px] font-bold text-[var(--color-text-primary)]">{entry.scenarioLabel || opt?.label || entry.scenario}</p>
           <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[9.5px] font-bold uppercase" style={{ background: tone.bg, color: tone.text }}>{tone.label}</span>
         </div>
         <p className="mt-0.5 text-[11.5px] text-[var(--color-text-faint)]">{shortDate(entry.runAt)} · {relativeTime(entry.runAt)}</p>

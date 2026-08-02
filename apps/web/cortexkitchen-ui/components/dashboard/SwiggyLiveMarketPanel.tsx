@@ -127,24 +127,43 @@ function Card({ title, source, children, wide, swiggy = true, concept = false, i
   );
 }
 
+// A card whose underlying signal is missing/unavailable must still render,
+// just with an honest "not available" message -- a card that silently
+// vanishes reads as broken, not as "nothing to report" (P6-MI, live testing
+// feedback: a missing FSSAI compliance card looked indistinguishable from a
+// real bug until this existed).
+function UnavailableNote({ text }: { text: string }) {
+  return (
+    <div className="flex flex-1 items-center gap-2.5 rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-sunken)] px-3 py-3">
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-text-ghost)]" />
+      <p className="text-xs text-[var(--color-text-faint)] italic">{text}</p>
+    </div>
+  );
+}
+
 type Status = "loading" | "success" | "error";
 
 export default function SwiggyLiveMarketPanel() {
-  // Lazy initializers read the cache synchronously on first render, so a
-  // cache hit never shows the loading state at all -- not even a flash.
-  const [data, setData] = useState<MarketPulseResponse | null>(
-    () => readHourCache<MarketPulseResponse>(hourCacheKey(MARKET_PULSE_CACHE_PREFIX)),
-  );
-  const [status, setStatus] = useState<Status>(
-    () => (readHourCache(hourCacheKey(MARKET_PULSE_CACHE_PREFIX)) !== null ? "success" : "loading"),
-  );
+  // Must start identical on server and client -- a lazy initializer that
+  // reads localStorage here would make the server's first render (no
+  // localStorage, always "loading") disagree with the client's first render
+  // (real cache hit, renders full content immediately), which is a genuine
+  // hydration mismatch, not just a missed optimization. The cache read moves
+  // into the effect below instead, which only ever runs client-side, after
+  // hydration -- a real cache hit still means no network round trip, just a
+  // brief "loading" frame before it, unlike the previous zero-flash version.
+  const [data, setData] = useState<MarketPulseResponse | null>(null);
+  const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    // Already have this hour's data (from cache or a previous mount this
-    // session) -- skip the network round trip entirely.
-    if (readHourCache(hourCacheKey(MARKET_PULSE_CACHE_PREFIX)) !== null) return;
+    const cached = readHourCache<MarketPulseResponse>(hourCacheKey(MARKET_PULSE_CACHE_PREFIX));
+    if (cached !== null) {
+      setData(cached);
+      setStatus("success");
+      return;
+    }
 
     let cancelled = false;
     getMarketPulse()
@@ -156,6 +175,7 @@ export default function SwiggyLiveMarketPanel() {
       })
       .catch((err) => {
         if (cancelled) return;
+        console.error("SwiggyLiveMarketPanel: failed to load /market/pulse", err);
         setError(err instanceof Error ? err.message : "Failed to load live market data");
         setStatus("error");
       });
@@ -176,6 +196,7 @@ export default function SwiggyLiveMarketPanel() {
       setData(res);
       setStatus("success");
     } catch (err) {
+      console.error("SwiggyLiveMarketPanel: failed to refresh /market/pulse", err);
       setError(err instanceof Error ? err.message : "Failed to refresh live market data");
       setStatus("error");
     } finally {
@@ -227,13 +248,11 @@ export default function SwiggyLiveMarketPanel() {
     return (
       <div className="space-y-4">
         {refreshBar}
-        {(weather || upcomingHoliday || industryTrends || complianceAlerts) && (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <WeatherHolidayCard weather={weather} upcomingHoliday={upcomingHoliday} />
-            {industryTrends && <IndustryTrendsCard trends={industryTrends} />}
-            {complianceAlerts && <ComplianceAlertsCard alerts={complianceAlerts} />}
-          </div>
-        )}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <WeatherHolidayCard weather={weather} upcomingHoliday={upcomingHoliday} />
+          <IndustryTrendsCard trends={industryTrends} />
+          <ComplianceAlertsCard alerts={complianceAlerts} />
+        </div>
         <div className="card px-6 py-10 text-center">
           <p className="text-sm font-medium text-[var(--color-text-primary)]">Swiggy not connected</p>
           <p className="mt-1 text-sm text-[var(--color-text-faint)]">
@@ -256,29 +275,26 @@ export default function SwiggyLiveMarketPanel() {
   const vegMix = pricing?.veg_mix ?? null;
   const slotAvailability = occupancy?.slot_availability_by_time ?? [];
 
-  const hasAnything =
-    categoryPricing.length > 0 || comparisons.length > 0 || occupancy?.signal ||
-    dealsActiveCount > 0 || landscapeSummary !== null ||
-    weather !== null || upcomingHoliday !== null || industryTrends !== null || complianceAlerts !== null;
-
-  if (!hasAnything) {
-    return (
-      <div className="space-y-4">
-        {refreshBar}
-        <div className="card px-6 py-10 text-center">
-          <p className="text-sm text-[var(--color-text-faint)] italic">No live market data available right now.</p>
-        </div>
-      </div>
-    );
-  }
+  // Weather/trends/compliance always render their own card (with an honest
+  // "unavailable" state if their data is missing) -- this gate is only about
+  // whether there's any Swiggy-dependent content below them worth showing.
+  const hasSwiggyContent =
+    categoryPricing.length > 0 || comparisons.length > 0 || Boolean(occupancy?.signal) ||
+    dealsActiveCount > 0 || landscapeSummary !== null;
 
   return (
     <div className="space-y-4">
       {refreshBar}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 [grid-auto-flow:dense]">
-        {(weather || upcomingHoliday) && <WeatherHolidayCard weather={weather} upcomingHoliday={upcomingHoliday} />}
-        {industryTrends && <IndustryTrendsCard trends={industryTrends} />}
-        {complianceAlerts && <ComplianceAlertsCard alerts={complianceAlerts} />}
+        <WeatherHolidayCard weather={weather} upcomingHoliday={upcomingHoliday} />
+        <IndustryTrendsCard trends={industryTrends} />
+        <ComplianceAlertsCard alerts={complianceAlerts} />
+
+        {!hasSwiggyContent && (
+          <div className="card px-6 py-10 text-center lg:col-span-3">
+            <p className="text-sm text-[var(--color-text-faint)] italic">No live Swiggy market data available right now.</p>
+          </div>
+        )}
 
         {/* Area Deals -- aggregate count/summary, no restaurant names. Not
             always present (fetch_food_coupons data). */}
@@ -523,6 +539,7 @@ function WeatherHolidayCard({
 
   return (
     <Card title="Weather & Holidays" source="Open-Meteo + internal calendar" swiggy={false} titleIcon={<IconCloud className="h-4 w-4 shrink-0 text-[var(--color-text-faint)]" />}>
+      {!weather && <UnavailableNote text="Weather signal unavailable right now." />}
       {weather && (
         <div className="flex items-start gap-4">
           <WeatherIcon condition={weather.condition} />
@@ -692,14 +709,15 @@ function TrendsModal({ bullets, onClose }: { bullets: string[]; onClose: () => v
   );
 }
 
-function IndustryTrendsCard({ trends }: { trends: MarketIndustryTrends }) {
+function IndustryTrendsCard({ trends }: { trends: MarketIndustryTrends | null | undefined }) {
   const [showAll, setShowAll] = useState(false);
-  const bullets = trends.digest.split("\n").map((line) => line.trim()).filter(Boolean);
+  const bullets = trends ? trends.digest.split("\n").map((line) => line.trim()).filter(Boolean) : [];
   const visible = bullets.slice(0, 5);
 
   return (
     <Card title="Industry Trends" source="curated RSS trade press" swiggy={false} titleIcon={<IconNewspaper className="h-4 w-4 shrink-0 text-[var(--color-text-faint)]" />}>
-      <TrendBullets bullets={visible} />
+      {!trends && <UnavailableNote text="Industry trends unavailable right now." />}
+      {trends && <TrendBullets bullets={visible} />}
       {bullets.length > 5 && (
         <div className="mt-auto pt-3">
           <button
@@ -725,42 +743,49 @@ function AlertDocIcon() {
   );
 }
 
-function ComplianceAlertsCard({ alerts }: { alerts: MarketComplianceAlerts }) {
+function ComplianceAlertsCard({ alerts }: { alerts: MarketComplianceAlerts | null | undefined }) {
   const [showAll, setShowAll] = useState(false);
-  const visible = showAll ? alerts.notices : alerts.notices.slice(0, 5);
+  const notices = alerts?.notices ?? [];
+  const visible = showAll ? notices : notices.slice(0, 5);
 
   return (
     <Card title="Regulatory Alerts" source="FSSAI public notices" swiggy={false} titleIcon={<IconShieldAlert className="h-4 w-4 shrink-0 text-[var(--color-text-faint)]" />}>
-      <ul className="space-y-3">
-        {visible.map((n, i) => (
-          <li key={i} className="flex items-start gap-2.5">
-            <AlertDocIcon />
-            <div className="min-w-0 flex-1">
-              <a
-                href={n.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="line-clamp-2 text-[13px] font-medium text-[var(--color-text-primary)] hover:text-[var(--color-accent)] hover:underline"
+      {!alerts && <UnavailableNote text="Regulatory alerts unavailable right now." />}
+      {alerts && notices.length === 0 && <UnavailableNote text="No regulatory notices tracked right now." />}
+      {notices.length > 0 && (
+        <>
+          <ul className="space-y-3">
+            {visible.map((n, i) => (
+              <li key={i} className="flex items-start gap-2.5">
+                <AlertDocIcon />
+                <div className="min-w-0 flex-1">
+                  <a
+                    href={n.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="line-clamp-2 text-[13px] font-medium text-[var(--color-text-primary)] hover:text-[var(--color-accent)] hover:underline"
+                  >
+                    {n.title}
+                  </a>
+                  <p className="mt-0.5 text-[10px] text-[var(--color-text-ghost)]">uploaded {n.uploaded_on}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-auto pt-3">
+            {notices.length > 5 ? (
+              <button
+                onClick={() => setShowAll((v) => !v)}
+                className="flex items-center gap-1 text-xs font-medium text-[var(--color-accent)] hover:underline"
               >
-                {n.title}
-              </a>
-              <p className="mt-0.5 text-[10px] text-[var(--color-text-ghost)]">uploaded {n.uploaded_on}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-auto pt-3">
-        {alerts.notices.length > 5 ? (
-          <button
-            onClick={() => setShowAll((v) => !v)}
-            className="flex items-center gap-1 text-xs font-medium text-[var(--color-accent)] hover:underline"
-          >
-            {showAll ? "Show fewer alerts" : "View all alerts"} →
-          </button>
-        ) : (
-          <p className="text-[10px] text-[var(--color-text-ghost)]">{alerts.notice_count} notice{alerts.notice_count !== 1 ? "s" : ""} tracked</p>
-        )}
-      </div>
+                {showAll ? "Show fewer alerts" : "View all alerts"} →
+              </button>
+            ) : (
+              <p className="text-[10px] text-[var(--color-text-ghost)]">{alerts?.notice_count} notice{alerts?.notice_count !== 1 ? "s" : ""} tracked</p>
+            )}
+          </div>
+        </>
+      )}
     </Card>
   );
 }

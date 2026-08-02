@@ -84,15 +84,16 @@ export default function TodayIdleState({
 
   const [dataHealth, setDataHealth]     = useState<DataHealth | null>(null);
   const [connector, setConnector]       = useState<ConnectorStatus | null>(null);
-  // Lazy initializers -- an hour-cache hit hydrates synchronously on first
-  // render rather than via a setState call inside the effect below.
-  const [marketPulse, setMarketPulse]   = useState<MarketPulseResponse | null>(
-    () => readHourCache(hourCacheKey(MARKET_PULSE_CACHE_PREFIX)),
-  );
+  // Must start identical on server and client -- a lazy initializer reading
+  // localStorage here disagrees with the server's render (no localStorage,
+  // always empty/not-loaded), which is a real hydration mismatch, not just a
+  // missed optimization. The cache read moves into the effect below instead,
+  // which only ever runs client-side, after hydration.
+  const [marketPulse, setMarketPulse]   = useState<MarketPulseResponse | null>(null);
   const [businessPerf, setBusinessPerf] = useState<BusinessPerformanceResponse | null>(null);
   const [perfDays, setPerfDays]         = useState(14);
   const [loaded, setLoaded]             = useState(false);
-  const [marketLoaded, setMarketLoaded] = useState(() => readHourCache(hourCacheKey(MARKET_PULSE_CACHE_PREFIX)) !== null);
+  const [marketLoaded, setMarketLoaded] = useState(false);
   const [marketRefreshing, setMarketRefreshing] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
 
@@ -145,7 +146,12 @@ export default function TodayIdleState({
   // it's ready. Hour-cached (shared with /planning's usePlanTriggerData) so toggling
   // between Dashboard and /planning doesn't re-fetch it at all within the same hour.
   useEffect(() => {
-    if (readHourCache(hourCacheKey(MARKET_PULSE_CACHE_PREFIX)) !== null) return;
+    const cached = readHourCache<MarketPulseResponse>(hourCacheKey(MARKET_PULSE_CACHE_PREFIX));
+    if (cached !== null) {
+      setMarketPulse(cached);
+      setMarketLoaded(true);
+      return;
+    }
     let cancelled = false;
     getMarketPulse()
       .then((pulse) => {
@@ -153,7 +159,10 @@ export default function TodayIdleState({
         setMarketPulse(pulse);
         writeHourCache(MARKET_PULSE_CACHE_PREFIX, hourCacheKey(MARKET_PULSE_CACHE_PREFIX), pulse);
       })
-      .catch(() => { if (!cancelled) setMarketPulse(null); })
+      .catch((err) => {
+        console.error("TodayIdleState: failed to load /market/pulse", err);
+        if (!cancelled) setMarketPulse(null);
+      })
       .finally(() => { if (!cancelled) setMarketLoaded(true); });
     return () => { cancelled = true; };
   }, []);

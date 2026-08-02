@@ -17,7 +17,7 @@ export default function HomePage() {
           style={{ background: "radial-gradient(closest-side, rgba(230,137,42,0.22), transparent 70%)" }}
         />
 
-        <div className="relative mx-auto grid max-w-[1280px] grid-cols-1 gap-10 px-8 pb-28 pt-24 xl:grid-cols-12">
+        <div className="relative mx-auto grid max-w-[1280px] grid-cols-1 gap-10 px-8 pb-24 pt-24 xl:grid-cols-12">
 
           {/* Left: editorial headline */}
           <div className="xl:col-span-7">
@@ -26,14 +26,14 @@ export default function HomePage() {
               <span className="text-[10px] uppercase tracking-[0.28em] text-ember-200">Pre-shift intelligence platform</span>
             </div>
 
-            <h1 className="mt-7 text-[42px] leading-[0.96] tracking-[-0.025em] text-[var(--color-text-primary)] sm:text-[56px] md:text-[78px]">
+            <h1 className="mt-7 text-[42px] leading-[0.96] tracking-[-0.025em] text-[var(--color-text-primary)] sm:text-[56px] md:text-[74px]">
               The pre-shift<br />
               <span className="display-it text-[var(--color-accent)]">briefing</span> that<br />
               runs<span className="display-it"> itself.</span>
             </h1>
 
             <p className="mt-7 max-w-xl text-[17px] leading-[1.6] text-[var(--color-text-soft)]">
-              Your kitchen knows more than it shows. Five specialists read your demand, bookings, complaints, menu, and stock — together, in parallel, before every shift. A critic checks the plan for safety and feasibility. Your floor manager gets a verified brief, with clear priorities, before the first table turns.
+              Your kitchen knows more than it shows. Specialist agents read your demand, bookings, complaints, menu, and stock, in parallel, while live weather, trend, and compliance signals and real Swiggy market data feed straight into the plan. A critic checks it for safety before your floor manager ever sees it.
             </p>
 
             <div className="mt-9 flex flex-wrap items-center gap-4">
@@ -43,12 +43,9 @@ export default function HomePage() {
                 </svg>
                 Start free, no card
               </Link>
-              <Link href="#pipeline" className="inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-[15px] font-medium text-[var(--color-text-primary)] ring-1 ring-[var(--color-border-default)] transition-colors hover:ring-[var(--color-border-default)]">
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M10 8l6 4-6 4V8z" fill="currentColor" />
-                </svg>
-                Watch 90-sec tour
+              <Link href="/concierge" className="inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-[15px] font-medium text-[var(--color-text-primary)] ring-1 ring-[var(--color-border-default)] transition-colors hover:ring-[var(--color-accent)]/40">
+                <span>🎉</span>
+                Planning an event instead?
               </Link>
             </div>
 
@@ -63,8 +60,8 @@ export default function HomePage() {
                 <div className="mt-1.5 text-xs text-[var(--color-text-soft)]">from pressing run to a critic-approved plan</div>
               </div>
               <div>
-                <div className="num-display text-[36px] leading-none text-[var(--color-text-primary)]">5<span className="text-2xl text-[var(--color-text-faint)]">×</span></div>
-                <div className="mt-1.5 text-xs text-[var(--color-text-soft)]">point quality check on every plan before you see it</div>
+                <div className="num-display text-[36px] leading-none text-[var(--color-text-primary)]">100<span className="text-2xl text-[var(--color-text-faint)]">%</span></div>
+                <div className="mt-1.5 text-xs text-[var(--color-text-soft)]">of actions stay human-approved before they execute</div>
               </div>
             </div>
           </div>
@@ -82,7 +79,7 @@ export default function HomePage() {
                     <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/70" />
                     <span className="ml-3 text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-faint)]">cortexkitchen.app/dashboard</span>
                   </div>
-                  <span className="font-mono text-[10px] text-[var(--color-text-faint)]">friday  -  4:42 pm</span>
+                  <span className="font-mono text-[10px] text-[var(--color-text-faint)]">friday, 4:42 pm</span>
                 </div>
 
                 {/* Verdict */}
@@ -90,7 +87,7 @@ export default function HomePage() {
                   <div>
                     <div className="text-[10px] uppercase tracking-[0.22em] text-emerald-300">Critic verdict</div>
                     <div className="mt-1.5 text-2xl font-semibold text-[var(--color-text-primary)]">Plan approved</div>
-                    <div className="mt-1 text-xs text-[var(--color-text-soft)]">Friday rush  -  18:00-22:00  -  8 staff on floor</div>
+                    <div className="mt-1 text-xs text-[var(--color-text-soft)]">Friday rush, 18:00-22:00, 8 staff on floor</div>
                   </div>
                   <div className="text-right">
                     <div className="num-display text-5xl leading-none text-emerald-300">0.91</div>
@@ -116,7 +113,7 @@ export default function HomePage() {
                 {/* Sparkline */}
                 <div className="mt-4 rounded-xl bg-[var(--color-surface-raised)] px-3 py-3 ring-1 ring-[var(--color-border-soft)]">
                   <div className="flex items-baseline justify-between">
-                    <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-faint)]">Demand forecast  -  12-23h</div>
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-faint)]">Demand forecast, 12-23h</div>
                     <div className="text-[10px] text-[var(--color-text-faint)]">peak <span className="font-mono text-[var(--color-text-primary)]">19:00</span></div>
                   </div>
                   <svg viewBox="0 0 320 70" className="mt-2 h-[70px] w-full">
@@ -134,13 +131,14 @@ export default function HomePage() {
                 </div>
 
                 {/* Agent strip */}
-                <div className="mt-4 grid grid-cols-5 gap-1.5">
+                <div className="mt-4 grid grid-cols-3 gap-1.5 sm:grid-cols-6">
                   {[
-                    { label: "demand ✓",  color: "text-emerald-300/90" },
-                    { label: "reserv ✓",  color: "text-emerald-300/90" },
-                    { label: "menu ✓",    color: "text-emerald-300/90" },
-                    { label: "complaints !",  color: "text-[var(--color-accent)]" },
-                    { label: "stock !",   color: "text-rose-300" },
+                    { label: "demand ✓",   color: "text-emerald-300/90" },
+                    { label: "reserv ✓",   color: "text-emerald-300/90" },
+                    { label: "market ✓",   color: "text-emerald-300/90" },
+                    { label: "menu ✓",     color: "text-emerald-300/90" },
+                    { label: "complaints !", color: "text-[var(--color-accent)]" },
+                    { label: "stock !",    color: "text-rose-300" },
                   ].map(({ label, color }) => (
                     <div key={label} className={`rounded-md bg-[var(--color-surface-raised)] px-2 py-1.5 text-center text-[9px] uppercase tracking-wider ${color}`}>
                       {label}
@@ -153,18 +151,29 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Tech stack marquee ── */}
-      <section className="overflow-hidden border-y border-[var(--color-border-soft)] bg-[var(--color-surface-raised)]">
-        <div className="mx-auto flex max-w-[1280px] items-center gap-10 px-8 py-7">
-          <div className="text-[10px] uppercase leading-relaxed tracking-[0.22em] text-[var(--color-text-faint)] max-w-[160px] shrink-0">
-            Built on<br />production stack
+      {/* ── Two ways in ── */}
+      <section className="border-y border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-8 py-14">
+        <div className="mx-auto max-w-[1280px]">
+          <div className="mb-8 text-center">
+            <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">Two sides, one platform</div>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--color-text-primary)]">Which side are you on?</h2>
           </div>
-          <div className="relative flex-1 overflow-hidden">
-            <div className="marquee-track flex shrink-0 items-center gap-14 whitespace-nowrap text-[var(--color-text-faint)]">
-              {["LangGraph", "FastAPI", "Next.js 16", "PostgreSQL", "Qdrant", "Groq · llama-3.3-70b", "LangSmith", "OpenTelemetry", "Sentry",
-                "LangGraph", "FastAPI", "Next.js 16", "PostgreSQL", "Qdrant", "Groq · llama-3.3-70b", "LangSmith", "OpenTelemetry", "Sentry"].map((name, i) => (
-                <span key={i} className={i % 2 === 0 ? "display text-3xl" : "display-it text-2xl"}>{name}</span>
-              ))}
+          <div className="mx-auto grid max-w-4xl grid-cols-1 gap-5 md:grid-cols-2">
+            <div className="flex items-center gap-4 rounded-2xl bg-[var(--color-surface)] p-5 ring-1 ring-[var(--color-border-default)]">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-ember-500/10 text-xl ring-1 ring-ember-400/25">🍽️</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[14px] font-semibold text-[var(--color-text-primary)]">Run a restaurant</div>
+                <div className="text-[12.5px] text-[var(--color-text-faint)]">Plan every shift, approve every action</div>
+              </div>
+              <Link href="/login" className="btn-primary shrink-0 rounded-lg px-4 py-2 text-[13px] font-semibold">Sign in</Link>
+            </div>
+            <div className="flex items-center gap-4 rounded-2xl bg-[var(--color-surface)] p-5 ring-1 ring-[var(--color-border-default)]">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-ember-500/10 text-xl ring-1 ring-ember-400/25">🎉</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[14px] font-semibold text-[var(--color-text-primary)]">Planning something</div>
+                <div className="text-[12.5px] text-[var(--color-text-faint)]">Chat with the concierge, no account needed</div>
+              </div>
+              <Link href="/concierge" className="btn-primary shrink-0 rounded-lg px-4 py-2 text-[13px] font-semibold">Sign in as Guest</Link>
             </div>
           </div>
         </div>
@@ -184,7 +193,7 @@ export default function HomePage() {
               By 4pm Friday your floor manager has a reservation list, a hunch about the weather, and an inventory sheet from this morning. The forecast lives in someone&apos;s head. Last week&apos;s complaint about cold pizza? Not on the briefing. Two cooks down? You&apos;ll find out at 7:12pm.
             </p>
             <p>
-              CortexKitchen reads the same data you already have: your POS, reservation system, complaint inbox, and inventory file. Five specialist agents turn it into <em className="display-it text-ember-200 not-italic">one</em> briefing your manager actually reads. With evidence. With a verdict.
+              CortexKitchen reads the same data you already have: your POS, reservation system, complaint inbox, and inventory file, plus live weather, industry trends, FSSAI compliance alerts, and real-time Swiggy market data. Specialist agents turn it into <em className="display-it text-ember-200 not-italic">one</em> briefing your manager actually reads. With evidence. With a verdict.
             </p>
             <div className="grid grid-cols-2 gap-x-8 gap-y-5 pt-2">
               <div className="border-t border-[var(--color-border-default)] pt-4">
@@ -203,23 +212,18 @@ export default function HomePage() {
       {/* ── How it works ── */}
       <section className="border-y border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-8 py-28">
         <div className="mx-auto max-w-[1280px]">
-          <div className="flex items-end justify-between gap-10">
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">How it works</div>
-              <h2 className="mt-3 text-[40px] leading-[1.02] tracking-[-0.02em] text-[var(--color-text-primary)] md:text-[52px]">
-                From data to <span className="display-it text-[var(--color-accent)]">brief</span> in 90 seconds.
-              </h2>
-            </div>
-            <Link href="#" className="hidden text-[11px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] transition-colors hover:text-[var(--color-text-primary)] md:block">
-              See architecture -&gt;
-            </Link>
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">How it works</div>
+            <h2 className="mt-3 text-[40px] leading-[1.02] tracking-[-0.02em] text-[var(--color-text-primary)] md:text-[52px]">
+              From data to <span className="display-it text-[var(--color-accent)]">brief</span> in 90 seconds.
+            </h2>
           </div>
 
           <div className="mt-14 grid grid-cols-1 gap-6 md:grid-cols-3">
             {[
               {
                 num: "01", label: "Frame the service", title: "Pick the shift you're planning.",
-                body: "Pick a shift type: Friday rush, weekday lunch, holiday spike, or low-stock weekend. Or set a custom date. Each one primes the specialists for the right kind of service pressure.",
+                body: "Pick a shift type: Friday rush, weekday lunch, holiday spike, or low-stock weekend. Or describe today in your own words and let the AI build the scenario, by voice or by text.",
                 extra: (
                   <div className="mt-6 grid grid-cols-2 gap-2 text-[10px] uppercase tracking-wider">
                     {["Friday rush", "Weekday lunch", "Holiday spike", "Low-stock"].map(s => (
@@ -229,15 +233,15 @@ export default function HomePage() {
                 ),
               },
               {
-                num: "02", label: "Run the pipeline", title: "Five specialists. One verdict.",
-                body: "Demand, reservations, complaints, menu, and inventory are each handled by a dedicated specialist running in parallel. An aggregator pulls it together, then a critic checks the plan for safety and feasibility before you see a word of it.",
+                num: "02", label: "Run the pipeline", title: "Specialists in parallel. One verdict.",
+                body: "Live weather, trend, and compliance signals feed the demand forecast. Reservations, complaints, inventory, menu, market intel, and dine-in occupancy run as parallel specialists. A critic checks the combined plan for safety and feasibility, and can send it back for a rework before you see it.",
                 extra: (
                   <div className="mt-6 space-y-1.5">
                     {[
-                      { dot: "bg-ember-300",   text: "forecast gate" },
-                      { dot: "bg-emerald-400", text: "4 agents parallel" },
-                      { dot: "bg-ember-400",   text: "aggregate → critic" },
-                      { dot: "bg-cyan-400",    text: "SSE node-by-node stream" },
+                      { dot: "bg-ember-300",   text: "live signals gate" },
+                      { dot: "bg-emerald-400", text: "5 agents in parallel" },
+                      { dot: "bg-ember-400",   text: "critic + replan loop" },
+                      { dot: "bg-cyan-400",    text: "live progress stream" },
                     ].map(({ dot, text }) => (
                       <div key={text} className="flex items-center gap-2">
                         <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
@@ -249,10 +253,10 @@ export default function HomePage() {
               },
               {
                 num: "03", label: "Act on it", title: "Brief, export, simulate, ask.",
-                body: "The plan is scored and ready. Hand the chef a PDF, send the owner an Excel sheet, or just read the summary yourself. Change a number with the what-if tool. Ask the AI what went wrong last week. Everything stays in the run history.",
+                body: "Hand the chef a PDF, send the owner an Excel sheet, or read the summary yourself. Change a number with the what-if tool. Ask the AI what went wrong last week, by voice or text. Every action still needs your sign-off before it executes.",
                 extra: (
                   <div className="mt-6 flex flex-wrap gap-2 text-[10px] uppercase tracking-wider">
-                    {["PDF", "Excel", "What-if", "Ask AI", "Audit trail"].map((s) => (
+                    {["PDF", "Excel", "What-if", "Ask AI", "Voice input", "Audit trail"].map((s) => (
                       <span key={s} className="rounded-md px-2 py-1 text-[var(--color-text-soft)] ring-1 ring-[var(--color-border-default)]">{s}</span>
                     ))}
                   </div>
@@ -268,131 +272,21 @@ export default function HomePage() {
               </article>
             ))}
           </div>
-        </div>
-      </section>
 
-      {/* ── Pipeline showcase ── */}
-      <section id="pipeline" className="relative overflow-hidden px-8 py-32">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-ember-400/40 to-transparent" />
-        <div className="mx-auto max-w-[1280px]">
-          <div className="mb-16 grid grid-cols-1 items-end gap-8 xl:grid-cols-12">
-            <div className="xl:col-span-7">
-              <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">The pipeline</div>
-              <h2 className="mt-3 text-[40px] leading-[1.02] tracking-[-0.02em] text-[var(--color-text-primary)] md:text-[58px]">
-                Five specialists.<br /><span className="display-it text-[var(--color-accent)]">One</span> coherent verdict.
-              </h2>
-            </div>
-            <p className="text-[15px] leading-[1.7] text-[var(--color-text-soft)] xl:col-span-5">
-              We don&apos;t ship a single oracle pretending to know your business. Each agent owns one domain, with its own data adapter, its own model choice, and its own evaluation. The critic only ships a plan if all five agree it&apos;s safe.
-            </p>
-          </div>
-
-          <div className="rounded-3xl bg-[var(--color-surface)] p-10 ring-1 ring-[var(--color-border-default)]">
-            <div className="grid grid-cols-12 items-stretch gap-3">
-
-              {/* Orchestrator */}
-              <div className="col-span-2 flex flex-col gap-2.5 justify-center">
-                <div className="text-[9px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">Orchestrator</div>
-                <div className="rounded-2xl bg-[var(--color-surface-raised)] p-5 ring-1 ring-[var(--color-border-default)]">
-                  <div className="text-[14px] font-semibold text-[var(--color-text-primary)]">Ops Manager</div>
-                  <div className="mt-2 text-[11px] leading-relaxed text-[var(--color-text-faint)]">Kicks off the run, assigns each specialist their task, and keeps everything in sync.</div>
-                  <span className="mt-4 inline-block rounded-md bg-ember-500/[0.10] px-2 py-0.5 text-[9px] uppercase tracking-wider text-[var(--color-accent)]/80 ring-1 ring-ember-400/20">LangGraph</span>
-                </div>
-              </div>
-
-              {/* → */}
-              <div className="col-span-1 flex items-center justify-center">
-                <svg className="w-full" viewBox="0 0 48 14" fill="none" style={{ filter: "drop-shadow(0 0 4px rgba(239,163,69,0.55))" }}>
-                  <line x1="1" y1="7" x2="36" y2="7" stroke="#efa345" strokeWidth="1.4" strokeDasharray="3 2.5" strokeOpacity="0.7"/>
-                  <path d="M30 2.5 L37 7 L30 11.5" stroke="#efa345" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeOpacity="0.9"/>
-                </svg>
-              </div>
-
-              {/* Demand Gate */}
-              <div className="col-span-2 flex flex-col gap-2.5 justify-center">
-                <div className="text-[9px] uppercase tracking-[0.22em] text-[var(--color-accent)]/70">Gate</div>
-                <div className="rounded-2xl bg-ember-500/[0.07] p-5 ring-1 ring-ember-400/25">
-                  <div className="text-[14px] font-semibold text-[var(--color-text-primary)]">Demand Forecast</div>
-                  <div className="mt-2 text-[11px] leading-relaxed text-[var(--color-text-soft)]">Predicts how busy the shift will be — expected covers, when it peaks, and how confident the model is.</div>
-                  <span className="mt-4 inline-block rounded-md bg-[var(--color-surface-raised)] px-2 py-0.5 text-[9px] uppercase tracking-wider text-[var(--color-text-faint)] ring-1 ring-[var(--color-border-default)]">Prophet</span>
-                </div>
-              </div>
-
-              {/* fan-out */}
-              <div className="col-span-1 flex items-center justify-center">
-                <svg className="h-full w-full" viewBox="0 0 44 200" fill="none" preserveAspectRatio="none" style={{ filter: "drop-shadow(0 0 5px rgba(239,163,69,0.5))" }}>
-                  <line x1="0"  y1="100" x2="22"  y2="100" stroke="#efa345" strokeWidth="1.3" strokeDasharray="3 2.5" strokeOpacity="0.7"/>
-                  <line x1="22" y1="24"  x2="22"  y2="176" stroke="#efa345" strokeWidth="1.3" strokeOpacity="0.4"/>
-                  <line x1="22" y1="24"  x2="40"  y2="24"  stroke="#efa345" strokeWidth="1.3" strokeDasharray="3 2.5" strokeOpacity="0.7"/>
-                  <line x1="22" y1="74"  x2="40"  y2="74"  stroke="#efa345" strokeWidth="1.3" strokeDasharray="3 2.5" strokeOpacity="0.7"/>
-                  <line x1="22" y1="126" x2="40"  y2="126" stroke="#efa345" strokeWidth="1.3" strokeDasharray="3 2.5" strokeOpacity="0.7"/>
-                  <line x1="22" y1="176" x2="40"  y2="176" stroke="#efa345" strokeWidth="1.3" strokeDasharray="3 2.5" strokeOpacity="0.7"/>
-                  <path d="M35 20 L40 24 L35 28"    stroke="#efa345" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeOpacity="0.9"/>
-                  <path d="M35 70 L40 74 L35 78"    stroke="#efa345" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeOpacity="0.9"/>
-                  <path d="M35 122 L40 126 L35 130" stroke="#efa345" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeOpacity="0.9"/>
-                  <path d="M35 172 L40 176 L35 180" stroke="#efa345" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeOpacity="0.9"/>
-                </svg>
-              </div>
-
-              {/* Parallel agents */}
-              <div className="col-span-3 grid grid-cols-1 gap-2.5">
-                {[
-                  { color: "ring-cyan-400/25 bg-cyan-500/[0.06]",       dot: "bg-cyan-400",    name: "Bookings & Tables",      sub: "Checks reservations, waitlist, and when the floor will be at capacity.", tag: "Reservations", tagColor: "text-cyan-300/60"    },
-                  { color: "ring-rose-400/25 bg-rose-500/[0.06]",       dot: "bg-rose-400",    name: "Guest Feedback",         sub: "Reads recent reviews and complaints, surfaces what to fix tonight.",      tag: "Complaints",   tagColor: "text-rose-300/60"    },
-                  { color: "ring-amber-400/25 bg-amber-500/[0.06]",     dot: "bg-amber-400",   name: "Menu & Promotions",      sub: "Recommends what to feature, what to 86, and what to upsell.",            tag: "Menu",         tagColor: "text-amber-300/60"   },
-                  { color: "ring-emerald-400/25 bg-emerald-500/[0.06]", dot: "bg-emerald-400", name: "Stock & Inventory",      sub: "Flags what's running low, at risk of spoiling, or needs reordering.",    tag: "Inventory",    tagColor: "text-emerald-300/60" },
-                ].map(({ color, dot, name, sub, tag, tagColor }) => (
-                  <div key={name} className={`flex items-center gap-3.5 rounded-xl px-4 py-3.5 ring-1 ${color}`}>
-                    <div className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[13px] font-semibold text-[var(--color-text-primary)] leading-tight">{name}</div>
-                      <div className="mt-0.5 text-[10px] text-[var(--color-text-faint)] leading-relaxed">{sub}</div>
-                    </div>
-                    <div className={`shrink-0 font-mono text-[9px] ${tagColor}`}>{tag}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* merge */}
-              <div className="col-span-1 flex items-center justify-center">
-                <svg className="h-full w-full" viewBox="0 0 44 200" fill="none" preserveAspectRatio="none" style={{ filter: "drop-shadow(0 0 5px rgba(239,163,69,0.5))" }}>
-                  <line x1="0"  y1="24"  x2="22" y2="24"  stroke="#efa345" strokeWidth="1.3" strokeDasharray="3 2.5" strokeOpacity="0.7"/>
-                  <line x1="0"  y1="74"  x2="22" y2="74"  stroke="#efa345" strokeWidth="1.3" strokeDasharray="3 2.5" strokeOpacity="0.7"/>
-                  <line x1="0"  y1="126" x2="22" y2="126" stroke="#efa345" strokeWidth="1.3" strokeDasharray="3 2.5" strokeOpacity="0.7"/>
-                  <line x1="0"  y1="176" x2="22" y2="176" stroke="#efa345" strokeWidth="1.3" strokeDasharray="3 2.5" strokeOpacity="0.7"/>
-                  <line x1="22" y1="24"  x2="22" y2="176" stroke="#efa345" strokeWidth="1.3" strokeOpacity="0.4"/>
-                  <line x1="22" y1="100" x2="44" y2="100" stroke="#efa345" strokeWidth="1.3" strokeDasharray="3 2.5" strokeOpacity="0.7"/>
-                  <path d="M38 96 L44 100 L38 104" stroke="#efa345" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeOpacity="0.9"/>
-                </svg>
-              </div>
-
-              {/* Critic */}
-              <div className="col-span-2 flex flex-col gap-2.5 justify-center">
-                <div className="text-[9px] uppercase tracking-[0.22em] text-emerald-300/70">Verify</div>
-                <div className="rounded-2xl bg-emerald-500/[0.07] p-5 ring-1 ring-emerald-400/25">
-                  <div className="text-[14px] font-semibold text-[var(--color-text-primary)]">Quality Check</div>
-                  <div className="mt-2 text-[11px] leading-relaxed text-[var(--color-text-soft)]">Reviews the full plan before you see it. If anything looks unsafe or unrealistic, it blocks the plan and explains why.</div>
-                  <span className="mt-4 inline-block rounded-md bg-emerald-500/[0.10] px-2 py-0.5 text-[9px] uppercase tracking-wider text-emerald-300/70 ring-1 ring-emerald-400/20">Auto-review</span>
-                </div>
-              </div>
-
-            </div>
-
-            {/* Quality check dimensions */}
-            <div className="mt-8 flex items-center justify-between border-t border-[var(--color-border-soft)] pt-6">
-              <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">What the quality check looks for</div>
-              <div className="flex flex-wrap items-center gap-2">
-                {["Is it safe?", "Is it realistic?", "Is it backed by data?", "Can staff act on it?", "Is it clear?"].map((d) => (
-                  <span key={d} className="rounded-full bg-emerald-500/[0.07] px-3.5 py-1 font-mono text-[11px] text-emerald-200 ring-1 ring-emerald-400/30">{d}</span>
-                ))}
-              </div>
+          {/* Quality check dimensions */}
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-[var(--color-surface)] px-6 py-5 ring-1 ring-[var(--color-border-soft)]">
+            <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-faint)]">What the critic checks before you see it</div>
+            <div className="flex flex-wrap items-center gap-2">
+              {["Is it safe?", "Is it realistic?", "Is it backed by data?", "Can staff act on it?", "Is it clear?"].map((d) => (
+                <span key={d} className="rounded-full bg-emerald-500/[0.07] px-3.5 py-1 font-mono text-[11px] text-emerald-700 dark:text-emerald-200 ring-1 ring-emerald-400/30">{d}</span>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
       {/* ── Platform features ── */}
-      <section id="features" className="border-t border-[var(--color-border-soft)] px-8 py-24">
+      <section id="features" className="px-8 py-24">
         <div className="mx-auto max-w-[1280px]">
           <div className="mb-12 text-center">
             <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">Platform capabilities</div>
@@ -400,7 +294,7 @@ export default function HomePage() {
               More than a <span className="display-it text-[var(--color-accent)]">plan generator.</span>
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-[15px] leading-[1.7] text-[var(--color-text-soft)]">
-              Beyond the plan itself — tools to explore, question, repeat, and trust what the system produces.
+              Beyond the plan itself: tools to explore, question, repeat, and trust what the system produces.
             </p>
           </div>
 
@@ -410,7 +304,7 @@ export default function HomePage() {
                 icon: "◎",
                 title: "No More Staring at a Spinner",
                 desc: "You can see exactly where your plan is at every moment. Which specialist has finished, which is still running. No mystery loading screen. Each step checks in as it completes.",
-                tag: "SSE · real-time pipeline",
+                tag: "live · node-by-node progress",
                 color: "border-cyan-400/20 bg-cyan-500/[0.04]",
                 tagColor: "text-cyan-300/60",
               },
@@ -425,34 +319,34 @@ export default function HomePage() {
               {
                 icon: "◇",
                 title: "Ask Your Operations AI",
-                desc: "Type any question about your restaurant's history. Why was last Friday's plan flagged? What keeps showing up in complaints? Which scenario performs best? You get answers from your actual data, not generic AI.",
-                tag: "AI chatbot · your data only",
+                desc: "Type or speak any question about your restaurant's history. Why was last Friday's plan flagged? What keeps showing up in complaints? You get answers from your actual data, not generic AI.",
+                tag: "AI chatbot · voice + text",
                 color: "border-ember-400/20 bg-ember-500/[0.04]",
                 tagColor: "text-[var(--color-accent)]/60",
               },
               {
                 icon: "◉",
-                title: "Same Plan, Instant on Repeat",
-                desc: "Running the same scenario twice in one day? The second run returns in under a second. Same approved plan, zero repeat cost. Every cached result is clearly labelled in your run history.",
-                tag: "smart caching · 1hr window",
-                color: "border-rose-400/20 bg-rose-500/[0.04]",
-                tagColor: "text-rose-300/60",
+                title: "Live Market Intelligence",
+                desc: "Real, anonymised area-level pricing, occupancy, and Instamart ingredient prices via Swiggy. No named-competitor data, just what's actually moving in your area right now.",
+                tag: "Swiggy MCP · area-level only",
+                color: "border-amber-400/20 bg-amber-500/[0.04]",
+                tagColor: "text-amber-300/60",
               },
               {
                 icon: "◆",
                 title: "Track How Your Plans Perform",
-                desc: "See your success rate, average quality score, and how long plans take. Broken down by shift type and outcome. You'll quickly spot which scenarios your kitchen handles well and which ones need work.",
+                desc: "See your success rate, average quality score, and how long plans take. Broken down by shift type and outcome, plus a menu engineering matrix of what to push and what to cut.",
                 tag: "built-in analytics",
                 color: "border-emerald-400/20 bg-emerald-500/[0.04]",
                 tagColor: "text-emerald-300/60",
               },
               {
                 icon: "◐",
-                title: "Plans That Don't Drift",
-                desc: "Every change to the system is checked against a set of known-good plans before it ships. If a tweak makes the plans worse, it gets caught automatically — not after your manager notices.",
-                tag: "automated quality gate",
-                color: "border-amber-400/20 bg-amber-500/[0.04]",
-                tagColor: "text-amber-300/60",
+                title: "Every Action, Human-Approved",
+                desc: "Vendor messages, procurement, and pricing recommendations land in an Action Queue. Nothing sends or executes until someone on your team approves it.",
+                tag: "action queue · zero auto-execute",
+                color: "border-rose-400/20 bg-rose-500/[0.04]",
+                tagColor: "text-rose-300/60",
               },
             ].map(({ icon, title, desc, tag, color, tagColor }) => (
               <div key={title} className={`rounded-2xl border p-6 transition-colors hover:bg-[var(--color-surface-raised)] ${color}`}>
@@ -472,13 +366,13 @@ export default function HomePage() {
           <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">What this replaces</div>
           <blockquote className="mt-6 text-[36px] leading-[1.15] tracking-[-0.015em] text-[var(--color-text-primary)] md:text-[44px]">
             &ldquo;The pre-shift brief used to take forty minutes across four tabs.<br />
-            <span className="display-it text-ember-200">CortexKitchen produces it</span> in under a minute — critic-verified.&rdquo;
+            <span className="display-it text-ember-200">CortexKitchen produces it</span> in under a minute, critic-verified.&rdquo;
           </blockquote>
           <div className="mt-8 inline-flex items-center gap-4">
             <div className="grid h-10 w-10 place-items-center rounded-full border border-dashed border-ember-400/30 bg-ember-500/[0.06] font-mono text-[10px] text-[var(--color-accent)]">CK</div>
             <div className="text-left">
               <div className="text-sm font-semibold text-[var(--color-text-primary)]">The core problem we solve</div>
-              <div className="text-xs text-[var(--color-text-faint)]">Multi-agent intelligence · Critic-verified plans · 30s before service</div>
+              <div className="text-xs text-[var(--color-text-faint)]">Multi-agent intelligence · Critic-verified plans · under a minute before service</div>
             </div>
           </div>
         </div>
@@ -497,9 +391,9 @@ export default function HomePage() {
             </p>
             <div className="mt-8 space-y-5">
               {[
-                { tag: "A", title: "Chef sheet  -  PDF",      desc: "Pace, prep priorities, complaints to address, items to push tonight." },
-                { tag: "B", title: "Owner workbook  -  Excel", desc: "Cost forecast, LLM spend, scenario diff vs last week." },
-                { tag: "C", title: "Run history  -  Audit",   desc: "Every plan, every score, every RAG citation. Permanent record." },
+                { tag: "A", title: "Chef sheet, PDF",      desc: "Pace, prep priorities, complaints to address, items to push tonight." },
+                { tag: "B", title: "Owner workbook, Excel", desc: "Cost forecast, LLM spend, scenario diff vs last week." },
+                { tag: "C", title: "Run history, audit trail",   desc: "Every plan, every score, every citation. Permanent record." },
               ].map(({ tag, title, desc }) => (
                 <div key={tag} className="flex items-start gap-4">
                   <div className="mt-1 grid h-6 w-6 place-items-center rounded-md bg-ember-500/10 font-mono text-xs text-[var(--color-accent)] ring-1 ring-ember-400/40">{tag}</div>
@@ -525,20 +419,20 @@ export default function HomePage() {
                       <Image src="/ck-logo.png" alt="CK" width={24} height={24} className="h-6 w-6 object-contain" />
                     </span>
                     <div className="leading-tight">
-                      <div className="text-[13px] font-bold tracking-tight text-[#070a12]">Casa Mia · Chef Brief</div>
-                      <div className="text-[9px] uppercase tracking-[0.18em] text-[#070a12]/50">Fri 1 May · Friday Rush · 18:00-22:00</div>
+                      <div className="text-[13px] font-bold tracking-tight text-[#070a12]">Casa Mia, Chef Brief</div>
+                      <div className="text-[9px] uppercase tracking-[0.18em] text-[#070a12]/50">Fri 1 May, Friday Rush, 18:00-22:00</div>
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-[9px] uppercase tracking-[0.2em] text-[#070a12]/45">Critic verdict</div>
-                    <div className="text-[15px] font-bold text-emerald-700">Approved · 0.91</div>
+                    <div className="text-[15px] font-bold text-emerald-700">Approved, 0.91</div>
                   </div>
                 </div>
 
                 {/* Metrics */}
                 <div className="mt-5 grid grid-cols-3 gap-3">
                   {[
-                    { label: "Covers",     value: "142", sub: "peak 19:00 · 38", vc: "text-[#070a12]"    },
+                    { label: "Covers",     value: "142", sub: "peak 19:00, 38",  vc: "text-[#070a12]"    },
                     { label: "Occupancy",  value: "87%", sub: "3 on waitlist",   vc: "text-[#070a12]"    },
                     { label: "Stock risk", value: "2",   sub: "critical items",  vc: "text-rose-700" },
                   ].map(({ label, value, sub, vc }) => (
@@ -569,7 +463,7 @@ export default function HomePage() {
 
                 {/* Footer */}
                 <div className="mt-5 flex items-center justify-between border-t border-[#0b1020]/10 pt-3 text-[10px] uppercase tracking-[0.16em] text-[#070a12]/40">
-                  <span>Generated 16:42 · 1.4s · $0.03</span>
+                  <span>Generated 16:42, 1.4s, $0.03</span>
                   <span>plan-019965ce</span>
                 </div>
               </div>
@@ -578,43 +472,61 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Tech stack ── */}
-      <section className="border-y border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-8 py-20">
-        <div className="mx-auto max-w-[1280px]">
-          <div className="mb-10 flex items-end justify-between">
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent)]/80">Built on serious infrastructure</div>
-              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-[var(--color-text-primary)]">Production-grade from day one.</h2>
-            </div>
-            <Link href="#" className="hidden text-[11px] uppercase tracking-[0.22em] text-[var(--color-text-faint)] transition-colors hover:text-[var(--color-text-primary)] md:block">
-              Read the architecture -&gt;
-            </Link>
+      {/* ── Guest Concierge (Side 2 -- fully independent consumer product) ── */}
+      <section id="concierge" className="relative overflow-hidden border-t border-[var(--color-border-soft)] bg-[var(--color-surface-raised)] px-8 py-28">
+        <div
+          className="pointer-events-none absolute -bottom-40 left-1/2 h-[560px] w-[1000px] -translate-x-1/2 rounded-full"
+          style={{ background: "radial-gradient(closest-side, rgba(230,137,42,0.14), transparent 70%)" }}
+        />
+        <div className="relative mx-auto max-w-[920px] text-center">
+          <div className="inline-flex items-center gap-2 rounded-full bg-ember-500/[0.08] px-3 py-1.5 ring-1 ring-ember-500/25">
+            <span className="pulse flex h-1.5 w-1.5 rounded-full bg-ember-400 text-[var(--color-accent)]" />
+            <span className="text-[10px] uppercase tracking-[0.28em] text-ember-200">For Guests</span>
           </div>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+
+          <h2 className="mt-7 text-[40px] leading-[1.02] tracking-[-0.02em] text-[var(--color-text-primary)] md:text-[54px]">
+            Plan your perfect<br /><span className="display-it text-[var(--color-accent)]">dining experience.</span>
+          </h2>
+
+          <p className="mx-auto mt-6 max-w-xl text-[16px] leading-[1.7] text-[var(--color-text-soft)]">
+            Describe what you want. CortexKitchen handles the rest: finding the right venue,
+            checking real availability, suggesting supplies, ordering food. All powered by Swiggy.
+          </p>
+
+          {/* Example prompts */}
+          <div className="mx-auto mt-9 flex max-w-2xl flex-col gap-2.5 text-left">
             {[
-              { name: "LangGraph",          desc: "9-node StateGraph — parallel fan-out, typed shared state, SSE streaming." },
-              { name: "Prophet + Pandas",   desc: "Time-series demand forecasting with peak-hour and day-of-week detection." },
-              { name: "Qdrant + RAG",       desc: "Vector store for complaint intelligence — org-scoped payload filters." },
-              { name: "Groq / Gemini",      desc: "Swappable LLM provider abstraction — llama-3.3-70b in production." },
-              { name: "Redis Caching",      desc: "1hr TTL plan cache by scenario + date. Zero LLM cost on cache hits." },
-              { name: "OpenTelemetry",      desc: "HTTP tracing on every request. Prometheus /metrics scrape endpoint." },
-              { name: "Sentry",             desc: "Unhandled exception capture with LangGraph node tags for fast debugging." },
-              { name: "LangSmith",          desc: "Per-node traces + 50-run golden dataset with 90% CI pass-rate gate." },
-              { name: "RAGAS + DeepEval",   desc: "Automated faithfulness, hallucination, and relevancy evals." },
-              { name: "Multi-tenant auth",  desc: "JWT, Postgres org_id scoping, Qdrant payload isolation per org." },
-              { name: "FastAPI + SSE",      desc: "Async streaming endpoint — node-by-node results via fetch ReadableStream." },
-              { name: "MCP Server",         desc: "Anthropic MCP SDK — trigger planning runs directly from Claude Desktop." },
-            ].map(({ name, desc }) => (
-              <div key={name} className="rounded-xl bg-[var(--color-surface-raised)] p-5 ring-1 ring-[var(--color-border-soft)] transition-colors hover:bg-[var(--color-surface-raised)]">
-                <div className="text-[13px] font-bold text-[var(--color-accent)]">{name}</div>
-                <div className="mt-1.5 text-[12px] leading-relaxed text-[var(--color-text-soft)]">{desc}</div>
+              "Plan my best friend's 25th birthday, 14 people, pizza and gaming, budget Rs.10k",
+              "Find a romantic restaurant for Saturday evening",
+              "Order pizza and get a cake delivered before my guests arrive",
+            ].map((prompt) => (
+              <div key={prompt} className="rounded-xl bg-[var(--color-surface)] px-4 py-3 text-[13.5px] text-[var(--color-text-soft)] ring-1 ring-[var(--color-border-soft)]">
+                &ldquo;{prompt}&rdquo;
               </div>
             ))}
+          </div>
+
+          <div className="mt-9">
+            <Link href="/concierge" className="btn-primary inline-flex items-center gap-2 rounded-xl px-7 py-4 text-[15px] font-semibold">
+              Try the Concierge
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            </Link>
+          </div>
+
+          <div className="mt-8 flex items-center justify-center gap-2">
+            <span className="flex h-5 w-5 items-center justify-center rounded bg-white p-0.5 ring-1 ring-[var(--color-border-default)]">
+              <Image src="/swiggy-logo.png" alt="Swiggy" width={16} height={16} className="h-full w-full object-contain" />
+            </span>
+            <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-faint)]">
+              Powered by Swiggy MCP: Food, Instamart &amp; Dineout
+            </span>
           </div>
         </div>
       </section>
 
-      {/* ── Final CTA ── */}
+      {/* ── Final CTA: dual ── */}
       <section className="relative overflow-hidden px-8 py-32">
         <div
           className="pointer-events-none absolute inset-x-0 bottom-0 h-[420px]"
@@ -623,7 +535,7 @@ export default function HomePage() {
         <div className="relative mx-auto max-w-[920px] text-center">
           <div className="inline-flex items-center gap-2 rounded-full bg-ember-500/[0.08] px-3 py-1.5 ring-1 ring-ember-500/25">
             <span className="pulse flex h-1.5 w-1.5 rounded-full bg-ember-400 text-[var(--color-accent)]" />
-            <span className="text-[10px] uppercase tracking-[0.28em] text-ember-200">14-day trial  -  no card</span>
+            <span className="text-[10px] uppercase tracking-[0.28em] text-ember-200">14-day trial, no card</span>
           </div>
           <h2 className="mt-7 text-[48px] leading-[1.02] tracking-[-0.02em] text-[var(--color-text-primary)] md:text-[64px]">
             Brief your next shift<br /><span className="display-it text-[var(--color-accent)]">before</span> it starts.
@@ -638,8 +550,8 @@ export default function HomePage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
               </svg>
             </Link>
-            <Link href="/login" className="inline-flex items-center gap-2 rounded-xl px-7 py-4 text-[15px] font-medium text-[var(--color-text-primary)] ring-1 ring-[var(--color-border-default)] transition-colors hover:ring-[var(--color-border-default)]">
-              Book a demo
+            <Link href="/concierge" className="inline-flex items-center gap-2 rounded-xl px-7 py-4 text-[15px] font-medium text-[var(--color-text-primary)] ring-1 ring-[var(--color-border-default)] transition-colors hover:ring-[var(--color-accent)]/40">
+              Or sign in as a Guest
             </Link>
           </div>
         </div>

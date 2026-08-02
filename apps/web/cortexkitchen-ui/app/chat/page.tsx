@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useChatSession } from "@/context/ChatSessionContext";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import VoiceRecordButton from "@/components/planning/VoiceRecordButton";
 
 // Hues reused directly from Sidebar.tsx's NAV_LINKS (Analytics/Action
 // Center/Market/AI Assistant/Planning), not invented for this page -- ties
@@ -328,27 +329,30 @@ export default function ChatPage() {
                     "Enter ↵ to send"
                   )}
                 </span>
-                <button
-                  onClick={() => send_(input)}
-                  disabled={busy || !input.trim()}
-                  className="flex items-center gap-1.5 rounded-xl bg-[var(--color-accent)] px-4 py-2 text-[12px] font-bold text-white shadow-[0_2px_8px_rgba(255,82,0,0.28)] transition-all hover:bg-[var(--color-hero-bg)] hover:shadow-[0_4px_14px_rgba(255,82,0,0.38)] disabled:bg-[var(--color-surface-sunken)] disabled:text-[var(--color-text-ghost)] disabled:shadow-none disabled:cursor-not-allowed"
-                >
-                  {busy ? (
-                    <span className="flex gap-1">
-                      {[0,100,200].map(d => (
-                        <span key={d} className="h-1 w-1 rounded-full bg-white animate-bounce"
-                          style={{ animationDelay: `${d}ms` }} />
-                      ))}
-                    </span>
-                  ) : (
-                    <>
-                      Send
-                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
-                      </svg>
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center gap-2">
+                  <VoiceRecordButton onTranscript={(text) => setInput((prev) => (prev ? `${prev} ${text}` : text))} disabled={busy} />
+                  <button
+                    onClick={() => send_(input)}
+                    disabled={busy || !input.trim()}
+                    className="flex items-center gap-1.5 rounded-xl bg-[var(--color-accent)] px-4 py-2 text-[12px] font-bold text-white shadow-[0_2px_8px_rgba(255,82,0,0.28)] transition-all hover:bg-[var(--color-hero-bg)] hover:shadow-[0_4px_14px_rgba(255,82,0,0.38)] disabled:bg-[var(--color-surface-sunken)] disabled:text-[var(--color-text-ghost)] disabled:shadow-none disabled:cursor-not-allowed"
+                  >
+                    {busy ? (
+                      <span className="flex gap-1">
+                        {[0,100,200].map(d => (
+                          <span key={d} className="h-1 w-1 rounded-full bg-white animate-bounce"
+                            style={{ animationDelay: `${d}ms` }} />
+                        ))}
+                      </span>
+                    ) : (
+                      <>
+                        Send
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
 

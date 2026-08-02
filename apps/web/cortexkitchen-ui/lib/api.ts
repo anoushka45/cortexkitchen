@@ -10,6 +10,7 @@ import {
   PlanningRunSummary,
   ScenarioProfile,
 } from "@/types/planning";
+import { ConciergeHealth, ConciergeSessionState } from "@/types/concierge";
 import { getAuthToken } from "@/lib/auth-cookies";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
@@ -1085,4 +1086,37 @@ export async function deleteChatSession(sessionId: number): Promise<void> {
     const detail = await res.text();
     throw new Error(`Delete chat session API error ${res.status}: ${detail}`);
   }
+}
+
+// ── Guest Concierge (Phase 6A-34) — no auth, consumer-facing ────────────────
+// Deliberately does not use authHeaders(): concierge routes take no auth.
+
+export async function getConciergeSession(sessionId: string): Promise<ConciergeSessionState> {
+  const res = await fetch(`${BASE_URL}/api/v1/concierge/session/${sessionId}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Concierge session API error ${res.status}`);
+  return res.json() as Promise<ConciergeSessionState>;
+}
+
+export async function deleteConciergeSession(sessionId: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/v1/concierge/session/${sessionId}`, { method: "DELETE" });
+  if (!res.ok && res.status !== 404) throw new Error(`Delete concierge session API error ${res.status}`);
+}
+
+export async function getConciergeHealth(): Promise<ConciergeHealth> {
+  const res = await fetch(`${BASE_URL}/api/v1/concierge/health`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Concierge health API error ${res.status}`);
+  return res.json() as Promise<ConciergeHealth>;
+}
+
+export async function transcribeConciergeAudio(blob: Blob): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", blob, "recording.webm");
+
+  const res = await fetch(`${BASE_URL}/api/v1/concierge/transcribe`, { method: "POST", body: formData });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Transcription failed ${res.status}: ${detail}`);
+  }
+  const data = (await res.json()) as { text: string };
+  return data.text;
 }

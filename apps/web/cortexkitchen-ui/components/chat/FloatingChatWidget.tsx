@@ -10,8 +10,12 @@ import { usePathname, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { useAuth } from "@/context/AuthContext";
 import { useChatSession } from "@/context/ChatSessionContext";
+import VoiceRecordButton from "@/components/planning/VoiceRecordButton";
 
 const HIDDEN_ON = ["/login", "/register"];
+// /concierge has its own guest-facing chat (ConciergeChatArea) -- the
+// operator-facing widget must never overlap it, even for a logged-in operator.
+const HIDDEN_PREFIXES = ["/concierge"];
 
 export default function FloatingChatWidget() {
   const { user, loading: authLoading } = useAuth();
@@ -36,6 +40,7 @@ export default function FloatingChatWidget() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, view]);
 
+  if (HIDDEN_PREFIXES.some((p) => pathname.startsWith(p))) return null;
   if (authLoading || !user) return null;
   if (HIDDEN_ON.includes(pathname)) return null;
   if (pathname === "/chat") return null; // full page already showing the same conversation
@@ -193,6 +198,7 @@ export default function FloatingChatWidget() {
                     disabled={busy}
                     className="w-full bg-transparent text-[12px] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-ghost)] focus:outline-none disabled:opacity-40"
                   />
+                  <VoiceRecordButton compact onTranscript={(text) => setInput((prev) => (prev ? `${prev} ${text}` : text))} disabled={busy} />
                   <button
                     onClick={handleSend}
                     disabled={busy || !input.trim()}

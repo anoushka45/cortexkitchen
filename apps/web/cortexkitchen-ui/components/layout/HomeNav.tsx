@@ -5,9 +5,8 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 
 const NAV_ANCHORS = [
-  { label: "Pipeline",  href: "#pipeline"  },
   { label: "Features",  href: "#features"  },
-  { label: "Scenarios", href: "#scenarios" },
+  { label: "For Guests", href: "#concierge" },
 ];
 
 export default function HomeNav() {
@@ -37,10 +36,10 @@ export default function HomeNav() {
 
         <div className="flex items-center gap-3">
           <Link href="/login" className="text-sm text-[var(--color-text-soft)] transition-colors hover:text-[var(--color-text-primary)]">
-            Sign in
+            Restaurant login
           </Link>
-          <Link href="/register" className="btn-primary inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold">
-            Get started
+          <Link href="/concierge" className="btn-primary inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold">
+            Sign in as Guest
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
             </svg>

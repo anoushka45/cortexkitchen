@@ -4,6 +4,7 @@ from app.api.routes.action_queue import router as action_queue_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.business import router as business_router
 from app.api.routes.chat import router as chat_router
+from app.api.routes.concierge import router as concierge_router
 from app.api.routes.connectors import router as connectors_router
 from app.api.routes.health import router as health_router
 from app.api.routes.market import router as market_router
@@ -23,6 +24,7 @@ def get_api_router() -> APIRouter:
     router.include_router(auth_router)
     router.include_router(business_router)
     router.include_router(chat_router)
+    router.include_router(concierge_router)
     router.include_router(connectors_router)
     router.include_router(health_router)
     router.include_router(market_router)

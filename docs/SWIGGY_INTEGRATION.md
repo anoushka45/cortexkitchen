@@ -1,6 +1,6 @@
 # CortexKitchen x Swiggy Builders Club: Complete Integration Reference
 
-> **Status:** Active development, Phase 6A. Swiggy market intelligence, occupancy, and procurement enrichment are live in the planning pipeline; compliance remediation (exclusivity, competitive-intelligence anonymisation) is complete; execution tools (checkout, table booking) are implemented but blocked on staging credentials.
+> **Status:** Active development, Phase 6A. Swiggy market intelligence, occupancy, and procurement enrichment are live in the restaurant-operator planning pipeline; Guest Concierge is live as a second, independent consumer-facing agent calling the same three MCP servers directly; compliance remediation (exclusivity, competitive-intelligence anonymisation) is complete; execution tools (checkout, table booking) are implemented on both sides but blocked on staging credentials.
 > **Access:** Swiggy Builders Club approved (builders@swiggy.in)  
 > **Staging creds:** Pending (form submitted)  
 > **Docs:** https://mcp.swiggy.com/builders/docs/  
@@ -13,9 +13,9 @@
 
 CortexKitchen started as a planning tool: trigger a scenario, a set of specialist agents analyze internal data, a critic scores it, the owner gets a plan.
 
-With Swiggy MCP it becomes a **Swiggy-native restaurant operating system**: Swiggy is a live data source for area market intelligence, occupancy signals, and ingredient procurement, alongside the operational data the pipeline already reasons over. The system plans intelligently with real market context and, once execution tools are unblocked by staging credentials, will act autonomously on the owner's behalf within an approval gate.
+With Swiggy MCP it becomes a **Swiggy-native two-sided platform**. On the restaurant-operator side, Swiggy is a live data source for area market intelligence, occupancy signals, and ingredient procurement, alongside the operational data the pipeline already reasons over: the system plans intelligently with real market context and, once execution tools are unblocked by staging credentials, will act autonomously on the owner's behalf within an approval gate. On the guest-facing side, Guest Concierge calls Swiggy's Food, Instamart, and Dineout MCP servers directly on a guest's behalf, planning a dining or event occasion end-to-end with no restaurant-operator data involved at all.
 
-**The one-liner:** "The operating brain for a Swiggy-native restaurant: knows your business, knows your market, acts on your behalf."
+**The one-liner:** "The operating brain for a Swiggy-native restaurant, and the concierge for the guests who eat there."
 
 ---
 
@@ -88,8 +88,7 @@ Parsing: use `result["structuredContent"]` (machine-readable). If absent, fall b
 { "error": {"code": -32601, "message": "Tool not found"}, "jsonrpc": "2.0", "id": 1 }
 ```
 
-> **NOTE:** The original documented envelope `{"success": true, "data": {...}}` was
-> incorrect. `SwiggyMCPClient.call_tool()` was updated in P6-S05/S06 to use the real format.
+> **NOTE:** `SwiggyMCPClient.call_tool()` parses this real format directly.
 > All response schemas in section 17 show the actual `structuredContent` field values.
 
 ### Multi-tenant architecture (CortexKitchen)
@@ -108,16 +107,18 @@ Each restaurant owner authenticates their own Swiggy account. Token stored encry
 
 ## 4. The tools relevant to a restaurant operator (out of 35)
 
-The remaining tools are consumer commerce tools: `flush_food_cart`, `apply_food_coupon`, `create_address`, `delete_address`, `get_food_order_details`, and similar. These serve end-users placing orders, not restaurant operators planning their business, so CortexKitchen does not use them.
+The tables below cover the tools the restaurant-operator side reads for market intelligence, occupancy, and procurement. A separate set of consumer-commerce tools (`update_food_cart`, `flush_food_cart`, `apply_food_coupon`, `place_food_order`, `update_cart`, `book_table`, and similar) power Guest Concierge directly: see section 19 for the full guest-facing tool reference. A handful of tools (`create_address`, `delete_address`, and similar account-management calls) are used by neither side.
 
-Of the tools documented below, a few are genuinely called in the live pipeline today
+Of the operator-facing tools documented below, a few are genuinely called in the live pipeline today
 (`search_restaurants`, `get_restaurant_menu`, `fetch_food_coupons`, `search_products`,
 `get_saved_locations`, `search_restaurants_dineout`, `get_restaurant_details`,
 `get_available_slots`), a few are confirmed non-viable and removed (`search_menu`,
 `your_go_to_items`), a few return only the developer's personal account data and are used
 only as chat assistant context (`get_food_orders`, `track_food_order`, `get_orders`), and the
 execution tools (`update_cart`, `get_cart`, `clear_cart`, `checkout`, `create_cart`,
-`book_table`) are implemented in code but blocked on Swiggy staging credentials.
+`book_table`) are implemented in code but blocked on Swiggy staging credentials for the
+restaurant-operator procurement loop; Guest Concierge's use of the equivalent Food/Instamart/Dineout
+execution tools is blocked on the same credentials.
 
 ---
 
@@ -393,7 +394,7 @@ CortexKitchen use: check-then-retry after book_table 5xx
 ```
 LAYER 0 - Unified data layer (PostgreSQL): always present, always authoritative
   orders         source='swiggy'|'pos'|'walk_in'  channel='delivery'|'dine_in'
-  reservations   source='dineout'|'phone' (eazydiner removed, see D-023 in docs/DECISIONS.md)
+  reservations   source='dineout'|'phone' (eazydiner is a provenance tag only, not a live connector)
   feedback       source='swiggy_delivery'|'google'|'internal'|'zomato' (provenance tag only)
   inventory      stock levels + procurement history
   action_queue   pending actions awaiting approval
@@ -401,14 +402,18 @@ LAYER 0 - Unified data layer (PostgreSQL): always present, always authoritative
 
 LAYER 1 - Live market intelligence (area-level aggregates only, not persisted)
   market intel           Food + Dineout MCP, anonymised to area_restaurant_count, deals_summary,
-                         landscape_summary, category pricing: never a named restaurant (D-024)
+                         landscape_summary, category pricing: never a named restaurant
   ingredient_market      Instamart MCP: search_products (your_go_to_items removed, personal data)
   live signals           independent of Swiggy: weather, holidays, industry trends, FSSAI alerts
 
 LAYER 2 - Action surface (with approval gates)
-  Instamart procurement  update_cart -> get_cart -> checkout, gated by the Action Queue's
-                         trust-ladder approval, not yet exercised: blocked on staging credentials
+  Instamart procurement  update_cart -> get_cart -> checkout, gated by Action Queue approval,
+                         not yet exercised: blocked on staging credentials
   Dineout management     create_cart -> book_table, same staging-credential block
+
+LAYER 3 - Guest Concierge (no-auth, no PostgreSQL/Qdrant footprint, Redis session only)
+  Direct calls to Food, Instamart, and Dineout MCP servers on a guest's behalf: venue search,
+  table booking, food ordering, Instamart supplies. Independent of layers 0-2 entirely.
 ```
 
 ### Connector pattern
@@ -430,11 +435,11 @@ class BaseConnector(ABC):
 
 `SwiggyConnector` is the reference implementation. Future connectors are scoped to non-competing
 categories only (Google Reviews, Square POS, loyalty/rewards, accounting/inventory tools) while the
-signed Integration Agreement's exclusivity clause is in effect; see D-019 and D-023 in
-`docs/DECISIONS.md`.
+signed Integration Agreement's exclusivity clause is in effect; see `docs/DECISIONS.md` for the
+full rationale.
 Token per org stored in `connectors` table via `ConnectorRepository`.
 
-### LangGraph pipeline: fourteen nodes
+### LangGraph pipeline: fifteen nodes
 
 Full per-node detail lives in `docs/AGENTS.md`. Summary of where Swiggy and live-signal data enters:
 
@@ -461,6 +466,8 @@ qdrant_enrichment             <- PlanningMemoryService: past approved plans (rec
             |
      (approved, or revision -> replan_orchestrator -> aggregator, max 2 cycles)
             |
+    situation_summary
+            |
     final_assembler -> plan + Action Queue items
 ```
 
@@ -468,8 +475,9 @@ qdrant_enrichment             <- PlanningMemoryService: past approved plans (rec
 
 | Mode | Trigger | What runs | Output |
 |------|---------|-----------|--------|
-| Planning | Owner triggers a scenario on `/planning` | Full fourteen-node pipeline | Operational plan, streamed live |
+| Planning | Owner triggers a scenario on `/planning` | Full fifteen-node pipeline | Operational plan, streamed live |
 | Daily summary | On-demand, cached 1 hour per org | `BriefingService.get_summary()` | Short AI-generated executive summary on the Dashboard (`GET /business/summary`) |
+| Guest Concierge | Guest sends a message on `/concierge`, no auth | `ConciergeService`'s ReAct tool loop over Food/Instamart/Dineout | Streamed narration plus real venue/food/supply cards |
 
 A separate always-on live-monitoring mode (a dedicated `/live` alerts feed polling during service
 hours) was scoped early on but was not built; the live-intelligence context strip on the Dashboard
@@ -496,8 +504,9 @@ except Exception as e:
             return await checkout(addressId=addr)  # safe to retry
 ```
 
-### `place_food_order` (Food): NOT used by CortexKitchen (consumer tool)
-Same pattern. Listed for completeness.
+### `place_food_order` (Food)
+
+Used by Guest Concierge. Guarded by a Rs.1000 per-order cap (Builders Club v1, COD only) checked against the live cart total before the call is made at all, rather than a retry pattern after the fact: if the cart exceeds the cap, the order is never placed and the guest is told to split it into multiple orders.
 
 ### `book_table` (Dineout)
 ```python
@@ -551,31 +560,29 @@ Rate limiting NOT enforced in v1.0: upstream shedding handles abuse. Wire 429 ha
 
 ## 8. Implementation status
 
-This section originally laid out a week-by-week build plan with task IDs and branch names before
-any of it was built. Implementation diverged from that plan in normal, expected ways (different
-table names, a different final node count, features realized differently than first scoped), so
-carrying the original plan forward here would misstate what actually exists. Task-level status now
-lives in the project's Excel progress tracker and in `CLAUDE.md`; this section states what is true
-today.
+Task-level status lives in the project's Excel progress tracker and in `CLAUDE.md`; this section states what is true today.
 
 **Delivered:** BaseConnector and SwiggyMCPClient with circuit breaker, provider registry, and tool
 tracing; connector sync jobs for orders, feedback, and reservation status; CompetitorEnricher,
 OccupancyEnricher, ProcurementEnricher, and MarketIntelService; the `market_intel` and
-`dineout_manager` graph nodes; ActionQueueService with a trust-ladder approval mechanic;
+`dineout_manager` graph nodes; ActionQueueService with an informational trust-ladder badge
+(a consecutive-approval streak counter; every action still requires human approval);
 PlanningMemoryService, SemanticPlanCache, and SemanticChatCache; live intelligence signals
 independent of Swiggy (weather, industry trends, regulatory alerts); compliance remediation
 (removal of the Zomato stub connector, anonymisation of market intelligence); the `/market`,
 `/connectors`, `/action-center` frontend pages; five MCP server tools for Claude Code and Claude
-Desktop.
+Desktop; Guest Concierge, a no-auth consumer-facing agent calling Food, Instamart, and Dineout
+directly; voice input (Whisper transcription) on the Dashboard, Planning, operator chat, and
+Guest Concierge.
 
 **Blocked on Swiggy staging credentials:** Instamart checkout execution (`update_cart`, `get_cart`,
-`checkout`) and Dineout table booking execution (`create_cart`, `book_table`). Both are implemented
-in code (`executor/`) but not yet exercised against a live account.
+`checkout`) and Dineout table booking execution (`create_cart`, `book_table`), for both the
+restaurant-operator procurement loop and Guest Concierge. Both are implemented
+in code (`executor/` for the operator side, `ConciergeService` for Guest Concierge) but not yet
+exercised against a live account.
 
-**Not built as originally scoped:** a dedicated `/live` real-time alerts page (superseded by the
-hourly-refreshed live-intelligence context strip on the Dashboard and Planning pages) and a
-scheduled 7am email brief (superseded by an on-demand, hourly-cached executive summary on the
-Dashboard, `GET /business/summary`). A POS CSV connector and a voice interface remain future work.
+**Future work:** a POS CSV connector, voice output (TTS response) alongside the existing voice
+input, and the fully wired autonomous procurement loop end to end.
 
 ---
 
@@ -614,7 +621,7 @@ Full current field list lives in `app/orchestration/state.py`.
 ## 11. Cross-agent assumption diffing
 
 Full detail and the current diff list live in `docs/ARCHITECTURE.md`'s "Cross-agent assumption
-diffing" section and D-017 in `docs/DECISIONS.md`. Each domain node, including `market_intel` and
+diffing" section and `docs/DECISIONS.md`. Each domain node, including `market_intel` and
 `dineout_manager`, writes the assumptions it acted on to state; `EvaluationSanityChecker` cross-diffs
 them after the parallel fan-out and surfaces contradictions to the critic.
 
@@ -737,9 +744,9 @@ CAPABILITY_PROVIDERS = {
 }
 ```
 
-`swiggy` is currently the only provider for every capability. The list-based structure stays -
-it exists to support future providers (POS, review platforms, loyalty/rewards, accounting/inventory
-tools), not to be permanently single-entry.
+`swiggy` is currently the only provider for every capability. The list-based structure exists to
+support future providers (POS, review platforms, loyalty/rewards, accounting/inventory tools), not
+to be permanently single-entry.
 
 **Two routing methods:**
 - `get_provider(org_id, capability, db)`: synchronous; DB health only. Use when you can't await.
@@ -947,8 +954,8 @@ CortexKitchen use: extract `name` + `price` per item to build competitor pricing
 Key fields: `data.items[]`, each has `name`, `restaurantName`, `price`, `hasVariants`
 CRITICAL: item has EITHER `variations` OR `variantsV2`, never both. Check which exists.
 
-CortexKitchen use (P6-MI05): `CompetitorEnricher._search_dish_prices()` calls this once per
-our top dish (max 5/run) to get dish-level competitor prices across ALL nearby restaurants -
+CortexKitchen use: `CompetitorEnricher._search_dish_prices()` calls this once per
+our top dish (max 5/run) to get dish-level competitor prices across all nearby restaurants,
 more precise than the category-level averages from `get_restaurant_menu`.
 
 ---
@@ -984,9 +991,9 @@ CRITICAL: filter to `requiresOnlinePayment=false` only: Builders Club v1 support
 Returns PUBLIC promotional data regardless of the calling account's activity: safe to call for
 any competitor's restaurantId.
 
-CortexKitchen use (P6-MI06): `CompetitorEnricher._fetch_competitor_deals()` calls this for up to
-3 nearby restaurants per run; the raw named-restaurant result is reduced to a count + area-level
-summary (`deals_active_count`/`deals_summary`, P6-A20) before it reaches the Area Market Signals
+CortexKitchen use: `CompetitorEnricher._fetch_competitor_deals()` calls this for up to
+3 nearby restaurants per run; the raw named-restaurant result is reduced to a count and area-level
+summary (`deals_active_count`/`deals_summary`) before it reaches the Area Market Signals
 prompt or anything downstream: no restaurant name is ever paired with its specific deal.
 
 ---
@@ -1292,4 +1299,41 @@ CortexKitchen mapping:
 | `book_table` | Dineout | DineoutExecutor (`executor/`, blocked on staging credentials) | `reservations` table |
 | `create_cart` | Dineout | DineoutExecutor | internal to `book_table` |
 | `get_addresses` | Food/IM | all Food+IM calls | resolve addressId once per session |
+
+---
+
+## 19. Guest Concierge's guest-facing tool reference
+
+Guest Concierge exposes its own set of higher-level tools to its function-calling agent
+(`CONCIERGE_TOOLS` in `concierge_service.py`); each one wraps one or more of the same 35 raw
+Swiggy MCP tools used elsewhere in this document. There is no restaurant-operator data, org
+authentication, or database persistence anywhere in this path: session state lives in Redis for
+two hours and nowhere else.
+
+| Concierge tool | Underlying Swiggy tool(s) | Server | Purpose |
+|-----------------|---------------------------|--------|---------|
+| `find_venues` | `search_restaurants_dineout` + `render_restaurants_dineout` | Dineout | Find dine-in venues by cuisine or locality |
+| `get_venue_details` | `get_restaurant_details` | Dineout | Timings, deals, amenities for a chosen venue |
+| `check_table_availability` | `get_available_slots` | Dineout | Real slot availability, filtered to the requested date |
+| `book_table` | `create_cart` + `book_table` | Dineout | Reserve a table (free slots only in Builders Club v1); blocked on staging credentials |
+| `check_my_bookings` | none (session state) | — | List bookings made this session |
+| `find_food` | `search_restaurants` | Food | Find food delivery options near the guest |
+| `browse_menu` | `get_restaurant_menu` | Food | Browse a restaurant's menu, trimmed to a manageable slice |
+| `add_food_to_cart` | `update_food_cart` + `get_food_cart` | Food | Add items to the delivery cart |
+| `view_food_cart` | `get_food_cart` | Food | View current cart and bill |
+| `apply_best_coupon` | `fetch_food_coupons` + `apply_food_coupon` + `get_food_cart` | Food | Find and apply the best COD-compatible coupon |
+| `place_food_order` | `get_food_cart` + `place_food_order` | Food | Place a real order (COD, capped at Rs.1000 per order) |
+| `track_food_order` | `track_food_order` | Food | Real-time delivery tracking |
+| `view_past_orders` | `get_food_orders` | Food | Guest's order history |
+| `find_supplies` | `search_products` | Instamart | Find event supplies, cake, drinks by name |
+| `add_supplies_to_cart` | `update_cart` + `get_cart` | Instamart | Build the supplies cart (merges with what is already added this session, since `update_cart` replaces the whole cart) |
+| `view_supplies_cart` | `get_cart` | Instamart | View current Instamart cart and bill |
+| `order_supplies` | `get_cart` + `checkout` (staging) / simulated (no staging) + `get_orders` on failure | Instamart | Place the supplies order; blocked on staging credentials, returns a pending-staging placeholder until then |
+| `track_supplies_delivery` | `get_orders` + `track_order` | Instamart | Track a supplies delivery |
+| `get_budget_summary` | none (session state) | — | Running total against the guest's stated budget |
+| `track_everything` | none (session state) | — | Combined view of bookings, food orders, and supply orders this session |
+
+`get_addresses` (Food) and `get_saved_locations` (Dineout) are called internally wherever an
+addressId or lat/lng is needed, shared across the tools above the same way they are on the
+restaurant-operator side.
 

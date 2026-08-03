@@ -9,7 +9,7 @@ Phase 6A in progress.
 ## Backend scope
 
 - Multi-tenant JWT authentication (register, login, org-scoped sessions)
-- Fourteen-node LangGraph planning pipeline with SSE streaming (see `docs/AGENTS.md`)
+- Fifteen-node LangGraph planning pipeline with SSE streaming (see `docs/AGENTS.md`)
 - Redis plan caching: 1hr TTL, zero LLM cost on cache hits
 - PDF export (ReportLab chef brief) and Excel export (openpyxl, multi-sheet workbook)
 - Chat assistant (`/chat`): SSE streaming over Postgres run history and feedback, plus Swiggy market and Action Queue tools via function calling
@@ -30,7 +30,21 @@ Phase 6A in progress.
 - `PlanningMemoryService`: Qdrant long-term memory of approved runs with recency decay (half-life 14 days)
 - `SemanticPlanCache`: Qdrant-backed, approved-only, condition-enriched asymmetric embedding
 - `SemanticChatCache`: chat assistant Q&A cache (0.92 cosine, 24hr TTL)
-- Action Queue with a trust-ladder approval mechanic; financial scorecard with real net profit, net margin, and a composite health score
+- Action Queue with an informational trust-ladder badge (consecutive-approval streak, not an auto-execution mechanic); financial scorecard with real net profit, net margin, and a composite health score
+
+---
+
+## Guest Concierge
+
+`ConciergeService` (`domain/services/concierge_service.py`) is a second, independent agent alongside the restaurant-operator pipeline above: a no-auth, ReAct tool-calling loop that plans a guest's occasion end to end over Swiggy's Food, Instamart, and Dineout MCP servers.
+
+- No auth, no organization data, no database persistence: session state lives in Redis for two hours (`ConciergeSession`), keyed by `session_id`, and nowhere else
+- A Groq function-calling loop over roughly twenty tools spanning venue search and booking (Dineout), food ordering (Food, COD only, capped at Rs.1000 per order in Builders Club v1), and event supplies (Instamart)
+- Voice input via `POST /concierge/transcribe`, reusing the same Whisper transcription used on the restaurant-operator side
+- Streams friendly status updates ("finding venues...") rather than raw tool output or exception text to the guest
+- Table booking (`book_table`) and Instamart checkout (`checkout`) are implemented and blocked on Swiggy staging credentials; both are surfaced to the guest as pending, never faked as complete
+
+Routes live in `api/routes/concierge.py`: `POST /concierge/chat` (SSE), `GET`/`DELETE /concierge/session/{id}`, `POST /concierge/transcribe`, `GET /concierge/health`.
 
 ---
 
@@ -75,6 +89,10 @@ Full detail for every endpoint lives in `docs/APIS.md`. Summary:
 | `POST` | `/replay` | Kindred metadata | Kindred single-generation prompt replay (not under `/api/v1`) |
 | `GET` | `/metrics` | Public | Prometheus scrape |
 | `GET` | `/debug/sentry-test` | Public | Sentry smoke test (not under `/api/v1`) |
+| `POST` | `/api/v1/concierge/chat` | Public | Guest Concierge chat turn (SSE) |
+| `GET/DELETE` | `/api/v1/concierge/session/{id}` | Public | Get or clear a concierge session |
+| `POST` | `/api/v1/concierge/transcribe` | Public | Guest Concierge voice transcription |
+| `GET` | `/api/v1/concierge/health` | Public | Concierge tool availability |
 
 ---
 

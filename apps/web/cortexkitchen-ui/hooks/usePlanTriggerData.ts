@@ -17,12 +17,13 @@ export function usePlanTriggerData() {
   const [profiles, setProfiles] = useState<RestaurantProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
 
-  // Lazy initializers -- a cache hit hydrates state synchronously during the
-  // first render, not via a setState call inside the effect below.
-  const [marketPulse, setMarketPulse] = useState<MarketPulseResponse | null>(
-    () => readHourCache(hourCacheKey(CACHE_PREFIX)),
-  );
-  const [marketLoaded, setMarketLoaded] = useState(() => readHourCache(hourCacheKey(CACHE_PREFIX)) !== null);
+  // Must start identical on server and client -- a lazy initializer reading
+  // localStorage here disagrees with the server's render (no localStorage,
+  // always empty/not-loaded), which is a real hydration mismatch, not just a
+  // missed optimization. The cache read moves into the effect below instead,
+  // which only ever runs client-side, after hydration.
+  const [marketPulse, setMarketPulse] = useState<MarketPulseResponse | null>(null);
+  const [marketLoaded, setMarketLoaded] = useState(false);
   const [marketRefreshing, setMarketRefreshing] = useState(false);
 
   useEffect(() => {
@@ -32,7 +33,12 @@ export function usePlanTriggerData() {
   }, []);
 
   useEffect(() => {
-    if (readHourCache(hourCacheKey(CACHE_PREFIX)) !== null) return;
+    const cached = readHourCache<MarketPulseResponse>(hourCacheKey(CACHE_PREFIX));
+    if (cached !== null) {
+      setMarketPulse(cached);
+      setMarketLoaded(true);
+      return;
+    }
     let cancelled = false;
     getMarketPulse()
       .then((pulse) => {
@@ -40,7 +46,10 @@ export function usePlanTriggerData() {
         setMarketPulse(pulse);
         writeHourCache(CACHE_PREFIX, hourCacheKey(CACHE_PREFIX), pulse);
       })
-      .catch(() => { if (!cancelled) setMarketPulse(null); })
+      .catch((err) => {
+        console.error("usePlanTriggerData: failed to load /market/pulse", err);
+        if (!cancelled) setMarketPulse(null);
+      })
       .finally(() => { if (!cancelled) setMarketLoaded(true); });
     return () => { cancelled = true; };
   }, []);

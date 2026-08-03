@@ -1,6 +1,6 @@
 # CortexKitchen Implementation Plan
 
-Phases 0 through 5 complete. Phase 6A in progress. Task-level status lives in the project's Excel progress tracker and in `CLAUDE.md`; this document tracks phase-level delivery.
+Phases 0 through 5 complete. Phase 6A in progress, including Guest Concierge. Task-level status lives in the project's Excel progress tracker and in `CLAUDE.md`; this document tracks phase-level delivery.
 
 ---
 
@@ -59,23 +59,23 @@ Phases 0 through 5 complete. Phase 6A in progress. Task-level status lives in th
 ### Post Phase 5: Architectural improvements
 
 - Per-node model tier routing: `COMET_TIERED` activates `llm_registry` in state; critic gets strong tier, domain nodes get fast/balanced
-- Cross-agent assumption diffing: each domain node writes assumptions dict to state; `EvaluationSanityChecker` cross-diffs post fan-out; `stale_assumptions` in critic prompt and response (D-017)
+- Cross-agent assumption diffing: each domain node writes assumptions dict to state; `EvaluationSanityChecker` cross-diffs post fan-out; `stale_assumptions` in critic prompt and response
 
 ---
 
 ## Current state
 
-Phases 0 through 5 are complete. Phase 6A (Swiggy MCP integration, live intelligence signals, and a real-product frontend information architecture) is in progress.
+Phases 0 through 5 are complete. Phase 6A (Swiggy MCP integration, live intelligence signals, a real-product frontend information architecture, and Guest Concierge) is in progress.
 
 Outstanding known gaps:
-- `executor/` (Instamart checkout, Dineout table booking) is implemented but blocked on Swiggy staging credentials
+- `executor/` (Instamart checkout, Dineout table booking) is implemented but blocked on Swiggy staging credentials, for both restaurant-side procurement and Guest Concierge
 - `packages/core` is empty: shared types between frontend and backend are not yet extracted
 - RAGAS and DeepEval currently evaluate against static hand-written fixtures; candidate-refresh scripts exist but their output has not yet been promoted into the golden fixtures
-- Guest Concierge (Phase 6B) has not started, gated on written Swiggy consent
+- Voice output (TTS) is not built; voice input (Whisper transcription) is live everywhere it's wired in
 
 ---
 
-## Phase 6A: Swiggy MCP integration, live signals, and IA redesign
+## Phase 6A: Swiggy MCP integration, live signals, IA redesign, and Guest Concierge
 
 ### Delivered
 
@@ -97,6 +97,7 @@ Outstanding known gaps:
 - `TrendsService`: curated Indian food and beverage industry RSS digest
 - `ComplianceAlertsService`: FSSAI public regulatory notices
 - A `live_signals` graph node fetching all three once per run, unified with Swiggy area signals inside `market_intel`
+- Market Intelligence page: weather/trends/compliance cards always render, showing an honest "unavailable" state rather than vanishing when a signal fails; real `console.error` logging on every fetch/refresh failure
 
 **Scenario intake:**
 - `ScenarioProfileService`: free-text scenario description to a full scenario profile via an LLM call, with a deterministic fallback
@@ -104,24 +105,36 @@ Outstanding known gaps:
 - `ScenarioRecommender`: suggests a preset from run history, market signals, and calendar context
 
 **Action Queue and financial scorecard:**
-- `ActionQueueService`, `ActionExecutionService`, `TrustLadderService`, `VendorService`, backing an approve/reject flow with a trust-ladder autonomy mechanic
+- `ActionQueueService`, `ActionExecutionService`, `TrustLadderService`, `VendorService`, backing an approve/reject flow with an informational trust-ladder badge; `TrustLadderService` deliberately never auto-promotes a category to skip approval, by design
 - Per-org expense ledger with cost proration, real net profit and net margin, and a composite health score
 
 **Observability:**
 - `PlanningMemoryService` (Qdrant long-term memory with recency decay), `SemanticPlanCache`, `SemanticChatCache`
-- Graph expanded to fourteen nodes total: `live_signals`, `qdrant_enrichment`, `market_intel`, `dineout_manager`, `replan_orchestrator` added since the original nine-node graph
+- Graph expanded to fifteen nodes total: `live_signals`, `qdrant_enrichment`, `market_intel`, `dineout_manager`, `replan_orchestrator`, `situation_summary` added since the original nine-node graph
 - Langfuse tracing on every planning run (per-node spans, per-generation LLM traces) and a Kindred replay endpoint for single-generation prompt replay debugging
 
 **Frontend:**
 - Information architecture redesign: `/dashboard` (daily overview) and `/planning` (flagship trigger-and-watch experience) split into separate pages
 - `/action-center`, `/analytics`, and a merged `/data` page (replacing separate `/runs` and `/data-health` pages, with backward-compatible redirect stubs)
 - Market intelligence panel, connector status page, restaurant profiles, and settings pages
+- Homepage redesigned around the two-sided platform (dual entry: restaurant sign-in, guest sign-in); `/login`/`/register` redesigned on a shared split-screen layout
+- Voice input (Whisper transcription via Groq) added to the Dashboard ask-bar, Planning modal, operator chat page, and floating widget
+- Fixed a class of SSR hydration mismatches: four components/hooks (`SwiggyLiveMarketPanel`, `TodayIdleState`, `usePlanTriggerData`, `useScenarioRecommendation`) read `localStorage` inside a `useState` lazy initializer, which disagreed with the server's render and forced React to discard and regenerate the tree on every load; the cache read now happens inside the existing effect instead
+
+**Guest Concierge (originally scoped as a separate Phase 6B):**
+- `ConciergeService`: Groq function-calling ReAct loop over 20 tools across Swiggy Food, Instamart, and Dineout MCP servers, Redis-backed session state (2-hour TTL), no restaurant-operator data or auth
+- No-auth `/concierge` API routes (chat, session, transcribe, health) and a consumer-facing `/concierge` frontend page; operator chrome (Sidebar/TopBar/FloatingChatWidget) never leaks onto it, even for a logged-in operator previewing the flow
+- Real venue, slot, product, and order cards rendered from structured tool results, not narrated as prose; a friendly "doing X..." status indicator while a tool call is in flight
+- Locality-aware Dineout venue search (Swiggy's own geocoding via `entityType="locality"`), replacing a fixed default location
+- Proactive Instamart supply suggestions for birthday/party occasions
+- Local (no-account) previous-plans history, voice input, light/dark theme toggle, logout affordance for an operator previewing the flow
+- Staging-gated actions (table booking, Instamart checkout) shown honestly as "pending", never hidden or faked
+- Hard rule enforced end to end: no raw exception, log, or internal tool name ever reaches a guest; every failure degrades to a fixed, friendly message
 
 ### Upcoming
 
 - Autonomous procurement loop wired fully end-to-end: weather or demand signal to ingredient shortage to real Instamart price check to Action Queue approval to real checkout or WhatsApp fallback, currently blocked on Swiggy staging credentials for the checkout step
+- Guest Concierge table booking and Instamart checkout execution, blocked on the same staging credentials
 - Instamart event supplies exposed as a capability in the operator chat assistant
-- Voice interface: Whisper transcription and TTS response
+- Voice output (TTS response), for both the operator chat and Guest Concierge
 - Promotion of RAGAS and DeepEval candidate datasets into the golden eval fixtures
-
-Phase 6B (Guest Concierge) is scoped but not started, gated on written Swiggy consent under Integration Agreement clause 2.1(v).

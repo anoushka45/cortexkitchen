@@ -18,6 +18,7 @@ Phase 6A in progress.
 - Workspace settings: capacity, cuisine, peak hours, planning thresholds
 - Restaurant profiles: named profiles for per-run capacity and peak-hour overrides
 - Multi-tenant isolation: all views scoped to the authenticated organization
+- Guest Concierge (`/concierge`): a separate, no-auth consumer chat experience with venue, food, and event-supplies cards, voice input, and session history, sharing no data with the authenticated app above
 
 ## Start the app
 

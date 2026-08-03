@@ -27,25 +27,39 @@ const CACHE_PREFIX = "ck:live-scenario-composition:";
 // enabled=false skips the fetch entirely, for any consumer that doesn't
 // render the quick-run banner this backs.
 export function useScenarioRecommendation(enabled: boolean = true) {
-  // Lazy initializers -- a cache hit hydrates state synchronously during the
-  // first render, not via a setState call inside the effect below (which
-  // would trigger an avoidable extra render).
-  const [composition, setComposition] = useState<LiveScenarioComposition | null>(
-    () => (enabled ? readHourCache(hourCacheKey(CACHE_PREFIX)) : null),
-  );
-  const [loaded, setLoaded] = useState(() => enabled && readHourCache(hourCacheKey(CACHE_PREFIX)) !== null);
+  // Must start identical on server and client -- a lazy initializer reading
+  // localStorage here disagrees with the server's render (no localStorage,
+  // always empty/not-loaded), which is a real hydration mismatch, not just an
+  // avoidable extra render. The cache read moves into the effect below
+  // instead, which only ever runs client-side, after hydration.
+  const [composition, setComposition] = useState<LiveScenarioComposition | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (!enabled || readHourCache(hourCacheKey(CACHE_PREFIX)) !== null) return;
-    let cancelled = false;
+    if (!enabled) return;
 
+    const cached = readHourCache<LiveScenarioComposition>(hourCacheKey(CACHE_PREFIX));
+    if (cached !== null) {
+      // Reading an external store (localStorage) into state, not deriving
+      // state from a prop -- the pattern this lint rule targets doesn't
+      // apply, and this can't move to render since it must stay SSR-safe.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setComposition(cached);
+      setLoaded(true);
+      return;
+    }
+
+    let cancelled = false;
     composeLiveScenario(todayISO())
       .then((comp) => {
         if (cancelled) return;
         setComposition(comp);
         writeHourCache(CACHE_PREFIX, hourCacheKey(CACHE_PREFIX), comp);
       })
-      .catch(() => { if (!cancelled) setComposition(null); })
+      .catch((err) => {
+        console.error("useScenarioRecommendation: failed to compose live scenario", err);
+        if (!cancelled) setComposition(null);
+      })
       .finally(() => { if (!cancelled) setLoaded(true); });
 
     return () => { cancelled = true; };

@@ -42,6 +42,11 @@ export default function Sidebar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [adminActive]);
 
+  // /concierge is a separate, no-auth consumer experience -- operator chrome
+  // must never show there, even if this browser also has an operator session
+  // logged in (e.g. a restaurant owner previewing the guest flow).
+  if (pathname.startsWith("/concierge")) return null;
+
   // AuthContext always starts a fresh page load with user=null, even when a
   // valid session cookie exists -- it only populates `user` after an async
   // /auth/me round-trip. Returning null for that whole window (previously

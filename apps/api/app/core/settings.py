@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     swiggy_access_token: str = Field(default="", alias="SWIGGY_ACCESS_TOKEN")
     swiggy_address_id: str = Field(default="", alias="SWIGGY_ADDRESS_ID")
     swiggy_dineout_restaurant_id: str = Field(default="", alias="SWIGGY_DINEOUT_RESTAURANT_ID")
+    # Empty until Swiggy staging creds land -- gates book_table/checkout execution
+    # (mcp-staging.swiggy.com/{server}, same shape as prod, seeded data, no real orders).
+    swiggy_staging_base_url: str = Field(default="", alias="SWIGGY_STAGING_BASE_URL")
 
     # Twilio WhatsApp Sandbox (demo procurement-messaging flow, P6-A9)
     twilio_account_sid: str = Field(default="", alias="TWILIO_ACCOUNT_SID")

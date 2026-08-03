@@ -67,6 +67,11 @@ export default function TopBar() {
     router.push("/data");
   }
 
+  // /concierge is a separate, no-auth consumer experience -- operator chrome
+  // must never show there, even if this browser also has an operator session
+  // logged in (e.g. a restaurant owner previewing the guest flow).
+  if (pathname.startsWith("/concierge")) return null;
+
   // Same reasoning as Sidebar.tsx: AuthContext starts every fresh page load
   // with user=null even when a valid session exists, only resolving after an
   // async /auth/me call -- a same-shaped skeleton avoids a full topbar

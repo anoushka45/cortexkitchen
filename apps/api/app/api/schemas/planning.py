@@ -25,6 +25,37 @@ PlanningScenarioId = Literal[
 ]
 
 
+# ── Ad-hoc scenario profiles (P6-A25) ────────────────────────────────────────
+# Natural-language intake alongside the 4 presets above -- presets stay
+# literal-constrained by design (one-click shortcuts), this is the parallel
+# free-form path. See ScenarioProfileService for how these get derived.
+
+class ScenarioProfilePayload(BaseModel):
+    """Ad-hoc scenario profile derived from natural language, carried alongside
+    a non-preset `scenario` id on PlanningRunRequest. Always fully populated
+    (ScenarioProfileService guarantees this) so downstream direct dict-key
+    access in complaint/inventory/reservation services never KeyErrors."""
+
+    id: str = "custom"
+    label: str
+    description: str = ""
+    service_window: str
+    operational_focus: str
+    cuisine: Optional[str] = None
+
+
+class ScenarioProfileRequest(BaseModel):
+    text: str = Field(
+        ...,
+        min_length=3,
+        max_length=500,
+        description="Free-form description of tonight's service, e.g. 'we're hosting an event today, expecting large turnover'.",
+    )
+
+
+class ScenarioProfileResponse(BaseModel):
+    profile: ScenarioProfilePayload
+
 
 # ── Request ───────────────────────────────────────────────────────────────────
 
@@ -81,9 +112,20 @@ class FridayRushRequest(BaseModel):
 
 
 class PlanningRunRequest(FridayRushRequest):
-    scenario: PlanningScenarioId = Field(
+    scenario: str = Field(
         default="friday_rush",
-        description="Scenario preset to run through the shared planning workflow.",
+        description=(
+            "Scenario preset id (friday_rush/weekday_lunch/holiday_spike/low_stock_weekend), "
+            "or a custom id (e.g. 'custom') when custom_profile is supplied (P6-A25)."
+        ),
+    )
+    custom_profile: Optional[ScenarioProfilePayload] = Field(
+        default=None,
+        description=(
+            "Ad-hoc natural-language-derived scenario profile (P6-A25, see "
+            "POST /planning/scenario-from-text). Required when scenario is not "
+            "one of the 4 presets -- the 4 presets ignore this field."
+        ),
     )
     restaurant_id: Optional[int] = Field(
         default=None,
@@ -200,6 +242,16 @@ class FridayRushResponse(BaseModel):
         default=None,
         description="True if this response was served from cache; False if freshly computed; None for legacy/compat responses",
     )
+    # Swiggy market intelligence outputs (P6-S11/S12)
+    market_intel: Optional[Dict[str, Any]] = None
+    swiggy_competitor_context: Optional[Dict[str, Any]] = None
+    swiggy_occupancy_context: Optional[Dict[str, Any]] = None
+    swiggy_procurement_options: Optional[Dict[str, Any]] = None
+    dineout_manager: Optional[Dict[str, Any]] = None
+    situation_summary: Optional[str] = Field(
+        default=None,
+        description="Natural-language 'situation + tailored key takeaways' briefing, generated once post-critic-approval. None when the LLM call failed open.",
+    )
 
 
 # ── What-if simulator ─────────────────────────────────────────────────────────
@@ -229,3 +281,25 @@ class WhatIfResponse(BaseModel):
     pressure_components: Dict[str, float]
     tradeoff_notes: list[str]
     recommended_focus: list[str]
+
+
+# ── Scenario recommendation (P6-MI10) ────────────────────────────────────────
+
+class ScenarioRecommendationResponse(BaseModel):
+    recommended_scenario: PlanningScenarioId
+    reason: str
+    confidence: Literal["high", "medium", "low"]
+    signals_used: list[str] = Field(default_factory=list)
+
+
+# ── Live scenario composition -- the "Run for today" instant path ───────────
+# Not constrained to the 4 presets (see ScenarioRecommendationResponse above)
+# -- composes a fresh profile from real signals instead of picking one of a
+# fixed set, so it can never produce a mismatched label like recommending
+# "low_stock_weekend" on a Wednesday.
+
+class LiveScenarioCompositionResponse(BaseModel):
+    profile: ScenarioProfilePayload
+    reason: str
+    confidence: Literal["high", "medium", "low"]
+    signals_used: list[str] = Field(default_factory=list)

@@ -39,11 +39,35 @@ class Settings(BaseSettings):
     # Sentry error tracking (leave blank to disable)
     sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
 
+    # Swiggy MCP (dev convenience — production uses connectors table per org)
+    swiggy_access_token: str = Field(default="", alias="SWIGGY_ACCESS_TOKEN")
+    swiggy_address_id: str = Field(default="", alias="SWIGGY_ADDRESS_ID")
+    swiggy_dineout_restaurant_id: str = Field(default="", alias="SWIGGY_DINEOUT_RESTAURANT_ID")
+    # Empty until Swiggy staging creds land -- gates book_table/checkout execution
+    # (mcp-staging.swiggy.com/{server}, same shape as prod, seeded data, no real orders).
+    swiggy_staging_base_url: str = Field(default="", alias="SWIGGY_STAGING_BASE_URL")
+
+    # Twilio WhatsApp Sandbox (demo procurement-messaging flow, P6-A9)
+    twilio_account_sid: str = Field(default="", alias="TWILIO_ACCOUNT_SID")
+    twilio_auth_token: str = Field(default="", alias="TWILIO_AUTH_TOKEN")
+    twilio_whatsapp_from: str = Field(default="", alias="TWILIO_WHATSAPP_FROM")
+    twilio_whatsapp_to: str = Field(default="", alias="TWILIO_WHATSAPP_TO")
+
     # LangSmith tracing
     langsmith_tracing: str = Field(default="false", alias="LANGSMITH_TRACING")
     langsmith_api_key: str = Field(default="", alias="LANGSMITH_API_KEY")
     langsmith_project: str = Field(default="CortexKitchen", alias="LANGSMITH_PROJECT")
     langsmith_endpoint: str = Field(default="https://api.smith.langchain.com", alias="LANGSMITH_ENDPOINT")
+
+    # Langfuse tracing (P6-A27, Kindred replay debugging)
+    langfuse_public_key: str = Field(default="", alias="LANGFUSE_PUBLIC_KEY")
+    langfuse_secret_key: str = Field(default="", alias="LANGFUSE_SECRET_KEY")
+    # Langfuse's own quickstart snippet uses LANGFUSE_BASE_URL; Kindred's setup
+    # prompt asks for LANGFUSE_HOST. The SDK checks both — support either name.
+    langfuse_host: str = Field(default="", alias="LANGFUSE_HOST")
+    langfuse_base_url: str = Field(default="", alias="LANGFUSE_BASE_URL")
+    kindred_agent_id: str = Field(default="", alias="KINDRED_AGENT_ID")
+    kindred_api_key: str = Field(default="", alias="KINDRED_API_KEY")
 
     # model_config defines global behavior for this Settings class
     model_config = SettingsConfigDict(

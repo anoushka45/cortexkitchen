@@ -3,6 +3,7 @@ from sqlalchemy import func
 from datetime import datetime, timedelta
 
 from app.domain.scenarios import ScenarioDefinition
+from app.domain.services.business_analytics_service import BusinessAnalyticsService
 from app.infrastructure.db.models import Feedback, SentimentType
 from app.infrastructure.llm.base import BaseLLMProvider
 from app.infrastructure.llm.prompt_utils import PromptUtils
@@ -47,6 +48,11 @@ class ComplaintService:
         unique_complaints = list(set(feedback["negative_texts"]))
         unique_positives  = list(set(feedback["positive_texts"]))
 
+        # Category breakdown -- the LLM previously had to infer themes itself from raw
+        # complaint text every time. This hands it the same quantified counts
+        # ("Wait Time: 10 of 28 days") the Today dashboard already computes and shows.
+        category_breakdown = BusinessAnalyticsService(self.db).get_complaints_by_category(days=days)
+
         return {
             "period_days": days,
             "total_feedback": feedback["total_feedback"],
@@ -58,6 +64,7 @@ class ComplaintService:
             },
             "unique_complaints": unique_complaints,
             "unique_positives": unique_positives,
+            "category_breakdown": category_breakdown,
         }
 
     async def analyse_and_recommend(
@@ -68,8 +75,8 @@ class ComplaintService:
         rag_context: dict | None = None,
     ) -> dict:
         """Analyse complaints and generate recommendation, grounded in RAG context when provided."""
-
-        summary = self.get_complaint_summary(days)
+        import asyncio
+        summary = await asyncio.to_thread(self.get_complaint_summary, days)
         scenario_label = scenario_profile["label"] if scenario_profile else "Friday Rush"
         service_window = scenario_profile["service_window"] if scenario_profile else "18:00-22:00"
         operational_focus = (
@@ -134,11 +141,15 @@ class ComplaintService:
                 "Stockout disappointment and inconsistent substitutions are the main guest risk.",
                 "Front-of-house communication needs to stay ahead of unavailable items.",
             ],
-        }
-        return watchouts.get(
-            scenario_id,
-            [
+            "friday_rush": [
                 "Wait times, pizza temperature, and table turns remain the main Friday rush risks.",
                 "Peak-hour guest communication should stay tight when the kitchen is under pressure.",
             ],
-        )
+        }
+        # Any ad-hoc/custom or live-composed scenario (id not one of the 4 named
+        # presets above) has no hardcoded watchout list of its own -- returning
+        # Friday Rush's text here (the old behaviour) silently mislabeled every
+        # single custom-profile run as a Friday rush, regardless of what was
+        # actually asked for. Empty is honest; the real specifics for these
+        # scenarios already live in operational_focus, injected separately above.
+        return watchouts.get(scenario_id, [])

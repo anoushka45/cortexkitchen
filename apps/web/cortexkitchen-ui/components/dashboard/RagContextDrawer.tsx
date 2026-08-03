@@ -21,23 +21,23 @@ export default function RagContextDrawer({ ragContext }: Props) {
     <div className="card rounded-2xl overflow-hidden stagger-7">
       <button
         onClick={() => setOpen((value) => !value)}
-        className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-white/5 transition-colors"
+        className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-[var(--color-surface-raised)] transition-colors"
       >
         <div className="flex items-center gap-3">
           <span className="text-xl">🔍</span>
           <div>
-            <p className="text-sm font-semibold text-slate-200">Evidence Drawer</p>
-            <p className="text-xs text-slate-500">
+            <p className="text-sm font-semibold text-[var(--color-text-primary)]">Evidence Drawer</p>
+            <p className="text-xs text-[var(--color-text-faint)]">
               {complaints.length} complaint{complaints.length !== 1 ? "s" : ""} retrieved
               {sops.length > 0 && `  -  ${sops.length} SOP${sops.length !== 1 ? "s" : ""}`}
             </p>
           </div>
         </div>
-        <span className="text-slate-500 text-lg">{open ? "▲" : "▼"}</span>
+        <span className="text-[var(--color-text-faint)] text-lg">{open ? "▲" : "▼"}</span>
       </button>
 
       {open && (
-        <div className="px-6 pb-6 space-y-5 border-t border-white/5">
+        <div className="px-6 pb-6 space-y-5 border-t border-[var(--color-border-soft)]">
           {complaints.length > 0 && (
             <Section title="Past Complaints" items={complaints} accent="rose" />
           )}
@@ -65,7 +65,7 @@ function Section({
 
   return (
     <div className="pt-4 first:pt-0">
-      <p className="text-xs font-mono uppercase tracking-widest text-slate-500 mb-3">
+      <p className="text-xs uppercase tracking-widest text-[var(--color-text-faint)] mb-3">
         {title}
       </p>
       <ul className="space-y-2">

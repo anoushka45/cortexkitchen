@@ -8,6 +8,13 @@ Responsibilities:
 - (Future) decide which agents should run based on scenario config
 
 This node runs first in every graph execution.
+
+P6-A25: the 4 presets in SUPPORTED_SCENARIOS remain the fast path (unchanged
+behavior), but a scenario id outside that set is no longer an automatic
+reject -- if state["custom_profile"] is present (an ad-hoc profile derived
+from natural language via ScenarioProfileService), scenario_profile is built
+from that instead of get_scenario_definition(). Only an unrecognized
+scenario with no custom_profile is still a hard error.
 """
 
 from app.orchestration.state import OrchestratorState
@@ -23,14 +30,25 @@ def ops_manager_node(state: OrchestratorState) -> OrchestratorState:
     Does not call the LLM directly; it coordinates other agents.
     """
     scenario = state.get("scenario", "")
+    custom_profile = state.get("custom_profile")
 
-    if scenario not in SUPPORTED_SCENARIOS:
+    if scenario in SUPPORTED_SCENARIOS:
+        scenario_profile = dict(get_scenario_definition(scenario))
+    elif custom_profile:
+        # ScenarioProfileService always fills label/service_window/
+        # operational_focus, so this is safe for the direct dict-key access
+        # complaint_service/inventory_service/reservation_service do once
+        # scenario_profile is truthy -- no .get() needed on their end.
+        scenario_profile = dict(custom_profile)
+        scenario_profile.setdefault("id", scenario or "custom")
+    else:
         return {
             **state,
-            "error": f"Unknown scenario '{scenario}'. Supported: {SUPPORTED_SCENARIOS}",
+            "error": (
+                f"Unknown scenario '{scenario}'. Supported: {SUPPORTED_SCENARIOS}, "
+                "or provide a custom_profile."
+            ),
         }
-
-    scenario_profile = dict(get_scenario_definition(scenario))
 
     # Stamp restaurant profile context into scenario_profile so all downstream
     # nodes can read cuisine/name without needing a separate state key lookup.

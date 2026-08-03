@@ -19,7 +19,9 @@ class GeminiProvider(BaseLLMProvider):
         self.provider_name = "gemini"
         self.model = "gemini-2.5-flash"
 
-    async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+    async def complete(
+        self, prompt: str, system_prompt: str | None = None, temperature: float | None = None,
+    ) -> str:
         """Send a prompt to Gemini and return text response."""
         contents = []
 
@@ -38,9 +40,12 @@ class GeminiProvider(BaseLLMProvider):
                 )
             )
 
+        config = types.GenerateContentConfig(temperature=temperature) if temperature is not None else None
+
         response = self.client.models.generate_content(
             model=self.model,
             contents=contents,
+            config=config,
         )
 
         usage = response.usage_metadata
@@ -50,15 +55,24 @@ class GeminiProvider(BaseLLMProvider):
                 prompt_tokens=usage.prompt_token_count or 0,
                 completion_tokens=usage.candidates_token_count or 0,
             )
+            self._trace_generation(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                output_text=response.text,
+                prompt_tokens=usage.prompt_token_count or 0,
+                completion_tokens=usage.candidates_token_count or 0,
+            )
 
         return response.text
 
-    async def complete_json(self, prompt: str, system_prompt: str | None = None) -> dict:
+    async def complete_json(
+        self, prompt: str, system_prompt: str | None = None, temperature: float | None = None,
+    ) -> dict:
         """Send a prompt to Gemini and return parsed JSON response."""
         json_system = "You must respond with valid JSON only. No explanation, no markdown, no backticks."
         combined_system = f"{json_system}\n{system_prompt}" if system_prompt else json_system
 
-        raw = await self.complete(prompt, system_prompt=combined_system)
+        raw = await self.complete(prompt, system_prompt=combined_system, temperature=temperature)
 
         # Strip markdown code fences if present
         clean = raw.strip()

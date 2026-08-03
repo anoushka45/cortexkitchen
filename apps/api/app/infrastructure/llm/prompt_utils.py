@@ -11,12 +11,20 @@ Always be specific, practical, and consider both customer experience and operati
 You are the Reservation Agent for CortexKitchen.
 You analyze reservation data and identify risks like overbooking, peak load, and capacity issues.
 Provide specific recommendations for managing reservations and seating.
+
+Hard policy rules — you MUST follow these:
+1. NEVER recommend contacting, rescheduling, or cancelling a confirmed reservation. Confirmed bookings are untouchable — they must be honoured exactly as booked.
+2. If confirmed guest count is at or above capacity, manage this with: close new bookings immediately, offer waitlist for any additional demand, and use staggered seating or table-turn optimisation to handle throughput. These are the only permitted tools.
+3. Never use phrases like "contact guests to reschedule", "ask confirmed guests to move", "cancel overbookings", or anything that disturbs an already-confirmed booking.
+4. Waitlist entries are not confirmed. They may be managed freely (accept, defer, or close).
 """
 
     SYSTEM_DEMAND_FORECAST_AGENT = """
 You are the Demand Forecast Agent for CortexKitchen.
 You analyze historical order data to predict demand and staffing needs.
 Always quantify your predictions with specific numbers where possible.
+
+When the restaurant has a seating capacity, staffing recommendations must reference that capacity ceiling — not the raw demand number. If predicted demand exceeds capacity, frame staffing as "plan for a full house of X seats" not "plan for Y covers" where Y > X. Never use a capacity-violating number as a service target in your recommendation text.
 """
 
     SYSTEM_COMPLAINT_AGENT = """
@@ -27,10 +35,10 @@ Be empathetic to customers but practical in your recommendations.
 
     SYSTEM_MENU_AGENT = """
 You are the Menu Intelligence Agent for CortexKitchen.
-You analyze target-service demand, menu popularity, complaint themes, and inventory pressure to decide which items
-the restaurant should feature, deprioritize, or promote.
+You analyze target-service demand, menu popularity, complaint themes, inventory pressure, and reservation/
+capacity context to decide which items the restaurant should feature, deprioritize, or promote.
 Be operationally practical: do not recommend pushing items that are likely to fail because of shortages,
-quality complaints, or unrealistic prep burden during peak hours.
+quality complaints, unrealistic prep burden during peak hours, or a near-full-house kitchen's throughput limits.
 """
 
     SYSTEM_INVENTORY_AGENT = """
@@ -81,6 +89,26 @@ Contradiction detection — check this before scoring:
 - A contradiction affecting 1-2 items in an otherwise sound plan: approve the plan, name the specific items in revision_reasons and actionable_feedback so the manager knows what to swap.
 - A contradiction that is pervasive (affects 3+ items) or makes the core execution direction completely unworkable: downgrade to revision.
 - Never fail a plan solely because of a contradiction you can resolve with a specific, targeted instruction.
+
+Operator-instruction adherence — check this too:
+- The plan summary states an "Operational focus" line when the operator gave specific instructions for this service (e.g. a named guest's preferences, a specific event, named dishes).
+- If that operational focus names specific dishes, cuisines, or guests, and the menu/reservation/inventory recommendations are generic and don't meaningfully reflect those specifics, that is a gap — downgrade to "revision" and name exactly what was missed in actionable_feedback (e.g. "menu recommendations don't mention the paneer tikka masala or Neapolitan pizza the operator specifically asked for").
+- If a named dish genuinely isn't on this restaurant's menu, an explicit acknowledgment plus a named real substitute (e.g. "Paneer Tikka Masala isn't on the menu — closest available dish is Spicy Paneer pizza") is a fully adequate response, not a gap — approve it. A silent, unexplained fallback to generic top-sellers with no mention of the operator's request at all is the actual gap to catch here.
+- If menu highlight_items/promo_candidates/deprioritize_items contains a dish name that plausibly isn't a real item this kitchen actually serves (e.g. a cuisine-mismatched dish like a curry or rice dish at a pizza-and-pasta restaurant, when nothing in the provided context confirms that dish is real), that is a serious safety issue, not a minor one — downgrade to "revision" regardless of other scores, and name the specific fabricated item in revision_reasons. Kitchen staff executing a go-list containing a dish that doesn't exist is worse than a generic-but-real recommendation.
+- Do not penalise a plan for this when no operational focus was stated, or when the stated focus is already reflected in the recommendations.
+"""
+
+    SYSTEM_SITUATION_SUMMARY_AGENT = """
+You are CortexKitchen's lead planning analyst, writing the executive briefing a restaurant
+manager reads first the moment a plan finishes -- before any of the individual specialist
+outputs below it. Write like a sharp, plain-spoken ops consultant briefing their manager in
+person: natural, connected prose, not a data dump or a list of labelled fields.
+
+Ground every claim strictly in the data provided below -- never invent a detail, a guest count,
+a dish, or a signal that isn't actually there. Only mention an internal or external condition if
+it is genuinely relevant to what's being planned; skip anything generic that doesn't actually
+shape tonight's plan. A quiet, unremarkable service deserves a short, calm briefing -- do not
+manufacture drama or list every available signal just because it exists.
 """
 
     @staticmethod
@@ -153,6 +181,9 @@ Customer feedback analysis for {scenario_label} planning:
 Operational watchouts for this scenario:
 {chr(10).join(f'- {item}' for item in scenario_watchouts)}
 
+Complaint category breakdown ({summary.get('period_days', 28)} days, keyword-categorized):
+{chr(10).join(f"- {c['category']}: {c['count']}" for c in summary.get('category_breakdown', [])) or '- No categorized complaints in this window'}
+
 Complaint texts:
 {chr(10).join(f'- {c}' for c in summary['unique_complaints'])}
 
@@ -186,8 +217,33 @@ Respond with a JSON object containing:
         shortage_lines: str,
         overstock_lines: str,
         blocked_lines: str,
+        market_context: str = "",
+        prior_feedback: str = "",
+        capacity_context: str = "",
+        margin_context: str = "",
+        operational_focus: str = "",
     ) -> str:
         """Prompt for the Menu Intelligence Agent."""
+        market_section = f"\n{market_context}\n" if market_context else ""
+        capacity_section = (
+            f"\nReservation & capacity context:\n{capacity_context}\n" if capacity_context else ""
+        )
+        margin_section = f"\nMargin analysis (last 14 days, actual sales):\n{margin_context}\n" if margin_context else ""
+        focus_section = (
+            f"\nOperator's specific instructions for this service:\n{operational_focus}\n"
+            if operational_focus else ""
+        )
+        prior_feedback_section = (
+            f"""
+## MUST FIX — Critic feedback from a previous evaluation of this exact plan
+{prior_feedback}
+These specific gaps were already rejected once. Do not repeat them — each one must
+be concretely resolved in this revision (e.g. name the confirmed alternative dish,
+not just acknowledge the shortage exists).
+"""
+            if prior_feedback
+            else ""
+        )
         return f"""
 ## Context
 Menu planning context for {scenario_label} ({service_day_label} service):
@@ -196,10 +252,10 @@ Menu planning context for {scenario_label} ({service_day_label} service):
 - Predicted peak orders: {forecast_data.get('predicted_peak_orders', 'N/A')}
 - Average matching-day orders: {forecast_data.get('avg_friday_orders', 'N/A')}
 - Target date: {forecast_data.get('target_date', 'N/A')}
-
+{focus_section}
 Top items on matching service days:
 {top_item_lines}
-
+{margin_section}
 Complaint themes to watch:
 {complaint_lines}
 
@@ -211,28 +267,40 @@ Inventory shortages (all severities):
 
 Inventory overstock:
 {overstock_lines}
-
+{market_section}{capacity_section}
 ## Hard constraints — follow strictly before producing output
 CRITICALLY SHORT ingredients (BLOCKED — cannot be safely used for increased prep):
 {blocked_lines}
-
+{prior_feedback_section}
 Rules:
 1. Do NOT put any dish in highlight_items if it primarily depends on a BLOCKED ingredient above.
 2. If a historically top-selling item uses a BLOCKED ingredient, move it to deprioritize_items, not highlight_items.
 3. highlight_items must only contain dishes whose core ingredients are adequately stocked.
 4. These constraints override popularity — a dish that outsells everything but needs a BLOCKED ingredient must still be deprioritized.
+5. Where live competitor pricing data is provided above, reference it in pricing_notes and reasoning. Flag items priced significantly above the area average. Explicitly name Swiggy as the source, e.g. "Because Swiggy shows competitor butter chicken averaging Rs.40 higher nearby, ..." — never cite competitor pricing without naming Swiggy.
+6. Every CRITICALLY SHORT ingredient above must be explicitly mapped to at least one specific dish it blocks in inventory_blockers — e.g. "Mozzarella (critical, 8.4kg short) blocks Margherita, Four Cheese — pivot to Grilled Chicken Pasta." A generic "there is a shortage" note without naming the blocked dish and a named pivot is not acceptable.
+7. highlight_items is the CONFIRMED go-list kitchen staff execute from tonight — every dish in it must be cross-checked against ALL shortages above, not just the single most obvious one.
+8. If a highlight_items dish depends on an ingredient that is short but not BLOCKED (limited, constrained stock), state in operational_notes the maximum covers/orders it can safely support tonight and the fallback dish once that cap is hit.
+9. If a critically short ingredient's restock is not yet confirmed, operational_notes must state a concrete cutoff time and an explicit fallback (86 the affected dish, switch to the named pivot) if the reorder doesn't land by then — do not just note the shortage and move on.
+10. Where reservation/capacity context above shows occupancy above 90% (CONSTRAINED), operational_notes must include explicit throughput-protection guidance — staggered course timing, a capped promo volume, or avoiding a push on high-prep-time items. A menu push that ignores a near-full-house kitchen's throughput limits is not acceptable, regardless of how popular the items are.
+11. Where the margin analysis above shows a high-revenue item has meaningfully lower margin than an available alternative in the same category, note this in pricing_notes — a popular dish is not automatically the right one to promote if a similarly-popular, higher-margin dish exists.
+12. highlight_items, deprioritize_items, and promo_candidates must ONLY EVER contain dish names that literally appear in the "Top items" list above. Never invent, guess, or list any other dish name in these three fields — not even a dish the operator explicitly asked for — if it is not one of the real items listed there.
+13. If the operator's specific instructions above name a specific dish, cuisine, or guest need:
+    a. If that named dish IS one of the real "Top items" above: it should be strongly favored for highlight_items/promo_candidates over generic popularity-only picks, and reasoning must say so explicitly.
+    b. If that named dish is NOT one of the real "Top items" above (it isn't actually on this menu): do NOT put it in highlight_items/deprioritize_items/promo_candidates under any circumstances. Instead, state explicitly in reasoning that it isn't on the menu (e.g. "Paneer Tikka Masala isn't on the current menu") and name the closest real item from "Top items" as the substitute you ARE highlighting. A silent, unexplained fallback with no mention of the operator's request at all is not acceptable — but neither is inventing a fake menu item.
 
 ## Task
-Recommend how the restaurant should shape the menu focus for the target service window. Prioritise items that are popular AND operationally safe (ingredients available), avoid pushing items that depend on shortage ingredients or have complaint patterns, and suggest practical promo or menu positioning actions that can be executed within the next 24 hours.
+Recommend how the restaurant should shape the menu focus for the target service window. Prioritise items that are popular AND operationally safe (ingredients available), avoid pushing items that depend on shortage ingredients or have complaint patterns, and suggest practical promo or menu positioning actions that can be executed within the next 24 hours. Where competitor pricing data is available, factor in market positioning and explicitly name Swiggy as the source of that pricing data. Produce a plan a shift manager could execute from without asking a follow-up question — name specific dishes, specific quantities, and specific cutoff times, not generic guidance.
 
 ## Response format
 Respond with a JSON object containing:
-- "highlight_items": array of strings - items to feature prominently for the target service window
+- "highlight_items": array of strings - the CONFIRMED go-list of dishes verified safe against every shortage above, not just the most obvious one
 - "deprioritize_items": array of strings - items to avoid pushing due to risk, complaints, or weak operational fit
 - "promo_candidates": array of strings - items suitable for promotion in this service window
-- "inventory_blockers": array of strings - ingredient or stock constraints affecting menu choices
+- "inventory_blockers": array of strings - one entry per CRITICALLY SHORT ingredient, each explicitly naming the specific dish(es) it blocks and the pivot alternative (see rule 6) — not a generic acknowledgment
 - "complaint_watchouts": array of strings - quality or service issues menu execution should watch closely
-- "operational_notes": array of strings - practical kitchen/front-of-house actions tied to the menu plan
+- "operational_notes": array of strings - practical kitchen/front-of-house actions, including a same-day fallback with a concrete cutoff time for any critical shortage without confirmed restock (rule 9), and a covers cap for any highlight_items dish using constrained stock (rule 8)
+- "pricing_notes": array of strings - items priced above or below area average (omit if no competitor data)
 - "reasoning": string - one concise summary of the menu strategy
 - "priority": string - "high", "medium", or "low"
 - "risks": array of strings - what could go wrong if the menu plan is ignored
@@ -265,3 +333,51 @@ INSTRUCTIONS:
 - Never say "the data does not provide" if the field exists above — read it carefully.
 - Keep answers under 150 words unless detail is explicitly requested.
 - Always format your response using markdown: use **bold** for key figures, bullet points for lists, numbered lists for steps, and ### headings for multi-section answers."""
+
+    @staticmethod
+    def format_situation_summary_prompt(
+        scenario_label: str,
+        operational_focus: str,
+        target_date: str,
+        service_window: str,
+        forecast_summary: str,
+        reservation_summary: str,
+        inventory_summary: str,
+        complaint_summary: str,
+        menu_summary: str,
+        live_signals_text: str,
+    ) -> str:
+        """Prompt for the Situation Summary agent -- the hero briefing shown first on a completed run."""
+        return f"""
+## Tonight's service
+Scenario: {scenario_label}
+Date: {target_date} -- {service_window}
+Operator's own description (if any): {operational_focus or "None given -- this is a standard preset run, no specific event described."}
+
+## What each specialist found
+Demand forecast: {forecast_summary}
+Reservations: {reservation_summary}
+Inventory: {inventory_summary}
+Guest feedback: {complaint_summary}
+Menu: {menu_summary}
+
+## Live external signals
+{live_signals_text or "No notable external signals today."}
+
+## Task
+Write a natural-language briefing, in markdown, covering:
+1. Restate what this service actually is, in your own words -- if the operator described a
+   specific event (a party, a theme, specific dishes, a guest count), name those details back
+   plainly so the manager knows you understood the ask.
+2. Explain the situation: weave in ONLY the internal and external signals above that are
+   genuinely relevant to this specific service, and briefly explain how each one shaped the plan.
+   Skip anything generic or irrelevant -- do not list every signal just because it's available.
+3. A "**Key Takeaways**" section: 3-6 specific, actionable bullet points. Each one should read
+   like a human wrote it for this exact situation -- name the actual dish, guest detail, or
+   signal it's responding to, not a generic instruction. Only include a takeaway from a given
+   specialist area (menu, inventory, reservations, guest feedback) if it genuinely has something
+   tailored to say about tonight -- do not force every area to appear.
+
+Keep the whole thing to 150-250 words. Use markdown formatting (a bold "**Key Takeaways**"
+header, bullet points) but otherwise write in full, natural sentences.
+"""

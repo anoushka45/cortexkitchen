@@ -53,6 +53,17 @@ def _make_llm(response: dict | None = None):
     return llm
 
 
+async def _analyse(svc, forecast_data=None, scenario_profile=None, procurement_context=None):
+    """Compose compute_shortage_data + generate_recommendation, mirroring the
+    old combined analyse_and_recommend() call shape for these tests. The two
+    are deliberately separate now — see inventory_node.py — so a caller can
+    fetch procurement prices for the real shortage list in between."""
+    shortage_data = await svc.compute_shortage_data(
+        forecast_data=forecast_data, scenario_profile=scenario_profile,
+    )
+    return await svc.generate_recommendation(shortage_data, procurement_context=procurement_context)
+
+
 # ── InventoryService.compute_alerts ──────────────────────────────────────────
 
 class TestComputeAlerts:
@@ -182,7 +193,7 @@ class TestAnalyseAndRecommend:
 
         items = [_make_item(stock=3.0, threshold=8.0)]
         svc   = InventoryService(db=_make_db(items), llm=_make_llm())
-        result = await svc.analyse_and_recommend()
+        result = await _analyse(svc)
 
         assert result["service"] == "inventory"
         assert "data" in result
@@ -196,7 +207,7 @@ class TestAnalyseAndRecommend:
         svc   = InventoryService(db=_make_db(items), llm=_make_llm())
 
         forecast_data = {"predicted_orders": 130.0, "avg_friday_orders": 100.0}
-        result = await svc.analyse_and_recommend(forecast_data=forecast_data)
+        result = await _analyse(svc, forecast_data=forecast_data)
 
         # ratio = 1.3 → high demand → severity should be critical
         assert result["data"]["shortage_alerts"][0]["severity"] == "critical"
@@ -207,7 +218,7 @@ class TestAnalyseAndRecommend:
         from app.domain.services.inventory_service import InventoryService
 
         svc    = InventoryService(db=_make_db([]), llm=_make_llm())
-        result = await svc.analyse_and_recommend(forecast_data=None)
+        result = await _analyse(svc, forecast_data=None)
 
         assert result["service"] == "inventory"
         assert result["data"]["demand_ratio"] == 1.0
@@ -218,7 +229,7 @@ class TestAnalyseAndRecommend:
 
         llm  = _make_llm()
         svc  = InventoryService(db=_make_db([]), llm=llm)
-        await svc.analyse_and_recommend()
+        await _analyse(svc)
 
         llm.complete_json.assert_called_once()
 
@@ -230,13 +241,13 @@ class TestAnalyseAndRecommend:
         llm = _make_llm()
         svc = InventoryService(db=_make_db([item]), llm=llm)
 
-        await svc.analyse_and_recommend(
+        await _analyse(svc, 
             forecast_data={"predicted_orders": 130.0, "avg_friday_orders": 100.0}
         )
 
         prompt = llm.complete_json.await_args.kwargs["prompt"]
         assert "recommended_restock=6.87" in prompt
-        assert "max_actionable_restock=6.87" in prompt
+        assert "max_actionable_restock=20.61" in prompt
         assert "Prioritize critical shortages first" in prompt
 
     @pytest.mark.asyncio
@@ -259,20 +270,42 @@ class TestAnalyseAndRecommend:
         )
         svc = InventoryService(db=_make_db([garlic, basil]), llm=llm)
 
-        result = await svc.analyse_and_recommend(
+        result = await _analyse(svc, 
             forecast_data={"predicted_orders": 130.0, "avg_friday_orders": 100.0}
         )
 
         actions = result["recommendation"]["restock_actions"]
         assert (
             "Order 1.05kg Garlic immediately "
-            "(covers 1.05kg shortfall; current stock 0.45kg; within max actionable cap 1.35kg)."
+            "(covers 1.05kg shortfall; current stock 0.45kg)."
         ) in actions
         assert (
             "Order 0.83kg Fresh Basil immediately "
-            "(covers 0.83kg shortfall; current stock 0.17kg; within max actionable cap 0.83kg)."
+            "(covers 0.83kg shortfall; current stock 0.17kg)."
         ) in actions
         assert all("20kg" not in action and "15kg" not in action for action in actions)
+
+    @pytest.mark.asyncio
+    async def test_guardrailed_restock_actions_keep_swiggy_price_citation(self):
+        """Regression guard: build_capped_restock_actions() used to discard
+        the LLM's price citation entirely, since it rebuilt restock_actions
+        from shortage_alerts alone with no access to procurement_context —
+        so even a correct prompt/LLM output could never survive the guardrail
+        merge that runs afterward."""
+        from app.domain.services.inventory_service import InventoryService
+
+        mozzarella = _make_item(name="Mozzarella", unit="kg", stock=0.41, threshold=8.0, spoilage=True)
+        svc = InventoryService(db=_make_db([mozzarella]), llm=_make_llm())
+
+        procurement_context = {
+            "procurement_options": [
+                {"ingredient": "Mozzarella", "unit": "140 g", "price": 93.0, "spinId": "spin_1", "inStock": True},
+            ],
+        }
+        result = await _analyse(svc, procurement_context=procurement_context)
+
+        actions = result["recommendation"]["restock_actions"]
+        assert any("Mozzarella" in a and "Swiggy Instamart" in a and "Rs.93" in a for a in actions), actions
 
     def test_inventory_language_normalization_rewrites_non_friday_text(self):
         from app.domain.services.inventory_service import InventoryService
@@ -296,10 +329,10 @@ class TestAnalyseAndRecommend:
 class TestInventoryNode:
 
     @pytest.mark.asyncio
-    async def test_simulation_mode_returns_deterministic_output(self, sim_state, mock_db, mock_llm):
+    async def test_simulation_mode_returns_deterministic_output(self, sim_state, mock_db_factory, mock_llm):
         from app.orchestration.nodes.inventory import inventory_node
 
-        result = await inventory_node(sim_state, db=mock_db, llm=mock_llm)
+        result = await inventory_node(sim_state, db_factory=mock_db_factory, llm=mock_llm)
 
         output = result["inventory_output"]
         assert output["service"] == "inventory"
@@ -308,15 +341,15 @@ class TestInventoryNode:
         mock_llm.complete_json.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_short_circuits_on_error(self, errored_state, mock_db, mock_llm):
+    async def test_short_circuits_on_error(self, errored_state, mock_db_factory, mock_llm):
         from app.orchestration.nodes.inventory import inventory_node
 
-        result = await inventory_node(errored_state, db=mock_db, llm=mock_llm)
+        result = await inventory_node(errored_state, db_factory=mock_db_factory, llm=mock_llm)
         assert result.get("inventory_output") is None
         assert result["error"] == "Upstream failure"
 
     @pytest.mark.asyncio
-    async def test_production_mode_calls_inventory_service(self, base_state, mock_db, mock_llm):
+    async def test_production_mode_calls_inventory_service(self, base_state, mock_db_factory, mock_llm):
         from app.orchestration.nodes.inventory import inventory_node
 
         mock_result = {
@@ -328,13 +361,15 @@ class TestInventoryNode:
         with patch(
             "app.orchestration.nodes.inventory.InventoryService"
         ) as MockService:
-            MockService.return_value.analyse_and_recommend = AsyncMock(return_value=mock_result)
-            result = await inventory_node(base_state, db=mock_db, llm=mock_llm)
+            mock_svc = MockService.return_value
+            mock_svc.compute_shortage_data = AsyncMock(return_value={"actionable_shortages": []})
+            mock_svc.generate_recommendation = AsyncMock(return_value=mock_result)
+            result = await inventory_node(base_state, db_factory=mock_db_factory, llm=mock_llm)
 
         assert result["inventory_output"]["service"] == "inventory"
 
     @pytest.mark.asyncio
-    async def test_forecast_data_passed_to_service(self, base_state, mock_db, mock_llm):
+    async def test_forecast_data_passed_to_service(self, base_state, mock_db_factory, mock_llm):
         from app.orchestration.nodes.inventory import inventory_node
 
         state_with_forecast = {
@@ -350,27 +385,33 @@ class TestInventoryNode:
             "app.orchestration.nodes.inventory.InventoryService"
         ) as MockService:
             mock_svc = MockService.return_value
-            mock_svc.analyse_and_recommend = AsyncMock(return_value={
+            mock_svc.compute_shortage_data = AsyncMock(return_value={"actionable_shortages": []})
+            mock_svc.generate_recommendation = AsyncMock(return_value={
                 "service": "inventory", "data": {}, "recommendation": {}
             })
-            await inventory_node(state_with_forecast, db=mock_db, llm=mock_llm)
+            await inventory_node(state_with_forecast, db_factory=mock_db_factory, llm=mock_llm)
 
-        mock_svc.analyse_and_recommend.assert_called_once_with(
+        mock_svc.compute_shortage_data.assert_called_once_with(
             forecast_data={"predicted_orders": 130.0, "avg_friday_orders": 100.0},
             scenario_profile=None,
         )
+        # No procurement context available (no swiggy_client passed in this test).
+        mock_svc.generate_recommendation.assert_called_once_with(
+            {"actionable_shortages": []},
+            procurement_context=None,
+        )
 
     @pytest.mark.asyncio
-    async def test_exception_captured_in_output(self, base_state, mock_db, mock_llm):
+    async def test_exception_captured_in_output(self, base_state, mock_db_factory, mock_llm):
         from app.orchestration.nodes.inventory import inventory_node
 
         with patch(
             "app.orchestration.nodes.inventory.InventoryService"
         ) as MockService:
-            MockService.return_value.analyse_and_recommend = AsyncMock(
+            MockService.return_value.compute_shortage_data = AsyncMock(
                 side_effect=Exception("DB timeout")
             )
-            result = await inventory_node(base_state, db=mock_db, llm=mock_llm)
+            result = await inventory_node(base_state, db_factory=mock_db_factory, llm=mock_llm)
 
         output = result["inventory_output"]
         assert output["service"] == "inventory"
@@ -378,12 +419,46 @@ class TestInventoryNode:
         assert output["data"] is None
 
     @pytest.mark.asyncio
-    async def test_debug_trace_appended(self, mock_db, mock_llm):
+    async def test_procurement_prices_reach_the_llm_prompt_same_run(self, base_state, mock_db, mock_db_factory, mock_llm):
+        """Regression guard for the ordering bug: ProcurementEnricher used to
+        run AFTER the LLM recommendation call, so live Instamart prices could
+        never appear in that same run's restock_actions text. Uses the real
+        InventoryService (not mocked) end to end through inventory_node, with
+        only ProcurementEnricher and the Swiggy client mocked, and asserts the
+        live price actually lands in the prompt sent to the LLM."""
+        from app.orchestration.nodes.inventory import inventory_node
+
+        mock_db.query.return_value.all.return_value = [
+            _make_item(name="Mozzarella", stock=3.0, threshold=8.0, spoilage=True),
+        ]
+
+        mock_swiggy_client = MagicMock()
+        mock_swiggy_client.is_available.return_value = True
+
+        with patch("app.orchestration.nodes.inventory.ProcurementEnricher") as MockEnricher:
+            MockEnricher.return_value.enrich = AsyncMock(return_value={
+                "procurement_options": [
+                    {"ingredient": "mozzarella", "spinId": "spin_1", "price": 93.0, "unit": "140 g", "inStock": True},
+                ],
+                "prompt_text": "## Live Procurement Options (Instamart)\n- Mozzarella: Rs.93/140 g (in stock)",
+            })
+            await inventory_node(
+                base_state, db_factory=mock_db_factory, llm=mock_llm, swiggy_client=mock_swiggy_client,
+            )
+
+        prompt = mock_llm.complete_json.await_args.kwargs["prompt"]
+        assert "Rs.93/140 g" in prompt, (
+            "live procurement prices must reach the LLM prompt in the same run "
+            "that fetched them, not just get stored in state for later consumers"
+        )
+
+    @pytest.mark.asyncio
+    async def test_debug_trace_appended(self, mock_db_factory, mock_llm):
         from app.orchestration.nodes.inventory import inventory_node
         from app.orchestration.state import make_initial_state
 
         state = make_initial_state("friday_rush", simulation_mode=True, debug=True)
         state["execution_trace"] = []
 
-        result = await inventory_node(state, db=mock_db, llm=mock_llm)
+        result = await inventory_node(state, db_factory=mock_db_factory, llm=mock_llm)
         assert "inventory" in result["execution_trace"]

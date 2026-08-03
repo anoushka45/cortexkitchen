@@ -1,5 +1,7 @@
 "use client";
 
+import { CardFooter, CategoryColumn, ICONS, PriorityGauge, RecommendationBlock, SectionTitle, StatGrid } from "./AgentStatStrip";
+
 interface TopItem {
   item: string;
   category?: string;
@@ -35,84 +37,17 @@ interface MenuInsightsData {
   risks?: string[];
 }
 
-function SectionList({
-  title,
-  items,
-  tone = "default",
-}: {
-  title: string;
-  items: string[];
-  tone?: "default" | "good" | "warn" | "risk";
-}) {
-  if (items.length === 0) return null;
-
-  const toneClass =
-    tone === "good" ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-200"
-    : tone === "warn" ? "border-amber-500/20 bg-amber-500/5 text-amber-200"
-    : tone === "risk" ? "border-rose-500/20 bg-rose-500/5 text-rose-200"
-    : "border-white/5 bg-slate-900/60 text-slate-200";
-
-  return (
-    <div>
-      <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">{title}</p>
-      <ul className="space-y-1.5">
-        {items.map((item, index) => (
-          <li key={`${title}-${index}`} className={`rounded-lg border px-3 py-2 text-xs ${toneClass}`}>
-            {item}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function MenuColumnCard({
-  label,
-  items,
-  tone,
-}: {
-  label: string;
-  items: string[];
-  tone: "good" | "warn" | "risk";
-}) {
-  const styles = {
-    good: { header: "text-emerald-300/80", ring: "ring-emerald-400/25 bg-emerald-500/[0.04]" },
-    warn: { header: "text-ember-300/80",   ring: "ring-ember-400/25 bg-ember-500/[0.04]"     },
-    risk: { header: "text-rose-300/80",    ring: "ring-rose-400/25 bg-rose-500/[0.04]"       },
-  };
-  const s = styles[tone];
-  const primary = items[0];
-  const rest    = items.length - 1;
-
-  return (
-    <div>
-      <div className={`font-mono text-[10px] uppercase tracking-[0.22em] mb-2 ${s.header}`}>{label}</div>
-      <div className={`rounded-xl ring-1 p-3.5 min-h-[68px] ${s.ring}`}>
-        {primary ? (
-          <>
-            <div className="text-[13px] font-semibold text-white leading-snug">{primary}</div>
-            {rest > 0 && (
-              <p className="mt-1.5 text-[11px] text-white/35">+{rest} more in details</p>
-            )}
-          </>
-        ) : (
-          <p className="text-[12px] text-white/30 italic">None flagged</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export default function MenuInsights({ data }: { data: MenuInsightsData }) {
   return <MenuInsightsBody data={data} compact={false} />;
 }
 
 export function MenuInsightsBody({
   data,
-  compact = false,
+  swiggySignal,
 }: {
   data: MenuInsightsData;
   compact?: boolean;
+  swiggySignal?: string;
 }) {
   const detail = data.data ?? {};
   const topItems = detail.top_items ?? data.top_items ?? [];
@@ -122,116 +57,114 @@ export function MenuInsightsBody({
   const scenarioLabel = detail.scenario_label ?? "service";
   const serviceWindow = detail.service_window ?? "this service window";
   const scenarioWatchouts = detail.scenario_watchouts ?? [];
+  const highlightItems = data.highlight_items ?? [];
+  const promoCandidates = data.promo_candidates ?? [];
+  const inventoryBlockers = data.inventory_blockers ?? shortageIngredients;
+  const complaintWatchouts = data.complaint_watchouts ?? complaintThemes;
+  const watchoutCount = inventoryBlockers.length + complaintWatchouts.length;
 
   return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
-          <p className="text-xs font-mono uppercase tracking-widest text-slate-500 mb-1">Top Items</p>
-          <p className="text-2xl font-semibold text-amber-300">{topItems.length}</p>
-          <p className="text-xs text-slate-500 mt-1">historically strong matching-day sellers</p>
-        </div>
-        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
-          <p className="text-xs font-mono uppercase tracking-widest text-slate-500 mb-1">Highlight Items</p>
-          <p className="text-2xl font-semibold text-emerald-300">{data.highlight_items?.length ?? 0}</p>
-          <p className="text-xs text-slate-500 mt-1">recommended to push in {serviceWindow.toLowerCase()}</p>
-        </div>
-        <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3">
-          <p className="text-xs font-mono uppercase tracking-widest text-slate-500 mb-1">Watchouts</p>
-          <p className="text-2xl font-semibold text-rose-300">
-            {(data.inventory_blockers?.length ?? 0) + (data.complaint_watchouts?.length ?? 0)}
-          </p>
-          <p className="text-xs text-slate-500 mt-1">inventory and complaint-linked blockers</p>
+    <div className="@container flex flex-col gap-5">
+      {/* Recommendation (left) + stat grid & priority gauge (right) side by side */}
+      <div className="grid grid-cols-1 gap-4 @3xl:grid-cols-[1.3fr_1fr] @3xl:items-stretch">
+        <RecommendationBlock
+          recommendation={highlightItems[0] ? `Feature ${highlightItems[0]} tonight.` : null}
+          reasoning={data.reasoning}
+          priority={data.priority}
+          risks={data.risks}
+        />
+        <div className="flex flex-col gap-3">
+          <StatGrid stats={[
+            { icon: <ICONS.trendUp className="h-4 w-4" strokeWidth={1.8} />, iconColor: "#10B981", value: String(highlightItems.length), label: "Items to push", caption: "High impact tonight" },
+            { icon: <ICONS.star className="h-4 w-4" strokeWidth={1.8} />, iconColor: "#F59E0B", value: String(topItems.length), label: "Historic sellers", caption: "Proven demand consistency" },
+            { icon: <ICONS.tag className="h-4 w-4" strokeWidth={1.8} />, iconColor: "#8B5CF6", value: String(promoCandidates.length), label: "Promo candidates", caption: "Drive incremental orders" },
+            { icon: <ICONS.warning className="h-4 w-4" strokeWidth={1.8} />, iconColor: "#F43F5E", value: String(watchoutCount), label: "Watchouts", caption: "Inventory + complaints" },
+          ]} />
+          <PriorityGauge priority={data.priority} />
         </div>
       </div>
 
-      {data.reasoning && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-4">
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            <p className="text-xs font-mono uppercase tracking-widest text-slate-600">
-              Strategy
-            </p>
-            {data.priority && (
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
-                {data.priority} priority
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-slate-200">{data.reasoning}</p>
-        </div>
-      )}
-
-      {!compact && topItems.length > 0 && (
-        <div>
-          <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
-            Best Sellers for {scenarioLabel}
-          </p>
-          <div className="space-y-2">
-            {topItems.map((item, index) => (
-              <div key={`top-item-${index}`} className="rounded-xl border border-white/5 bg-slate-900/50 px-4 py-3">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-200">{item.item}</p>
-                    {item.category && <p className="text-xs text-slate-500">{item.category}</p>}
+      {/* Best sellers + category columns, one flowing grid */}
+      <div className="grid grid-cols-1 gap-4 @lg:grid-cols-2 @4xl:grid-cols-4">
+        {topItems.length > 0 && (
+          <div className="rounded-2xl ring-1 ring-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-4">
+            <SectionTitle title={`Best Sellers for ${scenarioLabel}`} />
+            <div className="space-y-2">
+              {topItems.map((item, index) => (
+                <div key={`top-item-${index}`} className="flex items-center gap-3">
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--color-surface-sunken)] text-[10px] font-bold text-[var(--color-text-faint)]">{index + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-semibold text-[var(--color-text-primary)]">{item.item}</p>
+                    {item.category && <p className="text-[10.5px] text-[var(--color-text-faint)]">{item.category}</p>}
                   </div>
                   {typeof item.total_ordered === "number" && (
-                    <span className="text-xs font-mono text-amber-300">{item.total_ordered} ordered</span>
+                    <span className="shrink-0 text-[11px] font-semibold text-amber-700 dark:text-amber-300">{item.total_ordered} ordered</span>
                   )}
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Compact: 3-col push / ease back / avoid promoting */}
-      {compact && (
-        <div className="grid grid-cols-3 gap-2.5">
-          <MenuColumnCard
-            label="Push tonight"
-            items={data.highlight_items ?? []}
-            tone="good"
-          />
-          <MenuColumnCard
-            label="Ease back"
-            items={data.deprioritize_items ?? []}
-            tone="warn"
-          />
-          <MenuColumnCard
-            label="Avoid promoting"
-            items={[...(data.inventory_blockers ?? shortageIngredients), ...(data.complaint_watchouts ?? complaintThemes)]}
-            tone="risk"
-          />
-        </div>
-      )}
-
-      {/* Full view: all section lists */}
-      {!compact && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <SectionList title="Highlight Items"   items={data.highlight_items ?? []}  tone="good" />
-            <SectionList title="Promo Candidates"  items={data.promo_candidates ?? []} />
-            <SectionList title="Deprioritize Items" items={data.deprioritize_items ?? []} tone="warn" />
-            <SectionList title="Operational Notes" items={data.operational_notes ?? []} />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <SectionList title="Inventory Blockers"  items={data.inventory_blockers ?? shortageIngredients} tone="risk" />
-            <SectionList title="Complaint Watchouts" items={data.complaint_watchouts ?? complaintThemes}    tone="warn" />
-          </div>
-
-          {scenarioWatchouts.length > 0 && (
-            <SectionList title="Scenario Watchouts" items={scenarioWatchouts} tone="warn" />
-          )}
-
-          {(overstockIngredients.length > 0 || (data.risks?.length ?? 0) > 0) && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <SectionList title="Overstock Opportunities" items={overstockIngredients} />
-              <SectionList title="Risks" items={data.risks ?? []} tone="risk" />
+              ))}
             </div>
-          )}
-        </>
-      )}
+          </div>
+        )}
+
+        <CategoryColumn
+          icon={<ICONS.star className="h-3.5 w-3.5" strokeWidth={1.8} />}
+          label="Highlight Items"
+          items={highlightItems}
+          tone="good"
+          callout={highlightItems.length > 0 ? "Proven demand -- safe to push tonight." : undefined}
+        />
+        <CategoryColumn
+          icon={<ICONS.tag className="h-3.5 w-3.5" strokeWidth={1.8} />}
+          label="Promo Candidates"
+          items={promoCandidates}
+          tone="info"
+          callout={promoCandidates.length > 0 ? "Good opportunity to increase basket size and explore new preferences." : undefined}
+        />
+        <CategoryColumn
+          icon={<ICONS.noEntry className="h-3.5 w-3.5" strokeWidth={1.8} />}
+          label="Deprioritize Items"
+          items={data.deprioritize_items ?? []}
+          tone="warn"
+          callout={(data.deprioritize_items?.length ?? 0) > 0 ? "High prep time, lower margins, or a higher complaint rate." : undefined}
+        />
+      </div>
+
+      {/* Operational + risk breakdown, one flowing grid */}
+      <div className="grid grid-cols-1 gap-4 @lg:grid-cols-2 @4xl:grid-cols-3">
+        <CategoryColumn
+          icon={<ICONS.shieldCheck className="h-3.5 w-3.5" strokeWidth={1.8} />}
+          label="Operational Notes"
+          items={data.operational_notes ?? []}
+          tone="info"
+        />
+        <CategoryColumn
+          icon={<ICONS.cube className="h-3.5 w-3.5" strokeWidth={1.8} />}
+          label="Inventory Blockers"
+          items={inventoryBlockers}
+          tone="warn"
+        />
+        <CategoryColumn
+          icon={<ICONS.chat className="h-3.5 w-3.5" strokeWidth={1.8} />}
+          label="Complaint Watchouts"
+          items={complaintWatchouts}
+          tone="warn"
+        />
+        <CategoryColumn
+          icon={<ICONS.warning className="h-3.5 w-3.5" strokeWidth={1.8} />}
+          label="Scenario Watchouts"
+          items={scenarioWatchouts}
+          tone="warn"
+        />
+        <CategoryColumn
+          icon={<ICONS.trendUp className="h-3.5 w-3.5" strokeWidth={1.8} />}
+          label="Overstock Opportunities"
+          items={overstockIngredients}
+          tone="good"
+          callout={overstockIngredients.length > 0 ? "Use in specials or promotions before the buffer window closes." : undefined}
+        />
+      </div>
+
+      <CardFooter label="Service window" value={serviceWindow} swiggySignal={swiggySignal} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 # CortexKitchen API Reference
 
-Last updated: June 2026. Reflects Phase 5 complete.
+Reflects Phase 6A in progress.
 
 Base URL: `http://localhost:8000`  
 Base prefix: `/api/v1`  
@@ -55,7 +55,7 @@ Authenticate an existing user and receive a JWT.
 | `email` | string | Yes |
 | `password` | string | Yes |
 
-**Response `200`** — same shape as `/register`.
+**Response `200`**: same shape as `/register`.
 
 ---
 
@@ -116,6 +116,30 @@ Live connectivity check for PostgreSQL, Qdrant, and Redis.
 
 ---
 
+### `GET /api/v1/health/circuits`
+
+Real-time circuit breaker state for all three Swiggy MCP endpoints.
+
+**Auth:** None (public endpoint).
+
+**Response `200`**
+
+```json
+{
+  "circuits": [
+    { "state": "closed", "recent_failures": 0, "resets_in_seconds": null },
+    { "state": "closed", "recent_failures": 0, "resets_in_seconds": null },
+    { "state": "closed", "recent_failures": 0, "resets_in_seconds": null }
+  ]
+}
+```
+
+Endpoints are ordered: `food`, `im` (Instamart), `dineout`.
+
+`state` is `"open"` when the circuit has tripped (5 or more failures within a 5-minute window). `resets_in_seconds` shows time until auto-reset, currently a 10-minute open window. A closed circuit returns `resets_in_seconds: null`.
+
+---
+
 ## Planning
 
 ### `GET /api/v1/planning/scenarios`
@@ -143,7 +167,7 @@ Returns all available scenario presets.
 
 ### `POST /api/v1/planning/run`
 
-Executes the nine-node multi-agent planning pipeline. Returns the **full response as a standard JSON object** once the pipeline completes. No streaming — use `/planning/stream` if you need the live pipeline diagram.
+Executes the full LangGraph planning pipeline (see `docs/AGENTS.md` for the current node topology). Returns the **full response as a standard JSON object** once the pipeline completes. No streaming: use `/planning/stream` if you need the live pipeline diagram.
 
 **Auth:** JWT required.
 
@@ -151,7 +175,7 @@ Executes the nine-node multi-agent planning pipeline. Returns the **full respons
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `scenario` | string | Yes | — | One of `friday_rush`, `weekday_lunch`, `holiday_spike`, `low_stock_weekend` |
+| `scenario` | string | Yes |  | One of `friday_rush`, `weekday_lunch`, `holiday_spike`, `low_stock_weekend` |
 | `target_date` | string | No | Next matching weekday | ISO date string, e.g. `"2026-06-12"` |
 | `restaurant_id` | integer | No | `null` | Override org defaults with a named profile |
 | `simulation_mode` | boolean | No | `false` | Use deterministic mock data |
@@ -200,14 +224,14 @@ Executes the nine-node multi-agent planning pipeline. Returns the **full respons
         "assumption_key": "assumed_covers_within_capacity",
         "assumed_value": true,
         "actual_value": 99.1,
-        "conflict": "menu_intelligence assumed covers within capacity, but reservation node shows 99.1% occupancy — menu recommendations must account for kitchen throughput limits under near-full house"
+        "conflict": "menu_intelligence assumed covers within capacity, but reservation node shows 99.1% occupancy: menu recommendations must account for kitchen throughput limits under near-full house"
       },
       {
         "node": "complaint_intelligence",
         "assumption_key": "assumed_high_complaint_volume",
         "assumed_value": false,
         "actual_value": 26.3,
-        "conflict": "complaint_intelligence classified complaint volume as low, but negative feedback is 26.3% — borderline elevated complaint risk that may compound under high occupancy"
+        "conflict": "complaint_intelligence classified complaint volume as low, but negative feedback is 26.3%: borderline elevated complaint risk that may compound under high occupancy"
       }
     ]
   },
@@ -225,7 +249,7 @@ Executes the nine-node multi-agent planning pipeline. Returns the **full respons
 
 | Field | Description |
 |-------|-------------|
-| `status` | `ready` — plan approved or passable; `needs_review` — critic flagged issues; `blocked` — critical failure |
+| `status` | `ready`: plan approved or passable; `needs_review`: critic flagged issues; `blocked`: critical failure |
 | `cache_hit` | `true` if the result was returned from Redis cache; `false` if the pipeline ran |
 | `critic.verdict` | `approved`, `revision`, or `rejected` |
 | `critic.score` | 0.0 – 1.0 composite quality score |
@@ -243,24 +267,51 @@ Identical request body to `/planning/run`. Returns a `text/event-stream` respons
 
 **How it works**
 
-As each LangGraph node completes, a `node_complete` event is emitted carrying **only the node name** — no output data. The frontend loading screen uses these events to update the pipeline diagram (waiting → running → done). When the full pipeline finishes, a single `complete` event delivers the entire plan payload. The dashboard renders all sections at once from this final event.
+Two event types power the frontend pipeline diagram:
 
-Only plans with `critic.verdict == "approved"` are written to cache. On a cache hit: all `node_complete` events are emitted instantly with `{"node": "...", "cached": true}`, followed by the `complete` event.
+- `node_start` fires when a node begins execution; includes an optional `hint` string with a human-readable description of what the node is doing
+- `node_complete` fires when the node finishes; may also include a completion `hint` (e.g. how many items were retrieved)
+- The loading screen uses both event types to drive a 4-state node UI: idle, then running, then done
+
+When the full pipeline finishes, a single `complete` event delivers the entire plan payload. The dashboard renders all sections at once from this final event.
+
+Only plans with `critic.verdict == "approved"` are written to semantic cache. On a cache hit: all node events are emitted instantly with `{"node": "...", "cached": true}`, followed by the `complete` event.
 
 **SSE event format**
 
 ```
+event: node_start
+data: {"node": "qdrant_enrichment", "hint": "Reading past plans from memory..."}
+
+event: node_complete
+data: {"node": "qdrant_enrichment", "hint": "Memory loaded: 2 past plans"}
+
+event: node_start
+data: {"node": "forecast", "hint": "Analysing demand signal..."}
+
 event: node_complete
 data: {"node": "forecast"}
+
+event: node_start
+data: {"node": "reservation"}
 
 event: node_complete
 data: {"node": "reservation"}
 
-event: node_complete
+event: node_start
 data: {"node": "complaint"}
 
 event: node_complete
+data: {"node": "complaint"}
+
+event: node_start
 data: {"node": "menu"}
+
+event: node_complete
+data: {"node": "menu"}
+
+event: node_start
+data: {"node": "inventory"}
 
 event: node_complete
 data: {"node": "inventory"}
@@ -272,10 +323,10 @@ event: node_complete
 data: {"node": "critic"}
 
 event: complete
-data: { ... full response payload — same shape as /planning/run ... }
+data: { ... full response payload: same shape as /planning/run ... }
 ```
 
-Note: `ops_manager` and `final_assembler` do not emit `node_complete` events — they are not in the SSE node map.
+Note: `ops_manager`, `replan_orchestrator`, and `final_assembler` do not emit SSE events: they are infrastructure or assembly nodes.
 
 **Error event**
 
@@ -288,7 +339,7 @@ data: {"message": "Stream error: ..."}
 
 ### `POST /api/v1/planning/whatif`
 
-What-if demand simulator. Recalculates cost/benefit scoring for a user-supplied cover count without running the LangGraph pipeline — no LLM calls, instant response.
+What-if demand simulator. Recalculates cost/benefit scoring for a user-supplied cover count without running the LangGraph pipeline: no LLM calls, instant response.
 
 **Auth:** JWT required.
 
@@ -296,8 +347,8 @@ What-if demand simulator. Recalculates cost/benefit scoring for a user-supplied 
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `predicted_covers` | integer (1–1000) | Yes | — | Hypothetical cover count to evaluate |
-| `avg_covers` | float | Yes | — | Historical baseline average covers from the existing run |
+| `predicted_covers` | integer (1–1000) | Yes |  | Hypothetical cover count to evaluate |
+| `avg_covers` | float | Yes |  | Historical baseline average covers from the existing run |
 | `scenario` | string | No | `friday_rush` | Scenario label for context |
 | `service_window` | string | No | `18:00-22:00` | Service window label for context |
 
@@ -321,6 +372,129 @@ What-if demand simulator. Recalculates cost/benefit scoring for a user-supplied 
 
 ---
 
+### `GET /api/v1/planning/recommend`
+
+Suggests which scenario preset to run next, before the owner manually picks one.
+Combines recent run history, live Swiggy market signals (if connected), calendar context
+(weekend/holiday), and current inventory shortage pressure into a single LLM call. Falls back to a
+deterministic rule-based pick if the LLM call fails: this endpoint never errors out.
+
+**Auth:** JWT required.
+
+**Query parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `target_date` | string | Yes | ISO date string, e.g. `"2026-07-05"` |
+
+**Response `200`**
+
+```json
+{
+  "recommended_scenario": "holiday_spike",
+  "reason": "Tomorrow is Diwali and area Dineout occupancy is HIGH. Expect 40-60% demand surge.",
+  "confidence": "high",
+  "signals_used": ["recent_approved_runs: 3", "holiday_detected", "occupancy_HIGH"]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `recommended_scenario` | One of `friday_rush`, `weekday_lunch`, `holiday_spike`, `low_stock_weekend` |
+| `confidence` | `high`, `medium`, or `low`: `low` when the deterministic fallback was used |
+| `signals_used` | Which signals informed the recommendation (for UI transparency) |
+
+---
+
+### `POST /api/v1/planning/scenario-from-text`
+
+Turns a free-form description of tonight's service into a structured scenario profile, for a shift that does not fit any of the four fixed presets. Never raises; falls back to a deterministic profile so the required fields are always populated.
+
+**Auth:** JWT required.
+
+**Request body**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `text` | string | Yes | Free-form description, for example "we are hosting a birthday event tonight, expecting a large turnout" |
+
+**Response `200`**
+
+```json
+{
+  "profile": {
+    "id": "custom",
+    "label": "Birthday Event Night",
+    "description": "Large private event with elevated demand",
+    "service_window": "18:00-23:00",
+    "operational_focus": "Prioritize table turns and event-menu execution.",
+    "cuisine": null
+  }
+}
+```
+
+The returned `profile` is passed back as `custom_profile` alongside a non-preset `scenario` value (for example `"custom"`) on the next `POST /planning/run` or `/planning/stream` call.
+
+---
+
+### `GET /api/v1/planning/compose-live-scenario`
+
+Backs the "run for today" instant path. Unlike `/planning/recommend`, which always picks one of the four fixed presets, this composes a fresh, non-preset profile from what is actually true right now: real day of week, current time, weather, holiday, inventory shortage count, and area occupancy. This avoids the failure mode where the closest-fitting preset label does not match reality, for example labeling a rainy weekday evening as a weekend scenario.
+
+**Auth:** JWT required.
+
+**Query parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `target_date` | string | Yes | ISO date string, e.g. `"2026-07-15"` |
+
+**Response `200`**
+
+```json
+{
+  "profile": {
+    "id": "live-composed",
+    "label": "Rainy Wednesday Dinner",
+    "description": "Reduced walk-in traffic expected due to heavy rain",
+    "service_window": "18:00-22:00",
+    "operational_focus": "Shift toward delivery, reduce outdoor seating dependence.",
+    "cuisine": null
+  },
+  "reason": "Heavy rain forecast during dinner service and low area Dineout occupancy suggest reduced walk-in demand tonight.",
+  "confidence": "medium",
+  "signals_used": ["current_time:19:30", "weather_heavy_rain", "occupancy_LOW"]
+}
+```
+
+The returned `profile` is shaped identically to `/planning/scenario-from-text`'s and is safe to pass through as `custom_profile`.
+
+---
+
+### `POST /api/v1/planning/friday-rush`
+
+Legacy scenario-specific route, kept for backward compatibility. New integrations should use `/planning/run` or `/planning/stream` with an explicit `scenario` field instead.
+
+---
+
+### `POST /api/v1/planning/transcribe`
+
+Transcribes a short recorded voice clip to text, backing the microphone input on the Planning modal's free-text intake. Returns raw text only; the frontend shows it as an editable transcript before any plan is triggered, never auto-submitted.
+
+**Auth:** JWT required.
+
+**Request:** `multipart/form-data` with a `file` field (e.g. `audio/webm` from the browser's `MediaRecorder`).
+
+**Response `200`**
+
+```json
+{ "text": "we're hosting a birthday event tonight, expecting a large turnout" }
+```
+
+**Error `400`**: empty audio upload. **Error `502`**: transcription failed upstream.
+
+---
+
 ## Runs
 
 ### `GET /api/v1/runs`
@@ -334,11 +508,11 @@ Lists persisted planning runs in reverse-chronological order, org-scoped.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `limit` | integer (1–200) | `50` | Max runs to return |
-| `scenario` | string | — | Filter by scenario id |
-| `status` | string | — | Filter by status |
-| `verdict` | string | — | Filter by critic verdict |
-| `date_from` | string | — | ISO date — return runs on or after this date |
-| `date_to` | string | — | ISO date — return runs on or before this date |
+| `scenario` | string |  | Filter by scenario id |
+| `status` | string |  | Filter by status |
+| `verdict` | string |  | Filter by critic verdict |
+| `date_from` | string |  | ISO date: return runs on or after this date |
+| `date_to` | string |  | ISO date: return runs on or before this date |
 
 **Response `200`**
 
@@ -367,9 +541,9 @@ Full detail for one persisted planning run.
 
 **Auth:** JWT required.
 
-**Response `200`** — includes full `recommendations`, `rag_context`, `critic`, and `meta` blocks (same shape as planning run response).
+**Response `200`**: includes full `recommendations`, `rag_context`, `critic`, and `meta` blocks (same shape as planning run response).
 
-**Error `404`** — run not found or belongs to a different org.
+**Error `404`**: run not found or belongs to a different org.
 
 ---
 
@@ -392,9 +566,199 @@ Downloads a multi-sheet Excel workbook for the run.
 **Response:** `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` file download.
 
 Sheets:
-- **Summary** — scenario, date, verdict, critic score
-- **Inventory & Staffing** — shortage alerts, overstock alerts, restock actions (chef view)
-- **Cost Breakdown** — LLM usage, critic dimension scores, cost-aware analysis (owner view)
+- **Summary**: scenario, date, verdict, critic score
+- **Inventory & Staffing**: shortage alerts, overstock alerts, restock actions (chef view)
+- **Cost Breakdown**: LLM usage, critic dimension scores, cost-aware analysis (owner view)
+
+---
+
+## Market
+
+Live Swiggy market intelligence, independent of any planning run. Each enricher caches its own
+result in Redis for 30 minutes (keyed by `org_id` + date), so repeated calls (e.g. every dashboard
+load) don't re-hit the Swiggy MCP server each time.
+
+### `GET /api/v1/market/pulse`
+
+Fetches current competitor pricing, area occupancy, and Instamart procurement directly via the
+planning-pipeline enrichers, without requiring a plan to be run first.
+
+**Auth:** JWT required.
+
+**Response `200`**
+
+```json
+{
+  "swiggy_connected": true,
+  "competitor_pricing": {
+    "restaurants_checked": ["Biryani House", "Paradise", "Punjab Grill"],
+    "comparisons": [
+      { "item": "Butter Chicken", "your_price": 320.0, "area_avg": 265.0, "diff_pct": 20.8, "direction": "above" }
+    ],
+    "competitor_deals": [
+      { "restaurant": "Biryani House", "deal_title": "20% off above Rs.300", "discount": 20, "code": "SAVE20" }
+    ],
+    "pricing_impact": [
+      {
+        "item": "Butter Chicken", "our_price": 320.0, "area_avg": 265.0,
+        "gap_pct": 20.8, "direction": "above",
+        "volume_change_pct": -16.6, "weekly_revenue_impact_inr": -8715.0
+      }
+    ],
+    "fetched_at": "2026-07-05"
+  },
+  "area_occupancy": { "signal": "HIGH", "tonight_busy": true, "competitors_checked": 3, "fetched_at": "2026-07-05" },
+  "procurement": [ { "name": "Tomatoes", "price": 45.0, "unit": "1kg", "in_stock": true } ]
+}
+```
+
+`competitor_deals` (from `fetch_food_coupons`) and `pricing_impact` (a quantified
+demand-elasticity revenue model) were added in the market intelligence expansion. Both are `[]`
+when Swiggy is unavailable or no data qualifies: never `null`, safe to render unconditionally.
+
+---
+
+### `GET /api/v1/market/trends`
+
+Per-dish price history and area occupancy signal history across past planning runs: no
+new Swiggy calls, reads `market_intel` already stored in each run's persisted `final_response`.
+
+**Auth:** JWT required.
+
+**Query parameters**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `days` | integer (1–90) | `7` | Number of data points to return |
+
+**Response `200`**
+
+```json
+{
+  "price_trends": {
+    "butter chicken": [
+      { "date": "2026-06-29", "area_avg": 265.0 },
+      { "date": "2026-07-02", "area_avg": 270.0 }
+    ]
+  },
+  "occupancy_trend": [
+    { "date": "2026-06-29", "signal": "HIGH" },
+    { "date": "2026-07-02", "signal": "MEDIUM" }
+  ],
+  "days_returned": 2,
+  "note": "Run 3+ plans with Swiggy market intelligence enabled to see pricing trends."
+}
+```
+
+`note` is only present when fewer than 3 qualifying data points exist: the frontend renders an
+empty state in that case instead of a partial chart.
+
+---
+
+## Business
+
+Revenue, profit, and complaint analytics for the Today dashboard: computed directly from `Order`,
+`MenuItem`, `Feedback`, and `Expense`, independent of any planning run.
+
+### `GET /api/v1/business/performance`
+
+**Auth:** JWT required.
+
+**Query parameters**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `days` | integer (1–90) | `14` | Trailing window for the trend, dish ranking, and period P&L |
+
+**Response `200`**
+
+```json
+{
+  "period_days": 14,
+  "yesterday": {
+    "date": "2026-07-06", "revenue": 20189.0, "profit": 13321.0, "margin_pct": 66.0,
+    "orders": 25, "avg_order_value": 807.56,
+    "expenses": 4066.67, "net_profit": 9254.33, "net_margin_pct": 45.8
+  },
+  "today_so_far": { "...": "same shape as yesterday" },
+  "trend": [ { "date": "2026-06-24", "revenue": 18420.0, "profit": 12100.0, "orders": 22 } ],
+  "top_dishes": [ { "name": "Four Cheese", "category": "pizza", "revenue": 1500.0, "quantity": 5, "margin_pct": 16.7 } ],
+  "bottom_dishes": [ "...same shape as top_dishes" ],
+  "channel_split": { "dine_in_revenue": 12000.0, "delivery_revenue": 8189.0, "dine_in_orders": 15, "delivery_orders": 10 },
+  "complaints_by_category": [ { "category": "Wait Time", "count": 6 } ],
+  "peak_hours": [ { "hour": 19, "avg_orders": 4.2 } ],
+  "total_expenses": 71933.38,
+  "net_profit": 307646.62,
+  "net_margin_pct": 53.8,
+  "health_score": 86
+}
+```
+
+`expenses`/`net_profit`/`net_margin_pct` on each `DaySnapshot`, and the top-level
+`total_expenses`/`net_profit`/`net_margin_pct`/`health_score` fields, are the financial
+scorecard. Expenses are prorated from the `Expense` ledger (one-time/daily/weekly/monthly
+recurrence) into a daily-equivalent figure via `BusinessAnalyticsService.get_daily_expense_total`.
+`health_score` (0–100) is a deterministic composite: 70% net margin over `days` (normalized against
+a 30%-net-margin benchmark, capped at 100), 30% positive-sentiment share over the last 28 days of
+feedback. Missing margin data (no revenue) defaults to 0; missing sentiment data defaults to a
+neutral 50: see `BusinessAnalyticsService.compute_health_score`.
+
+`yesterday`/`today_so_far` are `null` when that day has no orders yet: the frontend renders a
+"no data yet" state rather than zeros.
+
+---
+
+## Action Queue
+
+Approval-gated agentic recommendations: restock alerts, WhatsApp vendor-order drafts,
+pricing/promo review flags. Auto-populated after every planning run by two built-in workflow
+triggers: 2+ critical shortages queues a `restock_alert`; tonight-busy plus 2+ competitor
+Dineout deals queues a `pricing_promo_review`. Both are `recommendation`-tier: informational only,
+never auto-executed.
+
+### `GET /api/v1/action-queue`
+
+**Auth:** JWT required.
+
+**Query parameters**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `status` | string | *(none: all statuses)* | Filter: `pending`, `approved`, `executed`, `rejected`, `expired` |
+
+**Response `200`**
+
+```json
+[
+  {
+    "id": 14, "category": "whatsapp_vendor_order", "tier": "approve_required", "status": "pending",
+    "title": "Order Mozzarella Cheese from Ramesh Traders",
+    "payload": { "vendor_id": 1, "vendor": "Ramesh Traders", "ingredient": "Mozzarella Cheese",
+                 "message_draft": "Ramesh bhai, mozzarella is almost done..." },
+    "approved_by": null, "executed_at": null, "error": null, "created_at": "2026-07-08T06:47:20",
+    "approval_streak": 2
+  }
+]
+```
+
+`approval_streak` is a read-only count of how many times in a row this
+`category` has been approved before (a rejection anywhere breaks the streak): informational only,
+never bypasses approval. See `TrustLadderService.count_consecutive_approvals`.
+
+### `POST /api/v1/action-queue/{action_id}/approve`
+
+For a `whatsapp_vendor_order` action, approval and execution are the same step: this call also
+triggers the real WhatsApp send via Twilio. On send failure, the action stays `approved`
+with `error` populated rather than losing the approval decision. Other categories are approved only
+- no execution step wired for them yet.
+
+Shared logic lives in `action_execution_service.approve_and_execute`, called identically by this
+route, the in-app chatbot's `approve_action` tool, and the MCP server's `approve_action` tool
+: approving via any of the three surfaces behaves the same way.
+
+### `POST /api/v1/action-queue/{action_id}/reject`
+
+Transitions status to `rejected` only: never executes anything.
 
 ---
 
@@ -423,7 +787,9 @@ data: {"token": " your"}
 data: {"done": true}
 ```
 
-**Data sources:** the last 10 `planning_runs` for the org (org-scoped) and the last 30 `feedback` records (not org-filtered — shared across the demo dataset).
+**Data sources:** the last 10 `planning_runs` for the org (org-scoped) and the last 30 `feedback` records (not org-filtered: shared across the demo dataset). Responses are also checked against `SemanticChatCache` (Qdrant-backed, 24hr TTL): identical or near-identical questions return cached answers instantly without an LLM call.
+
+**Within-session memory:** the last 8 turns are sent verbatim; older turns in the same session are compressed and injected as a summary to preserve conversational context.
 
 **Example questions the chatbot handles**
 
@@ -432,6 +798,11 @@ data: {"done": true}
 - "Which ingredients keep showing up as low stock?"
 - "How is my restaurant performing overall?"
 - "If I had to focus on one thing to improve our score, what would it be?"
+- "What's the market situation right now?" maps to the `get_market_brief` tool
+- "What's waiting for my approval?" maps to the `get_action_queue` tool
+- "Approve the mozzarella reorder" maps to the `approve_action` tool: for a WhatsApp vendor order, this is
+  the same step that actually sends the message, so only fires on the user's explicit approval, never
+  on the model's own initiative
 
 ---
 
@@ -480,9 +851,21 @@ Prometheus scrape endpoint. Returns OpenMetrics-format metrics including HTTP re
 
 ### `GET /debug/sentry-test`
 
-Intentionally raises a `RuntimeError` to verify Sentry exception capture is working. Only useful during setup. Note: registered directly on the main app — not under the `/api/v1` prefix.
+Intentionally raises a `RuntimeError` to verify Sentry exception capture is working. Only useful during setup. Note: registered directly on the main app: not under the `/api/v1` prefix.
 
 **Auth:** None.
+
+---
+
+### `POST /replay`
+
+Single-generation LLM replay for Kindred debugging. Mounted directly on the application, not under `/api/v1`, matching Kindred's Configure Replay URL convention.
+
+Accepts a `messages` array (or a plain `input` string as a fallback), extracts the system and user messages, and calls the LLM provider directly for that one generation. This never re-runs the LangGraph pipeline: it replays exactly one LLM call, the same call path every graph node already uses.
+
+Five Kindred metadata fields are accepted either in the request body or as `X-Kindred-*` headers, and are propagated onto the corresponding Langfuse trace so Kindred can locate the original and replay by trace metadata.
+
+**Auth:** Public endpoint; authorization is via Kindred's own metadata, not a JWT.
 
 ---
 
@@ -548,7 +931,7 @@ Returns the authenticated org's workspace settings.
 
 ### `PATCH /api/v1/settings`
 
-Updates org settings. All fields are optional — only supplied fields are updated.
+Updates org settings. All fields are optional: only supplied fields are updated.
 
 **Auth:** JWT required (owner role).
 
@@ -601,6 +984,146 @@ Deletes a profile.
 
 ---
 
+## Connectors
+
+### `POST /api/v1/connectors/swiggy/sync`
+
+Trigger a live Swiggy MCP sync. Calls `get_food_orders`, `track_food_order`, and
+`get_booking_status` against the real Swiggy API. Requires `SWIGGY_ACCESS_TOKEN` and
+`SWIGGY_ADDRESS_ID` set in `.env` (run `python scripts/get_swiggy_token.py` to obtain them).
+
+**Auth:** JWT required.
+
+**Response `200`**
+
+```json
+{
+  "status": "success",
+  "message": "Live Swiggy data synced. Check orders and feedback tables.",
+  "results": {
+    "orders":       {"synced": 5, "skipped": 2, "errors": 0},
+    "feedback":     {"synced": 3, "skipped": 2, "errors": 0},
+    "reservations": {"synced": 0, "skipped": 0, "errors": 0,
+                     "note": "No Dineout bookings registered yet. Booking IDs are captured when book_table is called."}
+  }
+}
+```
+
+**Error `400`**: token or address not configured:
+```json
+{"detail": "SWIGGY_ACCESS_TOKEN not configured. Run: python scripts/get_swiggy_token.py"}
+```
+
+---
+
+### `GET /api/v1/connectors/status`
+
+Returns connection status and sync counts for all connectors registered for this org.
+Used by the `/connectors` frontend page.
+
+**Auth:** JWT required.
+
+**Response `200`**
+
+```json
+{
+  "connectors": [
+    {
+      "type": "swiggy",
+      "name": "Swiggy",
+      "logo": "/swiggy-logo.png",
+      "connected": true,
+      "last_sync_at": "2026-06-30T07:15:00",
+      "sync_status": "success",
+      "orders_synced": 47,
+      "feedback_synced": 12,
+      "address_configured": true
+    }
+  ]
+}
+```
+
+---
+
+## Guest Concierge
+
+A no-auth, consumer-facing surface, entirely independent of the restaurant-operator routes above. None of the following routes depend on `get_current_user`.
+
+### `POST /api/v1/concierge/chat` *(SSE stream)*
+
+Sends a message to the Guest Concierge and streams the response.
+
+**Auth:** None.
+
+**Request body**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `session_id` | string | No | Existing session id; a new one is created if omitted or not found |
+| `message` | string | Yes | The guest's message |
+
+**SSE event format**
+
+```
+data: {"session_id": "a1b2c3..."}
+data: {"type": "status", "content": "Finding venues..."}
+data: {"type": "tool_result", "tool": "find_venues", "data": {"venues": [...]}}
+data: {"type": "text", "content": "I found "}
+data: {"type": "text", "content": "a few "}
+data: {"done": true}
+```
+
+Three chunk types stream over the connection: `status` (a friendly "doing X..." label while a tool call is in flight), `tool_result` (the structured data a tool just returned, rendered as a real card), and `text` (the narrated answer, streamed word by word). Any failure, tool-level or otherwise, degrades to a fixed, friendly `text` message: never a raw exception, stack trace, or internal tool name.
+
+---
+
+### `GET /api/v1/concierge/session/{session_id}`
+
+Returns the current state of a session: occasion, headcount, budget spent and remaining, preferences, active bookings, active food and Instamart orders, suggested venues, and the Instamart cart.
+
+**Auth:** None. **Error `404`**: session not found or expired (2-hour TTL).
+
+---
+
+### `DELETE /api/v1/concierge/session/{session_id}`
+
+Clears a session. **Auth:** None. **Response:** `204`.
+
+---
+
+### `POST /api/v1/concierge/transcribe`
+
+Voice input for the Guest Concierge, same contract as `/planning/transcribe` but with no auth requirement.
+
+**Auth:** None.
+
+**Request:** `multipart/form-data` with a `file` field.
+
+**Response `200`**: `{ "text": "..." }`
+
+---
+
+### `GET /api/v1/concierge/health`
+
+Reports which Guest Concierge tools are available right now.
+
+**Auth:** None.
+
+**Response `200`**
+
+```json
+{
+  "swiggy_connected": true,
+  "staging_enabled": false,
+  "tools_available": ["find_venues", "check_table_availability", "find_food", "find_supplies", "..."],
+  "tools_pending_staging": ["book_table", "order_supplies"]
+}
+```
+
+`tools_pending_staging` lists tools that require Swiggy staging credentials (table booking, Instamart checkout); when staging is enabled they move into `tools_available`.
+
+---
+
 ## Error responses
 
 | Status | Meaning |
@@ -609,4 +1132,4 @@ Deletes a profile.
 | `403` | Action requires owner role |
 | `404` | Resource not found or belongs to a different org |
 | `422` | Request body validation failed (Pydantic) |
-| `500` | Internal server error — check Sentry and structlog output |
+| `500` | Internal server error: check Sentry and structlog output |

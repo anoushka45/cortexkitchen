@@ -9,6 +9,7 @@ env/
 # Environment
 .env
 .env.*
+!.env.example
 
 # IDE
 .vscode/
@@ -39,7 +40,7 @@ data/processed/*
 # Docker
 *.pid
 
-# Project tracker (local only)
-*.xlsx
+# Spreadsheets (except the project tracker)
 *.xls
+!CortexKitchen_Progress_Tracker_v4.xlsx
 apps/api/.deepeval/

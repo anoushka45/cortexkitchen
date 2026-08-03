@@ -48,21 +48,28 @@ class FallbackLLMProvider(BaseLLMProvider):
             "llm_fallback_provider": self.fallback_provider_name or "",
         }
 
-    async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
-        return await self._call_with_fallback("complete", prompt, system_prompt)
+    async def complete(
+        self, prompt: str, system_prompt: str | None = None, temperature: float | None = None,
+    ) -> str:
+        return await self._call_with_fallback("complete", prompt, system_prompt, temperature)
 
-    async def complete_json(self, prompt: str, system_prompt: str | None = None) -> dict:
-        return await self._call_with_fallback("complete_json", prompt, system_prompt)
+    async def complete_json(
+        self, prompt: str, system_prompt: str | None = None, temperature: float | None = None,
+    ) -> dict:
+        return await self._call_with_fallback("complete_json", prompt, system_prompt, temperature)
 
     async def _call_with_fallback(
         self,
         method_name: str,
         prompt: str,
         system_prompt: str | None,
+        temperature: float | None = None,
     ):
         log = structlog.get_logger()
         try:
-            result = await getattr(self.primary, method_name)(prompt, system_prompt=system_prompt)
+            result = await getattr(self.primary, method_name)(
+                prompt, system_prompt=system_prompt, temperature=temperature,
+            )
             self.last_provider_used = self.primary.provider_name
             self.last_fallback_used = False
             return result
@@ -79,16 +86,18 @@ class FallbackLLMProvider(BaseLLMProvider):
                 method=method_name,
                 error=str(exc),
             )
-            result = await getattr(self.fallback, method_name)(prompt, system_prompt=system_prompt)
+            result = await getattr(self.fallback, method_name)(
+                prompt, system_prompt=system_prompt, temperature=temperature,
+            )
             self.last_provider_used = self.fallback.provider_name
             self.last_fallback_used = True
             return result
 
-    def drain_usage(self) -> list[dict]:
+    def drain_usage(self, node: str | None = None) -> list[dict]:
         records = []
-        records.extend(self.primary.drain_usage())
+        records.extend(self.primary.drain_usage(node=node))
         if self.fallback is not None:
-            records.extend(self.fallback.drain_usage())
+            records.extend(self.fallback.drain_usage(node=node))
         return records
 
 

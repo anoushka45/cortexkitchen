@@ -1,8 +1,7 @@
 # CortexKitchen Documentation
 
-Last updated: June 2026. Phase 5 complete.
-
-All documents in this folder reflect the implemented codebase.
+Reflects Phase 6A in progress, including Guest Concierge. All documents in
+this folder describe the implemented codebase, not aspirational scope.
 
 ---
 
@@ -10,35 +9,29 @@ All documents in this folder reflect the implemented codebase.
 
 | File | Contents |
 |------|---------|
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Full system architecture — graph topology, SSE streaming, Redis caching, multi-tenant isolation, observability stack, Phase 5 additions |
-| [`AGENTS.md`](AGENTS.md) | All nine LangGraph orchestration nodes + the RAG chat agent |
-| [`APIS.md`](APIS.md) | Complete API reference — all endpoints including exports, chat, observability, and Prometheus |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Full system architecture: graph topology, SSE streaming, caching, multi-tenant isolation, observability stack, frontend structure |
+| [`AGENTS.md`](AGENTS.md) | All fifteen LangGraph orchestration nodes plus the operator chat agent and the Guest Concierge agent |
+| [`APIS.md`](APIS.md) | Complete API reference: every endpoint including planning, market, business, action queue, exports, chat, Guest Concierge, replay, and observability |
 | [`DATA_MODEL.md`](DATA_MODEL.md) | PostgreSQL schema and Qdrant collections |
-| [`EVALUATION.md`](EVALUATION.md) | LangSmith golden dataset + CI gate, RAGAS, DeepEval, observability |
-| [`ROADMAP.md`](ROADMAP.md) | Phase-by-phase delivery history — Phases 0–5 complete |
+| [`EVALUATION.md`](EVALUATION.md) | Test suite, LangSmith golden dataset and CI gate, RAGAS, DeepEval, observability |
+| [`PRODUCT_MODES.md`](PRODUCT_MODES.md) | Scenario intake modes: presets, natural-language scenario text, and live dynamic composition |
+| [`SWIGGY_INTEGRATION.md`](SWIGGY_INTEGRATION.md) | Swiggy MCP tool reference, response schemas, and compliance constraints |
+| [`ROADMAP.md`](ROADMAP.md) | Phase-by-phase delivery history |
 | [`DECISIONS.md`](DECISIONS.md) | Architecture decision log |
 | [`PRD.md`](PRD.md) | Product requirements document |
-| [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) | Delivery plan with completed milestones |
+| [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) | Delivery plan and milestone tracking |
+
+For the current task-level status and the Swiggy Integration Agreement compliance summary, see `CLAUDE.md` at the repository root; it is the source of truth for in-progress work.
 
 ---
 
-## What's new (post Phase 5)
+## Current state summary
 
-- **Per-node model tier routing** — CometAPI integration routes each LangGraph node to the right model tier (fast / balanced / strong) via a single key. The critic always gets `claude-sonnet-4-6`; simpler nodes get `deepseek-v4-flash`. Fully opt-in via `COMET_TIERED=true`. See `docs/ARCHITECTURE.md` for the full tier table and fallback chain design.
-
-- **Cross-agent assumption diffing** — Each domain node now writes the assumptions it acted on into `OrchestratorState` (`menu_assumptions`, `inventory_assumptions`, `reservation_assumptions`, `complaint_assumptions`). `EvaluationSanityChecker` cross-diffs these after the parallel fan-out completes, surfacing contradictions (e.g. menu assumed covers within capacity while reservation shows >90% occupancy) as `stale_assumptions`. Conflicts are injected directly into the critic's LLM prompt and returned in `critic.stale_assumptions` in the API response. Three diffs are active: menu covers-within-capacity vs occupancy (Diff 2), high-occupancy planning vs weak forecast (Diff 3), and complaint gray zone (Diff 4). This replaces a hardcoded contradiction pair approach that would have caused a combinatorial explosion as agents grow. See D-017 in `docs/DECISIONS.md`.
-
----
-
-## What Phase 5 added
-
-- **PDF + Excel export** — chef brief and owner workbook per planning run
-- **SSE streaming** — `node_complete` status events update the loading screen pipeline diagram in real time; full plan delivered in a single `complete` event
-- **Redis caching** — 1hr TTL plan cache; zero LLM cost on repeat runs same day
-- **What-if simulator** — instant cover count adjustment without a full re-run
-- **OpenTelemetry + Prometheus** — HTTP tracing and `/metrics` scrape endpoint
-- **Sentry** — unhandled exception capture with LangGraph node tags
-- **LangSmith regression evals** — `cortexkitchen-golden-v1` dataset (50 runs), 90% CI gate
-- **Multi-tenant workspace isolation** — Postgres `org_id` scoping + Qdrant payload filter per org
-- **RAG chatbot** — `POST /api/v1/chat` SSE; AsyncGroq streaming; answers from real run data
-- **Prelaunch polish** — homepage pipeline redesign, professional footer, prompt refinements
+- The planning pipeline is a fifteen-node LangGraph graph: `ops_manager`, `live_signals`, `demand_forecast`, `qdrant_enrichment`, a five-way parallel fan-out (`reservation`, `complaint_intelligence`, `inventory`, `market_intel`, `dineout_manager`), `menu_intelligence`, `aggregator`, `critic`, `replan_orchestrator`, `situation_summary`, `final_assembler`.
+- Live intelligence signals (weather and holidays, industry trends, regulatory alerts) are fetched independently of the Swiggy MCP and merged into the planning pipeline alongside anonymised Swiggy market signals.
+- Scenario intake supports four presets, free-form natural-language scenario text, and live dynamic composition from current signals.
+- The frontend information architecture splits Dashboard (daily overview) and Planning (the flagship trigger-and-watch experience) into separate pages, with a dedicated Action Center, Analytics page, and a merged Data page. The homepage frames CortexKitchen as a two-sided platform with a dual entry point (restaurant sign-in, guest sign-in), and `/login`/`/register` share a redesigned split-screen layout.
+- **Guest Concierge is delivered**: a no-auth, consumer-facing `/concierge` page and `ConciergeService` orchestrate all three Swiggy MCP servers (Food, Instamart, Dineout) directly for guests planning an event, independently of the restaurant-operator side. Table booking and Instamart checkout are staging-gated, shown honestly as pending rather than hidden or faked.
+- An Action Queue exists with a trust-ladder informational badge (a "you've approved this category N times in a row" streak counter, not an auto-execution mechanic: nothing bypasses manual approval by design); the fully wired autonomous procurement loop (shortage detection through real Instamart checkout) is upcoming work, tracked in `CLAUDE.md`.
+- Voice input (Whisper transcription via Groq) is wired into the Dashboard ask-bar, the Planning modal, the operator chat page and floating widget, and Guest Concierge. Voice output (TTS) is not built.
+- Langfuse tracing is wired into every planning run, with a Kindred replay endpoint for single-generation prompt replay debugging.

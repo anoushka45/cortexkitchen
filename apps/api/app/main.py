@@ -1,4 +1,6 @@
+import asyncio
 import os
+import sys
 import time
 
 import sentry_sdk
@@ -14,12 +16,19 @@ from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
 
 from app.api.routes import get_api_router
+from app.api.routes.replay import router as replay_router
 from app.api.schemas.common import ErrorResponse
 from app.core.constants import SERVICE_NAME
 from app.core.exceptions import AppError
 from app.core.logging import configure_logging
 from app.core.settings import get_settings
 
+
+# 0. Windows defaults to ProactorEventLoop, which psycopg's async mode
+# cannot run under (checkpointing's AsyncPostgresSaver needs it) -- must be
+# set before any event loop is created, i.e. before uvicorn starts its own.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # 1. Initialize Settings
 settings = get_settings()
@@ -46,6 +55,20 @@ if settings.langsmith_api_key:
     os.environ.setdefault("LANGSMITH_PROJECT",   settings.langsmith_project)
     os.environ.setdefault("LANGSMITH_ENDPOINT",  settings.langsmith_endpoint)
 
+# 4b. Propagate Langfuse config into OS env so the langfuse SDK picks it up
+# (P6-A27, Kindred replay debugging). langfuse-python reads LANGFUSE_BASE_URL
+# first, falling back to LANGFUSE_HOST — set both so either .env naming works.
+if settings.langfuse_secret_key:
+    host = settings.langfuse_base_url or settings.langfuse_host
+    os.environ.setdefault("LANGFUSE_PUBLIC_KEY", settings.langfuse_public_key)
+    os.environ.setdefault("LANGFUSE_SECRET_KEY", settings.langfuse_secret_key)
+    if host:
+        os.environ.setdefault("LANGFUSE_BASE_URL", host)
+        os.environ.setdefault("LANGFUSE_HOST", host)
+    if settings.kindred_agent_id:
+        os.environ.setdefault("KINDRED_AGENT_ID", settings.kindred_agent_id)
+    log.info("langfuse_enabled")
+
 
 # 2. Create the FastAPI Instance
 app = FastAPI(
@@ -54,9 +77,9 @@ app = FastAPI(
 )
 
 
-# 3. OpenTelemetry — HTTP-layer tracing (console exporter for dev; swap for OTLP in prod)
+# 3. OpenTelemetry — HTTP-layer tracing (console exporter disabled; use OTLP in prod)
 _tracer_provider = TracerProvider()
-_tracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+# ConsoleSpanExporter floods dev logs — re-enable by adding BatchSpanProcessor(ConsoleSpanExporter())
 FastAPIInstrumentor.instrument_app(app, tracer_provider=_tracer_provider)
 
 # 3b. CORS Middleware
@@ -120,3 +143,7 @@ Instrumentator().instrument(app).expose(app)
 
 # 7. Include Modular Routes
 app.include_router(get_api_router())
+
+# 7b. Kindred replay endpoint — bare /replay, not under /api/v1 (P6-A27):
+# Kindred's Configure Replay URL convention expects the endpoint at the root.
+app.include_router(replay_router)

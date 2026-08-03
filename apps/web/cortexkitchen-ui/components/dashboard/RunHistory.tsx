@@ -15,7 +15,7 @@ const VERDICT_COLOR: Record<string, string> = {
   approved: "text-emerald-400 border-emerald-500/30",
   rejected: "text-rose-400    border-rose-500/30",
   revision: "text-amber-400   border-amber-500/30",
-  unknown:  "text-slate-400   border-slate-600",
+  unknown:  "text-[var(--color-text-soft)]   border-[var(--color-border-default)]",
 };
 
 const VERDICT_DOT: Record<string, string> = {
@@ -32,7 +32,7 @@ export default function RunHistory({ history, activeId, onSelect }: Props) {
 
   return (
     <div className="w-56 shrink-0">
-      <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-3 px-1">
+      <p className="text-xs uppercase tracking-widest text-[var(--color-text-ghost)] mb-3 px-1">
         Run History
       </p>
       <div className="relative">
@@ -41,7 +41,7 @@ export default function RunHistory({ history, activeId, onSelect }: Props) {
           const isActive  = entry.id === activeId;
           const colors    = VERDICT_COLOR[entry.verdict] ?? VERDICT_COLOR.unknown;
           const dot       = VERDICT_DOT[entry.verdict]  ?? VERDICT_DOT.unknown;
-          const scorePct  = entry.score == null ? null : Math.round(entry.score * 100);
+          const scorePct  = entry.score; // RunHistoryEntry.score is already 0-100 (useFridayRush.ts)
           const time      = new Date(entry.runAt).toLocaleTimeString([], {
             hour: "2-digit", minute: "2-digit",
           });
@@ -50,17 +50,16 @@ export default function RunHistory({ history, activeId, onSelect }: Props) {
             <li key={entry.id} className={STAGGER[Math.min(idx, 4)]}>
               <button
                 onClick={() => onSelect(entry)}
-                className={`
-                  w-full text-left rounded-xl border px-3 py-3
+                className={`w-full text-left rounded-xl border px-3 py-3
                   transition-all duration-200
                   ${isActive
                     ? "border-ember-500/50 bg-ember-500/10"
-                    : "border-white/5 bg-navy-900 hover:border-ember-500/20 hover:bg-navy-800"
+                    : "border-[var(--color-border-soft)] bg-[var(--color-surface)] hover:border-ember-500/20 hover:bg-[var(--color-surface-raised)]"
                   }
                 `}
               >
                 {/* Date */}
-                <p className="text-xs font-mono text-slate-300 truncate mb-1.5">
+                <p className="text-xs font-mono text-[var(--color-text-soft)] truncate mb-1.5">
                   {entry.targetDate === "Next Friday"
                     ? "Next Friday"
                     : entry.targetDate}
@@ -76,13 +75,13 @@ export default function RunHistory({ history, activeId, onSelect }: Props) {
                 </div>
 
                 {/* Time */}
-                <p className="text-xs text-slate-600 mt-1.5 font-mono">{time}</p>
+                <p className="text-xs text-[var(--color-text-ghost)] mt-1.5 font-mono">{time}</p>
               </button>
             </li>
           );
         })}
       </ul>
-      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-navy-950 to-transparent" />
+      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[var(--color-surface)] to-transparent" />
       </div>
     </div>
   );

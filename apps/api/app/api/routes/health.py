@@ -4,7 +4,10 @@ from app.api.schemas.common import DependenciesHealthResponse
 from app.api.schemas.health import HealthResponse
 from app.core.constants import SERVICE_NAME
 from app.core.settings import get_settings
-from app.infrastructure.observability.dependency_health import get_dependency_statuses
+from app.infrastructure.observability.dependency_health import (
+    check_swiggy_circuits,
+    get_dependency_statuses,
+)
 
 router = APIRouter(tags=["health"])
 
@@ -30,3 +33,9 @@ def dependencies_health_check() -> DependenciesHealthResponse:
         overall_ok=overall_ok,
         dependencies=dependencies,
     )
+
+
+@router.get("/health/circuits", summary="Swiggy MCP circuit breaker states")
+async def circuits_health() -> dict:
+    """Return current open/closed state for each Swiggy MCP endpoint."""
+    return {"circuits": await check_swiggy_circuits()}

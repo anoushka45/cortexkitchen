@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { getPlanningRun, listPlanningRuns, streamPlanningScenario } from "@/lib/api";
-import { FridayRushRequest, FridayRushResponse, PlanningRunSummary, RunHistoryEntry } from "@/types/planning";
+import { FridayRushRequest, FridayRushResponse, PlanningRunSummary, RunHistoryEntry, ScenarioProfile } from "@/types/planning";
 
 type Status = "idle" | "loading" | "success" | "error";
 
@@ -13,7 +13,10 @@ interface UseFridayRushReturn {
   error:          string | null;
   history:        RunHistoryEntry[];
   completedNodes: Set<string>;
-  trigger:        (targetDate?: string, scenario?: FridayRushRequest["scenario"], restaurantId?: number) => Promise<void>;
+  startedNodes:   Set<string>;
+  nodeHints:      Record<string, string>;
+  replanCount:    number;
+  trigger:        (targetDate?: string, scenario?: FridayRushRequest["scenario"], restaurantId?: number, customProfile?: ScenarioProfile) => Promise<void>;
   reset:          () => void;
   loadFromHistory: (entry: RunHistoryEntry) => Promise<void>;
   refreshHistory:  () => Promise<void>;
@@ -26,7 +29,14 @@ function toHistoryEntry(run: PlanningRunSummary): RunHistoryEntry {
     runAt: run.created_at ?? run.generated_at ?? new Date().toISOString(),
     status: run.status,
     verdict: run.critic_verdict ?? "unknown",
-    score: run.critic_score,
+    // critic_score is stored as a 0-1 fraction everywhere in the backend --
+    // every other consumer (RunHistorySection, DataHealthSection,
+    // TodayIdleState) does Math.round(score * 100) before display; this was
+    // the one place that didn't, so RunHistoryEntry.score silently carried
+    // the raw fraction (e.g. 0.92 instead of 92) into whatever rendered it.
+    score: run.critic_score != null ? Math.round(run.critic_score * 100) : null,
+    scenario: run.scenario,
+    scenarioLabel: run.scenario_label,
   };
 }
 
@@ -36,6 +46,9 @@ export function useFridayRush(): UseFridayRushReturn {
   const [error,          setError]          = useState<string | null>(null);
   const [history,        setHistory]        = useState<RunHistoryEntry[]>([]);
   const [completedNodes, setCompletedNodes] = useState<Set<string>>(new Set());
+  const [startedNodes,   setStartedNodes]   = useState<Set<string>>(new Set());
+  const [nodeHints,      setNodeHints]      = useState<Record<string, string>>({});
+  const [replanCount,    setReplanCount]    = useState<number>(0);
 
   const refreshHistory = useCallback(async () => {
     const runs = await listPlanningRuns(10);
@@ -51,11 +64,14 @@ export function useFridayRush(): UseFridayRushReturn {
     return () => window.clearTimeout(timer);
   }, [refreshHistory]);
 
-  const trigger = useCallback(async (targetDate?: string, scenario: FridayRushRequest["scenario"] = "friday_rush", restaurantId?: number) => {
+  const trigger = useCallback(async (targetDate?: string, scenario: FridayRushRequest["scenario"] = "friday_rush", restaurantId?: number, customProfile?: ScenarioProfile) => {
     setStatus("loading");
     setError(null);
     setData(null);
     setCompletedNodes(new Set());
+    setStartedNodes(new Set());
+    setNodeHints({});
+    setReplanCount(0);
 
     try {
       const stream = streamPlanningScenario({
@@ -63,12 +79,20 @@ export function useFridayRush(): UseFridayRushReturn {
         simulation_mode: false,
         scenario,
         ...(restaurantId ? { restaurant_id: restaurantId } : {}),
+        ...(customProfile ? { custom_profile: customProfile } : {}),
       });
 
       for await (const evt of stream) {
-        if (evt.event === "node_complete") {
-          const { node } = evt as { event: string; node: string };
+        if (evt.event === "node_start") {
+          const { node, hint } = evt as { event: string; node: string; hint?: string };
+          setStartedNodes(prev => new Set([...prev, node]));
+          if (hint) setNodeHints(prev => ({ ...prev, [node]: hint }));
+        } else if (evt.event === "node_complete") {
+          const { node, hint } = evt as { event: string; node: string; hint?: string };
           setCompletedNodes(prev => new Set([...prev, node]));
+          if (node === "replan") setReplanCount(prev => prev + 1);
+          // Completion hint overwrites the start hint with a richer summary
+          if (hint) setNodeHints(prev => ({ ...prev, [node]: hint }));
         } else if (evt.event === "complete") {
           const { event: _e, ...response } = evt as { event: string } & FridayRushResponse;
           setData(response as FridayRushResponse);
@@ -109,5 +133,9 @@ export function useFridayRush(): UseFridayRushReturn {
     }
   }, []);
 
-  return { data, status, error, history, completedNodes, trigger, reset, loadFromHistory, refreshHistory };
+  return {
+    data, status, error, history,
+    completedNodes, startedNodes, nodeHints, replanCount,
+    trigger, reset, loadFromHistory, refreshHistory,
+  };
 }

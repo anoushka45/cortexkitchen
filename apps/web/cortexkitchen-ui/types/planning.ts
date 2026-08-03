@@ -25,6 +25,11 @@ export interface ForecastData {
     category: string;
     total_ordered: number;
   }>;
+  // P6-A21 -- weather/holiday demand-multiplier fields, never typed on the
+  // frontend before even though the backend has returned them since P6-A21.
+  predicted_orders_pre_adjustment?: number;
+  adjustment_multiplier?: number;
+  adjustment_reasons?: string[];
 }
 
 export interface ReservationData {
@@ -158,11 +163,123 @@ export interface CriticResult {
       message: string;
     }>;
   } | null;
+  // Cross-agent contradictions (EvaluationSanityChecker._diff_assumptions) --
+  // present on final_assembler's critic dict but was missing from this type.
+  stale_assumptions?: Array<{ node: string; conflict: string }>;
 }
 
 export interface RagContext {
   complaints?: unknown[];
   sops?:       unknown[];
+  [key: string]: unknown;
+}
+
+export interface SwiggyCompetitorPricing {
+  area_avg_price:    number | null;
+  cheapest_price:    number | null;
+  most_expensive:    number | null;
+  restaurants_found: number;
+  dish_query:        string;
+  fetched_at:        string;
+}
+
+export interface SwiggyPricingAlert {
+  item:         string;
+  your_price:   number;
+  area_avg:     number;
+  diff_pct:     number;
+  direction:    "above" | "below";
+}
+
+export interface SwiggyOccupancyContext {
+  signal:       "HIGH" | "MEDIUM" | "LOW";
+  tonight_busy: boolean;
+  restaurants_found: number;
+  fetched_at:   string;
+}
+
+// Mirrors ProcurementEnricher.enrich()'s actual return shape (camelCase
+// item fields, straight from the Swiggy Instamart response) -- NOT the
+// snake_case this used to declare, which never matched the real payload.
+export interface SwiggyProcurementOption {
+  ingredient: string;
+  price:      number;
+  unit:       string;
+  inStock:    boolean;
+  spinId:     string;
+}
+
+// The backend wraps the array in a dict (app/api/schemas/planning.py:
+// swiggy_procurement_options: Optional[Dict[str, Any]]), not a bare array --
+// FridayRushResponse.swiggy_procurement_options below used to type it as a
+// plain SwiggyProcurementOption[], which crashed the first real .find()
+// call against it (options.find is not a function) since at runtime it's
+// this wrapper object.
+export interface SwiggyProcurementOutput {
+  procurement_options: SwiggyProcurementOption[];
+  prompt_text?: string;
+  fetched_at?: string;
+}
+
+export interface MarketIntelOutput {
+  competitor_pricing: SwiggyCompetitorPricing | null;
+  area_occupancy:     SwiggyOccupancyContext | null;
+  pricing_alerts:     SwiggyPricingAlert[];
+  tonight_busy:       boolean | null;
+  fetched_at:         string | null;
+  // Condensed prose merging weather/trends/compliance/Swiggy signals
+  // (MarketIntelService._build_live_signals_text, P6-A24) -- not on every
+  // older stored run, hence optional.
+  live_signals_text?: string;
+}
+
+// P6-A30 -- per-node/per-LLM-call observability data. This has always been
+// captured in graph.py's run metadata (node_traces/llm_usage) but was never
+// typed or surfaced on the frontend before -- the only fields read anywhere
+// were a handful of run-level aggregates via untyped Record<string, unknown>
+// casts (see PlanningRunMetadata below for those).
+export interface LlmUsageRecord {
+  provider: string;
+  model: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  cost_usd: number;
+  node: string | null;
+}
+
+export interface NodeTrace {
+  node: string;
+  started_at: string;
+  ended_at: string;
+  duration_ms: number;
+  // Absent (not just empty) on some real runs -- nodes that error before
+  // recording usage, or older stored runs predating this field. Consumers
+  // must default it, not assume it's always an array.
+  llm_usage?: LlmUsageRecord[];
+  node_cost_usd: number;
+  // Only present on the error path (graph.py's exception branch) -- absence
+  // means the node completed normally, not that it's guaranteed non-null.
+  error?: string;
+}
+
+// Shape of FridayRushResponse.meta / PlanningRunDetail.metadata. Kept as an
+// index signature too since not every historical run has every field (older
+// runs predate P6-A27's session_id, etc.) and the backend may add fields
+// here without a frontend release.
+export interface PlanningRunMetadata {
+  run_id?: string;
+  session_id?: string;
+  node_traces?: NodeTrace[];
+  llm_usage?: LlmUsageRecord[];
+  total_duration_ms?: number;
+  total_tokens?: number;
+  total_cost_usd?: number;
+  llm_model?: string;
+  llm_provider?: string;
+  llm_fallback_used?: boolean;
+  llm_fallback_provider?: string;
+  planning_run_id?: number;
+  cache_hit?: boolean;
   [key: string]: unknown;
 }
 
@@ -175,16 +292,63 @@ export interface FridayRushResponse {
   rag_context:     RagContext | null;
   critic:          CriticResult;
   meta?:           Record<string, unknown>;
+  // Swiggy enricher outputs (P6-S11/S12)
+  market_intel?:              MarketIntelOutput | null;
+  swiggy_competitor_context?: Record<string, unknown> | null;
+  swiggy_occupancy_context?:  SwiggyOccupancyContext | null;
+  swiggy_procurement_options?: SwiggyProcurementOutput | null;
+  dineout_manager?:           Record<string, unknown> | null;
+  // Natural-language "situation + tailored key takeaways" briefing (hero
+  // content on /planning's results page). Absent on older stored runs or
+  // when the LLM call failed open -- frontend falls back to a deterministic
+  // rendering in that case.
+  situation_summary?:         string | null;
 }
+
+// P6-A25 -- ad-hoc scenario profile derived from natural language, carried
+// alongside a non-preset `scenario` id. Mirrors the backend's
+// ScenarioProfilePayload (apps/api/app/api/schemas/planning.py).
+export interface ScenarioProfile {
+  id: string;
+  label: string;
+  description?: string;
+  service_window: string;
+  operational_focus: string;
+  cuisine?: string | null;
+}
+
+// Shared callback shape for every "trigger a plan" entry point (Dashboard's
+// PlanShiftModal, /planning's hero + accordion) -- one definition instead of
+// four near-identical inline copies. scenarioOverride exists specifically
+// for ScenarioRecommender-driven "run for today" fast paths: DashboardContext's
+// selectedScenario only reflects a setSelectedScenario() call after the next
+// render, so a handler can't call setSelectedScenario() then immediately
+// trigger() in the same synchronous click handler and expect the new value --
+// it must pass the recommended scenario id through explicitly instead.
+export type PlanTriggerHandler = (
+  date?: string,
+  restaurantName?: string,
+  restaurantId?: number,
+  customProfile?: ScenarioProfile,
+  scenarioOverride?: string,
+) => void;
 
 export interface FridayRushRequest {
   target_date?: string | null;
   simulation_mode?: boolean;
-  scenario?: "friday_rush" | "weekday_lunch" | "holiday_spike" | "low_stock_weekend";
+  // Widened from the 4-literal union (P6-A25) -- a custom id (e.g. "custom")
+  // is valid when custom_profile is also supplied. The 4 presets still work
+  // unchanged when scenario is one of them and custom_profile is omitted.
+  scenario?: string;
+  restaurant_id?: number;
+  custom_profile?: ScenarioProfile | null;
 }
 
 export interface PlanningScenarioOption {
-  id: "friday_rush" | "weekday_lunch" | "holiday_spike" | "low_stock_weekend";
+  // Widened from the 4-literal union (P6-A25) so a synthesized "custom" tile
+  // (built from ScenarioProfile) can be passed through the same picker props
+  // as the 4 presets.
+  id: string;
   label: string;
   description: string;
   default_weekday: number;
@@ -200,12 +364,23 @@ export interface RunHistoryEntry {
   status:      FridayRushResponse["status"];
   verdict:     CriticResult["verdict"];
   score:       number | null;
+  // Threaded through from PlanningRunSummary.scenario (P6-A34) -- lets the
+  // Planning idle-state's recent-runs table show scenario/shift-shape
+  // columns without a second fetch per row.
+  scenario:    string;
+  // Real resolved title for a custom run (scenario itself is just "custom").
+  scenarioLabel?: string | null;
   data?:       FridayRushResponse;
 }
 
 export interface PlanningRunSummary {
   id: number;
   scenario: string;
+  // The real resolved scenario title (e.g. "Anniversary Dinner") -- for a
+  // custom (natural-language-derived) run, `scenario` itself is just the
+  // literal id "custom", never the actual name; null only for runs recorded
+  // before this field existed.
+  scenario_label: string | null;
   target_date: string | null;
   status: FridayRushResponse["status"];
   critic_verdict: CriticResult["verdict"] | null;
@@ -213,6 +388,18 @@ export interface PlanningRunSummary {
   decision_log_id: number | null;
   generated_at: string | null;
   created_at: string | null;
+  // AI infrastructure observability -- backs the /data Observability tab's
+  // cross-run cost/token/duration breakdown, read straight from each run's
+  // stored metadata (no per-row detail fetch needed).
+  total_cost_usd: number | null;
+  total_tokens: number | null;
+  total_duration_ms: number | null;
+  llm_model: string | null;
+  llm_provider: string | null;
+  cache_hit: boolean | null;
+  llm_call_count: number | null;
+  replan_count: number | null;
+  risk_tags: string[];
 }
 
 export interface PlanningRunDetail extends PlanningRunSummary {

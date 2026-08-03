@@ -110,10 +110,12 @@ class EvaluationSanityChecker:
         """
         stale: list[dict] = []
 
-        menu_a        = assumptions.get("menu")        or {}
-        inventory_a   = assumptions.get("inventory")   or {}
-        reservation_a = assumptions.get("reservation") or {}
-        complaint_a   = assumptions.get("complaint")   or {}
+        menu_a           = assumptions.get("menu")            or {}
+        inventory_a      = assumptions.get("inventory")       or {}
+        reservation_a    = assumptions.get("reservation")     or {}
+        complaint_a      = assumptions.get("complaint")       or {}
+        market_intel_a   = assumptions.get("market_intel")    or {}
+        dineout_manager_a = assumptions.get("dineout_manager") or {}
 
         # Diff 1 removed: MenuService self-queries InventoryService when inventory_data is None
         # (parallel execution means inventory_output is never in state when menu runs).
@@ -178,6 +180,76 @@ class EvaluationSanityChecker:
                         f"complaint risk that may compound under high occupancy"
                     ),
                 })
+
+        # Diff 5 (P6-S13): market_intel found pricing alerts vs menu_intel planning to push items.
+        # market_intel_node detects our items priced above Swiggy area average. If menu_intel
+        # is simultaneously planning to highlight/push those same items, we risk lower conversion
+        # because customers can find cheaper options nearby on Swiggy.
+        pricing_alerts_count = int(market_intel_a.get("pricing_alerts_count") or 0)
+        items_assumed_available = menu_a.get("items_assumed_available") or []
+        if (
+            market_intel_a.get("swiggy_available") is True
+            and pricing_alerts_count > 0
+            and items_assumed_available
+        ):
+            stale.append({
+                "node": "menu_intelligence",
+                "assumption_key": "items_assumed_available",
+                "assumed_value": items_assumed_available,
+                "actual_value": pricing_alerts_count,
+                "conflict": (
+                    f"menu_intelligence is planning to push {len(items_assumed_available)} item(s) "
+                    f"({', '.join(str(i) for i in items_assumed_available[:3])}) but "
+                    f"market_intel found {pricing_alerts_count} Swiggy pricing alert(s) — "
+                    f"verify that highlighted items are competitively priced vs area average "
+                    f"before driving volume"
+                ),
+            })
+
+        # Diff 6 (P6-S13): dineout_manager flagged own slots low + reservation predicts high occupancy.
+        # When both internal reservations and Dineout bookings signal a near-full house tonight,
+        # the operational risk compounds — one channel being full is manageable, both is a hard cap.
+        dineout_slots_low = dineout_manager_a.get("assumed_dineout_slots_low")
+        peak_occ = reservation_a.get("assumed_peak_occupancy_pct")
+        if (
+            dineout_manager_a.get("own_slots_checked") is True
+            and dineout_slots_low is True
+            and peak_occ is not None
+            and peak_occ > 80
+        ):
+            stale.append({
+                "node": "dineout_manager",
+                "assumption_key": "assumed_dineout_slots_low",
+                "assumed_value": True,
+                "actual_value": peak_occ,
+                "conflict": (
+                    f"dineout_manager found your Dineout slots are nearly full tonight "
+                    f"AND reservation node predicts {peak_occ}% internal occupancy — "
+                    f"compound demand signal: both channels at capacity, ensure full-house "
+                    f"staffing and consider whether to open additional Dineout slots now"
+                ),
+            })
+
+        # Diff 7 (P6-MI08): competitor Dineout deals may absorb demand flagged as HIGH occupancy.
+        # tonight_busy comes from OUR area occupancy signal (competitors nearly full). But if those
+        # same competitors are running deals/promos tonight, some of that "full" demand is being
+        # captured by discounted bookings rather than organic overflow — the walk-in surge implied
+        # by tonight_busy=True may not materialise at our door the way a plan built on it assumes.
+        tonight_busy = market_intel_a.get("tonight_busy")
+        dineout_deals_count = int(market_intel_a.get("dineout_deals_count") or 0)
+        if tonight_busy is True and dineout_deals_count >= 2:
+            stale.append({
+                "node": "market_intel",
+                "assumption_key": "tonight_busy",
+                "assumed_value": True,
+                "actual_value": dineout_deals_count,
+                "conflict": (
+                    f"market_intel flagged tonight_busy=True (HIGH area occupancy), but "
+                    f"{dineout_deals_count} competitor Dineout deal(s)/promo(s) are live tonight — "
+                    f"demand may be absorbed by competitor bookings before reaching your restaurant. "
+                    f"Revise walk-in overflow estimate down 15-20%."
+                ),
+            })
 
         return stale
 
@@ -302,7 +374,15 @@ class EvaluationSanityChecker:
         issues = []
         data = inventory_agent.get("data") or {}
         recommendation = inventory_agent.get("recommendation") or {}
-        recommendation_text = self._flatten_text(recommendation)
+        # Only scan the operative action lists — reasoning/risks contain explanatory LLM text
+        # with large numbers that are NOT operative order quantities (e.g. "10kg Garlic needed").
+        # Checking those would flag correct explanations as violations.
+        recommendation_text = "\n".join(
+            str(a)
+            for a in
+            (recommendation.get("restock_actions") or []) +
+            (recommendation.get("waste_reduction_actions") or [])
+        )
 
         if not isinstance(data, dict):
             return issues
@@ -318,7 +398,7 @@ class EvaluationSanityChecker:
             shortfall = self._to_float(alert.get("shortfall"))
             max_actionable = self._to_float(alert.get("max_actionable_restock_qty"))
             if max_actionable is None and current_stock is not None and shortfall is not None:
-                max_actionable = max(shortfall, current_stock * 3)
+                max_actionable = shortfall * 3
 
             if max_actionable is None:
                 continue

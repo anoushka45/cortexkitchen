@@ -1,9 +1,13 @@
 """
-CortexKitchen MCP Server — P4-12
+CortexKitchen MCP Server — P4-12, expanded P6-A13
 
-Exposes two tools to Claude Desktop (or any MCP client):
+Exposes five tools to Claude Desktop (or any MCP client):
   • run_planning_scenario — triggers the multi-agent planning pipeline
   • get_run_history       — fetches recent planning runs with critic verdicts
+  • get_market_brief      — live market snapshot (pricing, positioning, deals, occupancy)
+  • get_action_queue      — lists pending (or other-status) Action Queue items
+  • approve_action        — approves an action by ID; for a WhatsApp vendor order,
+                            this is the same step that actually sends the message
 
 Runs as a stdio MCP server. Authenticates against the CortexKitchen API
 on first tool call and reuses the JWT for the session.
@@ -135,6 +139,51 @@ async def list_tools() -> list[types.Tool]:
                 "required": [],
             },
         ),
+        types.Tool(
+            name="get_market_brief",
+            description=(
+                "Get a live market snapshot: category-level pricing vs the area average, "
+                "your competitive positioning, menu breadth, cuisine crowding, veg/non-veg mix, "
+                "live competitor deals, and area occupancy tonight."
+            ),
+            inputSchema={"type": "object", "properties": {}, "required": []},
+        ),
+        types.Tool(
+            name="get_action_queue",
+            description=(
+                "List pending (or other-status) actions in the Action Queue -- e.g. restock "
+                "alerts, WhatsApp vendor order drafts awaiting approval, pricing/promo review flags."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "description": "Filter by status. Defaults to 'pending' if omitted.",
+                        "enum": ["pending", "approved", "executed", "rejected", "expired"],
+                    },
+                },
+                "required": [],
+            },
+        ),
+        types.Tool(
+            name="approve_action",
+            description=(
+                "Approve a specific Action Queue item by its ID. For a WhatsApp vendor-order "
+                "action, this is the same step that actually sends the message -- there's "
+                "nothing further to approve once you've confirmed it."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "action_id": {
+                        "type": "integer",
+                        "description": "The ID of the action to approve, from get_action_queue's results.",
+                    },
+                },
+                "required": ["action_id"],
+            },
+        ),
     ]
 
 
@@ -146,6 +195,12 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         return await _handle_run_planning(arguments)
     if name == "get_run_history":
         return await _handle_get_runs(arguments)
+    if name == "get_market_brief":
+        return await _handle_get_market_brief(arguments)
+    if name == "get_action_queue":
+        return await _handle_get_action_queue(arguments)
+    if name == "approve_action":
+        return await _handle_approve_action(arguments)
     raise ValueError(f"Unknown tool: {name}")
 
 
@@ -231,6 +286,106 @@ async def _handle_get_runs(args: dict) -> list[types.TextContent]:
 
     lines += ["", f"*{len(runs)} run(s) returned.*"]
     return [types.TextContent(type="text", text="\n".join(lines))]
+
+
+async def _handle_get_market_brief(args: dict) -> list[types.TextContent]:
+    try:
+        result = await _api("GET", "/market/pulse")
+    except httpx.HTTPStatusError as exc:
+        return [types.TextContent(type="text", text=f"Failed to fetch market brief: {exc.response.text}")]
+    except Exception as exc:
+        return [types.TextContent(type="text", text=f"Failed to fetch market brief: {exc}")]
+
+    if not result.get("swiggy_connected"):
+        return [types.TextContent(type="text", text="Swiggy is not connected for this org -- connect it in /connectors to see live market data.")]
+
+    lines = ["# CortexKitchen — Live Market Brief", ""]
+
+    pricing = result.get("competitor_pricing") or {}
+    category_pricing = pricing.get("category_pricing") or []
+    if category_pricing:
+        lines.append("## Category pricing (you vs area average)")
+        for c in category_pricing:
+            lines.append(
+                f"- **{c['category']}**: you ₹{c['your_avg']:.0f} vs area ₹{c['area_avg']:.0f} "
+                f"({c['verdict']}, {c['diff_pct']:.1f}% diff)"
+            )
+        lines.append("")
+
+    positioning = pricing.get("positioning")
+    if positioning:
+        lines.append(
+            f"## Positioning: rank {positioning['rank']}/{positioning['total']} "
+            f"({positioning['cheaper_than_count']} cheaper than you, "
+            f"{positioning['pricier_than_count']} pricier)"
+        )
+        lines.append("")
+
+    deals_summary = pricing.get("deals_summary")
+    if deals_summary:
+        lines.append("## Live area deals")
+        lines.append(f"- {deals_summary}")
+        lines.append("")
+
+    occupancy = result.get("area_occupancy") or {}
+    if occupancy.get("signal"):
+        busy = " — tonight looks busy" if occupancy.get("tonight_busy") else ""
+        lines.append(f"## Area occupancy: {occupancy['signal']}{busy}")
+        lines.append("")
+
+    procurement = result.get("procurement") or []
+    if procurement:
+        lines.append("## Sample ingredient prices (Instamart)")
+        for p in procurement[:5]:
+            lines.append(f"- {p['name']}: ₹{p['price']:.0f}/{p['unit']}" + ("" if p["in_stock"] else " (out of stock)"))
+
+    return [types.TextContent(type="text", text="\n".join(lines))]
+
+
+async def _handle_get_action_queue(args: dict) -> list[types.TextContent]:
+    params: dict[str, Any] = {}
+    if args.get("status"):
+        params["status"] = args["status"]
+
+    try:
+        actions = await _api("GET", "/action-queue", params=params)
+    except httpx.HTTPStatusError as exc:
+        return [types.TextContent(type="text", text=f"Failed to fetch Action Queue: {exc.response.text}")]
+    except Exception as exc:
+        return [types.TextContent(type="text", text=f"Failed to fetch Action Queue: {exc}")]
+
+    if not actions:
+        status_label = args.get("status", "pending")
+        return [types.TextContent(type="text", text=f"No {status_label} actions in the queue.")]
+
+    lines = ["# CortexKitchen — Action Queue", ""]
+    for a in actions:
+        streak = a.get("approval_streak", 0)
+        streak_note = f" (approved {streak}x in a row before)" if streak > 0 else ""
+        lines.append(f"- **#{a['id']}** [{a['category']}/{a['tier']}] {a['title']}{streak_note}")
+
+    lines += ["", f"*{len(actions)} action(s) returned. Use approve_action with the ID to approve one.*"]
+    return [types.TextContent(type="text", text="\n".join(lines))]
+
+
+async def _handle_approve_action(args: dict) -> list[types.TextContent]:
+    action_id = args.get("action_id")
+    if action_id is None:
+        return [types.TextContent(type="text", text="action_id is required.")]
+
+    try:
+        result = await _api("POST", f"/action-queue/{int(action_id)}/approve")
+    except httpx.HTTPStatusError as exc:
+        return [types.TextContent(type="text", text=f"Failed to approve action {action_id}: {exc.response.text}")]
+    except Exception as exc:
+        return [types.TextContent(type="text", text=f"Failed to approve action {action_id}: {exc}")]
+
+    status = result.get("status")
+    if status == "executed":
+        return [types.TextContent(type="text", text=f"Approved and executed: {result.get('title')}")]
+    if result.get("error"):
+        return [types.TextContent(type="text", text=f"Approved, but execution failed: {result['error']}")]
+    return [types.TextContent(type="text", text=f"Approved: {result.get('title')} (status: {status})")]
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

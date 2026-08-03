@@ -1,5 +1,27 @@
+import contextvars
 from abc import ABC, abstractmethod
 from threading import Lock
+
+# Tags usage records with the LangGraph node currently making the call, scoped
+# per-asyncio-task (each parallel fan-out node runs as its own Task, so this
+# does not leak across concurrently running nodes that share a provider tier).
+# Without this, two parallel nodes sharing a provider (e.g. reservation and
+# inventory both on the "fast" tier) can steal each other's usage records when
+# _inject() drains the shared buffer at node start/end — corrupting per-node
+# cost/token attribution in the observability traces.
+_current_node: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "llm_usage_node", default=None
+)
+
+
+def bind_llm_usage_node(node: str | None) -> contextvars.Token:
+    """Tag subsequent record_usage() calls on this asyncio task with `node`."""
+    return _current_node.set(node)
+
+
+def reset_llm_usage_node(token: contextvars.Token) -> None:
+    _current_node.reset(token)
+
 
 # Approximate cost rates per 1M tokens (USD) — update as pricing changes
 _COST_PER_1M = {
@@ -40,21 +62,79 @@ class BaseLLMProvider(ABC):
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
             "cost_usd": _calc_cost(model, prompt_tokens, completion_tokens),
+            "node": _current_node.get(),
         }
         with self._lock:
             self._usage_records.append(record)
 
-    def drain_usage(self) -> list[dict]:
-        """Return all accumulated usage records and clear the buffer."""
+    def _trace_generation(
+        self,
+        *,
+        prompt: str,
+        system_prompt: str | None,
+        output_text: str,
+        prompt_tokens: int,
+        completion_tokens: int,
+    ) -> None:
+        """Emit a Langfuse generation observation nested under the current node span.
+
+        Best-effort only — tracing must never break an LLM call. No-ops if
+        Langfuse isn't configured (LANGFUSE_SECRET_KEY unset).
+        """
+        try:
+            from app.core.settings import get_settings
+            if not get_settings().langfuse_secret_key:
+                return
+
+            from langfuse import get_client
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
+
+            with get_client().start_as_current_observation(
+                name=f"{self.provider_name}-completion",
+                as_type="generation",
+                input=messages,
+                model=self.model,
+                usage_details={"input": prompt_tokens, "output": completion_tokens},
+            ) as gen:
+                gen.update(output=output_text)
+        except Exception:
+            pass
+
+    def drain_usage(self, node: str | None = None) -> list[dict]:
+        """Return accumulated usage records and clear them.
+
+        When `node` is given, only records tagged with that node (via
+        bind_llm_usage_node) are drained — records belonging to other
+        parallel-running nodes sharing this same provider instance are left
+        untouched. When omitted, drains everything (safe for non-concurrent
+        contexts, e.g. the final cleanup drain after a run completes).
+        """
         with self._lock:
-            records = self._usage_records.copy()
-            self._usage_records.clear()
+            if node is None:
+                records = self._usage_records.copy()
+                self._usage_records.clear()
+            else:
+                records = [r for r in self._usage_records if r.get("node") == node]
+                self._usage_records = [r for r in self._usage_records if r.get("node") != node]
         return records
 
     @abstractmethod
-    async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
-        """Send a prompt to the LLM and return the text response."""
+    async def complete(
+        self, prompt: str, system_prompt: str | None = None, temperature: float | None = None,
+    ) -> str:
+        """Send a prompt to the LLM and return the text response.
+
+        `temperature` is optional and defaults to the provider/SDK's own
+        default when omitted -- pass it explicitly only for calls that need
+        low-variance output (e.g. a relevance classification), not narrative
+        generation where the default is intentional.
+        """
 
     @abstractmethod
-    async def complete_json(self, prompt: str, system_prompt: str | None = None) -> dict:
+    async def complete_json(
+        self, prompt: str, system_prompt: str | None = None, temperature: float | None = None,
+    ) -> dict:
         """Send a prompt and return a parsed JSON response."""

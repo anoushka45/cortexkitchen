@@ -16,11 +16,10 @@ export default function RunButton({ onRun, onReset, loading, hasData }: Props) {
       <button
         onClick={() => onRun()}
         disabled={loading}
-        className="
-          inline-flex items-center gap-2 px-5 py-2.5
+        className="inline-flex items-center gap-2 px-5 py-2.5
           bg-ember-600 hover:bg-ember-500
           disabled:opacity-50 disabled:cursor-not-allowed
-          text-white text-sm font-semibold rounded-xl
+          text-[var(--color-text-primary)] text-sm font-semibold rounded-xl
           shadow-glow-ember
           transition-all duration-200
           border border-ember-500/50
@@ -29,7 +28,7 @@ export default function RunButton({ onRun, onReset, loading, hasData }: Props) {
         {loading ? (
           <>
             <Spinner size={15} />
-            <span className="font-mono text-xs tracking-wide">Running pipeline...</span>
+            <span className="text-xs tracking-wide">Running pipeline...</span>
           </>
         ) : (
           <>
@@ -42,7 +41,7 @@ export default function RunButton({ onRun, onReset, loading, hasData }: Props) {
       {hasData && !loading && onReset && (
         <button
           onClick={() => onReset()}
-          className="text-xs font-mono text-slate-600 hover:text-slate-400 transition-colors"
+          className="text-xs text-[var(--color-text-ghost)] hover:text-[var(--color-text-soft)] transition-colors"
         >
           reset
         </button>

@@ -1,9 +1,26 @@
 "use client";
 
 import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { ScenarioProfile } from "@/types/planning";
 
-export type DashScenario = "friday_rush" | "weekday_lunch" | "holiday_spike" | "low_stock_weekend";
+// Widened from the 4-literal union (P6-A25) so a custom natural-language-
+// derived scenario id can be selected the same way a preset is.
+export type DashScenario = string;
 export type DashStatus   = "idle" | "loading" | "success" | "error";
+
+// P6-A30 -- carries a trigger request from /dashboard (which no longer owns
+// the SSE stream) across to /planning (which does). useFridayRush()'s
+// trigger() call lives entirely inside whichever component mounts the hook;
+// it isn't route-bound, so it can't survive a client-side navigation itself
+// -- /dashboard sets this, navigates to /planning, and /planning's own
+// useFridayRush() instance consumes+clears it on mount.
+export interface PendingTrigger {
+  targetDate?: string;
+  scenario: DashScenario;
+  restaurantId?: number;
+  restaurantName?: string | null;
+  customProfile?: ScenarioProfile;
+}
 
 interface DashboardCtx {
   selectedScenario: DashScenario;
@@ -12,8 +29,8 @@ interface DashboardCtx {
   setDashStatus: (s: DashStatus) => void;
   doReset: () => void;
   registerReset: (fn: () => void) => void;
-  openHistory: () => void;
-  registerOpenHistory: (fn: () => void) => void;
+  pendingTrigger: PendingTrigger | null;
+  setPendingTrigger: (t: PendingTrigger | null) => void;
 }
 
 const Context = createContext<DashboardCtx | null>(null);
@@ -21,8 +38,8 @@ const Context = createContext<DashboardCtx | null>(null);
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [selectedScenario, setSelectedScenario] = useState<DashScenario>("friday_rush");
   const [dashStatus, setDashStatus] = useState<DashStatus>("idle");
+  const [pendingTrigger, setPendingTrigger] = useState<PendingTrigger | null>(null);
   const resetFnRef       = useRef<() => void>(() => {});
-  const openHistoryFnRef = useRef<() => void>(() => {});
 
   const registerReset = useCallback((fn: () => void) => {
     resetFnRef.current = fn;
@@ -33,20 +50,12 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     setDashStatus("idle");
   }, []);
 
-  const registerOpenHistory = useCallback((fn: () => void) => {
-    openHistoryFnRef.current = fn;
-  }, []);
-
-  const openHistory = useCallback(() => {
-    openHistoryFnRef.current();
-  }, []);
-
   return (
     <Context.Provider value={{
       selectedScenario, setSelectedScenario,
       dashStatus, setDashStatus,
       doReset, registerReset,
-      openHistory, registerOpenHistory,
+      pendingTrigger, setPendingTrigger,
     }}>
       {children}
     </Context.Provider>

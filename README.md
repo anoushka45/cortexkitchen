@@ -1,228 +1,131 @@
 # CortexKitchen
 
-**Multi-agent restaurant operations intelligence platform**
+**Multi-agent restaurant operations platform, built on the Swiggy MCP.**
 
 ![Status](https://img.shields.io/badge/status-active-success)
-![Phase](https://img.shields.io/badge/phase-5_complete-blue)
+![Phase](https://img.shields.io/badge/phase-6A_in_progress-blue)
 ![Backend](https://img.shields.io/badge/backend-FastAPI-009688)
 ![Frontend](https://img.shields.io/badge/frontend-Next.js_16-black)
 ![Orchestration](https://img.shields.io/badge/orchestration-LangGraph-purple)
 ![Vector DB](https://img.shields.io/badge/vector_db-Qdrant-orange)
 ![Database](https://img.shields.io/badge/database-PostgreSQL_16-blue)
 ![Cache](https://img.shields.io/badge/cache-Redis-red)
-![LLM Routing](https://img.shields.io/badge/LLM_routing-per--node_tier-8B5CF6)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
 
 ## What is CortexKitchen?
 
-CortexKitchen is a multi-agent AI platform for restaurant operations. Before every shift, five specialist agents read your demand data, bookings, guest complaints, menu performance, and inventory in parallel ,  and produce a single verified pre-shift brief.
+CortexKitchen is a two-sided platform powered by the Swiggy MCP.
 
-A critic agent reviews the plan across five quality dimensions before it reaches the manager. If anything looks unsafe or unrealistic, the plan is blocked and the reason is explained.
+**Restaurant OS** is the side that is in active development today. Before every shift, a LangGraph pipeline of specialist nodes reads live weather and holiday data, area market signals from Swiggy, demand history, bookings, guest complaints, menu performance, and inventory, then produces a single verified pre-shift plan. A critic node reviews that plan across several quality dimensions before it reaches the operator; if anything looks unsafe or unrealistic, the plan is sent back for revision (up to two cycles) with the reason stated.
 
-The result: one brief, one verdict, under 90 seconds.
-
-![Dashboard — Plan Approved](screenshots/03_dashboard/03_plan_approved_top.png)
-*Completed dashboard — Plan Approved, critic score 0.92, with five agent metric cards across demand, capacity, complaints, inventory risk, and menu signals.*
+**Guest Concierge** is the second side of the platform: a no-auth, consumer-facing event-planning assistant at `/concierge`. A guest describes an occasion in plain language, and a ReAct tool-calling loop plans it end to end, finding a venue, checking real table availability, ordering food, and sourcing event supplies, directly through Swiggy's Food, Instamart, and Dineout MCP servers. It shares no data, session state, or authentication with the restaurant-operator side.
 
 ---
 
-## How it works
+## How the planning pipeline works
 
-One planning run executes a nine-node LangGraph pipeline:
+One planning run executes a LangGraph state machine of fifteen registered nodes:
 
-1. **Ops Manager** — validates the scenario, initialises shared state, fans out work
-2. **Demand Forecast** — Prophet time-series model produces covers, peak hour, and confidence band
-3. **Bookings & Tables** — analyses reservation density, occupancy %, and waitlist pressure *(parallel)*
-4. **Guest Feedback** — RAG retrieval over Qdrant surfaces complaint patterns and SOPs *(parallel)*
-5. **Menu Intelligence** — evaluates top items, weak items, and promotion opportunities *(parallel)*
-6. **Stock & Inventory** — detects shortages, spoilage risk, and restock priorities *(parallel)*
-7. **Aggregator** — collects all domain outputs into a single package
-8. **Quality Check (Critic)** — scores the plan across 5 dimensions, gates it with a verdict
-9. **Final Assembler** — shapes the API response with full metadata and cost tracking
-
-![Dashboard — Pipeline Running](screenshots/03_dashboard/02_loading_screen.png)
-*Live pipeline diagram mid-run — Ops Manager and Demand Forecast complete (green), four parallel specialists running simultaneously, Aggregator and Critic waiting.*
-
-![Full Plan - Dashboard](screenshots/03_dashboard/04_full_plan_scroll.png)
-*Full plan view after pipeline completes — critic verdict banner at top, followed by service planning, menu direction, and operational risk sections.*
+1. **Ops Manager** validates the scenario (a fixed preset, a natural-language-derived profile, or a live-signals-derived profile) and initializes shared state.
+2. **Live Signals** fetches weather and holiday context, an industry-trends digest, and FSSAI regulatory notices, all before demand forecasting runs.
+3. **Demand Forecast** produces a Prophet-based cover prediction, adjusted by the weather and holiday signals from the previous step.
+4. **Qdrant Enrichment** retrieves relevant past approved-run insights and SOP/complaint context from Qdrant ahead of the parallel fan-out.
+5. Five nodes run in parallel: **Reservation** (booking pressure and overbooking risk), **Complaint Intelligence** (recurring guest issues via RAG), **Inventory** (shortage and overstock detection), **Market Intelligence** (Swiggy area pricing and demand, merged with the live signals from step 2), and **Dineout Manager** (own-restaurant slot visibility on Swiggy Dineout).
+6. **Menu Intelligence** reads all five parallel outputs and forms a menu recommendation.
+7. **Aggregator** collects every domain output into one package.
+8. **Critic** scores the plan and returns a verdict of approved, revision, or rejected.
+9. If revision is requested, **Replan Orchestrator** injects the critic's feedback and loops back into Menu Intelligence, up to two cycles.
+10. **Situation Summary** produces a narrative summary of the plan for the final output.
+11. **Final Assembler** shapes the API response with full metadata and cost tracking.
 
 ---
 
 ## Platform capabilities
 
-### Planning & Intelligence
-- **Multi-scenario planning** — four presets: `friday_rush`, `weekday_lunch`, `holiday_spike`, `low_stock_weekend`
-- **Demand forecasting** — Prophet-backed time-series with peak detection and day-of-week adjustment
-- **Complaint intelligence (RAG)** — Qdrant retrieval grounds recommendations in real past guest issues
-- **Menu guidance** — push / ease-back / avoid strategy aligned to demand and stock signals
-- **Inventory risk detection** — shortage and overstock alerts with feasibility-aware planning
-- **Critic quality gate** — 5-dimension scoring (safety, feasibility, evidence, actionability, clarity); three verdicts: approved / revision / rejected
-- **Cross-agent assumption diffing** — each domain node writes the assumptions it acted on into shared state; `EvaluationSanityChecker` cross-diffs them after the parallel fan-out and surfaces contradictions (e.g. menu assumed covers within capacity while reservation shows >90% occupancy) as `stale_assumptions` injected into the critic's LLM prompt and returned in the API response
+### Planning and intelligence
 
-![Service Planning & Reservation Pressure](screenshots/03_dashboard/05_service_planning.png)
-*Service Planning section — Prophet demand forecast bar chart by hour with peak detection, alongside the Reservation Pressure panel showing occupancy %, waitlist, and priority.*
+- Scenario selection is not limited to four fixed presets. A natural-language description of the shift ("we are hosting an event tonight") is turned into a structured scenario profile by an LLM call. A separate "run for today" fast path composes a fresh profile from live signals (weather, holiday, area occupancy, inventory shortages, time of day) instead of forcing today into the nearest of the four presets.
+- Demand forecasting: Prophet time-series model, with a real multiplier applied for weather and known Indian holidays, not just narrative text.
+- Complaint intelligence: Qdrant RAG retrieval grounds menu and operational recommendations in real past guest feedback.
+- Menu guidance: recommendations are constrained to what the kitchen can actually make, given current inventory.
+- Inventory risk detection: shortage and overstock alerts with reorder quantities.
+- Market intelligence: area-level Swiggy pricing, positioning, menu breadth, cuisine crowding, and competitor deal activity, always reported as area aggregates, never as named competitor restaurants or prices.
+- Critic quality gate: multi-dimension scoring with three verdicts and up to two replan cycles.
+- Cross-agent assumption diffing: each domain node writes the assumptions it acted on into shared state; a sanity checker cross-diffs them after the parallel fan-out and surfaces contradictions to the critic.
+- Planning memory: approved-run insights are stored in a Qdrant collection and retrieved for future runs with recency-decayed scoring.
+- Semantic plan cache: a Qdrant-backed cache of approved plans, with a similarity threshold and TTL, bypassed for natural-language or live-composed scenarios so a bespoke request is never served a stale cached plan.
 
-![Menu Direction](screenshots/03_dashboard/06_menu_direction.png)
-*Menu Direction section — Menu Intelligence output showing items to push tonight, ease back on, and avoid, with a high-priority strategy recommendation.*
+### Autonomous procurement and the Action Queue
 
-![Operational Risk](screenshots/03_dashboard/07_operational_risk.png)
-*Operational Risk section — Complaint Intelligence (top issues, action items) alongside Inventory Status (shortage alerts with severity ratings and restock quantities).*
+- An Action Queue holds proposed operational actions (for example, an ingredient reorder) awaiting approval, alongside a trust-ladder indicator that counts consecutive approvals per action category as an informational signal, not an auto-approval mechanism.
+- Two built-in workflow triggers (critical shortages; high demand combined with active competitor deals) automatically raise recommendation-tier actions after a run.
+- Vendor coordination for procurement runs over WhatsApp today; Instamart cart and checkout execution is scoped and pending staging credentials from Swiggy.
 
-### Streaming & Real-time
-- **Planning SSE** (`POST /api/v1/planning/stream`) — as each LangGraph node completes, a `node_complete` event is emitted carrying the node name; the loading screen pipeline diagram updates in real time so you see exactly which agents are done, running, or waiting. A final `complete` event delivers the full plan payload — the dashboard renders all at once from that single event.
-- **Chat token streaming** (`POST /api/v1/chat`) — the Ask AI chatbot streams individual tokens word-by-word via AsyncGroq; each `{"token": "..."}` event renders progressively via ReactMarkdown. An entirely separate mechanism from the planning SSE.
-- **Non-streaming planning** (`POST /api/v1/planning/run`) — standard JSON endpoint; returns the full response in one go. Used when the frontend doesn't need the live pipeline diagram.
-- **Redis caching** — 1-hour TTL cache by scenario + date; only `approved` plans are cached; zero LLM cost on cache hits; `cache_hit` flag in response
+### Financial scorecard
+
+- A per-organization expense ledger (rent, utilities, marketing, and other recurring costs) is prorated into a daily figure and combined with order revenue to produce real net profit, net margin, and a composite health score, not just top-line revenue.
+
+### Chat assistant
+
+- A conversational assistant over real run history, inventory data, and guest feedback, available both as a full page and a floating widget that shares session state with it.
+- Routes to Groq or CometAPI depending on configuration, with within-session memory compression after eight turns and a semantic cache for repeated questions.
+- Backed by an internal MCP server exposing planning, market, and Action Queue tools to the chatbot itself.
+
+### Observability and evaluation
+
+- Langfuse tracing on every planning run, one span per graph node and one generation per real LLM call, plus a Kindred replay endpoint for single-generation prompt replay and debugging.
+- LangSmith regression evals against a golden dataset with a CI pass-rate gate.
+- RAGAS and DeepEval quality metrics (faithfulness, context precision, hallucination, answer relevancy) are integrated and running today; promoting newly generated candidate samples into the golden fixtures is tracked as upcoming work, not yet done.
+- OpenTelemetry HTTP tracing, a Prometheus metrics endpoint, and Sentry exception capture with LangGraph node tags.
+
+### Guest Concierge
+
+- A no-auth, consumer-facing event-planning assistant at `/concierge`, independent of the restaurant-operator side: no shared session state, no organization data, no authentication.
+- A ReAct tool-calling loop over Swiggy's Food, Instamart, and Dineout MCP servers: finding a venue, checking real table availability, browsing menus and ordering food (COD, capped at Rs.1000 per order in Builders Club v1), and sourcing event supplies via Instamart.
+- Session state lives in Redis for two hours per guest, with no PostgreSQL or Qdrant footprint.
+- Voice input (Whisper transcription) alongside typed chat; streamed status updates ("finding venues...") instead of raw tool logs.
+- Table booking and Instamart checkout execution are implemented in code and blocked on Swiggy staging credentials; until then, both are shown honestly as pending rather than faked.
 
 ### Exports
-- **PDF chef brief** — ReportLab-generated report with plan summary, agent outputs, critic verdict, dimension scores, and action items
-- **Excel workbook** — role-aware `.xlsx` with an Inventory & Staffing sheet (chef view) and a Cost Breakdown sheet (owner view)
 
-![PDF Chef Brief](screenshots/08_exports/pdf_chef_brief.png)
-*PDF chef brief — APPROVED verdict, 0.90/1.00 score, critic dimension scores table, prioritised action items, and full agent recommendations.*
+- PDF chef brief and a role-aware Excel workbook (an inventory and staffing sheet for the kitchen, a cost-breakdown sheet for the owner) per planning run.
 
-![Excel — Inventory & Staffing](screenshots/08_exports/excel_inventory_chef_view.png)
-*Excel workbook, Inventory & Staffing sheet (chef view) — shortage alerts with severity and spoilage risk, overstock alerts, and itemised restock actions.*
+### Multi-tenant isolation
 
-![Excel — Cost Breakdown](screenshots/08_exports/excel_cost_breakdown_owner_view.png)
-*Excel workbook, Cost Breakdown sheet (owner view) — LLM provider, token count, total cost ($0.004), critic dimension scores per 100, and cost-aware analysis scores.*
+- JWT authentication with organization-scoped planning runs, settings, and profiles; PostgreSQL `org_id` scoping on every query; Qdrant payload filtering per organization on complaint and SOP vectors.
 
-### Ask AI (RAG Chatbot)
-- **Conversational interface** over your actual run history, inventory data, and guest feedback — not generic AI
-- **Groq llama-3.3-70b** with SSE streaming responses
-- **Multi-turn memory** — follow-up questions understand prior context
-- Suggested questions surface on first load; answers cite your own data
+### LLM provider abstraction
 
-![Ask AI — Empty State](screenshots/05_chat/01_empty_state.png)
-*Ask AI empty state — "Ask about Casa Mia" with six suggested question cards covering quality, complaints, inventory, menu, demand, and strategy.*
+Every LLM call goes through `BaseLLMProvider`, never a provider SDK directly.
 
-![Ask AI — Conversation](screenshots/05_chat/02_conversation_complaints.png)
-*Active conversation — the chatbot answers a complaint question with structured markdown: top issues, specific incidents, and improvement steps drawn from real feedback records.*
-
-![Ask AI — Performance Overview](screenshots/05_chat/03_conversation_performance.png)
-*Multi-turn conversation — "How is my restaurant performing?" returns a structured breakdown of feedback counts, average demand, occupancy range, and plan quality scores.*
-
-### What-If Simulator
-- Slide covers and the cost pressure, benefit, and tradeoff scores update instantly
-- No LLM calls, no LangGraph execution — purely deterministic scoring via `CostAwareScoringService`
-
-![What-If Simulator](screenshots/03_dashboard/08_what_if_simulator.png)
-*What-If Simulator modal — cover count slider at 135, with cost pressure, benefit, and tradeoff scores updating instantly without triggering a new LLM call.*
-
-### Run History & Audit Trail
-- Full run history with critic score trend chart, scenario filter, and date range picker
-- Side-by-side run detail with critic dimension scores, RAG context, and full agent outputs
-- Every run persisted permanently with token count, LLM cost, and node-level latency
-
-![Run History](screenshots/04_runs/runs_history_audit.png)
-*Run History audit page — full run list with scenario, target date, critic score and verdict on the left; selected run showing critic notes, dimension scores, and revision reasons on the right.*
-
-![Run Detail](screenshots/04_runs/run_detail_history_panel.png)
-*Run detail history panel — selected run's critic notes, dimension score bars, and revision reasons; export to PDF/Excel from the top-right.*
-
-### Data Health & Observability
-- **Data Health page** — live database coverage: orders, reservations, feedback, inventory, menu items, scenario coverage
-- **Observability panel** — 7-day planning summary: total runs, success rate, avg critic score, avg duration, breakdown by verdict and scenario
-- **OpenTelemetry** — HTTP request tracing via console exporter (swap for OTLP in production)
-- **Prometheus** — `/metrics` scrape endpoint for latency, throughput, and error rate
-- **Sentry** — unhandled exception capture with LangGraph node tags; DSN-gated init
-
-![Data Health](screenshots/06_data_health/data_health.png)
-*Data Health page — live database coverage showing 6,495 orders, 1,201 reservations, 160 feedback records, 18 inventory items, and 27 menu items with scenario coverage table.*
-
-![Observability Panel](screenshots/06_data_health/observability_panel.png)
-*Observability panel — last 7 days: 59 total runs, 81% success rate, 81/100 avg critic score, 16.6s avg duration, breakdown by verdict (approved/revision/rejected) and scenario.*
-
-### LangSmith Regression Evals
-- **Golden dataset** — `cortexkitchen-golden-v1` with 50 curated planning runs; built by `scripts/build_golden_dataset.py`
-- **CI quality gate** — `tests/unit/test_langsmith_evals.py` runs evaluators against a local fixture (`golden_runs.json`); requires 90% pass rate
-- **Per-node traces** in LangSmith for every planning run when `LANGSMITH_API_KEY` is set
-
-![LangSmith Golden Dataset](screenshots/09_observability_tools/langsmith_golden_dataset.png)
-*LangSmith — `cortexkitchen-golden-v1` dataset with 50 curated planning runs across all four scenarios, used as the CI regression quality gate.*
-
-![LangSmith Run Traces](screenshots/09_observability_tools/langsmith_run_traces.png)
-*LangSmith run traces — per-run tracing with latency breakdown per node, scenario labels, and linked evaluation datasets.*
-
-![Sentry Error Capture](screenshots/09_observability_tools/sentry_error_capture.png)
-*Sentry error capture — RuntimeError caught from a LangGraph node, with full stack trace, transaction ID, and issue tracking linked to the FastAPI integration.*
-
-### Multi-Tenant Workspace Isolation
-- JWT authentication with org-scoped planning runs, settings, and profiles
-- PostgreSQL `org_id` scoping on all run queries
-- Qdrant payload filter per org on complaint and SOP vectors
-- `org_id` carried through `OrchestratorState` for end-to-end isolation
-
-### LLM Provider Abstraction
-
-CortexKitchen never calls an LLM provider directly from a service. All agents depend on `BaseLLMProvider`, a provider-agnostic abstraction layer.
-
-- **Current default:** Groq (`llama-3.3-70b-versatile`) — chosen for its high free-tier RPM limits and fast inference
-- **Automatic fallback:** Gemini — if Groq hits a rate limit or fails, the `FallbackLLMProvider` retries transparently on Gemini with no user-facing error
-- **Swappable:** switching providers requires only a one-line change in `.env` (`LLM_PROVIDER=gemini`); no service code changes
-- **Extensible:** adding a new provider (OpenAI, Claude, Mistral, etc.) means implementing `BaseLLMProvider` — the rest of the system picks it up automatically
-- **Tracked:** the provider used (`llm_provider_used`, `llm_fallback_used`) is logged in structlog output and persisted in every planning run's metadata
-
-### Per-Node Model Tier Routing
-
-When `LLM_PROVIDER=comet` and `COMET_TIERED=true`, each node in the LangGraph pipeline is routed to a different model tier based on the complexity of its task — rather than using a single model for everything.
-
-| Tier | Model | &nbsp; | Nodes |
-|------|-------|--------|-------|
-| **fast** | `deepseek-v4-flash` | <img src="screenshots/logos/deepseek.png" height="16"> | Demand Forecast, Inventory, Reservation |
-| **balanced** | `gemini-3.5-flash` | <img src="screenshots/logos/gemini.png" height="16"> | Complaint Intelligence, Menu Intelligence |
-| **strong** | `claude-sonnet-4-6` | <img src="screenshots/logos/claude.png" height="16"> | Critic |
-
-Powered by [CometAPI](https://cometapi.com) — a unified proxy that exposes 500+ models through a single key and OpenAI-compatible endpoint. Each tier has a fallback chain (strong → balanced → fast) so if a primary model fails, the node degrades gracefully rather than erroring.
-
-LangSmith traces show exactly which model hit which node in real time, with per-model cost visible in every run's `llm_usage` breakdown. All tier usage is drained and aggregated at the end of each run for accurate cost tracking.
-
-This mode is fully opt-in — Groq and Gemini behaviour is completely unchanged when `COMET_TIERED` is not set.
-
-### Configuration
-- **Workspace settings** — seating capacity, cuisine type, peak service hours, timezone, plan approval threshold, stock warning levels
-- **Restaurant profiles** — named profiles override org-level capacity and peak hours per run
-
-![Settings](screenshots/07_config/settings.png)
-*Workspace Settings — seating capacity, cuisine type, peak service hours, timezone, minimum critic approval score, and low/overstock warning thresholds.*
-
-![Restaurant Profiles](screenshots/07_config/restaurant_profiles.png)
-*Restaurant Profiles — named profile (Casa Mia Rooftop) with cuisine, capacity, peak hours, and timezone; selected from the dashboard to override org defaults for a run.*
-
-### MCP Server
-- `run_planning_scenario` and `get_run_history` tools via Anthropic MCP SDK
-- Auto-discovered by Claude Code via `.mcp.json` in the project root
-- Trigger real planning runs from natural language in Claude Code CLI or Claude Desktop
+- Default provider is Groq, with automatic fallback to Gemini on rate limit or failure.
+- An optional per-node tiered mode routes simpler nodes to a faster model and the critic to a stronger one, via CometAPI, fully opt-in and inactive by default.
+- The provider actually used, and whether fallback fired, is recorded on every planning run.
 
 ---
 
 ## Product surface
 
-| Page | URL | Purpose |
-|------|-----|---------|
-| Homepage | `/` | Public marketing page — pipeline explainer, features, CTA |
-| Login | `/login` | JWT sign-in |
-| Register | `/register` | Create workspace + org |
-| Dashboard | `/dashboard` | Scenario selection, run submission, streaming pipeline, full plan, what-if |
-| Runs | `/runs` | Run history, critic score trend, run detail, PDF/Excel export |
-| Ask AI | `/chat` | RAG chatbot over run history and feedback |
-| Data Health | `/data-health` | Database coverage + observability panel |
+| Page | Route | Purpose |
+|------|-------|---------|
+| Homepage | `/` | Public marketing page |
+| Login | `/login` | Sign in |
+| Register | `/register` | Create a workspace and organization |
+| Dashboard | `/dashboard` | Daily overview: KPIs, health score, live-intelligence card, revenue and margin trends, signals, risks, Action Queue summary, latest run |
+| Planning | `/planning` | The flagship trigger-and-watch experience: agent showcase, live scenario composition, streaming pipeline, forecast chart, critic banner, what-if simulator, exports |
+| Action Center | `/action-center` | Pending approvals and full Action Queue history |
+| Analytics | `/analytics` | Historical drill-down: menu performance, channel split, peak hours, complaint categories, category pricing |
+| Data | `/data` | Merged run history and data-health view, with PDF/Excel export and observability summary |
+| Market | `/market` | Live Swiggy market intelligence, one card per capability, plus price and occupancy trend charts |
+| AI Assistant | `/chat` | Full-page chat interface |
+| Connectors | `/connectors` | Swiggy connector status and sync trigger |
+| Restaurant Profiles | `/restaurant-profiles` | Named restaurant profiles that override organization defaults for a run |
 | Settings | `/settings` | Workspace configuration and planning thresholds |
-| Restaurant Profiles | `/restaurant-profiles` | Named restaurant profiles |
+| Guest Concierge | `/concierge` | No-auth consumer chat: venue, food, and event-supplies planning via Swiggy |
 
-![Homepage Hero](screenshots/01_homepage/hero.png)
-*Public homepage hero — headline, live dashboard mockup with a critic-approved brief, and CTAs to start free or watch the 90-second tour.*
-
-![Homepage Pipeline](screenshots/01_homepage/pipeline.png)
-*Homepage pipeline section — "Five specialists. One coherent verdict." with the horizontal flow diagram showing Orchestrator → Gate → four parallel agents → Quality Check.*
-
-![Login](screenshots/02_auth/login.png)
-*Login page — email and password sign-in with a link to create a new workspace.*
-
-![Register](screenshots/02_auth/register.png)
-*Register page — create a restaurant workspace with org name, user name, email, and password in a single step.*
+`/operations`, `/runs`, `/runs/{id}`, and `/data-health` are kept only as client-side redirects to their current equivalents, so old bookmarks and links do not 404. They are not reachable from navigation.
 
 ---
 
@@ -231,50 +134,35 @@ This mode is fully opt-in — Groq and Gemini behaviour is completely unchanged 
 | Layer | Technology |
 |-------|-----------|
 | Backend API | FastAPI 0.115, Uvicorn, Pydantic v2 |
-| Orchestration | LangGraph (StateGraph, nine nodes, parallel fan-out) |
-| LLM | Groq llama-3.3-70b (default) or Gemini — pluggable via `LLM_PROVIDER`; auto-fallback. Optional per-node tier routing via CometAPI (`COMET_TIERED=true`) |
-| Streaming | FastAPI SSE (`/planning/stream`) — `node_complete` status events drive the loading screen; full plan delivered in one `complete` event |
-| Caching | Redis 7 — 1hr TTL plan cache by scenario + date |
-| Database | PostgreSQL 16 via SQLAlchemy + Alembic |
-| Vector store | Qdrant — complaints and SOPs, org-scoped payload filters |
-| Forecasting | Prophet + Pandas |
+| Orchestration | LangGraph state machine, fifteen registered nodes, five-way parallel fan-out, a replan loop back into menu intelligence |
+| LLM | Groq (default) or Gemini, pluggable via `LLM_PROVIDER`, with automatic fallback; optional CometAPI per-node tier routing |
+| Streaming | Server-sent events on `/planning/stream`, one `node_start` and `node_complete` pair per node, final `complete` event with the full plan |
+| Caching | Redis, time-boxed plan cache keyed by scenario and date; bypassed for natural-language and live-composed scenarios |
+| Database | PostgreSQL 16 via SQLAlchemy and Alembic |
+| Vector store | Qdrant, for complaints, SOPs, and planning memory, organization-scoped |
+| Forecasting | Prophet and pandas |
 | Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4, Recharts |
-| Auth | JWT (HS256) + passlib/bcrypt — multi-tenant, org-scoped |
-| Observability | LangSmith tracing, OTel HTTP tracing, Prometheus /metrics, Sentry, structlog JSON |
-| Evals | LangSmith golden dataset (50 runs, 90% CI gate), RAGAS, DeepEval |
-| Exports | ReportLab (PDF), openpyxl (Excel) |
-| MCP | Anthropic MCP SDK — `run_planning_scenario` + `get_run_history` |
-| Local infra | Docker Compose (PostgreSQL, Qdrant, Redis) |
-
-### Integrations
-
-<p>
-  <img src="screenshots/logos/langgraph.png" height="24" alt="LangGraph">&nbsp;&nbsp;
-  <img src="screenshots/logos/langsmith.png" height="24" alt="LangSmith">&nbsp;&nbsp;
-  <img src="screenshots/logos/groq.png" height="24" alt="Groq">&nbsp;&nbsp;
-  <img src="screenshots/logos/gemini.png" height="24" alt="Gemini">&nbsp;&nbsp;
-  <img src="screenshots/logos/deepseek.png" height="24" alt="DeepSeek">&nbsp;&nbsp;
-  <img src="screenshots/logos/claude.png" height="24" alt="Claude">&nbsp;&nbsp;
-  <img src="screenshots/logos/redis.png" height="24" alt="Redis">&nbsp;&nbsp;
-  <img src="screenshots/logos/sentry.png" height="24" alt="Sentry">&nbsp;&nbsp;
-  <img src="screenshots/logos/otel.png" height="24" alt="OpenTelemetry">&nbsp;&nbsp;
-  <img src="screenshots/logos/ragas.png" height="24" alt="RAGAS">&nbsp;&nbsp;
-  <img src="screenshots/logos/mcp.png" height="24" alt="MCP">&nbsp;&nbsp;
-  <img src="screenshots/logos/github.png" height="24" alt="GitHub">
-</p>
+| Auth | JWT (HS256) with passlib and bcrypt, multi-tenant, organization-scoped |
+| Observability | Langfuse, LangSmith, OpenTelemetry, Prometheus, Sentry, structlog |
+| Evaluation | LangSmith golden dataset with a CI gate, RAGAS, DeepEval |
+| Exports | ReportLab for PDF, openpyxl for Excel |
+| External integrations | Swiggy MCP (Food, Instamart, Dineout), Open-Meteo (weather), curated RSS (industry trends), FSSAI public notices (regulatory alerts), Twilio (WhatsApp vendor messages) |
+| Local infrastructure | Docker Compose: PostgreSQL, Qdrant, Redis |
 
 ---
 
 ## Project status
 
-| Phase | Status | Highlights |
-|-------|--------|-----------|
+| Phase | Status | Notes |
+|-------|--------|-------|
 | Phase 0 | Complete | Architecture, PRD, system design, data model, API contracts |
-| Phase 1 | Complete | FastAPI, LangGraph 9-node graph, all domain services, dashboard |
+| Phase 1 | Complete | FastAPI, initial LangGraph pipeline, domain services, dashboard |
 | Phase 2 | Complete | Prophet forecasting, inventory alerts, menu intelligence |
-| Phase 3 | Complete | Multi-scenario runner, runs audit trail, critic scoring |
-| Phase 4 | Complete | Auth, LangSmith, health checks, structlog, cost tracking, evals, MCP |
-| Phase 5 | **Complete** | PDF/Excel export, SSE streaming, Redis cache, what-if simulator, OTel, Sentry, LangSmith evals, multi-tenant isolation, RAG chatbot, prelaunch polish |
+| Phase 3 | Complete | Multi-scenario runner, run history, critic scoring |
+| Phase 4 | Complete | Auth, LangSmith, health checks, structured logging, cost tracking, evals, MCP server |
+| Phase 5 | Complete | PDF/Excel export, SSE streaming, Redis cache, what-if simulator, OpenTelemetry, Sentry, multi-tenant isolation, chat assistant |
+| Phase 6A | In progress | Compliance remediation, Action Queue trust-ladder badge, financial scorecard, live intelligence signals, dynamic scenario composition, Langfuse and Kindred replay, dashboard and planning IA redesign, Guest Concierge (no-auth consumer agent) |
+| Phase 6A, upcoming | Planned | Autonomous procurement loop end to end, Instamart event supplies in the operator chat assistant, voice output alongside the existing voice input, promoting RAGAS/DeepEval candidates into the golden evaluation set |
 
 ---
 
@@ -282,27 +170,42 @@ This mode is fully opt-in — Groq and Gemini behaviour is completely unchanged 
 
 ```
 apps/
-  api/                          # FastAPI backend
+  api/                          FastAPI backend
     app/
-      api/routes/               # Auth, planning, runs, settings, exports, chat, observability
-      domain/services/          # ForecastService, ComplaintService, MenuService, etc.
-      orchestration/            # LangGraph graph, nodes, state
-      infrastructure/           # DB, LLM providers, Qdrant, Redis, PDF, Excel
-    evals/                      # RAGAS + DeepEval quality eval suites
-    mcp_server.py               # MCP stdio server for Claude integration
-  web/cortexkitchen-ui/         # Next.js 16 frontend
-    app/                        # Pages: dashboard, runs, chat, data-health, settings, etc.
-    components/                 # NavBar, Footer, ForecastChart, layout
-    hooks/                      # useFridayRush, streaming hooks
+      api/routes/               auth, planning, market, business, action_queue,
+                                 connectors, chat, runs, restaurant_profiles,
+                                 settings, health, replay, concierge
+      domain/services/          forecasting, scenario composition, market
+                                 intelligence, action execution, trust-ladder
+                                 badge, chat, critic, evaluation sanity checks,
+                                 concierge, and more
+      orchestration/            LangGraph graph definition, nodes, shared state
+      infrastructure/           database models, LLM providers, Swiggy MCP
+                                 client, Qdrant, Redis, PDF, Excel
+    evals/                      RAGAS and DeepEval quality eval suites
+    mcp_server.py                MCP stdio server for Claude integration
+  web/cortexkitchen-ui/         Next.js 16 frontend
+    app/                        page routes, including /concierge
+    components/                 layout, dashboard, planning, analytics, data,
+                                 chat, concierge, and shared UI components
+    hooks/                      data-fetching and streaming hooks
 
-data/                           # Raw, processed, and seeded datasets
-docs/                           # Architecture, API reference, agents, roadmap, evaluation
-infra/                          # Local infrastructure setup
-scripts/                        # seed_demo_data.py, seed_qdrant_memory.py, build_golden_dataset.py
-screenshots/                    # Feature screenshots organized by section
-docker-compose.yml              # Local stack: PostgreSQL, Qdrant, Redis
-.mcp.json                       # Claude Code MCP auto-discovery config
+data/                           raw, processed, and seeded datasets
+docs/                           architecture, API reference, agents, roadmap,
+                                 evaluation, product modes, decisions
+infra/                          local infrastructure setup
+scripts/                        seed_demo_data.py, seed_qdrant_memory.py,
+                                 build_golden_dataset.py, and dataset-refresh
+                                 scripts for evals
+docker-compose.yml               local stack: PostgreSQL, Qdrant, Redis
+.mcp.json                        Claude Code MCP auto-discovery config
 ```
+
+---
+
+## Screenshots
+
+Coming soon.
 
 ---
 
@@ -313,7 +216,7 @@ docker-compose.yml              # Local stack: PostgreSQL, Qdrant, Redis
 - Docker and Docker Compose
 - Python 3.11+
 - Node.js 18+
-- Groq API key — free at [console.groq.com](https://console.groq.com)
+- A Groq API key, free at [console.groq.com](https://console.groq.com)
 
 ### 1. Start infrastructure
 
@@ -321,7 +224,7 @@ docker-compose.yml              # Local stack: PostgreSQL, Qdrant, Redis
 docker compose up -d
 ```
 
-Starts PostgreSQL 16 (port 5432), Qdrant (port 6333), and Redis 7 (port 6379).
+Starts PostgreSQL 16 (port 5432), Qdrant (port 6333), and Redis (port 6379).
 
 ### 2. Configure the backend
 
@@ -336,25 +239,25 @@ Edit `.env`:
 LLM_PROVIDER=groq
 GROQ_API_KEY=your_groq_key_here
 
-# Optional — Gemini used as fallback when Groq fails
+# Optional, used as automatic fallback when Groq fails
 GEMINI_API_KEY=your_gemini_key_here
 
 JWT_SECRET_KEY=change-me-in-production
 
-# Optional — enables LangSmith per-node tracing
+# Optional, enables LangSmith per-node tracing
 LANGSMITH_TRACING=true
 LANGSMITH_API_KEY=your_langsmith_key
 
-# Optional — enables Sentry exception capture
+# Optional, enables Langfuse tracing and the Kindred replay endpoint
+LANGFUSE_PUBLIC_KEY=your_langfuse_public_key
+LANGFUSE_SECRET_KEY=your_langfuse_secret_key
+LANGFUSE_HOST=https://cloud.langfuse.com
+
+# Optional, enables Sentry exception capture
 SENTRY_DSN=your_sentry_dsn
 
-# Optional — CometAPI per-node model tier routing
-# Set LLM_PROVIDER=comet and COMET_TIERED=true to activate
-# Get your key at https://cometapi.com
+# Optional, CometAPI per-node model tier routing
 COMETAPI_KEY=your_cometapi_key_here
-COMETAPI_MODEL_FAST=deepseek-v4-flash
-COMETAPI_MODEL_BALANCED=gemini-3.5-flash
-COMETAPI_MODEL_STRONG=claude-sonnet-4-6
 COMET_TIERED=false
 ```
 
@@ -371,17 +274,24 @@ source venv/bin/activate
 
 pip install -r requirements.txt
 alembic upgrade head
-python ..\..\scripts\seed_demo_data.py
-python ..\..\scripts\seed_qdrant_memory.py
+python ../../scripts/seed_demo_data.py
+python ../../scripts/seed_qdrant_memory.py
 ```
 
 ### 4. Start the backend
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --reload-exclude "tests/*" --reload-exclude ".pytest_cache/*" --reload-exclude "*.pyc" --reload-exclude ".coverage*" --reload-exclude "htmlcov/*"
 ```
 
-API at `http://localhost:8000` · Swagger at `http://localhost:8000/docs`
+API at `http://localhost:8000`, Swagger at `http://localhost:8000/docs`.
+
+> Some Swiggy-backed endpoints, for example `/market/pulse`, can take up to
+> around fifteen seconds on a cold cache. Editing backend files during that
+> window can kill the in-flight request via `--reload`, which the browser
+> reports as a misleading CORS error even though CORS is configured
+> correctly. The `--reload-exclude` flags above reduce that; still avoid
+> saving backend source files while a slow request is in flight.
 
 ### 5. Start the frontend
 
@@ -391,53 +301,50 @@ npm install
 npm run dev
 ```
 
-Frontend at `http://localhost:3000`
+Frontend at `http://localhost:3000`.
 
 ### 6. Register and log in
 
-Go to `http://localhost:3000/register`, create your workspace, then log in. All planning routes are auth-protected and org-scoped.
+Go to `http://localhost:3000/register`, create a workspace, then log in. All planning routes are auth-protected and organization-scoped.
 
 ---
 
 ## API surface
 
+The tables below cover the routes most relevant to getting started. See [`docs/APIS.md`](docs/APIS.md) for the complete reference, including request and response schemas.
+
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| `POST` | `/api/v1/auth/register` | Public | Register user + org |
-| `POST` | `/api/v1/auth/login` | Public | Get JWT access token |
+| `POST` | `/api/v1/auth/register` | Public | Register user and organization |
+| `POST` | `/api/v1/auth/login` | Public | Get a JWT access token |
 | `GET` | `/api/v1/health` | Public | Liveness check |
-| `GET` | `/api/v1/health/dependencies` | Public | PostgreSQL, Qdrant, Redis status |
-| `GET` | `/api/v1/planning/scenarios` | Public | List scenario presets |
-| `POST` | `/api/v1/planning/run` | JWT | Execute planning pipeline (full JSON response) |
-| `POST` | `/api/v1/planning/stream` | JWT | Execute planning pipeline (SSE — node_complete events + final complete) |
-| `POST` | `/api/v1/planning/whatif` | JWT | What-if demand simulator (no LLM, instant) |
-| `GET` | `/api/v1/runs` | JWT | List persisted runs |
-| `GET` | `/api/v1/runs/{id}` | JWT | Run detail |
-| `GET` | `/api/v1/runs/{id}/export` | JWT | Download PDF chef brief |
-| `GET` | `/api/v1/runs/{id}/export/excel` | JWT | Download Excel workbook |
-| `POST` | `/api/v1/chat` | JWT | RAG chatbot over run history (SSE token stream) |
-| `GET` | `/api/v1/observability/summary` | JWT | 7-day planning summary stats |
-| `GET` | `/api/v1/settings` | JWT | Get org settings |
-| `PATCH` | `/api/v1/settings` | JWT | Update org settings |
-| `GET/POST` | `/api/v1/restaurant-profiles` | JWT | List / create profiles |
-| `GET/PATCH/DELETE` | `/api/v1/restaurant-profiles/{id}` | JWT | Get / update / delete profile |
+| `GET` | `/api/v1/health/circuits` | Public | Swiggy MCP circuit breaker state |
+| `GET` | `/api/v1/planning/scenarios` | JWT | List scenario presets |
+| `POST` | `/api/v1/planning/scenario-from-text` | JWT | Turn a free-text description into a structured scenario profile |
+| `GET` | `/api/v1/planning/compose-live-scenario` | JWT | Compose a scenario profile from live signals for right now |
+| `POST` | `/api/v1/planning/run` | JWT | Execute the planning pipeline, full JSON response |
+| `POST` | `/api/v1/planning/stream` | JWT | Execute the planning pipeline over server-sent events |
+| `POST` | `/api/v1/planning/whatif` | JWT | Deterministic what-if demand simulator, no LLM call |
+| `GET` | `/api/v1/market/pulse` | JWT | Live Swiggy market intelligence plus weather, trends, and compliance signals |
+| `GET` | `/api/v1/business/performance` | JWT | Revenue, margin, and health-score analytics |
+| `GET` | `/api/v1/action-queue` | JWT | List pending, approved, rejected, and executed actions |
+| `POST` | `/api/v1/action-queue/{id}/approve` | JWT | Approve an action, executing it in the same step where applicable |
+| `GET` | `/api/v1/runs` | JWT | List persisted planning runs |
+| `GET` | `/api/v1/runs/{id}/export` | JWT | Download the PDF chef brief |
+| `GET` | `/api/v1/runs/{id}/export/excel` | JWT | Download the Excel workbook |
+| `POST` | `/api/v1/chat` | JWT | Chat assistant over run history, server-sent events |
+| `GET` | `/api/v1/data-health` | JWT | Data coverage and scenario coverage |
+| `GET/PATCH` | `/api/v1/settings` | JWT | Get or update organization settings |
+| `POST` | `/replay` | Public, Kindred metadata | Single-generation LLM replay for Kindred debugging, mounted outside `/api/v1` |
 | `GET` | `/metrics` | Public | Prometheus scrape endpoint |
-| `GET` | `/debug/sentry-test` | Public | Sentry smoke test (not under /api/v1) |
-
-See [`docs/APIS.md`](docs/APIS.md) for full request/response schemas.
+| `POST` | `/api/v1/concierge/chat` | Public | Guest Concierge chat turn, server-sent events |
+| `POST` | `/api/v1/concierge/transcribe` | Public | Guest Concierge voice transcription |
 
 ---
 
 ## MCP integration
 
-The `.mcp.json` in the project root wires up the MCP server automatically in Claude Code.
-
-Set `CORTEX_EMAIL` and `CORTEX_PASSWORD` in `.mcp.json` to a registered user, then:
-
-```
-run a friday rush planning scenario
-show me the last 5 planning runs filtered to approved verdicts
-```
+The `.mcp.json` in the project root wires up the MCP server automatically in Claude Code, exposing planning, market, and Action Queue tools: `run_planning_scenario`, `get_run_history`, `get_market_brief`, `get_action_queue`, and `approve_action`.
 
 For Claude Desktop, copy `docs/mcp_claude_desktop_config.json` into your `claude_desktop_config.json`.
 
@@ -448,14 +355,14 @@ For Claude Desktop, copy `docs/mcp_claude_desktop_config.json` into your `claude
 ```bash
 cd apps/api
 
-# Unit + integration
+# Unit and integration
 pytest tests/ -q --ignore=tests/integration/test_langgraph_flow.py
 
-# LangSmith regression evals (requires GROQ_API_KEY)
+# LangSmith regression evals, requires GROQ_API_KEY
 python ../../scripts/build_golden_dataset.py
 pytest tests/unit/test_langsmith_evals.py -v
 
-# RAGAS + DeepEval quality evals
+# RAGAS and DeepEval quality evals
 pytest evals/test_ragas_complaint.py -v -W ignore::DeprecationWarning
 pytest evals/test_deepeval_quality.py -v -W ignore::DeprecationWarning
 ```
@@ -466,16 +373,20 @@ pytest evals/test_deepeval_quality.py -v -W ignore::DeprecationWarning
 
 | Document | Contents |
 |----------|---------|
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Full system architecture, graph topology, Phase 5 additions |
-| [`docs/APIS.md`](docs/APIS.md) | Complete API reference with request/response schemas |
-| [`docs/AGENTS.md`](docs/AGENTS.md) | Orchestration node descriptions including chat agent |
-| [`docs/EVALUATION.md`](docs/EVALUATION.md) | LangSmith evals, RAGAS, DeepEval, quality gates |
+| [`docs/PRD.md`](docs/PRD.md) | Product requirements: goals, use cases, success criteria |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Full system architecture and graph topology |
+| [`docs/APIS.md`](docs/APIS.md) | Complete API reference with request and response schemas |
+| [`docs/AGENTS.md`](docs/AGENTS.md) | Orchestration node descriptions, including the chat and concierge agents |
+| [`docs/EVALUATION.md`](docs/EVALUATION.md) | LangSmith evals, RAGAS, DeepEval, and observability |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Phase-by-phase delivery history |
 | [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) | PostgreSQL schema and Qdrant collections |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Architecture decision log |
+| [`docs/PRODUCT_MODES.md`](docs/PRODUCT_MODES.md) | Scenario and product mode specifications |
+| [`docs/SWIGGY_INTEGRATION.md`](docs/SWIGGY_INTEGRATION.md) | Complete Swiggy MCP tool reference for both platform sides |
+| [`CLAUDE.md`](CLAUDE.md) | Working reference for the current state of the codebase, including the Swiggy compliance record |
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).

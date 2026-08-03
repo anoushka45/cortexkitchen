@@ -53,12 +53,45 @@ async def demand_forecast_node(
             return {**state, "forecast_output": simulated_result}
 
         target_date = _parse_target_date(state.get("target_date"))
+
+        # Live-intelligence signals (P6-A21/A22/A23) — weather + holiday,
+        # industry trends, regulatory alerts. None is Swiggy MCP, so no
+        # consent/compliance gating applies. All independently fail open: any
+        # one being None just means no adjustment/context from it, the
+        # forecast still runs on Prophet's raw output. Only weather actually
+        # shifts the predicted number (_apply_signal_adjustments) --
+        # trends/compliance are narrative context for the LLM recommendation
+        # only. Fetched by live_signals_node, which runs before this node
+        # (not fetched here anymore) -- read back from state rather than
+        # fetching. market_intel_node also reads them back from state rather
+        # than re-fetching (P6-A24).
+        weather_signal            = state.get("weather_signal")
+        trends_signal             = state.get("trends_signal")
+        compliance_alerts_signal  = state.get("compliance_alerts_signal")
+        holiday_context           = state.get("holiday_context") or {}
+        is_holiday                = holiday_context.get("is_holiday", False)
+        holiday_name              = holiday_context.get("holiday_name")
+
         service = ForecastService(db=db, llm=llm)
-        result = await service.analyse_and_recommend(target_date=target_date)
+        result = await service.analyse_and_recommend(
+            target_date=target_date,
+            org_capacity=state.get("org_capacity"),
+            weather_signal=weather_signal,
+            is_holiday=is_holiday,
+            holiday_name=holiday_name,
+            trends_signal=trends_signal,
+            compliance_alerts_signal=compliance_alerts_signal,
+        )
         result.setdefault("data", {})
         result["data"]["service_window"] = scenario_profile.get("service_window", "18:00-22:00")
         result["data"]["scenario_label"] = scenario_profile.get("label", state.get("scenario"))
-        return {**state, "forecast_output": result}
+        # weather_signal/trends_signal/compliance_alerts_signal are already in
+        # state (written by live_signals_node) -- **state carries them through
+        # unchanged, nothing to re-set here.
+        return {
+            **state,
+            "forecast_output": result,
+        }
 
     except Exception as exc:
         return {

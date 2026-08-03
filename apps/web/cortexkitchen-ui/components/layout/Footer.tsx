@@ -74,7 +74,7 @@ export default function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-white/[0.07] bg-[#070a12]">
+    <footer className="border-t border-[var(--color-border-default)] bg-[var(--color-surface-page)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-12 lg:py-16">
 
         {/* Top row — brand + link columns */}
@@ -85,9 +85,9 @@ export default function Footer() {
             <div className="flex items-center gap-2.5">
               {/* wordmark dot */}
               <span className="inline-block h-2 w-2 rounded-full bg-ember-400" />
-              <span className="text-[15px] font-bold tracking-tight text-white">CortexKitchen</span>
+              <span className="text-[15px] font-bold tracking-tight text-[var(--color-text-primary)]">CortexKitchen</span>
             </div>
-            <p className="mt-3 text-[12px] leading-relaxed text-slate-500 max-w-[200px]">
+            <p className="mt-3 text-[12px] leading-relaxed text-[var(--color-text-faint)] max-w-[200px]">
               Multi-agent ops intelligence for restaurant operators.
             </p>
 
@@ -98,7 +98,7 @@ export default function Footer() {
                   key={s.label}
                   href={s.href}
                   aria-label={s.label}
-                  className="text-slate-600 transition-colors hover:text-slate-300"
+                  className="text-[var(--color-text-ghost)] transition-colors hover:text-[var(--color-text-soft)]"
                 >
                   {s.icon}
                 </a>
@@ -109,7 +109,7 @@ export default function Footer() {
           {/* Link columns */}
           {FOOTER_LINKS.map((col) => (
             <div key={col.heading}>
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/30 mb-3">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-faint)] mb-3">
                 {col.heading}
               </p>
               <ul className="space-y-2.5">
@@ -117,7 +117,7 @@ export default function Footer() {
                   <li key={link.label}>
                     <Link
                       href={link.href}
-                      className="text-[13px] text-slate-500 transition-colors hover:text-slate-200"
+                      className="text-[13px] text-[var(--color-text-faint)] transition-colors hover:text-[var(--color-text-primary)]"
                     >
                       {link.label}
                     </Link>
@@ -129,13 +129,13 @@ export default function Footer() {
         </div>
 
         {/* Bottom bar */}
-        <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/[0.06] pt-6 sm:flex-row">
-          <p className="font-mono text-[11px] text-slate-600">
+        <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-[var(--color-border-soft)] pt-6 sm:flex-row">
+          <p className="text-[11px] text-[var(--color-text-ghost)]">
             © {year} CortexKitchen, Inc. All rights reserved.
           </p>
           <div className="flex items-center gap-1.5">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-mono text-[11px] text-slate-600">All systems operational</span>
+            <span className="text-[11px] text-[var(--color-text-ghost)]">All systems operational</span>
           </div>
         </div>
 

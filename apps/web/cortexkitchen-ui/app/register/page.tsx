@@ -1,11 +1,14 @@
 "use client";
 
 import { useActionState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import AuthSplitLayout from "@/components/auth/AuthSplitLayout";
 
 type FormState = { error?: string } | undefined;
+
+const inputClass =
+  "w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-sunken)] py-2.5 pl-10 pr-3 text-sm text-[var(--color-text-primary)] transition-colors placeholder:text-[var(--color-text-ghost)] focus:border-ember-500/60 focus:outline-none focus:ring-2 focus:ring-ember-500/50";
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -28,104 +31,75 @@ export default function RegisterPage() {
   const [state, action, pending] = useActionState(handleRegister, undefined);
 
   return (
-    <div className="grid-bg relative flex min-h-screen items-center justify-center overflow-hidden bg-ink-950 p-4">
-      <div
-        className="pointer-events-none absolute -top-48 left-1/2 h-[620px] w-[920px] -translate-x-1/2 rounded-full"
-        style={{ background: "radial-gradient(closest-side, rgba(230,137,42,0.20), transparent 72%)" }}
-      />
-      <div className="w-full max-w-sm stagger-1">
-        <div className="mb-8 text-center stagger-2">
-          <div className="mx-auto mb-4 grid h-12 w-12 place-items-center overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
-            <Image src="/ck-logo.png" alt="CortexKitchen" width={40} height={40} className="h-10 w-10 object-contain" priority />
+    <AuthSplitLayout
+      eyebrow="Restaurant sign up"
+      title="Create your workspace."
+      subtitle="Set up your restaurant's operating system in minutes."
+    >
+      <form action={action} className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-6 shadow-[0_2px_4px_rgba(20,15,5,0.06),0_24px_60px_-20px_rgba(20,15,5,0.35)]">
+        {state?.error && (
+          <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-400">
+            {state.error}
           </div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-ember-300/70">ops intelligence</p>
-          <h1 className="mt-2 text-2xl font-bold tracking-tight text-white">CortexKitchen</h1>
-          <p className="mt-1 text-sm text-white/50">Create your restaurant workspace</p>
+        )}
+
+        <div>
+          <label className="mb-1.5 block text-sm text-[var(--color-text-soft)]" htmlFor="org_name">Restaurant / org name</label>
+          <div className="relative">
+            <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-ghost)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1m4 0h1m-6 4h1m4 0h1m-6 4h1m4 0h1" />
+            </svg>
+            <input id="org_name" name="org_name" type="text" required className={inputClass} placeholder="Mario's Pizzeria" />
+          </div>
         </div>
 
-        <form action={action} className="glass space-y-4 rounded-2xl border border-white/10 bg-ink-900/85 p-6 shadow-[0_32px_90px_rgba(0,0,0,0.45)] stagger-3">
-          {state?.error && (
-            <div className="text-sm text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">
-              {state.error}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm text-slate-400 mb-1.5" htmlFor="org_name">Restaurant / Org name</label>
-            <input
-              id="org_name"
-              name="org_name"
-              type="text"
-              required
-              className="w-full bg-slate-950/60 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-ember-500/50 focus:border-ember-500/60 transition-colors"
-              placeholder="Mario's Pizzeria"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm text-slate-400 mb-1.5" htmlFor="full_name">
-              Your name <span className="text-slate-600">(optional)</span>
-            </label>
-            <input
-              id="full_name"
-              name="full_name"
-              type="text"
-              className="w-full bg-slate-950/60 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-ember-500/50 focus:border-ember-500/60 transition-colors"
-              placeholder="Mario Rossi"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm text-slate-400 mb-1.5" htmlFor="email">Email</label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              className="w-full bg-slate-950/60 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-ember-500/50 focus:border-ember-500/60 transition-colors"
-              placeholder="mario@restaurant.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm text-slate-400 mb-1.5" htmlFor="password">Password</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              autoComplete="new-password"
-              minLength={8}
-              className="w-full bg-slate-950/60 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-ember-500/50 focus:border-ember-500/60 transition-colors"
-              placeholder="Min. 8 characters"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={pending}
-            className="btn-primary w-full rounded-lg py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {pending ? "Creating workspace..." : "Create workspace"}
-          </button>
-        </form>
-
-        <p className="text-center text-sm text-slate-500 mt-4">
-          Already have an account?{" "}
-          <Link href="/login" className="text-ember-300 transition-colors hover:text-ember-200">
-            Sign in
-          </Link>
-        </p>
-        <p className="text-center mt-3">
-          <Link href="/" className="inline-flex items-center gap-1.5 text-xs text-white/25 transition-colors hover:text-white/50">
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        <div>
+          <label className="mb-1.5 block text-sm text-[var(--color-text-soft)]" htmlFor="full_name">
+            Your name <span className="text-[var(--color-text-ghost)]">(optional)</span>
+          </label>
+          <div className="relative">
+            <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-ghost)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
-            Back to home
-          </Link>
-        </p>
-      </div>
-    </div>
+            <input id="full_name" name="full_name" type="text" className={inputClass} placeholder="Mario Rossi" />
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-sm text-[var(--color-text-soft)]" htmlFor="email">Email</label>
+          <div className="relative">
+            <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-ghost)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9" />
+            </svg>
+            <input id="email" name="email" type="email" required autoComplete="email" className={inputClass} placeholder="mario@restaurant.com" />
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-sm text-[var(--color-text-soft)]" htmlFor="password">Password</label>
+          <div className="relative">
+            <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-ghost)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 10-8 0v4h8z" />
+            </svg>
+            <input id="password" name="password" type="password" required autoComplete="new-password" minLength={8} className={inputClass} placeholder="Min. 8 characters" />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={pending}
+          className="btn-primary w-full rounded-xl py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {pending ? "Creating workspace…" : "Create workspace"}
+        </button>
+      </form>
+
+      <p className="mt-4 text-center text-sm text-[var(--color-text-faint)]">
+        Already have an account?{" "}
+        <Link href="/login" className="text-[var(--color-accent)] transition-colors hover:text-ember-200">
+          Sign in
+        </Link>
+      </p>
+    </AuthSplitLayout>
   );
 }

@@ -53,6 +53,53 @@ def test_sanity_checker_reports_schema_issues():
     assert any(issue["code"] == "schema.missing_key" for issue in result["issues"])
 
 
+# ── Diff 2 (menu capacity vs reservation occupancy) ──────────────────────────
+# Regression coverage for the bug found via a live run: menu_intelligence used
+# to hardcode assumed_covers_within_capacity=True on every run, so Diff 2 fired
+# on nearly every high-occupancy Friday Rush plan regardless of quality. Now
+# that menu genuinely computes it from reservation's own occupancy figure
+# (same >90% threshold), the two sides of the diff should stay consistent.
+
+def test_diff_2_does_not_fire_when_menu_correctly_reports_constrained():
+    from app.domain.services.evaluation_sanity import EvaluationSanityChecker
+
+    bundle = _valid_bundle()
+    bundle["assumptions"] = {
+        "menu":        {"assumed_covers_within_capacity": False},  # genuinely constrained
+        "reservation": {"assumed_peak_occupancy_pct": 99.1},
+    }
+    result = EvaluationSanityChecker().check_bundle(bundle)
+
+    assert result["stale_assumptions"] == []
+
+
+def test_diff_2_still_fires_if_menu_wrongly_claims_capacity_is_fine():
+    from app.domain.services.evaluation_sanity import EvaluationSanityChecker
+
+    bundle = _valid_bundle()
+    bundle["assumptions"] = {
+        "menu":        {"assumed_covers_within_capacity": True},  # still a real bug if this happens
+        "reservation": {"assumed_peak_occupancy_pct": 99.1},
+    }
+    result = EvaluationSanityChecker().check_bundle(bundle)
+
+    assert len(result["stale_assumptions"]) == 1
+    assert result["stale_assumptions"][0]["node"] == "menu_intelligence"
+
+
+def test_diff_2_does_not_fire_at_normal_occupancy():
+    from app.domain.services.evaluation_sanity import EvaluationSanityChecker
+
+    bundle = _valid_bundle()
+    bundle["assumptions"] = {
+        "menu":        {"assumed_covers_within_capacity": True},
+        "reservation": {"assumed_peak_occupancy_pct": 60.0},
+    }
+    result = EvaluationSanityChecker().check_bundle(bundle)
+
+    assert result["stale_assumptions"] == []
+
+
 def test_sanity_checker_flags_unrealistic_inventory_quantity():
     from app.domain.services.evaluation_sanity import EvaluationSanityChecker
 

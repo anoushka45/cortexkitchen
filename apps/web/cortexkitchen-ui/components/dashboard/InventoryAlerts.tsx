@@ -1,5 +1,7 @@
 "use client";
 
+import { CardFooter, CategoryColumn, ICONS, PriorityGauge, RecommendationBlock, StatGrid } from "./AgentStatStrip";
+
 interface Alert {
   ingredient:        string;
   unit:              string;
@@ -31,18 +33,19 @@ interface InventoryData {
 interface Props {
   inventory: Record<string, unknown> | null;
   compact?: boolean;
+  swiggySignal?: string;
 }
 
 const SEVERITY_STYLES: Record<string, string> = {
-  critical: "bg-rose-500/10 border-rose-500/30 text-rose-400",
-  warning:  "bg-amber-500/10 border-amber-500/30 text-amber-400",
-  info:     "bg-blue-500/10  border-blue-500/30  text-blue-400",
+  critical: "bg-rose-500/10 ring-1 ring-rose-500/25 text-rose-600 dark:text-rose-300",
+  warning:  "bg-amber-500/10 ring-1 ring-amber-500/25 text-amber-600 dark:text-amber-300",
+  info:     "bg-blue-500/10  ring-1 ring-blue-500/25  text-blue-600 dark:text-blue-300",
 };
 
 const SEVERITY_BADGE: Record<string, string> = {
-  critical: "bg-rose-500/20 text-rose-400",
-  warning:  "bg-amber-500/20 text-amber-400",
-  info:     "bg-blue-500/20  text-blue-400",
+  critical: "bg-rose-500/15 text-rose-600 dark:text-rose-300",
+  warning:  "bg-amber-500/15 text-amber-600 dark:text-amber-300",
+  info:     "bg-blue-500/15  text-blue-600 dark:text-blue-300",
 };
 
 function normalizeInventoryData(
@@ -90,32 +93,10 @@ function normalizeInventoryData(
   };
 }
 
-function CompactAlertRow({ alert }: { alert: Alert }) {
-  const sev = alert.severity ?? "info";
-  const sevLabel = sev === "critical" ? "crit" : sev === "warning" ? "low" : "ok";
-  const rowStyle  = sev === "critical" ? "ring-rose-400/20 bg-rose-500/[0.04]"
-                  : sev === "warning"  ? "ring-ember-400/20 bg-ember-500/[0.04]"
-                  :                      "ring-white/[0.07] bg-white/[0.025]";
-  const barColor  = sev === "critical" ? "bg-rose-400"        : sev === "warning" ? "bg-ember-400"    : "bg-emerald-400/70";
-  const sevColor  = sev === "critical" ? "text-rose-300"      : sev === "warning" ? "text-ember-300"  : "text-emerald-300/80";
-  const stockPct  = Math.min(100, Math.max(4, (alert.quantity_in_stock / Math.max(alert.reorder_threshold, 0.01)) * 50));
-
-  return (
-    <li className={`grid grid-cols-12 items-center gap-2 rounded-lg ring-1 px-3 py-2.5 ${rowStyle}`}>
-      <span className="col-span-4 text-[13px] font-semibold text-white truncate">{alert.ingredient}</span>
-      <span className="col-span-2 font-mono text-[10px] text-white/55">{alert.quantity_in_stock}{alert.unit}</span>
-      <div className="col-span-4 h-1.5 rounded bg-white/[0.04] overflow-hidden">
-        <div className={`h-full ${barColor}`} style={{ width: `${stockPct}%` }} />
-      </div>
-      <span className={`col-span-2 text-right font-mono text-[10px] uppercase ${sevColor}`}>{sevLabel}</span>
-    </li>
-  );
-}
-
 function AlertRow({ alert, type }: { alert: Alert; type: "shortage" | "overstock" }) {
   const sev = alert.severity ?? "info";
   return (
-    <div className={`rounded-xl border px-4 py-3 ${SEVERITY_STYLES[sev]}`}>
+    <div className={`rounded-xl px-4 py-3 ${SEVERITY_STYLES[sev]}`}>
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-2">
           {sev === "critical" && (
@@ -124,34 +105,49 @@ function AlertRow({ alert, type }: { alert: Alert; type: "shortage" | "overstock
               <span className="relative inline-flex h-2 w-2 rounded-full bg-rose-500" />
             </span>
           )}
-          <span className="text-sm font-semibold text-slate-200">{alert.ingredient}</span>
+          <span className="text-sm font-semibold text-[var(--color-text-primary)]">{alert.ingredient}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {alert.spoilage_risk && (
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400">
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-300 font-medium">
               spoilage risk
             </span>
           )}
-          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${SEVERITY_BADGE[sev]}`}>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${SEVERITY_BADGE[sev]}`}>
             {sev}
           </span>
         </div>
       </div>
-      <div className="flex gap-4 text-xs text-slate-400 font-mono">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--color-text-soft)]">
         <span>stock: {alert.quantity_in_stock} {alert.unit}</span>
         <span>threshold: {alert.reorder_threshold} {alert.unit}</span>
         {type === "shortage"  && alert.shortfall !== undefined && (
-          <span className="text-rose-400">shortfall: {alert.shortfall} {alert.unit}</span>
+          <span className="text-rose-600 dark:text-rose-300 font-medium">shortfall: {alert.shortfall} {alert.unit}</span>
         )}
         {type === "overstock" && alert.excess !== undefined && (
-          <span className="text-amber-400">excess: {alert.excess} {alert.unit}</span>
+          <span className="text-amber-600 dark:text-amber-300 font-medium">excess: {alert.excess} {alert.unit}</span>
         )}
       </div>
     </div>
   );
 }
 
-export default function InventoryAlerts({ inventory, compact = false }: Props) {
+function AlertGroup({ icon, color, label, alerts, type }: { icon: React.ReactNode; color: string; label: string; alerts: Alert[]; type: "shortage" | "overstock" }) {
+  if (alerts.length === 0) return null;
+  return (
+    <div className="rounded-2xl ring-1 ring-[var(--color-border-soft)] bg-[var(--color-surface-raised)] p-4">
+      <div className="flex items-center gap-1.5">
+        <span style={{ color }}>{icon}</span>
+        <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color }}>{label} &middot; {alerts.length}</p>
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-2 @lg:grid-cols-2">
+        {alerts.map((a, i) => <AlertRow key={i} alert={a} type={type} />)}
+      </div>
+    </div>
+  );
+}
+
+export default function InventoryAlerts({ inventory, swiggySignal }: Props) {
   const data = normalizeInventoryData(inventory);
   if (!data) return null;
 
@@ -160,6 +156,7 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
   const allClear     = !hasShortage && !hasOverstock;
   const recommendation = data.recommendation;
   const serviceWindow = data.service_window ?? "this service window";
+  const criticalCount = data.shortage_alerts.filter((a) => a.severity === "critical").length;
 
   const shortageSorted = [...data.shortage_alerts].sort((a, b) => {
     const score = (sev: Alert["severity"]) =>
@@ -167,167 +164,71 @@ export default function InventoryAlerts({ inventory, compact = false }: Props) {
     return score(b.severity) - score(a.severity);
   });
 
-  const shortagePreview = compact ? shortageSorted.slice(0, 3) : shortageSorted;
-  const overstockPreview = compact ? data.overstock_alerts.slice(0, 2) : data.overstock_alerts;
-
-  const restockPreview =
-    recommendation?.restock_actions
-      ? (compact ? recommendation.restock_actions.slice(0, 2) : recommendation.restock_actions)
-      : [];
-  const wastePreview =
-    recommendation?.waste_reduction_actions
-      ? (compact ? recommendation.waste_reduction_actions.slice(0, 1) : recommendation.waste_reduction_actions)
-      : [];
-  const riskPreview =
-    recommendation?.risks ? (compact ? recommendation.risks.slice(0, 1) : recommendation.risks) : [];
+  // No single "recommendation" text field in this schema -- the top restock
+  // action is the real headline equivalent (same substitute-with-real-data
+  // convention used for Menu's highlight item). The rest of restock_actions
+  // renders below as the itemized breakdown, so this one isn't dropped, just
+  // also surfaced as the headline.
+  const headlineAction = recommendation?.restock_actions[0] ?? null;
+  const restockRest = recommendation?.restock_actions.slice(headlineAction ? 1 : 0) ?? [];
+  const wastePreview = recommendation?.waste_reduction_actions ?? [];
 
   return (
-    <div className={compact ? "space-y-4" : "space-y-5"}>
-      {/* Summary bar */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-white/40">
-        <span>{data.total_items_checked} ingredients checked</span>
-        <span className="text-white/20">·</span>
-        <span>demand ratio: {data.demand_ratio.toFixed(2)}x</span>
-        {data.high_demand_week && (
-          <>
-            <span className="text-white/20">·</span>
-            <span className="text-ember-300/80">high demand week</span>
-          </>
-        )}
+    <div className="@container flex flex-col gap-5">
+      {/* Recommendation (left) + stat grid & priority gauge (right) side by side */}
+      <div className="grid grid-cols-1 gap-4 @3xl:grid-cols-[1.3fr_1fr] @3xl:items-stretch">
+        <RecommendationBlock
+          recommendation={headlineAction}
+          reasoning={recommendation?.reasoning}
+          priority={recommendation?.priority}
+          risks={recommendation?.risks}
+        />
+        <div className="flex flex-col gap-3">
+          <StatGrid stats={[
+            { icon: <ICONS.warning className="h-4 w-4" strokeWidth={1.8} />, iconColor: "#F43F5E", value: String(data.shortage_alerts.length), label: "Active shortages", caption: criticalCount > 0 ? `${criticalCount} critical` : "None critical" },
+            { icon: <ICONS.cube className="h-4 w-4" strokeWidth={1.8} />, iconColor: "#8B5CF6", value: String(data.total_items_checked), label: "Items checked", caption: "Across full stock list" },
+            { icon: <ICONS.trendUp className="h-4 w-4" strokeWidth={1.8} />, iconColor: "#F59E0B", value: `${data.demand_ratio.toFixed(2)}x`, label: "Demand ratio", caption: data.high_demand_week ? "High demand week" : "Normal demand" },
+            { icon: <ICONS.chartBar className="h-4 w-4" strokeWidth={1.8} />, iconColor: "#10B981", value: String(data.overstock_alerts.length), label: "Overstock alerts", caption: "Excess to redistribute" },
+          ]} />
+          <PriorityGauge priority={recommendation?.priority} />
+        </div>
       </div>
 
       {/* All clear */}
       {allClear && (
-        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
-          <p className="text-sm text-emerald-400 font-medium">
+        <div className="rounded-2xl ring-1 ring-emerald-400/25 bg-emerald-500/[0.05] px-4 py-3">
+          <p className="text-sm text-emerald-600 dark:text-emerald-300 font-semibold">
             All stock levels are within safe range.
           </p>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-[var(--color-text-faint)] mt-1">
             No restocking or waste-reduction actions required before {serviceWindow.toLowerCase()}.
           </p>
         </div>
       )}
 
-      {recommendation && (
-        <div className={`rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-4 ${compact ? "space-y-2" : "space-y-3"}`}>
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-xs font-mono uppercase tracking-widest text-slate-500">
-              Recommendation
-            </p>
-            {recommendation.priority && (
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
-                {recommendation.priority} priority
-              </span>
-            )}
-          </div>
-          {recommendation.reasoning && (
-            <p className="text-sm text-slate-200">{recommendation.reasoning}</p>
-          )}
-          {restockPreview.length > 0 && (
-            <div>
-              <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
-                Restock Actions
-              </p>
-              <ul className="space-y-1.5">
-                {restockPreview.map((action, index) => (
-                  <li key={`restock-${index}`} className="text-xs text-slate-200 bg-slate-900/60 rounded-lg px-3 py-2 border border-white/5">
-                    {action}
-                  </li>
-                ))}
-              </ul>
-              {compact && recommendation.restock_actions.length > restockPreview.length && (
-                <p className="text-xs text-slate-500 mt-2">
-                  {recommendation.restock_actions.length - restockPreview.length} more restock actions in details.
-                </p>
-              )}
-            </div>
-          )}
-          {wastePreview.length > 0 && (
-            <div>
-              <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
-                Waste Reduction
-              </p>
-              <ul className="space-y-1.5">
-                {wastePreview.map((action, index) => (
-                  <li key={`waste-${index}`} className="text-xs text-slate-200 bg-slate-900/60 rounded-lg px-3 py-2 border border-white/5">
-                    {action}
-                  </li>
-                ))}
-              </ul>
-              {compact && recommendation.waste_reduction_actions.length > wastePreview.length && (
-                <p className="text-xs text-slate-500 mt-2">
-                  {recommendation.waste_reduction_actions.length - wastePreview.length} more waste actions in details.
-                </p>
-              )}
-            </div>
-          )}
-          {riskPreview.length > 0 && (
-            <div>
-              <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
-                Risks
-              </p>
-              <ul className="space-y-1.5">
-                {riskPreview.map((risk, index) => (
-                  <li key={`risk-${index}`} className="text-xs text-rose-300 bg-rose-500/10 rounded-lg px-3 py-2 border border-rose-500/20">
-                    {risk}
-                  </li>
-                ))}
-              </ul>
-              {compact && recommendation.risks.length > riskPreview.length && (
-                <p className="text-xs text-slate-500 mt-2">
-                  {recommendation.risks.length - riskPreview.length} more risks in details.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      {/* Shortage + overstock alert groups */}
+      <div className="grid grid-cols-1 gap-4 @lg:grid-cols-2">
+        <AlertGroup icon={<ICONS.warning className="h-3.5 w-3.5" strokeWidth={1.8} />} color="#F43F5E" label="Shortage Alerts" alerts={shortageSorted} type="shortage" />
+        <AlertGroup icon={<ICONS.trendUp className="h-3.5 w-3.5" strokeWidth={1.8} />} color="#F59E0B" label="Overstock Alerts" alerts={data.overstock_alerts} type="overstock" />
+      </div>
 
-      {/* Shortage alerts */}
-      {hasShortage && (
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-white/45 mb-2.5">
-            Restock priority · {data.shortage_alerts.length} alert{data.shortage_alerts.length !== 1 ? "s" : ""}
-          </p>
-          {compact ? (
-            <ul className="space-y-1.5">
-              {shortagePreview.map((a, i) => (
-                <CompactAlertRow key={`shortage-${i}`} alert={a} />
-              ))}
-            </ul>
-          ) : (
-            <div className="space-y-2">
-              {shortagePreview.map((a, i) => (
-                <AlertRow key={`shortage-${i}`} alert={a} type="shortage" />
-              ))}
-            </div>
-          )}
-          {compact && data.shortage_alerts.length > shortagePreview.length && (
-            <p className="text-[11px] text-white/30 mt-2">
-              {data.shortage_alerts.length - shortagePreview.length} more in details.
-            </p>
-          )}
-        </div>
-      )}
+      {/* Remaining actions -- restock_actions beyond the headline one, plus waste reduction */}
+      <div className="grid grid-cols-1 gap-4 @lg:grid-cols-2">
+        <CategoryColumn
+          icon={<ICONS.shieldCheck className="h-3.5 w-3.5" strokeWidth={1.8} />}
+          label="Other Restock Actions"
+          items={restockRest}
+          tone="warn"
+        />
+        <CategoryColumn
+          icon={<ICONS.noEntry className="h-3.5 w-3.5" strokeWidth={1.8} />}
+          label="Waste Reduction"
+          items={wastePreview.map((a) => a)}
+          tone="good"
+        />
+      </div>
 
-      {/* Overstock alerts */}
-      {hasOverstock && (
-        <div>
-          <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-2">
-            Overstock alerts -- {data.overstock_alerts.length}
-          </p>
-          <div className="space-y-2">
-            {overstockPreview.map((a, i) => (
-              <AlertRow key={`overstock-${i}`} alert={a} type="overstock" />
-            ))}
-          </div>
-          {compact && data.overstock_alerts.length > overstockPreview.length && (
-            <p className="text-xs text-slate-500 mt-2">
-              {data.overstock_alerts.length - overstockPreview.length} more overstock alerts in details.
-            </p>
-          )}
-        </div>
-      )}
+      <CardFooter label="Service window" value={serviceWindow} swiggySignal={swiggySignal} />
     </div>
   );
 }

@@ -30,6 +30,11 @@ class OrchestratorState(TypedDict):
     # Core request metadata
     scenario:     Annotated[Optional[str], keep_last]
     scenario_profile: Annotated[Optional[Dict[str, Any]], keep_last]
+    # Ad-hoc natural-language-derived scenario profile (P6-A25) -- input to
+    # ops_manager_node when `scenario` isn't one of the 4 presets; distinct
+    # from scenario_profile, which is ops_manager_node's *resolved* output
+    # (built from either a preset or this field).
+    custom_profile: Annotated[Optional[Dict[str, Any]], keep_last]
     target_date:  Annotated[Optional[str], keep_last]
     requested_at: Annotated[Optional[str], keep_last]
 
@@ -55,6 +60,20 @@ class OrchestratorState(TypedDict):
     menu_output:        Annotated[Optional[Dict[str, Any]], keep_last]
     inventory_output:   Annotated[Optional[Dict[str, Any]], keep_last]
 
+    # Live-intelligence signals — not Swiggy MCP, no consent/compliance
+    # gating. All three populated by live_signals_node, the first node in
+    # the graph (runs before demand_forecast), which demand_forecast then
+    # reads back from state rather than fetching itself. market_intel_node
+    # also reads them back from state (never re-fetches) and merges their
+    # prompt_text alongside its own Swiggy signals into live_signals_text.
+    weather_signal:            Annotated[Optional[Dict[str, Any]], keep_last]
+    trends_signal:             Annotated[Optional[Dict[str, Any]], keep_last]
+    compliance_alerts_signal:  Annotated[Optional[Dict[str, Any]], keep_last]
+    # {"is_holiday": bool, "holiday_name": str | None} -- computed alongside
+    # weather_signal by live_signals_node (same calendar lookup weather's
+    # own multiplier needs), read back by demand_forecast_node.
+    holiday_context:           Annotated[Optional[Dict[str, Any]], keep_last]
+
     # Per-node assumption dicts — populated by each domain node after its service call.
     # Used by EvaluationSanityChecker to diff cross-agent assumptions against actual state.
     menu_assumptions:        Annotated[Optional[Dict[str, Any]], keep_last]
@@ -68,6 +87,13 @@ class OrchestratorState(TypedDict):
     # Critic evaluation
     critic_output: Annotated[Optional[Dict[str, Any]], keep_last]
 
+    # Natural-language "situation + tailored key takeaways" briefing --
+    # generated once, post-critic-approval, from all the other agents'
+    # already-computed outputs. {"summary": "<markdown text>"} on success,
+    # {"error": "..."} on failure (never raises -- frontend falls back to a
+    # deterministic rendering when this is absent).
+    situation_summary_output: Annotated[Optional[Dict[str, Any]], keep_last]
+
     # Final response returned to the API layer
     final_response: Annotated[Optional[Dict[str, Any]], keep_last]
 
@@ -76,6 +102,31 @@ class OrchestratorState(TypedDict):
 
     # Per-node model tier routing — populated when COMET_TIERED=True
     llm_registry: Annotated[Optional[Dict[str, Any]], keep_last]
+
+    # Replanning loop (P6-S04)
+    replan_count:   Annotated[Optional[int], keep_last]
+    replan_context: Annotated[Optional[str], keep_last]
+
+    # Shared pre-enrichment context from Qdrant, populated before parallel fan-out (P6-S04)
+    shared_context: Annotated[Optional[Dict[str, Any]], keep_last]
+
+    # Swiggy enricher outputs — populated by enrichers before/during parallel fan-out (P6-S10)
+    # These use consumer-facing Swiggy MCP tools (public market data) — valid for market intelligence.
+    swiggy_competitor_context:  Annotated[Optional[Dict[str, Any]], keep_last]
+    swiggy_occupancy_context:   Annotated[Optional[Dict[str, Any]], keep_last]
+    swiggy_procurement_options: Annotated[Optional[Dict[str, Any]], keep_last]
+    # FUTURE USE (needs Swiggy Partner API): intended to hold restaurant's own delivery performance
+    # signal from track_food_order. Consumer MCP only returns personal delivery tracking, not
+    # a restaurant's outgoing delivery metrics. Will be populated once Partner API is available.
+    swiggy_delivery_signal:     Annotated[Optional[Dict[str, Any]], keep_last]
+
+    # Swiggy node outputs — written by market_intel_node (P6-S11) and dineout_manager_node (P6-S12)
+    market_intel_output:    Annotated[Optional[Dict[str, Any]], keep_last]
+    dineout_manager_output: Annotated[Optional[Dict[str, Any]], keep_last]
+
+    # Per-node assumption dicts for new nodes — used by assumption diffs 5+6 (P6-S13)
+    market_intel_assumptions:    Annotated[Optional[Dict[str, Any]], keep_last]
+    dineout_manager_assumptions: Annotated[Optional[Dict[str, Any]], keep_last]
 
     # Error handling
     error: Annotated[Optional[str], keep_last]
@@ -90,6 +141,7 @@ def make_initial_state(
     force_critic_decision: Optional[str] = None,
     debug: bool = False,
     restaurant_profile: Optional[Dict[str, Any]] = None,
+    custom_profile: Optional[Dict[str, Any]] = None,
 ) -> OrchestratorState:
     """
     Build a clean initial state for a new orchestration run.
@@ -108,6 +160,7 @@ def make_initial_state(
         # Core metadata
         scenario=scenario,
         scenario_profile=None,
+        custom_profile=custom_profile,
         target_date=target_date,
         requested_at=datetime.now(timezone.utc).isoformat(),
 
@@ -122,6 +175,10 @@ def make_initial_state(
         complaint_output=None,
         menu_output=None,
         inventory_output=None,
+        weather_signal=None,
+        trends_signal=None,
+        compliance_alerts_signal=None,
+        holiday_context=None,
 
         # Per-node assumptions (populated after each domain node completes)
         menu_assumptions=None,
@@ -132,6 +189,7 @@ def make_initial_state(
         # Aggregated results
         aggregated_recommendation=None,
         critic_output=None,
+        situation_summary_output=None,
         final_response=None,
 
         # Tenant identity + settings
@@ -145,6 +203,27 @@ def make_initial_state(
 
         # Per-node model tier routing
         llm_registry=None,
+
+        # Replanning loop
+        replan_count=0,
+        replan_context=None,
+
+        # Qdrant early enrichment
+        shared_context=None,
+
+        # Swiggy enricher outputs (P6-S10)
+        swiggy_competitor_context=None,
+        swiggy_occupancy_context=None,
+        swiggy_procurement_options=None,
+        swiggy_delivery_signal=None,
+
+        # Swiggy node outputs (P6-S11/S12)
+        market_intel_output=None,
+        dineout_manager_output=None,
+
+        # Swiggy node assumption dicts (P6-S13)
+        market_intel_assumptions=None,
+        dineout_manager_assumptions=None,
 
         # Error handling
         error=None,

@@ -20,9 +20,7 @@ CortexKitchen is a two-sided platform powered by the Swiggy MCP.
 
 **Restaurant OS** is the side that is in active development today. Before every shift, a LangGraph pipeline of specialist nodes reads live weather and holiday data, area market signals from Swiggy, demand history, bookings, guest complaints, menu performance, and inventory, then produces a single verified pre-shift plan. A critic node reviews that plan across several quality dimensions before it reaches the operator; if anything looks unsafe or unrealistic, the plan is sent back for revision (up to two cycles) with the reason stated.
 
-**Guest Concierge** is the second side of the platform: a no-auth, consumer-facing event-planning assistant at `/concierge`. A guest describes an occasion in plain language, and a ReAct tool-calling loop plans it end to end, finding a venue, checking real table availability, ordering food, and sourcing event supplies, directly through Swiggy's Food, Instamart, and Dineout MCP servers. It shares no data, session state, or authentication with the restaurant-operator side. It is the Proposed Arrangement described in clause 1.1 of the signed Swiggy Integration Agreement, not a separately gated feature.
-
-CortexKitchen is being built and demoed in the context of a real, signed Swiggy Integration Agreement (effective 2026-07-09). Two compliance issues identified against that agreement, a prohibited-competitor-intelligence pattern and an exclusivity conflict with a Zomato stub connector, have already been found and remediated in the codebase; see `CLAUDE.md` for the full record.
+**Guest Concierge** is the second side of the platform: a no-auth, consumer-facing event-planning assistant at `/concierge`. A guest describes an occasion in plain language, and a ReAct tool-calling loop plans it end to end, finding a venue, checking real table availability, ordering food, and sourcing event supplies, directly through Swiggy's Food, Instamart, and Dineout MCP servers. It shares no data, session state, or authentication with the restaurant-operator side.
 
 ---
 
@@ -53,7 +51,7 @@ One planning run executes a LangGraph state machine of fifteen registered nodes:
 - Complaint intelligence: Qdrant RAG retrieval grounds menu and operational recommendations in real past guest feedback.
 - Menu guidance: recommendations are constrained to what the kitchen can actually make, given current inventory.
 - Inventory risk detection: shortage and overstock alerts with reorder quantities.
-- Market intelligence: area-level Swiggy pricing, positioning, menu breadth, cuisine crowding, and competitor deal activity, always reported as area aggregates, never as named competitor restaurants or prices (see the compliance note above).
+- Market intelligence: area-level Swiggy pricing, positioning, menu breadth, cuisine crowding, and competitor deal activity, always reported as area aggregates, never as named competitor restaurants or prices.
 - Critic quality gate: multi-dimension scoring with three verdicts and up to two replan cycles.
 - Cross-agent assumption diffing: each domain node writes the assumptions it acted on into shared state; a sanity checker cross-diffs them after the parallel fan-out and surfaces contradictions to the critic.
 - Planning memory: approved-run insights are stored in a Qdrant collection and retrieved for future runs with recency-decayed scoring.
@@ -153,17 +151,6 @@ Every LLM call goes through `BaseLLMProvider`, never a provider SDK directly.
 
 ---
 
-## Compliance note
-
-CortexKitchen operates under a signed Integration Agreement with Swiggy Limited (Individual Developer partner, effective 2026-07-09, one-year term). The full agreement text is not committed to this repository. Two conflicts between the agreement and earlier product decisions were identified and remediated:
-
-- A prohibited competitive-intelligence pattern (named competitor restaurants, prices, and deals surfaced in the market intelligence feature) was replaced with area-level aggregates only.
-- An exclusivity conflict (a stub connector referencing a competing platform) was removed entirely, along with all references to it in the provider registry and connector type enum.
-
-The consumer-facing Guest Concierge side of the platform serves guests directly through Swiggy, which is exactly the Proposed Arrangement clause 1.1 of the agreement describes, and required no separate consent to build. `CLAUDE.md` is the authoritative record of this compliance work; it is not duplicated here.
-
----
-
 ## Project status
 
 | Phase | Status | Notes |
@@ -213,6 +200,12 @@ scripts/                        seed_demo_data.py, seed_qdrant_memory.py,
 docker-compose.yml               local stack: PostgreSQL, Qdrant, Redis
 .mcp.json                        Claude Code MCP auto-discovery config
 ```
+
+---
+
+## Screenshots
+
+Coming soon.
 
 ---
 

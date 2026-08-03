@@ -12,6 +12,8 @@ Test documentation for CortexKitchen. Phase 6A in progress.
 | RAGAS evals | `apps/api/evals/test_ragas_complaint.py` | `pytest evals/test_ragas_complaint.py -v` |
 | DeepEval evals | `apps/api/evals/test_deepeval_quality.py` | `pytest evals/test_deepeval_quality.py -v` |
 
+`apps/api/tests/unit/test_concierge_service.py` and `test_concierge_route.py` cover Guest Concierge's tool handlers, session state, and route contract with a mocked Swiggy client; they run as part of the standard unit suite above, no live network needed.
+
 All commands run from `apps/api/` with the virtual environment activated.
 
 ## Standard test run

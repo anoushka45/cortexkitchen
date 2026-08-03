@@ -6,11 +6,11 @@ Reflects the implemented LangGraph graph and chat agent, Phase 6A in progress.
 
 ## Overview
 
-CortexKitchen's planning pipeline is implemented as a LangGraph `StateGraph` with fourteen registered nodes: a sequential head from `ops_manager` through `live_signals`, `demand_forecast`, and `qdrant_enrichment`, a five-way parallel fan-out, `menu_intelligence` as a sequential fan-in, and a sequential tail through aggregation, the critic, an optional replan loop, and final assembly.
+CortexKitchen's planning pipeline is implemented as a LangGraph `StateGraph` with fifteen registered nodes: a sequential head from `ops_manager` through `live_signals`, `demand_forecast`, and `qdrant_enrichment`, a five-way parallel fan-out, `menu_intelligence` as a sequential fan-in, and a sequential tail through aggregation, the critic, an optional replan loop, a narrative summary, and final assembly.
 
 The graph is constructed per request by `build_graph(deps)` in `app/orchestration/graph.py`. Dependencies (database session, LLM provider, memory service, planning memory service, Swiggy client) are injected at wire time.
 
-A separate stateless agent, the chat agent, powers the `/chat` assistant and is not part of the LangGraph graph.
+Two separate agents sit outside this graph: the operator chat agent powering the `/chat` assistant, and the Guest Concierge agent powering the consumer-facing `/concierge` experience.
 
 ---
 
@@ -49,9 +49,12 @@ reservation  complaint_   inventory  market_    dineout_
  (approved, or                            (revision,
   replan_count >= 2)                       replan_count < 2)
       v                                          v
-final_assembler                       replan_orchestrator
+situation_summary                     replan_orchestrator
       |                                          |
-     END                              menu_intelligence (loop)
+      v                              menu_intelligence (loop)
+final_assembler
+      |
+     END
 ```
 
 The conditional edge after `ops_manager` short-circuits to `final_assembler` if `state["error"]` is set.
@@ -235,7 +238,18 @@ This node fires once LangGraph's fan-in from all five parallel nodes completes. 
 **Implementation:** `app/orchestration/nodes/replan_orchestrator.py`
 **Dependencies:** None (synchronous)
 
-After two failed revision cycles, the run proceeds to `final_assembler` with whatever verdict the critic most recently gave; it never blocks indefinitely.
+After two failed revision cycles, the run proceeds to `situation_summary` with whatever verdict the critic most recently gave; it never blocks indefinitely.
+
+---
+
+### `situation_summary`
+
+**Role:** Builds a short narrative summary of the completed run for the final response, giving the operator a plain-language recap alongside the structured per-agent output.
+
+**Inputs:** The aggregated recommendation bundle and critic verdict
+**Outputs:** `state["situation_summary_output"]`, included in the final API response
+**Implementation:** `app/orchestration/nodes/situation_summary.py`
+**Dependencies:** `llm`
 
 ---
 
@@ -269,6 +283,28 @@ The chat agent is a stateless, streaming agent outside the LangGraph graph. It p
 8. Also has access to an internal MCP server exposing planning, market, and Action Queue tools directly to the model as function calls.
 
 **Dependencies:** `db`, the LLM provider factory, the semantic chat cache, the internal MCP server
+
+---
+
+## Guest Concierge agent
+
+A second stateless, streaming agent, entirely separate from both the LangGraph graph and the operator chat agent. It powers the no-auth `/concierge` page and `POST /api/v1/concierge/chat`.
+
+**Role:** Plans a guest's dining or event experience end-to-end (venue, food, supplies) by calling Swiggy's Food, Instamart, and Dineout MCP servers directly, independently of any restaurant-operator data.
+
+**Implementation:** `app/domain/services/concierge_service.py`
+
+**How it works:**
+
+1. Receives the guest's message and the current session (a `ConciergeSession` loaded from Redis, or a fresh one).
+2. Extracts structured intent (occasion, headcount, budget, preferences, locality) from the message via a one-shot LLM call, merging only newly-mentioned fields into the session so multi-turn context accumulates.
+3. Runs a ReAct tool-calling loop (Groq function calling) over 20 tools spanning Dineout (venue search, availability, booking), Food (restaurant search, menu, cart, ordering, tracking), Instamart (supply search, cart, ordering, tracking), and planning (budget summary, track everything).
+4. Streams a tagged chunk for each step: a status update while a tool call is in flight, the tool's structured result once it completes, and the narrated answer word by word once the loop ends.
+5. Persists the updated session back to Redis (2-hour TTL) regardless of outcome.
+
+**Dependencies:** the LLM provider factory, `SwiggyMCPClient`, Redis (session state only, no PostgreSQL or Qdrant)
+
+**Design constraints:** no `org_id`, no user account, no restaurant-operator data of any kind. A tool call that fails degrades to a fixed, friendly message; the guest never sees a raw exception, stack trace, or internal tool name. Table booking and Instamart checkout are staging-gated and shown honestly as pending rather than hidden or faked.
 
 ---
 

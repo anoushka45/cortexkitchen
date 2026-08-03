@@ -6,11 +6,11 @@ Reflects the implemented codebase, Phase 6A in progress.
 
 ## Overview
 
-CortexKitchen is a multi-agent restaurant operations platform built on the Swiggy MCP. The backend coordinates structured operational data, live external signals, time-series forecasting, vector retrieval, LLM reasoning, and business-rule validation through a fourteen-node LangGraph pipeline. The frontend presents results across a dedicated planning experience, a daily overview dashboard, an Action Center, an Analytics page, and a merged data and observability page.
+CortexKitchen is a two-sided platform built on the Swiggy MCP. The restaurant-operator side coordinates structured operational data, live external signals, time-series forecasting, vector retrieval, LLM reasoning, and business-rule validation through a fifteen-node LangGraph pipeline. The guest-facing side, Guest Concierge, is an independent, no-auth agent that plans a guest's dining or event experience directly through Swiggy's Food, Instamart, and Dineout MCP servers. The frontend presents restaurant-operator results across a dedicated planning experience, a daily overview dashboard, an Action Center, an Analytics page, and a merged data and observability page; Guest Concierge is a separate, no-auth `/concierge` experience with no operator chrome.
 
 Phase 5 added: SSE streaming, Redis caching, PDF/Excel export, what-if simulator, OpenTelemetry, Prometheus, Sentry, LangSmith regression evals with a golden dataset, multi-tenant workspace isolation (PostgreSQL and Qdrant), and a RAG chat assistant.
 
-Phase 6A (in progress) added: Swiggy MCP integration with the connector pattern and circuit breaker, compliance remediation (removal of a competing-platform stub connector, anonymization of market intelligence output), an Action Queue with a trust-ladder indicator, a financial scorecard, live intelligence signals (weather, industry trends, regulatory alerts) merged into the planning pipeline, dynamic scenario composition from live signals, Langfuse tracing with a Kindred replay endpoint, and a redesign of the frontend information architecture splitting Dashboard and Planning into separate pages.
+Phase 6A (in progress) added: Swiggy MCP integration with the connector pattern and circuit breaker, compliance remediation (removal of a competing-platform stub connector, anonymization of market intelligence output), an Action Queue with an informational trust-ladder badge, a financial scorecard, live intelligence signals (weather, industry trends, regulatory alerts) merged into the planning pipeline, dynamic scenario composition from live signals, Langfuse tracing with a Kindred replay endpoint, a redesign of the frontend information architecture splitting Dashboard and Planning into separate pages, a two-sided platform homepage with a dual entry point, and Guest Concierge.
 
 ---
 
@@ -22,24 +22,25 @@ Claude Code / Claude Desktop
 mcp_server.py
     HTTP (JWT) and SSE
 Next.js UI (App Router)
-  /                    public homepage
-  /login, /register    auth flow
+  /                    public homepage: two-sided platform, dual entry point
+  /login, /register    restaurant-operator auth flow, shared split-screen layout
   /dashboard            daily overview, KPIs, health score, live-intelligence card
   /planning             flagship trigger-and-watch experience, streaming pipeline run
   /action-center        pending approvals and Action Queue history
   /analytics            historical drill-down
   /data                 merged run history and data-health view, exports
   /market               live Swiggy market intelligence
-  /chat                 chat assistant, full page and floating widget
+  /chat                 operator chat assistant, full page and floating widget
   /connectors           Swiggy connector status
   /restaurant-profiles, /settings
+  /concierge             no-auth Guest Concierge: consumer chat, no operator chrome
   (/operations, /runs, /runs/{id}, /data-health are redirect stubs only)
-    HTTP (JSON and SSE) with JWT
+    HTTP (JSON and SSE) with JWT, except Guest Concierge (no auth)
 FastAPI application, mounted under /api/v1 unless noted
   auth: register, login, me
   health: liveness, dependencies, Swiggy circuit breaker state
   planning: scenarios, scenario-from-text, compose-live-scenario, run, stream,
-            whatif, recommend, friday-rush (legacy)
+            whatif, recommend, friday-rush (legacy), transcribe (voice input)
   market: pulse, ingredient-search, trends
   business: performance, summary
   action-queue: list, approve, reject
@@ -48,9 +49,10 @@ FastAPI application, mounted under /api/v1 unless noted
   restaurant-profiles: CRUD
   settings: get, update
   connectors: sync, status
+  concierge: chat (SSE), session get/delete, transcribe, health -- no auth dependency
   /replay (Kindred single-generation replay, mounted outside /api/v1)
   /metrics (Prometheus, public)
-LangGraph orchestration graph, fourteen nodes (see docs/AGENTS.md)
+LangGraph orchestration graph, fifteen nodes (see docs/AGENTS.md)
 Service and data layer
   PostgreSQL     structured data plus the planning_runs audit table, org-scoped
   Qdrant         complaints and SOPs (RAG), planning_memory, semantic_cache, chat_semantic_cache
@@ -102,11 +104,11 @@ infrastructure/jobs/
 - **Provider registry** (`infrastructure/swiggy/provider_registry.py`): routes planning capabilities (`competitor_pricing`, `reservation_data`, `procurement`, `order_history`) to the highest-priority healthy provider. `get_provider_async()` combines DB `sync_status` with live circuit breaker state so a mid-day Swiggy degradation automatically falls through to the next candidate. Currently `swiggy` is the only provider for every capability: the multi-provider architecture stays ready for future connectors (POS systems, review platforms, loyalty/rewards, accounting/inventory tools).
 - **Tool tracing**: every `SwiggyMCPClient` call appends a trace dict to `self._traces`; `drain_traces()` returns and clears them for downstream observability. Trace fields: `provider`, `endpoint`, `tool`, `status`, `duration_ms`, `attempt`, `error?`. Status values: `ok`, `circuit_open`, `auth_error`, `http_{code}`, `tool_error`, `exception`.
 
-See D-019 in `docs/DECISIONS.md` for the full design rationale.
+See the connector layer design decision in `docs/DECISIONS.md` for the full design rationale.
 
 ---
 
-## Live-intelligence signals (P6-A21+)
+## Live-intelligence signals
 
 Not Swiggy MCP: no consent/compliance gating applies to any of these.
 Each is its own independently fail-open service, following the same
@@ -156,7 +158,7 @@ never raise, return `None` on any failure.
   `compliance_alerts` independently of `swiggy_connected`: same treatment
   as weather/holidays.
 
-**Unification (P6-A24)**: all four signals merge into one "Area & Live
+**Unification**: all four signals merge into one "Area & Live
 Signals" text inside the existing `market_intel_node`/`MarketIntelService`
 (`MarketIntelService._build_live_signals_text`), rather than a new graph
 node. Existing state field names (`swiggy_competitor_context`,
@@ -181,7 +183,7 @@ or raises.
 
 ---
 
-## Scenario intake modes (P6-A25)
+## Scenario intake modes
 
 Full detail in `docs/PRODUCT_MODES.md`. Summary: `ops_manager_node` needs a
 `scenario_profile` (`label`/`service_window`/`operational_focus`) regardless
@@ -218,9 +220,9 @@ constant in `lib/scenarios.ts`).
 ## Information architecture history: Today and Planning
 
 `/operations` (agent cards, forecast chart, critic banner) was first
-merged directly into `/dashboard`'s success view at P6-A26: triggering a
+merged directly into `/dashboard`'s success view: triggering a
 plan and watching it build and complete happened in one continuous view.
-A later pass (P6-A30) split the two apart again into their current,
+A later pass split the two apart again into their current,
 current-state form: `/dashboard` is now a daily overview page (KPIs,
 health score, live-intelligence card, revenue and margin trends) and
 `/planning` is the flagship trigger-and-watch experience (agent showcase,
@@ -230,11 +232,27 @@ redirect stubs kept only so old bookmarks and links keep working; none of
 them appear in `Sidebar.tsx`'s navigation.
 
 `PlanShiftModal.tsx` carries a `TodayContextStrip`: condensed badges for
-all four live signals unified in P6-A24 (weather and holiday, industry
+all four live signals (weather and holiday, industry
 trends, regulatory alerts, plus the existing anonymised Swiggy area
 occupancy signal), positioned above the scenario tiles and free-text
 input so it is visible during scenario selection itself. Degrades
 per-signal, same as its data sources.
+
+---
+
+## Guest Concierge
+
+A no-auth, consumer-facing experience that plans a guest's dining or event occasion end-to-end, entirely independent of the restaurant-operator side described above: no shared session state, no restaurant data, no `org_id`, no user account.
+
+**Service:** `ConciergeService` (`app/domain/services/concierge_service.py`) runs a Groq function-calling ReAct loop over 20 tools spanning Swiggy's Food, Instamart, and Dineout MCP servers directly, alongside session-management and budget-tracking tools. Session state (`ConciergeSession`) lives only in Redis, with a 2-hour TTL: occasion, headcount, budget, preferences, active bookings and orders, and the Instamart cart.
+
+**API surface:** `POST /api/v1/concierge/chat` (SSE), `GET`/`DELETE /api/v1/concierge/session/{id}`, `POST /api/v1/concierge/transcribe` (voice input), `GET /api/v1/concierge/health`. None of these routes depend on `get_current_user`.
+
+**Streaming protocol:** three chunk types stream over the same SSE connection: a `status` chunk describing which tool is in flight (rendered as a live "Finding venues..."-style indicator), a `tool_result` chunk with the structured data a tool call just returned (rendered as a real venue, slot, product, or order card, not narrated prose), and a `text` chunk streamed word by word for the model's narrated answer.
+
+**Frontend:** `/concierge` is a standalone page. `Sidebar`, `TopBar`, and the operator `FloatingChatWidget` all gate on the current route in addition to auth state, so operator chrome never appears there, even for a logged-in operator previewing the flow. Session id persists in `localStorage`; a locally-stored (no-account) list of past sessions lets a guest resume or switch between plans.
+
+**Honesty guarantees:** table booking and Instamart checkout are staging-gated (blocked on the same Swiggy staging credentials as the restaurant-operator side's `executor/`) and shown as a "pending" status rather than hidden or faked. Every tool failure and every unhandled exception degrades to one of a small set of fixed, friendly messages; a guest never sees a raw exception, stack trace, or internal tool name.
 
 ---
 
@@ -267,7 +285,7 @@ Registration creates a user + org in one step. The `user_organizations` join tab
 
 ### Orchestration layer
 
-The planning pipeline is a LangGraph `StateGraph` in `app/orchestration/graph.py`, fourteen nodes total. Full per-node detail lives in `docs/AGENTS.md`; this is the structural summary:
+The planning pipeline is a LangGraph `StateGraph` in `app/orchestration/graph.py`, fifteen nodes total. Full per-node detail lives in `docs/AGENTS.md`; this is the structural summary:
 
 ```
 ops_manager
@@ -301,22 +319,26 @@ reservation  complaint_    inventory   market_intel      dineout_manager
      (approved or                           (revision, replan_count < 2)
       replan_count ≥ 2)                            │
           ▼                                        ▼
-    final_assembler                      replan_orchestrator ← injects critic feedback, max 2 cycles
+   situation_summary                     replan_orchestrator ← injects critic feedback, max 2 cycles
           │                                        │
-         END                              aggregator (loop)
+          ▼                              aggregator (loop)
+    final_assembler
+          │
+         END
 ```
 
 **Conditional routing:** after `ops_manager`, if `state["error"]` is set the graph skips to `final_assembler`. Otherwise it proceeds through `live_signals` and `demand_forecast`.
 
 **Parallel execution:** five domain nodes (`reservation`, `complaint_intelligence`, `inventory`, `market_intel`, `dineout_manager`) fan out in parallel after `qdrant_enrichment`. `menu_intelligence` runs sequentially after all five complete, via LangGraph's native fan-in, so it can read inventory shortage data, reservation pressure, and live market signals before forming menu recommendations.
 
-**Pipeline nodes added since the original eleven-node graph:**
+**Pipeline nodes added since the original nine-node graph:**
 
 - `live_signals`: runs right after `ops_manager`, before `demand_forecast`. Fetches weather, Indian holiday context, industry trends, and regulatory alerts once per run and writes them to state, so `demand_forecast` and `market_intel` both read the same fetch instead of calling the same services twice.
 - `market_intel`: merges the anonymised Swiggy competitor and occupancy signals with the three live-intelligence signals fetched by `live_signals` into one `market_intel_output["live_signals_text"]`, read by `menu_intelligence` and condensed for the critic.
 - `dineout_manager`: analyses competitor Dineout slot and deal data (public data only, no named-restaurant output per the compliance remediation in `docs/DECISIONS.md`).
 - `qdrant_enrichment`: runs after `demand_forecast`. Calls `PlanningMemoryService.retrieve()` to fetch the top-3 similar past approved-run insights from the `planning_memory` Qdrant collection, re-ranked with recency decay (`score × 2^(-age/14days)`), excluding runs older than 90 days. Injects `shared_context["past_plans"]`. Falls back to an empty list on any error: never blocks a run.
 - `replan_orchestrator`: sits between `aggregator` and `critic`. If the critic returned a `revision` verdict in a prior cycle, this node injects the critic's structured feedback into `state["replan_context"]`. Enforces a maximum of 2 replan cycles: after that it passes through regardless of verdict to prevent infinite loops.
+- `situation_summary`: sits between the critic-approved path and `final_assembler`, building a short narrative recap of the run for the final response.
 
 **SSE streaming:** There are two distinct streaming mechanisms:
 
@@ -347,7 +369,7 @@ reservation  complaint_    inventory   market_intel      dineout_manager
 | `DailyBriefingService` | Builds the condensed daily briefing content surfaced on the dashboard |
 | `WorkflowTriggerService` | Coordinates triggering and tracking a planning run from the API layer |
 | `ActionExecutionService` | Executes an approved Action Queue item (WhatsApp vendor message today; Instamart checkout once staging credentials land) |
-| `TrustLadderService` | Determines whether an action requires explicit approval or can auto-execute, based on the trust ladder tier |
+| `TrustLadderService` | Counts consecutive approvals for an Action Queue category as an informational badge; does not change what requires approval |
 | `VendorService` | Manages vendor and supplier records used by procurement actions |
 | `ActionQueueService` | CRUD and status transitions for Action Queue items |
 | `BusinessAnalyticsService` | Shared analytics (dish margin, complaint categories, peak hours, expense proration, composite health score) used identically by `business.py` and the planning pipeline |
@@ -459,9 +481,9 @@ Tenant isolation is enforced at three levels:
 |------|-------------|
 | `run_planning_scenario` | Triggers the full planning pipeline (see `docs/AGENTS.md` for current node topology) |
 | `get_run_history` | Fetches recent planning runs with optional scenario/verdict filters |
-| `get_market_brief` (P6-A13) | Live market snapshot: category pricing, positioning, deals, area occupancy |
-| `get_action_queue` (P6-A13) | Lists pending (or other-status) Action Queue items |
-| `approve_action` (P6-A13) | Approves an action by ID: for a WhatsApp vendor order, this is the same step that sends the message |
+| `get_market_brief` | Live market snapshot: category pricing, positioning, deals, area occupancy |
+| `get_action_queue` | Lists pending (or other-status) Action Queue items |
+| `approve_action` | Approves an action by ID: for a WhatsApp vendor order, this is the same step that sends the message |
 
 All five call the CortexKitchen API directly (`GET /market/pulse`, `GET /action-queue`, `POST /action-queue/{id}/approve`), so an owner can ask Claude Desktop about their restaurant and approve actions without opening the CortexKitchen app at all: the same 3 capabilities are also exposed as in-app chatbot tools (`app/domain/services/chat_service.py`), sharing the same backend services (`ActionQueueService`, `action_execution_service.approve_and_execute`) so both surfaces behave identically.
 
@@ -487,18 +509,19 @@ The frontend (`apps/web/cortexkitchen-ui`) is a Next.js App Router application w
 
 | Route | Purpose |
 |-------|---------|
-| `/` | Public marketing homepage: pipeline explainer, features, footer |
-| `/login`, `/register` | JWT auth flow |
+| `/` | Public homepage: two-sided platform overview, dual entry point (restaurant sign-in, guest sign-in) |
+| `/login`, `/register` | Restaurant-operator JWT auth flow, shared split-screen layout |
 | `/dashboard` | Daily overview: KPIs, health score, live-intelligence card, revenue and margin trends |
-| `/planning` | Flagship trigger-and-watch experience: agent showcase, live scenario composition (presets and natural-language), SSE streaming pipeline run, what-if simulator |
+| `/planning` | Flagship trigger-and-watch experience: agent showcase, live scenario composition (presets, natural-language, and voice), SSE streaming pipeline run, what-if simulator |
 | `/action-center` | Pending approvals and full Action Queue history |
 | `/analytics` | Historical drill-down across menu performance, channels, peak hours, complaints |
 | `/data` | Merged run history and data-health view: scenario filter, date range, critic score trend, run detail, PDF/Excel export |
-| `/market` | Live Swiggy market intelligence, one card per capability, with trend charts |
-| `/chat` | Chat assistant: full page plus a floating widget available on every page |
+| `/market` | Live Swiggy market intelligence, one card per capability, with trend charts; every card renders even when its signal is unavailable |
+| `/chat` | Operator chat assistant: full page plus a floating widget available on every page, voice input |
 | `/connectors` | Swiggy connector status and sync trigger |
 | `/settings` | Workspace config: capacity, cuisine, peak hours, thresholds |
 | `/restaurant-profiles` | Named restaurant profiles (owner only) |
+| `/concierge` | No-auth Guest Concierge: consumer chat, real venue/food/supply cards, session history, voice input, no operator chrome |
 | `/operations`, `/runs`, `/runs/{id}`, `/data-health` | Redirect stubs only, kept for backward-compatible links; not present in navigation |
 
 ### Key components
@@ -560,7 +583,7 @@ To catch these contradictions automatically, each domain node writes an `assumpt
 | `reservation.assumed_peak_occupancy_pct > 85` | Forecast `confidence` or `confidence_band` indicating weak signal | High-occupancy planning on a weak forecast overstates certainty |
 | `complaint.assumed_high_complaint_volume = False` | `complaint.assumed_negative_pct > 25` | Complaint node flagged volume as low but negative feedback is borderline elevated |
 
-Note: an earlier Diff checking `menu.assumed_no_active_stockouts` against `inventory.items_flagged_low` was removed. `MenuService` self-queries `InventoryService` directly when `inventory_data=None`: both nodes use the same demand ratio and DB, so they always agree on shortage status regardless of execution order. See D-017 in DECISIONS.md.
+Note: `MenuService` self-queries `InventoryService` directly when `inventory_data=None`: both nodes use the same demand ratio and DB, so they always agree on shortage status regardless of execution order. See `docs/DECISIONS.md` for the full rationale behind this diffing approach.
 
 The `stale_assumptions` list is injected into the critic's LLM prompt as a dedicated `## Cross-agent assumption conflicts` section. This gives the LLM concrete *why* reasoning about each inconsistency rather than requiring it to detect contradictions from raw data alone.
 
@@ -579,17 +602,16 @@ If a node errored and its `assumptions` dict is `None`, the checker gracefully s
 - Full tenant isolation at Postgres, Qdrant, and state levels
 - LangSmith golden dataset + CI gate prevents quality regressions from shipping
 - Sentry + OTel + Prometheus give three overlapping observability layers
-- Cross-agent assumption diffing in `EvaluationSanityChecker` automatically surfaces contradictions between parallel nodes: scales to any number of agent pairs without enumerating every possible contradiction (see D-017)
+- Cross-agent assumption diffing in `EvaluationSanityChecker` automatically surfaces contradictions between parallel nodes: scales to any number of agent pairs without enumerating every possible contradiction
 - PlanningMemoryService provides long-term institutional memory: approved runs accumulate insight vectors in Qdrant; recency decay ensures recent context ranks higher without staling indefinitely
 - Circuit breaker + provider registry give the Swiggy integration production-grade resilience: mid-day failures auto-route to fallback providers without operator intervention
 - SemanticPlanCache (Qdrant-backed, approved-only) complements the Redis exact-match cache with fuzzy retrieval for scenarios with similar but not identical conditions
 
 ## Current limitations
 
-- `executor/` (Instamart checkout, Dineout table booking) is still empty: blocked on Swiggy staging credentials, not a code gap
+- `executor/` (Instamart checkout, Dineout table booking) is still empty: blocked on Swiggy staging credentials, not a code gap, for both restaurant-side procurement and Guest Concierge
 - RAGAS and DeepEval currently evaluate against static hand-written fixtures; candidate-refresh scripts exist (`scripts/build_ragas_dataset.py`, `scripts/build_deepeval_dataset.py`) but their output has not yet been promoted into the golden fixtures, so the eval suites do not yet reflect the live-signals and dynamic-scenario work shipped since they were written
 - The autonomous procurement loop (weather/demand signal to ingredient shortage to real Instamart price check to Action Queue approval to real checkout or WhatsApp fallback) is not yet fully wired end-to-end
 - Instamart event supplies are not yet exposed as a capability in the operator chat assistant
-- No voice interface yet (Whisper transcription and TTS response)
+- Voice input (Whisper transcription) is live on the Dashboard, Planning, operator chat, and Guest Concierge; voice output (TTS) is not built
 - `packages/core` shared contract package is empty
-- Guest Concierge (Phase 6B) has not started: gated on written Swiggy consent under Integration Agreement clause 2.1(v)

@@ -34,6 +34,7 @@ Next.js frontend for CortexKitchen. Phase 6A in progress.
 | `/connectors` | JWT | Swiggy connector status and sync trigger |
 | `/restaurant-profiles` | JWT (owner) | Named restaurant profiles |
 | `/settings` | JWT (owner) | Workspace configuration and planning thresholds |
+| `/concierge` | Public, no auth | Guest Concierge: consumer chat for venue, food, and event-supplies planning via Swiggy |
 
 `/operations`, `/runs`, `/runs/{id}`, and `/data-health` are thin client-side redirects to their current equivalents (`/planning` or `/data`), kept only so old bookmarks and links do not 404. None of them appear in navigation.
 
@@ -96,6 +97,12 @@ A conversational assistant over the organization's actual planning data, not gen
 ## Connectors, Restaurant Profiles, Settings
 
 Each of these is a single, self-contained page component (`app/connectors/page.tsx`, `app/restaurant-profiles/page.tsx`, `app/settings/page.tsx`) rather than split into separate components. Connectors shows Swiggy connection status and a manual sync trigger. Restaurant Profiles is owner-gated CRUD for named profiles that override organization-level capacity and peak hours for a specific run. Settings is a field-config-driven form covering restaurant details and planning thresholds (critic approval score, low-stock and overstock warning percentages).
+
+---
+
+## Guest Concierge
+
+`app/concierge/page.tsx` is a self-contained, no-auth chat experience, entirely separate from the authenticated app: its own sidebar (`components/concierge/ConciergeSidebar.tsx`), chat area (`ConciergeChatArea.tsx`), and result cards for venues, table slots, products, and order confirmations (`components/concierge/`). It does not render the authenticated app's `Sidebar`, `TopBar`, or `FloatingChatWidget`. Session identity and history live in `lib/conciergeHistory.ts` (browser-side) backed by the Redis-persisted session on the API; there is no organization or user account involved. Voice input is available via `ConciergeVoiceButton.tsx`, reusing the same recording flow as the operator chat and planning pages.
 
 ---
 

@@ -10,7 +10,7 @@ Each entry records a meaningful architecture, product, or workflow decision.
 
 ---
 
-## D-001: CortexKitchen will be built as a multi-agent decision system, not a chatbot
+## CortexKitchen will be built as a multi-agent decision system, not a chatbot
 **Status:** Accepted
 
 ### Context
@@ -25,7 +25,7 @@ The product will be positioned and implemented as an AI-powered restaurant opera
 
 ---
 
-## D-002: The flagship demo scenario will be Friday Night Rush Optimization
+## The flagship demo scenario will be Friday Night Rush Optimization
 **Status:** Accepted
 
 ### Context
@@ -40,7 +40,7 @@ The primary use case for design and implementation will be optimising Friday eve
 
 ---
 
-## D-003: The system will use a hybrid architecture
+## The system will use a hybrid architecture
 **Status:** Accepted
 
 ### Decision
@@ -52,8 +52,8 @@ CortexKitchen combines: structured SQL data (PostgreSQL), vector retrieval (Qdra
 
 ---
 
-## D-004: LLM provider will sit behind an abstraction layer; Groq is the default
-**Status:** Accepted (updated in D-010)
+## LLM provider will sit behind an abstraction layer; Groq is the default
+**Status:** Accepted (updated below: Groq later became the default provider, replacing Gemini)
 
 ### Context
 The project must stay free-tier friendly while remaining expandable.
@@ -67,11 +67,11 @@ All LLM calls go through `BaseLLMProvider`. `create_llm_provider()` reads `LLM_P
 
 ---
 
-## D-005: Qdrant will be used as the vector database
+## Qdrant will be used as the vector database
 **Status:** Accepted
 
 ### Decision
-Qdrant stores complaint patterns and SOPs in shared collections with payload filters for org isolation (see D-009). Used for RAG retrieval in the complaint intelligence node and the chat agent.
+Qdrant stores complaint patterns and SOPs in shared collections with payload filters for org isolation (see the Qdrant collection strategy decision below). Used for RAG retrieval in the complaint intelligence node and the chat agent.
 
 ### Consequences
 - Production-grade vector retrieval with metadata-aware filtering
@@ -79,7 +79,7 @@ Qdrant stores complaint patterns and SOPs in shared collections with payload fil
 
 ---
 
-## D-006: PostgreSQL will be the primary operational database
+## PostgreSQL will be the primary operational database
 **Status:** Accepted
 
 ### Decision
@@ -91,7 +91,7 @@ PostgreSQL stores all structured data: reservations, menu items, orders, invento
 
 ---
 
-## D-007: Redis will handle plan caching from Phase 5
+## Redis will handle plan caching from Phase 5
 **Status:** Accepted (promoted from "future" in Phase 5)
 
 ### Decision
@@ -103,7 +103,7 @@ Redis caches planning run results by `(org_id, scenario, target_date)` with a 1-
 
 ---
 
-## D-008: Docker Compose for local infrastructure reproducibility
+## Docker Compose for local infrastructure reproducibility
 **Status:** Accepted
 
 ### Decision
@@ -115,7 +115,7 @@ PostgreSQL, Qdrant, and Redis run via Docker Compose with persistent volumes. Da
 
 ---
 
-## D-009: Qdrant collection strategy: shared collection with payload filters
+## Qdrant collection strategy: shared collection with payload filters
 **Date:** 31 May 2026  
 **Status:** Accepted
 
@@ -130,11 +130,11 @@ Filter pattern:
 Per-tenant collections cause collection sprawl at multi-tenant scale (100 restaurants = 200+ collections). Qdrant payload pre-filtering on a shared collection is the recommended production pattern.
 
 ### Impact
-Implemented in P5-11. All Qdrant retrieval calls include an `org_id` payload filter.
+Implemented as part of the multi-tenant workspace isolation work. All Qdrant retrieval calls include an `org_id` payload filter.
 
 ---
 
-## D-010: Groq as default LLM provider (replacing Gemini default)
+## Groq as default LLM provider (replacing Gemini default)
 **Date:** June 2026  
 **Status:** Accepted
 
@@ -150,7 +150,7 @@ Groq free tier has higher RPM limits than Gemini, making development and demo ru
 
 ---
 
-## D-011: RAGAS + DeepEval for LLM output quality gating
+## RAGAS + DeepEval for LLM output quality gating
 **Date:** June 2026  
 **Status:** Accepted
 
@@ -168,7 +168,7 @@ Use RAGAS for complaint RAG faithfulness evaluation and DeepEval for hallucinati
 
 ---
 
-## D-012: MCP server via stdio, not HTTP
+## MCP server via stdio, not HTTP
 **Date:** June 2026  
 **Status:** Accepted
 
@@ -185,7 +185,7 @@ stdio is the standard transport for local MCP servers in Claude Code and Claude 
 
 ---
 
-## D-013: Static eval datasets
+## Static eval datasets
 **Date:** June 2026  
 **Status:** Accepted
 
@@ -201,7 +201,7 @@ Live capture requires a full running stack during test collection and produces n
 
 ---
 
-## D-014: LangSmith golden dataset as primary regression quality gate
+## LangSmith golden dataset as primary regression quality gate
 **Date:** June 2026  
 **Status:** Accepted
 
@@ -217,7 +217,7 @@ RAGAS/DeepEval cover individual component quality. The golden dataset gate cover
 
 ---
 
-## D-015: Prompts centralised in `prompt_utils.py`
+## Prompts centralised in `prompt_utils.py`
 **Date:** June 2026  
 **Status:** Accepted
 
@@ -233,7 +233,7 @@ Scattered prompt strings in service files make prompt iteration, testing, and au
 
 ---
 
-## D-017: Assumption diffing in EvaluationSanityChecker instead of enumerated contradiction pairs
+## Assumption diffing in EvaluationSanityChecker instead of enumerated contradiction pairs
 **Date:** June 2026  
 **Status:** Accepted
 
@@ -263,7 +263,7 @@ The hardcoded checks are **kept as a secondary layer**: they catch concrete poli
 
 ---
 
-## D-019: Connector layer design: BaseConnector ABC with sync() and enrich() methods
+## Connector layer design: BaseConnector ABC with sync() and enrich() methods
 **Date:** June 2026
 **Status:** Accepted
 
@@ -276,7 +276,7 @@ All external platform integrations implement `BaseConnector` (ABC defined in `in
 - `sync()`: nightly job. Pulls historical data from the platform and writes it to the unified Postgres layer (orders, reservations, feedback). Side effects are allowed. Returns a summary dict.
 - `enrich()`: at planning time. Fetches live market signals (competitor prices, area occupancy, ingredient availability). Must NOT write to the DB. Must return `None` on any failure. Nodes fall back to synthetic data when `enrich()` returns `None`.
 
-`SwiggyConnector` is the reference implementation. Extending this pattern to a food-delivery, dining-out, or quick-commerce competitor (Zomato, EazyDiner) is not permitted while the signed Swiggy Integration Agreement's exclusivity clause is in effect: see D-023. Future connectors are scoped to non-competing categories: POS systems, loyalty and rewards platforms, accounting and inventory tools, review aggregators, payment processors. `pos_square` and `google_reviews` already prove the pattern extends cleanly to these.
+`SwiggyConnector` is the reference implementation. Extending this pattern to a food-delivery, dining-out, or quick-commerce competitor (Zomato, EazyDiner) is not permitted while the signed Swiggy Integration Agreement's exclusivity clause is in effect (see the Zomato stub removal decision below). Future connectors are scoped to non-competing categories: POS systems, loyalty and rewards platforms, accounting and inventory tools, review aggregators, payment processors. `pos_square` and `google_reviews` already prove the pattern extends cleanly to these.
 
 OAuth tokens are stored encrypted per `org_id` in the `connectors` table, managed by `ConnectorRepository`. `SWIGGY_ACCESS_TOKEN` in `.env` is a dev-only convenience for single-org testing: production always reads from the connectors table.
 
@@ -293,7 +293,7 @@ OAuth tokens are stored encrypted per `org_id` in the `connectors` table, manage
 
 ---
 
-## D-016: SSE streaming for planning runs and chat
+## SSE streaming for planning runs and chat
 **Date:** June 2026  
 **Status:** Accepted
 
@@ -314,7 +314,7 @@ The planning pipeline takes 10–30 seconds. Emitting node status as each comple
 
 ---
 
-## D-020: Circuit breaker pattern for Swiggy MCP calls
+## Circuit breaker pattern for Swiggy MCP calls
 **Status:** Accepted
 
 ### Context
@@ -331,7 +331,7 @@ Implement a Redis-backed circuit breaker per Swiggy endpoint (`food`, `im`, `din
 
 ---
 
-## D-021: Planning memory with recency-weighted retrieval
+## Planning memory with recency-weighted retrieval
 **Status:** Accepted
 
 ### Context
@@ -348,7 +348,7 @@ Store approved run insights in a Qdrant `planning_memory` collection. At retriev
 
 ---
 
-## D-022: Asymmetric embeddings for SemanticPlanCache
+## Asymmetric embeddings for SemanticPlanCache
 **Status:** Accepted
 
 ### Context
@@ -364,7 +364,7 @@ Use two distinct embeddings: `_query_text()` (lightweight, retrieval-side: `"org
 
 ---
 
-## D-023: Remove the Zomato stub connector for exclusivity compliance
+## Remove the Zomato stub connector for exclusivity compliance
 **Date:** July 2026
 **Status:** Accepted
 
@@ -377,11 +377,11 @@ Remove `apps/api/app/infrastructure/zomato/` entirely, remove `zomato` and `eazy
 ### Consequences
 - The multi-provider connector architecture (`BaseConnector`, `provider_registry.py`, `ConnectorType`) stays fully intact; only the specific competing-platform provider was removed
 - No Alembic migration needed: `connector_type` is a plain `String(50)` column, not a database enum
-- Future connectors must not be a food delivery, dining-out, or quick-commerce platform while the exclusivity clause is in effect (see D-019)
+- Future connectors must not be a food delivery, dining-out, or quick-commerce platform while the exclusivity clause is in effect (see the connector layer design decision above)
 
 ---
 
-## D-024: Anonymise market intelligence to area-level aggregates
+## Anonymise market intelligence to area-level aggregates
 **Date:** July 2026
 **Status:** Accepted
 
@@ -397,7 +397,7 @@ Replace every named-restaurant output with area-level aggregates only: `area_res
 
 ---
 
-## D-025: Live-intelligence signals fetched independently of the Swiggy MCP
+## Live-intelligence signals fetched independently of the Swiggy MCP
 **Date:** July 2026
 **Status:** Accepted
 
@@ -413,7 +413,7 @@ Build three independently fail-open services under `infrastructure/external/`: `
 
 ---
 
-## D-026: Langfuse session scoped to the individual run, not the organisation
+## Langfuse session scoped to the individual run, not the organisation
 **Date:** July 2026
 **Status:** Accepted
 
@@ -426,3 +426,19 @@ Scope `session_id` to the individual `run_id` instead of the organisation.
 ### Consequences
 - Original and replay trace-tree structure now line up one to one
 - Kindred's own Reproducibility comparison view still does not render the original output for the "Agent Output" step even with the session fix; this was directly verified via Langfuse's public API to be a gap in Kindred's own matching and rendering, not a data problem on this side
+
+---
+
+## Guest Concierge is compliant under clause 1.1, not gated on separate Swiggy consent
+**Date:** August 2026
+**Status:** Accepted
+
+### Context
+Guest Concierge is a no-auth, consumer-facing assistant that plans a guest's event end-to-end via Swiggy's Food, Instamart, and Dineout MCP servers. Clause 1.1 of the signed Integration Agreement describes exactly this shape of integration, a consumer-facing assistant serving guests directly through Swiggy's platform, independent of any specific restaurant's CortexKitchen data, as the Proposed Arrangement the agreement itself covers.
+
+### Decision
+Build Guest Concierge as part of Phase 6A. It is architecturally and operationally independent of the restaurant-operator side: no shared session state, no restaurant data, no auth, and its own no-auth `/concierge` API surface and frontend page.
+
+### Consequences
+- The existing compliance guardrails (the Zomato stub removal for exclusivity, and anonymised market intelligence for the competitive-intelligence clause) apply to the restaurant-operator side's Swiggy usage; Guest Concierge's Swiggy usage is direct, real, and consumer-facing by design, which is what clause 1.1 describes, not a competitive-intelligence or exclusivity concern
+- Staging-gated actions (real Instamart checkout, real Dineout table booking) still require separate Swiggy staging credentials regardless of this decision: this is an infrastructure/credentials blocker, not a compliance one

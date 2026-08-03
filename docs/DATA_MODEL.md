@@ -74,7 +74,9 @@ class ExpenseRecurrence(str, Enum):
     monthly  = "monthly"
 
 class ActionTier(str, Enum):
-    auto             = "auto"              # executes without approval, earned via the trust ladder
+    auto             = "auto"              # defined for a future auto-execution path; nothing
+                                            # currently assigns this tier -- every action queue
+                                            # item stays human-approved
     approve_required = "approve_required"  # default -- needs human approval before executing
     recommendation   = "recommendation"    # informational only, no execution path
 
@@ -310,7 +312,7 @@ Full output of each planning execution. Primary audit table; backs the `/data` p
 
 ### `connectors`
 
-Per-org external platform connector registry. Stores OAuth tokens (encrypted) and sync health per platform. Added in P6-S02.
+Per-org external platform connector registry. Stores OAuth tokens (encrypted) and sync health per platform.
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -354,14 +356,14 @@ Per-org fixed or recurring cost (rent, utilities, marketing, other). Backs the f
 
 ### `action_queue`
 
-A proposed action awaiting approval, or auto-executed once the trust ladder has promoted its category to the `auto` tier (for example, "reorder mozzarella from Ramesh Traders via WhatsApp").
+A proposed action awaiting approval (for example, "reorder mozzarella from Ramesh Traders via WhatsApp"). Every item stays at the `approve_required` or `recommendation` tier in practice: nothing currently promotes a category to `auto`.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | Integer PK | Auto-increment |
 | `org_id` | Integer FK → `organizations.id` | NOT NULL |
 | `category` | String(50) | NOT NULL: the specific kind of action (e.g. `whatsapp_vendor_order`, `restock_alert`); the trust ladder counts consecutive approvals against this, not `tier` |
-| `tier` | Enum(`ActionTier`) | Default `approve_required`: the current autonomy level for that category |
+| `tier` | Enum(`ActionTier`) | Default `approve_required`; nothing currently promotes a category to `auto` |
 | `status` | Enum(`ActionStatus`) | Default `pending` |
 | `title` | String(200) | NOT NULL |
 | `payload` | JSON | NOT NULL: whatever the executing code needs to actually carry out the action |
@@ -577,6 +579,10 @@ Redis keys per Swiggy MCP endpoint (`food`, `im`, `dineout`):
 Failure counter reaching 5 within the 5-minute window sets the open flag. Open flag auto-expires (no explicit reset needed). `record_success()` DELs the failure counter for faster recovery. `is_open()` fails open (returns False) if Redis is unavailable.
 
 Connection default: `redis://localhost:6379/0`
+
+### Guest Concierge sessions
+
+Guest Concierge deliberately has no footprint anywhere else in this schema: no `org_id`, no user account, no PostgreSQL row, no Qdrant point. Each session (`ConciergeSession`) is a single Redis key (`concierge_session:{session_id}`) holding occasion, headcount, budget, preferences, active bookings and orders, and the Instamart cart as JSON, with a 2-hour TTL.
 
 ---
 

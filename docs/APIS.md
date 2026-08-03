@@ -374,7 +374,7 @@ What-if demand simulator. Recalculates cost/benefit scoring for a user-supplied 
 
 ### `GET /api/v1/planning/recommend`
 
-P6-MI10. Suggests which scenario preset to run next, before the owner manually picks one.
+Suggests which scenario preset to run next, before the owner manually picks one.
 Combines recent run history, live Swiggy market signals (if connected), calendar context
 (weekend/holiday), and current inventory shortage pressure into a single LLM call. Falls back to a
 deterministic rule-based pick if the LLM call fails: this endpoint never errors out.
@@ -474,6 +474,24 @@ The returned `profile` is shaped identically to `/planning/scenario-from-text`'s
 ### `POST /api/v1/planning/friday-rush`
 
 Legacy scenario-specific route, kept for backward compatibility. New integrations should use `/planning/run` or `/planning/stream` with an explicit `scenario` field instead.
+
+---
+
+### `POST /api/v1/planning/transcribe`
+
+Transcribes a short recorded voice clip to text, backing the microphone input on the Planning modal's free-text intake. Returns raw text only; the frontend shows it as an editable transcript before any plan is triggered, never auto-submitted.
+
+**Auth:** JWT required.
+
+**Request:** `multipart/form-data` with a `file` field (e.g. `audio/webm` from the browser's `MediaRecorder`).
+
+**Response `200`**
+
+```json
+{ "text": "we're hosting a birthday event tonight, expecting a large turnout" }
+```
+
+**Error `400`**: empty audio upload. **Error `502`**: transcription failed upstream.
 
 ---
 
@@ -594,7 +612,7 @@ planning-pipeline enrichers, without requiring a plan to be run first.
 }
 ```
 
-`competitor_deals` (P6-MI06, from `fetch_food_coupons`) and `pricing_impact` (P6-MI09, quantified
+`competitor_deals` (from `fetch_food_coupons`) and `pricing_impact` (a quantified
 demand-elasticity revenue model) were added in the market intelligence expansion. Both are `[]`
 when Swiggy is unavailable or no data qualifies: never `null`, safe to render unconditionally.
 
@@ -602,7 +620,7 @@ when Swiggy is unavailable or no data qualifies: never `null`, safe to render un
 
 ### `GET /api/v1/market/trends`
 
-P6-MI11. Per-dish price history and area occupancy signal history across past planning runs: no
+Per-dish price history and area occupancy signal history across past planning runs: no
 new Swiggy calls, reads `market_intel` already stored in each run's persisted `final_response`.
 
 **Auth:** JWT required.
@@ -677,8 +695,8 @@ Revenue, profit, and complaint analytics for the Today dashboard: computed direc
 ```
 
 `expenses`/`net_profit`/`net_margin_pct` on each `DaySnapshot`, and the top-level
-`total_expenses`/`net_profit`/`net_margin_pct`/`health_score` fields, were added in P6-A6 (Financial
-scorecard). Expenses are prorated from the `Expense` ledger (one-time/daily/weekly/monthly
+`total_expenses`/`net_profit`/`net_margin_pct`/`health_score` fields, are the financial
+scorecard. Expenses are prorated from the `Expense` ledger (one-time/daily/weekly/monthly
 recurrence) into a daily-equivalent figure via `BusinessAnalyticsService.get_daily_expense_total`.
 `health_score` (0–100) is a deterministic composite: 70% net margin over `days` (normalized against
 a 30%-net-margin benchmark, capped at 100), 30% positive-sentiment share over the last 28 days of
@@ -692,9 +710,9 @@ neutral 50: see `BusinessAnalyticsService.compute_health_score`.
 
 ## Action Queue
 
-Approval-gated agentic recommendations (P6-A7/A8): restock alerts, WhatsApp vendor-order drafts,
+Approval-gated agentic recommendations: restock alerts, WhatsApp vendor-order drafts,
 pricing/promo review flags. Auto-populated after every planning run by two built-in workflow
-triggers (P6-A11): 2+ critical shortages queues a `restock_alert`; tonight-busy plus 2+ competitor
+triggers: 2+ critical shortages queues a `restock_alert`; tonight-busy plus 2+ competitor
 Dineout deals queues a `pricing_promo_review`. Both are `recommendation`-tier: informational only,
 never auto-executed.
 
@@ -723,20 +741,20 @@ never auto-executed.
 ]
 ```
 
-`approval_streak` (P6-A12, trust-ladder) is a read-only count of how many times in a row this
+`approval_streak` is a read-only count of how many times in a row this
 `category` has been approved before (a rejection anywhere breaks the streak): informational only,
 never bypasses approval. See `TrustLadderService.count_consecutive_approvals`.
 
 ### `POST /api/v1/action-queue/{action_id}/approve`
 
 For a `whatsapp_vendor_order` action, approval and execution are the same step: this call also
-triggers the real WhatsApp send via Twilio (P6-A9). On send failure, the action stays `approved`
+triggers the real WhatsApp send via Twilio. On send failure, the action stays `approved`
 with `error` populated rather than losing the approval decision. Other categories are approved only
 - no execution step wired for them yet.
 
 Shared logic lives in `action_execution_service.approve_and_execute`, called identically by this
 route, the in-app chatbot's `approve_action` tool, and the MCP server's `approve_action` tool
-(P6-A13): approving via any of the three surfaces behaves the same way.
+: approving via any of the three surfaces behaves the same way.
 
 ### `POST /api/v1/action-queue/{action_id}/reject`
 
@@ -780,9 +798,9 @@ data: {"done": true}
 - "Which ingredients keep showing up as low stock?"
 - "How is my restaurant performing overall?"
 - "If I had to focus on one thing to improve our score, what would it be?"
-- "What's the market situation right now?" maps to the `get_market_brief` tool (P6-A13)
-- "What's waiting for my approval?" maps to the `get_action_queue` tool (P6-A13)
-- "Approve the mozzarella reorder" maps to the `approve_action` tool (P6-A13): for a WhatsApp vendor order, this is
+- "What's the market situation right now?" maps to the `get_market_brief` tool
+- "What's waiting for my approval?" maps to the `get_action_queue` tool
+- "Approve the mozzarella reorder" maps to the `approve_action` tool: for a WhatsApp vendor order, this is
   the same step that actually sends the message, so only fires on the user's explicit approval, never
   on the model's own initiative
 
@@ -966,7 +984,7 @@ Deletes a profile.
 
 ---
 
-## Connectors (P6-S05/S06)
+## Connectors
 
 ### `POST /api/v1/connectors/swiggy/sync`
 
@@ -986,7 +1004,7 @@ Trigger a live Swiggy MCP sync. Calls `get_food_orders`, `track_food_order`, and
     "orders":       {"synced": 5, "skipped": 2, "errors": 0},
     "feedback":     {"synced": 3, "skipped": 2, "errors": 0},
     "reservations": {"synced": 0, "skipped": 0, "errors": 0,
-                     "note": "No Dineout bookings registered yet. Booking IDs are captured when book_table is called (P6-S16)."}
+                     "note": "No Dineout bookings registered yet. Booking IDs are captured when book_table is called."}
   }
 }
 ```
@@ -1001,7 +1019,7 @@ Trigger a live Swiggy MCP sync. Calls `get_food_orders`, `track_food_order`, and
 ### `GET /api/v1/connectors/status`
 
 Returns connection status and sync counts for all connectors registered for this org.
-Used by the `/connectors` frontend page (P6-F04).
+Used by the `/connectors` frontend page.
 
 **Auth:** JWT required.
 
@@ -1024,6 +1042,85 @@ Used by the `/connectors` frontend page (P6-F04).
   ]
 }
 ```
+
+---
+
+## Guest Concierge
+
+A no-auth, consumer-facing surface, entirely independent of the restaurant-operator routes above. None of the following routes depend on `get_current_user`.
+
+### `POST /api/v1/concierge/chat` *(SSE stream)*
+
+Sends a message to the Guest Concierge and streams the response.
+
+**Auth:** None.
+
+**Request body**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `session_id` | string | No | Existing session id; a new one is created if omitted or not found |
+| `message` | string | Yes | The guest's message |
+
+**SSE event format**
+
+```
+data: {"session_id": "a1b2c3..."}
+data: {"type": "status", "content": "Finding venues..."}
+data: {"type": "tool_result", "tool": "find_venues", "data": {"venues": [...]}}
+data: {"type": "text", "content": "I found "}
+data: {"type": "text", "content": "a few "}
+data: {"done": true}
+```
+
+Three chunk types stream over the connection: `status` (a friendly "doing X..." label while a tool call is in flight), `tool_result` (the structured data a tool just returned, rendered as a real card), and `text` (the narrated answer, streamed word by word). Any failure, tool-level or otherwise, degrades to a fixed, friendly `text` message: never a raw exception, stack trace, or internal tool name.
+
+---
+
+### `GET /api/v1/concierge/session/{session_id}`
+
+Returns the current state of a session: occasion, headcount, budget spent and remaining, preferences, active bookings, active food and Instamart orders, suggested venues, and the Instamart cart.
+
+**Auth:** None. **Error `404`**: session not found or expired (2-hour TTL).
+
+---
+
+### `DELETE /api/v1/concierge/session/{session_id}`
+
+Clears a session. **Auth:** None. **Response:** `204`.
+
+---
+
+### `POST /api/v1/concierge/transcribe`
+
+Voice input for the Guest Concierge, same contract as `/planning/transcribe` but with no auth requirement.
+
+**Auth:** None.
+
+**Request:** `multipart/form-data` with a `file` field.
+
+**Response `200`**: `{ "text": "..." }`
+
+---
+
+### `GET /api/v1/concierge/health`
+
+Reports which Guest Concierge tools are available right now.
+
+**Auth:** None.
+
+**Response `200`**
+
+```json
+{
+  "swiggy_connected": true,
+  "staging_enabled": false,
+  "tools_available": ["find_venues", "check_table_availability", "find_food", "find_supplies", "..."],
+  "tools_pending_staging": ["book_table", "order_supplies"]
+}
+```
+
+`tools_pending_staging` lists tools that require Swiggy staging credentials (table booking, Instamart checkout); when staging is enabled they move into `tools_available`.
 
 ---
 

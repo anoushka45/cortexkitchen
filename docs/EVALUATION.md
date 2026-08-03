@@ -24,7 +24,7 @@ pytest tests/unit -q
 pytest tests/integration -q --ignore=tests/integration/test_langgraph_flow.py
 ```
 
-- `tests/unit/`: individual service logic, critic helpers, inventory alerts, forecast signal
+- `tests/unit/`: individual service logic, critic helpers, inventory alerts, forecast signal, and Guest Concierge's own tool handlers, session state, and route contract (mocked Swiggy client, no live network needed)
 - `tests/integration/`: API route responses, database persistence, auth flow
 
 ---

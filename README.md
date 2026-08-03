@@ -20,7 +20,7 @@ CortexKitchen is a two-sided platform powered by the Swiggy MCP.
 
 **Restaurant OS** is the side that is in active development today. Before every shift, a LangGraph pipeline of specialist nodes reads live weather and holiday data, area market signals from Swiggy, demand history, bookings, guest complaints, menu performance, and inventory, then produces a single verified pre-shift plan. A critic node reviews that plan across several quality dimensions before it reaches the operator; if anything looks unsafe or unrealistic, the plan is sent back for revision (up to two cycles) with the reason stated.
 
-**Guest Concierge** is a planned second side of the platform: a consumer-facing event-planning assistant that would use the Dineout, Food, and Instamart Swiggy MCP servers to plan and book an event end to end. It has not started. It is gated on written consent from Swiggy under clause 2.1(v) of the signed Integration Agreement, and no code for it exists yet.
+**Guest Concierge** is the second side of the platform: a no-auth, consumer-facing event-planning assistant at `/concierge`. A guest describes an occasion in plain language, and a ReAct tool-calling loop plans it end to end, finding a venue, checking real table availability, ordering food, and sourcing event supplies, directly through Swiggy's Food, Instamart, and Dineout MCP servers. It shares no data, session state, or authentication with the restaurant-operator side. It is the Proposed Arrangement described in clause 1.1 of the signed Swiggy Integration Agreement, not a separately gated feature.
 
 CortexKitchen is being built and demoed in the context of a real, signed Swiggy Integration Agreement (effective 2026-07-09). Two compliance issues identified against that agreement, a prohibited-competitor-intelligence pattern and an exclusivity conflict with a Zomato stub connector, have already been found and remediated in the codebase; see `CLAUDE.md` for the full record.
 
@@ -28,7 +28,7 @@ CortexKitchen is being built and demoed in the context of a real, signed Swiggy 
 
 ## How the planning pipeline works
 
-One planning run executes a LangGraph state machine of fourteen registered nodes:
+One planning run executes a LangGraph state machine of fifteen registered nodes:
 
 1. **Ops Manager** validates the scenario (a fixed preset, a natural-language-derived profile, or a live-signals-derived profile) and initializes shared state.
 2. **Live Signals** fetches weather and holiday context, an industry-trends digest, and FSSAI regulatory notices, all before demand forecasting runs.
@@ -39,7 +39,8 @@ One planning run executes a LangGraph state machine of fourteen registered nodes
 7. **Aggregator** collects every domain output into one package.
 8. **Critic** scores the plan and returns a verdict of approved, revision, or rejected.
 9. If revision is requested, **Replan Orchestrator** injects the critic's feedback and loops back into Menu Intelligence, up to two cycles.
-10. **Final Assembler** shapes the API response with full metadata and cost tracking.
+10. **Situation Summary** produces a narrative summary of the plan for the final output.
+11. **Final Assembler** shapes the API response with full metadata and cost tracking.
 
 ---
 
@@ -81,6 +82,14 @@ One planning run executes a LangGraph state machine of fourteen registered nodes
 - RAGAS and DeepEval quality metrics (faithfulness, context precision, hallucination, answer relevancy) are integrated and running today; promoting newly generated candidate samples into the golden fixtures is tracked as upcoming work, not yet done.
 - OpenTelemetry HTTP tracing, a Prometheus metrics endpoint, and Sentry exception capture with LangGraph node tags.
 
+### Guest Concierge
+
+- A no-auth, consumer-facing event-planning assistant at `/concierge`, independent of the restaurant-operator side: no shared session state, no organization data, no authentication.
+- A ReAct tool-calling loop over Swiggy's Food, Instamart, and Dineout MCP servers: finding a venue, checking real table availability, browsing menus and ordering food (COD, capped at Rs.1000 per order in Builders Club v1), and sourcing event supplies via Instamart.
+- Session state lives in Redis for two hours per guest, with no PostgreSQL or Qdrant footprint.
+- Voice input (Whisper transcription) alongside typed chat; streamed status updates ("finding venues...") instead of raw tool logs.
+- Table booking and Instamart checkout execution are implemented in code and blocked on Swiggy staging credentials; until then, both are shown honestly as pending rather than faked.
+
 ### Exports
 
 - PDF chef brief and a role-aware Excel workbook (an inventory and staffing sheet for the kitchen, a cost-breakdown sheet for the owner) per planning run.
@@ -116,6 +125,7 @@ Every LLM call goes through `BaseLLMProvider`, never a provider SDK directly.
 | Connectors | `/connectors` | Swiggy connector status and sync trigger |
 | Restaurant Profiles | `/restaurant-profiles` | Named restaurant profiles that override organization defaults for a run |
 | Settings | `/settings` | Workspace configuration and planning thresholds |
+| Guest Concierge | `/concierge` | No-auth consumer chat: venue, food, and event-supplies planning via Swiggy |
 
 `/operations`, `/runs`, `/runs/{id}`, and `/data-health` are kept only as client-side redirects to their current equivalents, so old bookmarks and links do not 404. They are not reachable from navigation.
 
@@ -126,7 +136,7 @@ Every LLM call goes through `BaseLLMProvider`, never a provider SDK directly.
 | Layer | Technology |
 |-------|-----------|
 | Backend API | FastAPI 0.115, Uvicorn, Pydantic v2 |
-| Orchestration | LangGraph state machine, fourteen registered nodes, five-way parallel fan-out, a replan loop back into menu intelligence |
+| Orchestration | LangGraph state machine, fifteen registered nodes, five-way parallel fan-out, a replan loop back into menu intelligence |
 | LLM | Groq (default) or Gemini, pluggable via `LLM_PROVIDER`, with automatic fallback; optional CometAPI per-node tier routing |
 | Streaming | Server-sent events on `/planning/stream`, one `node_start` and `node_complete` pair per node, final `complete` event with the full plan |
 | Caching | Redis, time-boxed plan cache keyed by scenario and date; bypassed for natural-language and live-composed scenarios |
@@ -150,7 +160,7 @@ CortexKitchen operates under a signed Integration Agreement with Swiggy Limited 
 - A prohibited competitive-intelligence pattern (named competitor restaurants, prices, and deals surfaced in the market intelligence feature) was replaced with area-level aggregates only.
 - An exclusivity conflict (a stub connector referencing a competing platform) was removed entirely, along with all references to it in the provider registry and connector type enum.
 
-The consumer-facing Guest Concierge side of the platform is gated on separate written consent from Swiggy and has not started. `CLAUDE.md` is the authoritative record of this compliance work; it is not duplicated here.
+The consumer-facing Guest Concierge side of the platform serves guests directly through Swiggy, which is exactly the Proposed Arrangement clause 1.1 of the agreement describes, and required no separate consent to build. `CLAUDE.md` is the authoritative record of this compliance work; it is not duplicated here.
 
 ---
 
@@ -164,9 +174,8 @@ The consumer-facing Guest Concierge side of the platform is gated on separate wr
 | Phase 3 | Complete | Multi-scenario runner, run history, critic scoring |
 | Phase 4 | Complete | Auth, LangSmith, health checks, structured logging, cost tracking, evals, MCP server |
 | Phase 5 | Complete | PDF/Excel export, SSE streaming, Redis cache, what-if simulator, OpenTelemetry, Sentry, multi-tenant isolation, chat assistant |
-| Phase 6A | In progress | Compliance remediation, Action Queue and trust ladder, financial scorecard, live intelligence signals, dynamic scenario composition, Langfuse and Kindred replay, dashboard and planning IA redesign |
-| Phase 6A, upcoming | Planned | Autonomous procurement loop end to end, Instamart event supplies in the operator chat assistant, a voice interface (transcription and spoken response), promoting RAGAS/DeepEval candidates into the golden evaluation set |
-| Phase 6B | Not started | Guest Concierge, gated on Swiggy's written consent |
+| Phase 6A | In progress | Compliance remediation, Action Queue trust-ladder badge, financial scorecard, live intelligence signals, dynamic scenario composition, Langfuse and Kindred replay, dashboard and planning IA redesign, Guest Concierge (no-auth consumer agent) |
+| Phase 6A, upcoming | Planned | Autonomous procurement loop end to end, Instamart event supplies in the operator chat assistant, voice output alongside the existing voice input, promoting RAGAS/DeepEval candidates into the golden evaluation set |
 
 ---
 
@@ -178,19 +187,20 @@ apps/
     app/
       api/routes/               auth, planning, market, business, action_queue,
                                  connectors, chat, runs, restaurant_profiles,
-                                 settings, health, replay
+                                 settings, health, replay, concierge
       domain/services/          forecasting, scenario composition, market
-                                 intelligence, action execution, trust ladder,
-                                 chat, critic, evaluation sanity checks, and more
+                                 intelligence, action execution, trust-ladder
+                                 badge, chat, critic, evaluation sanity checks,
+                                 concierge, and more
       orchestration/            LangGraph graph definition, nodes, shared state
       infrastructure/           database models, LLM providers, Swiggy MCP
                                  client, Qdrant, Redis, PDF, Excel
     evals/                      RAGAS and DeepEval quality eval suites
     mcp_server.py                MCP stdio server for Claude integration
   web/cortexkitchen-ui/         Next.js 16 frontend
-    app/                        page routes
+    app/                        page routes, including /concierge
     components/                 layout, dashboard, planning, analytics, data,
-                                 chat, and shared UI components
+                                 chat, concierge, and shared UI components
     hooks/                      data-fetching and streaming hooks
 
 data/                           raw, processed, and seeded datasets
@@ -334,6 +344,8 @@ The tables below cover the routes most relevant to getting started. See [`docs/A
 | `GET/PATCH` | `/api/v1/settings` | JWT | Get or update organization settings |
 | `POST` | `/replay` | Public, Kindred metadata | Single-generation LLM replay for Kindred debugging, mounted outside `/api/v1` |
 | `GET` | `/metrics` | Public | Prometheus scrape endpoint |
+| `POST` | `/api/v1/concierge/chat` | Public | Guest Concierge chat turn, server-sent events |
+| `POST` | `/api/v1/concierge/transcribe` | Public | Guest Concierge voice transcription |
 
 ---
 
@@ -368,14 +380,16 @@ pytest evals/test_deepeval_quality.py -v -W ignore::DeprecationWarning
 
 | Document | Contents |
 |----------|---------|
+| [`docs/PRD.md`](docs/PRD.md) | Product requirements: goals, use cases, success criteria |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Full system architecture and graph topology |
 | [`docs/APIS.md`](docs/APIS.md) | Complete API reference with request and response schemas |
-| [`docs/AGENTS.md`](docs/AGENTS.md) | Orchestration node descriptions, including the chat agent |
+| [`docs/AGENTS.md`](docs/AGENTS.md) | Orchestration node descriptions, including the chat and concierge agents |
 | [`docs/EVALUATION.md`](docs/EVALUATION.md) | LangSmith evals, RAGAS, DeepEval, and observability |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Phase-by-phase delivery history |
 | [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) | PostgreSQL schema and Qdrant collections |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Architecture decision log |
 | [`docs/PRODUCT_MODES.md`](docs/PRODUCT_MODES.md) | Scenario and product mode specifications |
+| [`docs/SWIGGY_INTEGRATION.md`](docs/SWIGGY_INTEGRATION.md) | Complete Swiggy MCP tool reference for both platform sides |
 | [`CLAUDE.md`](CLAUDE.md) | Working reference for the current state of the codebase, including the Swiggy compliance record |
 
 ---
